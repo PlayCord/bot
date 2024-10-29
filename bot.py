@@ -3,62 +3,82 @@ import json
 import logging
 import sys
 import time
+from xmlrpc.client import SYSTEM_ERROR
 
 import discord
 import pymongo.errors
 from discord import app_commands
+from discord.app_commands import command
 from pymongo import MongoClient
 
 import utils.logging_formatter
 from configuration.constants import *
 from ruamel.yaml import YAML
+
+from utils.GameView import GameView, MatchmakingView
+
 logging.getLogger("discord").setLevel(logging.INFO)  # Discord.py logging level - INFO (don't want DEBUG)
+logging.getLogger("pymongo").setLevel(logging.INFO)  # Mongodb logging level - INFO (don't want DEBUG)
+
 logging.basicConfig(level=logging.DEBUG)
 
 # Configure root logger
-rlog = logging.getLogger("root")
-rlog.setLevel(logging.DEBUG)
+root_logger = logging.getLogger("root")
+root_logger.setLevel(logging.DEBUG)
 
 # create console handler with a higher log level
 ch = logging.StreamHandler(stream=sys.stdout)
 ch.setLevel(logging.DEBUG)
 
 ch.setFormatter(utils.logging_formatter.Formatter())  # custom formatter
-rlog.handlers = [ch]  # Make sure to not double print
+root_logger.handlers = [ch]  # Make sure to not double print
 
-log = logging.getLogger()  # Base logger
+log = logging.getLogger(LOGGING_ROOT)  # Base logger
+if __name__ != "__main__":
+    log.critical(ERROR_IMPORTED)
+    sys.exit(1)
 
-configuration = YAML().load(open("configuration/config.yaml"))
 
-log.debug("Successfully loaded configuration file!")
-# Bot secret
-# Whether the bot should respond to commands
+def load_configuration():
+    try:
+        loaded_config_file = YAML().load(open(CONFIG_FILE))
+    except FileNotFoundError:
+        log.critical("Configuration file not found.")
+        return None
+    log.debug("Successfully loaded configuration file!")
+    return loaded_config_file
+
+config = load_configuration()
+
+
 IS_ACTIVE = True
 
-# Variables for the user-configure and server-configure commands
 
 
 
 client = discord.Client(intents=discord.Intents.all())
 tree = app_commands.CommandTree(client)  # Build command tree
-# db_client = MongoClient(host=configuration["mongodb_uri"], serverSelectionTimeoutMS=SERVER_TIMEOUT)
-#
-#
-# # 5 secs to establish a connection, so the program crashes quickly if a failure happens. MongoDB Atlas / external server
-# # shouldn't be used for this program due to the HUGE amount of requests made
-#
-#
-# try:
-#     db_client.aprivatein.command('ismaster')  # Cheap command to block until connected/timeout
-# except pymongo.errors.ServerSelectionTimeoutError:
-#     log.critical(f"Failed to connect to MongoDB database (uri=\"{configuration['mongodb_uri']}\")")
-#     sys.exit(1)
+
+db = None
+
+def connect_to_database():
+    global db
+    db = MongoClient(host=config[CONFIG_MONGODB_URI], serverSelectionTimeoutMS=SERVER_TIMEOUT)
+    try:
+        db.aprivatein.command('ismaster')  # Cheap command to block until connected/timeout
+    except pymongo.errors.ServerSelectionTimeoutError:
+        log.critical(f"Failed to connect to MongoDB database (uri=\"{config[CONFIG_MONGODB_URI]}\")")
+        return False
+    return True
+
+while True:
+    if connect_to_database():
+        break
 log.debug("Successfully connected to MongoDB!")
 # watching_commands_access = db_client['commands']
-triggered = app_commands.Group(name="triggered", description="The heart and soul of the game.")  # The /triggered group
+command_root = app_commands.Group(name=LOGGING_ROOT, description="The heart and soul of the game.")  # The command group
 # I don't think that description is visible anywhere, but maybe it is lol.
 log.info(f"Welcome to {NAME} by @quantumbagel!")
-# Check for updates
 
 
 def set_bagel_footer(embed: discord.Embed):
@@ -88,7 +108,8 @@ async def send_simple_embed(ctx: discord.Interaction, title: str, description: s
     ctx.response.send_message(embed=generate_simple_embed(title, description), ephemeral=ephemeral)
 
 
-async def is_allowed(ctx: discord.Interaction, f_log: logging.Logger) -> bool:
+@command_root.interaction_check
+async def is_allowed(ctx: discord.Interaction) -> bool:
     """
     Returns if an interaction should be allowed.
     This checks for:
@@ -99,6 +120,7 @@ async def is_allowed(ctx: discord.Interaction, f_log: logging.Logger) -> bool:
     :param f_log: the logger
     :return: true or false
     """
+    f_log = log.getChild("is_allowed")
     if not IS_ACTIVE:
         embed = generate_simple_embed("Bot has been disabled!",
                                       f"{NAME} has been temporarily disabled by @quantumbagel. This"
@@ -130,18 +152,18 @@ async def on_message(msg: discord.Message) -> None:
     global IS_ACTIVE
     f_log = log.getChild("event.on_message")
     # Message synchronization command
-    if msg.content.startswith("triggered/sync") and msg.author.id == configuration["owner_id"]:  # Perform sync
+    if msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_SYNC}") and msg.author.id in OWNERS:  # Perform sync
         split = msg.content.split()
         if len(split) == 1:
             await tree.sync()
         else:
-            if split[1] == "this":
+            if split[1] == MESSAGE_COMMAND_SYNC_LOCAL_SERVER:
                 g = msg.guild
             else:
                 g = discord.Object(id=int(split[1]))
             tree.copy_global_to(guild=g)
             await tree.sync(guild=g)
-        f_log.info("Performed authorized sync.")
+        f_log.info(f"Performed authorized sync from user {msg.author.id}")
         await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)  # leave confirmation
         return
 
@@ -200,7 +222,7 @@ async def on_guild_join(guild: discord.Guild) -> None:
     try:
         await guild.system_channel.send(embed=embed)
     except AttributeError:
-        f_log.info("No system channel is set - not sending anything.")
+        f_log.info(ERROR_NO_SYSTEM_CHANNEL)
 
 
 @client.event
@@ -215,13 +237,21 @@ async def on_guild_remove(guild: discord.Guild) -> None:
     pass
 
 
+
+@command_root.command(name="tictactoe", description="game test")
+async def tictactoe(ctx: discord.Interaction):
+    await ctx.response.defer()
+    message = ctx.followup
+    g = MatchmakingView(ctx.user, "tic_tac_toe", message)
+    await g.generate_embed()
+
 if __name__ == "__main__":
+    RUNTIME_EMOJIS = client.emojis
     try:
-        tree.add_command(triggered)
-        client.run(configuration[CONFIG_BOT_SECRET], log_handler=None)
+        tree.add_command(command_root)
+        client.run(config[CONFIG_BOT_SECRET], log_handler=None)
     except Exception as e:
-        log.critical(f"Critical error: {str(e)}")
-        log.critical("This is likely due to:\n1. Internet issues\n2. Incorrect discord token\n3. Incorrectly set up "
-                     "discord bot")
+        log.critical(str(e))
+        log.critical(ERROR_INCORRECT_SETUP)
 else:
-    log.critical("This file is NOT designed to be imported. Please run bot.py directly!")
+    log.critical(ERROR_IMPORTED)

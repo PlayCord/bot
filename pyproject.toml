@@ -1,0 +1,28 @@
+[project]
+name = "playcord"
+version = "0.0.1"
+dependencies = [
+  "ruamel.yaml",
+  "discord",
+]
+requires-python = ">=3.10"
+authors = [
+  {name = "Julian Reder"},
+]
+maintainers = [
+  {name = "Julian Reder"}
+]
+description = "PlayCord is a discord bot for playing minigames."
+readme = "README.md"
+keywords = ["discord-bot"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Programming Language :: Python",
+    "Private :: Do Not Upload"
+]
+
+
+
+[project.urls]
+Repository = "https://github.com/quantumbagel/PlayCord.git"
+"Bug Tracker" = "https://github.com/quantumbagel/PlayCord/issues"

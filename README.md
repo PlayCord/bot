@@ -1,7 +1,13 @@
 # PlayCord
+_a discord bot for simple games_
 
-*dynamically derived discord diversions*
+by [@quantumbagel](https://github.com/quantumbagel)
 
-TLDR: A paper-and-pencil discord bot, with an api to make adding more games easy
 
-I'll add more here as the project develops.
+### Sections to add to README
+
+* Bot usage (within Discord)
+* API usage (within Python)
+* Features
+* Dependencies
+* List of games (both planned and implemented)
