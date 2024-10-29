@@ -18,10 +18,10 @@ OWNERS = []
 
 WELCOME_MESSAGE = [
     (f"Hi! I'm {NAME}!", "Thanks for adding me to your server :D\nHere's some tips on how to get started.\n"
-                          "Please note that this introduction (or the bot) don't contain details on how to"
-                          " use the bot. For that, please check the README (linked below)"),
+                          "Please note that this introduction (or the bot) dosen't contain details on how to"
+                          " use the bot. For that, please check the README (linked below)."),
     ("What is this bot?", f"{NAME} is a bot for playing any variety of quick game on Discord."),
-    ("Where's that README?", "Right [here](https://github.com/quantumbagel/PlayCord/blob/master/README.md) :D"),
+    ("Where's the README?", "Right [here](https://github.com/quantumbagel/PlayCord/blob/master/README.md) :D"),
     ("Who made you?", "[@quantumbagel on Github](https://github.com/quantumbagel)")
 ]
 
