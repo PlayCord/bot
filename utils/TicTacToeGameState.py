@@ -7,9 +7,9 @@ from utils.Property import Property
 class TicTacToeGameState(GameState):
     def __init__(self, players):
         super().__init__(players)
-        self.size = self.size
+        self.size = 3
         self.board = [[Property() for _ in range(self.size)] for _ in range(self.size)]
-        self.turn = randint(0, len(players)-1)
+        self.turn = 0
         self.row_count = [0 for _ in range(self.size)]
         self.column_count = [0 for _ in range(self.size)]
         self.diagonal_count = 0

@@ -43,3 +43,5 @@ ERROR_INCORRECT_SETUP = ("This is likely due to:\n"
                          "3. Incorrectly set up discord bot")
 
 GAME_TYPES = {"tic_tac_toe": ["utils.TicTacToeGame", "TicTacToeGame"]}
+
+

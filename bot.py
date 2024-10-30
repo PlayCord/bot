@@ -9,7 +9,6 @@ import discord
 import pymongo.errors
 from discord import app_commands
 from discord.app_commands import command
-from pymongo import MongoClient
 
 import utils.logging_formatter
 from configuration.constants import *
@@ -59,22 +58,22 @@ IS_ACTIVE = True
 client = discord.Client(intents=discord.Intents.all())
 tree = app_commands.CommandTree(client)  # Build command tree
 
-db = None
-
-def connect_to_database():
-    global db
-    db = MongoClient(host=config[CONFIG_MONGODB_URI], serverSelectionTimeoutMS=SERVER_TIMEOUT)
-    try:
-        db.aprivatein.command('ismaster')  # Cheap command to block until connected/timeout
-    except pymongo.errors.ServerSelectionTimeoutError:
-        log.critical(f"Failed to connect to MongoDB database (uri=\"{config[CONFIG_MONGODB_URI]}\")")
-        return False
-    return True
-
-while True:
-    if connect_to_database():
-        break
-log.debug("Successfully connected to MongoDB!")
+# db = None
+#
+# def connect_to_database():
+#     global db
+#     db = MongoClient(host=config[CONFIG_MONGODB_URI], serverSelectionTimeoutMS=SERVER_TIMEOUT)
+#     try:
+#         db.aprivatein.command('ismaster')  # Cheap command to block until connected/timeout
+#     except pymongo.errors.ServerSelectionTimeoutError:
+#         log.critical(f"Failed to connect to MongoDB database (uri=\"{config[CONFIG_MONGODB_URI]}\")")
+#         return False
+#     return True
+#
+# while True:
+#     if connect_to_database():
+#         break
+# log.debug("Successfully connected to MongoDB!")
 # watching_commands_access = db_client['commands']
 command_root = app_commands.Group(name=LOGGING_ROOT, description="The heart and soul of the game.")  # The command group
 # I don't think that description is visible anywhere, but maybe it is lol.
@@ -238,12 +237,23 @@ async def on_guild_remove(guild: discord.Guild) -> None:
 
 
 
-@command_root.command(name="tictactoe", description="game test")
+@command_root.command(name="tictactoe", description="game test.py")
 async def tictactoe(ctx: discord.Interaction):
     await ctx.response.defer()
     message = ctx.followup
+
     g = MatchmakingView(ctx.user, "tic_tac_toe", message)
+
     await g.generate_embed()
+
+
+
+
+
+
+
+
+
 
 if __name__ == "__main__":
     RUNTIME_EMOJIS = client.emojis
