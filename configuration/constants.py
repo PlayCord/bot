@@ -45,3 +45,10 @@ ERROR_INCORRECT_SETUP = ("This is likely due to:\n"
 GAME_TYPES = {"tic_tac_toe": ["games.TicTacToeGame", "TicTacToeGame"]}
 
 
+TEXTIFY_CURRENT_GAME_TURN = {
+    ["It's {player}'s turn to play.", 0.979],
+    ["We checked the books, and it is *somehow* {player}'s turn to play. Not sure how that happened.", 0.01],
+    ["After journeying the Himalayas for many a year, we know that it's {player}'s turn", 0.01],
+    ["Did you know that the chance of this turn message appearing is 0.1%?. alsobythewayit's{player}'sturn", 0.001]
+
+}

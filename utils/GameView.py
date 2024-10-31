@@ -1,6 +1,8 @@
 import asyncio
 import importlib
+import io
 import random
+from copyreg import pickle
 from doctest import debug_src
 
 import discord
@@ -8,7 +10,7 @@ import discord
 from configuration.constants import *
 from utils.CustomEmbed import CustomEmbed
 from utils.Database import get_elo_for_player, formatted_elo
-from utils.conversion import convert_to_queued
+from utils.conversion import convert_to_queued, textify
 
 
 class GameView:
@@ -25,10 +27,14 @@ class GameView:
 
 
     async def display_game_state(self):
-        embed = CustomEmbed(title=f"Playing {self.game_type}", description=f"It's {self.players[self.turn].mention}'s turn :)")
-        game_picture = discord.File(self.game.generate_game_picture(), filename="image.png")
+        embed = CustomEmbed(title=f"Playing {self.game_type}", description=textify(TEXTIFY_CURRENT_GAME_TURN, {"player": self.players[self.turn].mention}))
+        picture_bytes = self.game.generate_game_picture()
+        image = io.BytesIO()
+        image.write(picture_bytes)
+        image.seek(0)
+        game_picture = discord.File(image, filename="image.png")
         embed.set_image(url="attachment://image.png")
-        embed.set_footer(text="this is still a test.py. yes, really")
+        embed.set_footer(text="bagel.exe is not responding")  #
         embed.add_field(name="Players:", value=convert_to_queued(self.players, self.cached_elo, self.creator))
         await self.message.edit(embed=embed, attachments=[game_picture])
 

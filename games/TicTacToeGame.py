@@ -10,16 +10,20 @@ class TicTacToeGame:
     minimum_players = 2
     maximum_players = 2
     def __init__(self, players):
-       self.players = players
-       self.x = self.players[0]
-       self.o = self.players[1]
-       self.size = 3
-       self.board = [[Property() for _ in range(self.size)] for _ in range(self.size)]
-       self.turn = 0
-       self.row_count = [0 for _ in range(self.size)]
-       self.column_count = [0 for _ in range(self.size)]
-       self.diagonal_count = 0
-       self.anti_diagonal_count = 0
+
+        # Initial state information
+        self.players = players
+        self.x = self.players[0]
+        self.o = self.players[1]
+        self.size = 3
+
+        # Dynamically updated information
+        self.board = [[Property() for _ in range(self.size)] for _ in range(self.size)]
+        self.turn = 0
+        self.row_count = [0 for _ in range(self.size)]
+        self.column_count = [0 for _ in range(self.size)]
+        self.diagonal_count = 0
+        self.anti_diagonal_count = 0
 
     def generate_game_picture(self):
 
@@ -30,7 +34,7 @@ class TicTacToeGame:
         x_color = "blue"
         o_color = "red"
 
-        # Create an SVG canvas
+        # All SVG elements
         elements = []
         # Draw grid lines
         for i in range(1, 3):
@@ -62,13 +66,12 @@ class TicTacToeGame:
                     elements.append(
                         svg.Circle(cx=x_pos, cy=y_pos, r=radius, stroke=o_color, stroke_width=5, fill="none"))
 
-        # Save the SVG to a file
+        # Build the elements into a SVG bytestring
         drawing = svg.SVG(width=svg_size, height=svg_size, elements=elements)
+
+        # Force the bytestring into a file-like object so we can upload it.
         stuff = svg2png(bytestring=drawing.as_str())
-        image = io.BytesIO()
-        image.write(stuff)
-        image.seek(0)
-        return image
+        return stuff
 
     def current_turn(self):
         return self.players[self.turn]
