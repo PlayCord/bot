@@ -2,7 +2,7 @@ import io
 
 from cairosvg import svg2png
 
-from utils.TicTacToeGameState import TicTacToeGameState
+from utils.Property import Property
 import svg
 
 class TicTacToeGame:
@@ -13,11 +13,16 @@ class TicTacToeGame:
        self.players = players
        self.x = self.players[0]
        self.o = self.players[1]
-       self.game_state = TicTacToeGameState(players)
+       self.size = 3
+       self.board = [[Property() for _ in range(self.size)] for _ in range(self.size)]
+       self.turn = 0
+       self.row_count = [0 for _ in range(self.size)]
+       self.column_count = [0 for _ in range(self.size)]
+       self.diagonal_count = 0
+       self.anti_diagonal_count = 0
 
     def generate_game_picture(self):
 
-        filename=''
         # Define dimensions
         svg_size = 300
         cell_size = svg_size / 3
@@ -42,7 +47,7 @@ class TicTacToeGame:
                 x_pos = col * cell_size + cell_size / 2
                 y_pos = row * cell_size + cell_size / 2
 
-                if self.game_state.board[row][col].uuid == self.x:
+                if self.board[row][col].uuid == self.x:
                     # Draw X
                     offset = cell_size / 3
                     elements.append(
@@ -51,7 +56,7 @@ class TicTacToeGame:
                     elements.append(
                         svg.Line(x1=x_pos + offset, y1=y_pos - offset, x2=x_pos - offset, y2=y_pos + offset,
                                  stroke=x_color, stroke_width=5))
-                elif self.game_state.board[row][col].uuid == self.o:
+                elif self.board[row][col].uuid == self.o:
                     # Draw O
                     radius = cell_size / 3
                     elements.append(
@@ -64,6 +69,40 @@ class TicTacToeGame:
         image.write(stuff)
         image.seek(0)
         return image
+
+    def current_turn(self):
+        return self.players[self.turn]
+
+    def get_player_moves(self, uuid) -> dict:
+        moves = {}
+        row_names = ["Left", "Middle", "Right"]
+        column_names = ["Top", "Middle", "Bottom"]
+        for row in range(self.size):
+            for column in range(self.size):
+                if self.board[row][column].uuid is None:
+                    moves.update({column_names[column] + row_names[row]: (row, column)})
+        return moves
+
+    def move(self, uuid, move):
+        self.board[move[0]][move[1]].uuid = uuid
+        self.turn += 1
+        if self.turn == len(self.players):
+            self.turn = 0
+
+    def outcome(self, last_move):
+        row = last_move[0]
+        column = last_move[1]
+
+        self.row_count[row] += 1
+        self.column_count[column] += 1
+        if row == column:
+            self.diagonal_count += 1
+        if row + column == self.size:
+            self.anti_diagonal_count += 1
+        if self.row_count[row] == self.size or self.column_count[column] == self.size or self.diagonal_count == self.size or self.anti_diagonal_count == self.size:
+            return True
+        return False
+
 
 
 

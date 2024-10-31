@@ -1,19 +1,16 @@
 # PlayCord
-import json
+
 import logging
 import sys
-import time
-from xmlrpc.client import SYSTEM_ERROR
 
-import discord
-import pymongo.errors
 from discord import app_commands
-from discord.app_commands import command
+
 
 import utils.logging_formatter
 from configuration.constants import *
 from ruamel.yaml import YAML
 
+from utils.CustomEmbed import CustomEmbed
 from utils.GameView import GameView, MatchmakingView
 
 logging.getLogger("discord").setLevel(logging.INFO)  # Discord.py logging level - INFO (don't want DEBUG)
@@ -39,6 +36,10 @@ if __name__ != "__main__":
 
 
 def load_configuration():
+    """
+    Load configuration from constants.CONFIG_FILE
+    :return:
+    """
     try:
         loaded_config_file = YAML().load(open(CONFIG_FILE))
     except FileNotFoundError:
@@ -80,20 +81,16 @@ command_root = app_commands.Group(name=LOGGING_ROOT, description="The heart and 
 log.info(f"Welcome to {NAME} by @quantumbagel!")
 
 
-def set_bagel_footer(embed: discord.Embed):
-    embed.set_footer(text=f"Made with ❤ by @quantumbagel",
-                     icon_url="https://avatars.githubusercontent.com/u/58365715")
 
-def generate_simple_embed(title: str, description: str) -> discord.Embed:
+
+def generate_simple_embed(title: str, description: str) -> CustomEmbed:
     """
     Generate a simple embed
     :param title: the title
     :param description: the description
     :return: the embed
     """
-    embed = discord.Embed(title=title, description=description, color=EMBED_COLOR)
-    set_bagel_footer(embed)
-
+    embed = CustomEmbed(title=title, description=description)
     return embed
 
 
@@ -107,8 +104,7 @@ async def send_simple_embed(ctx: discord.Interaction, title: str, description: s
     ctx.response.send_message(embed=generate_simple_embed(title, description), ephemeral=ephemeral)
 
 
-@command_root.interaction_check
-async def is_allowed(ctx: discord.Interaction) -> bool:
+async def interaction_check(ctx: discord.Interaction) -> bool:
     """
     Returns if an interaction should be allowed.
     This checks for:
@@ -139,6 +135,7 @@ async def is_allowed(ctx: discord.Interaction) -> bool:
 
     return True
 
+command_root.interaction_check = interaction_check
 
 
 @client.event
@@ -211,12 +208,11 @@ async def on_guild_join(guild: discord.Guild) -> None:
     """
     f_log = log.getChild("event.guild_join")
     f_log.info("Added to guild \"" + guild.name + f"\"! (id={guild.id})")
-    embed = discord.Embed(title=WELCOME_MESSAGE[0][0],
+    embed = CustomEmbed(title=WELCOME_MESSAGE[0][0],
                           description=WELCOME_MESSAGE[0][1],
                           color=EMBED_COLOR)
     for line in WELCOME_MESSAGE[1:]:
         embed.add_field(name=line[0], value=line[1])
-    set_bagel_footer(embed)
 
     try:
         await guild.system_channel.send(embed=embed)
@@ -244,7 +240,7 @@ async def tictactoe(ctx: discord.Interaction):
 
     g = MatchmakingView(ctx.user, "tic_tac_toe", message)
 
-    await g.generate_embed()
+    await g.update_embed()
 
 
 
@@ -256,7 +252,6 @@ async def tictactoe(ctx: discord.Interaction):
 
 
 if __name__ == "__main__":
-    RUNTIME_EMOJIS = client.emojis
     try:
         tree.add_command(command_root)
         client.run(config[CONFIG_BOT_SECRET], log_handler=None)

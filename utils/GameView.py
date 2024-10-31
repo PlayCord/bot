@@ -6,6 +6,7 @@ from doctest import debug_src
 import discord
 
 from configuration.constants import *
+from utils.CustomEmbed import CustomEmbed
 from utils.Database import get_elo_for_player, formatted_elo
 from utils.conversion import convert_to_queued
 
@@ -24,7 +25,7 @@ class GameView:
 
 
     async def display_game_state(self):
-        embed = discord.Embed(title=f"Playing {self.game_type}", description=f"It's {self.players[self.turn].mention}'s turn :)")
+        embed = CustomEmbed(title=f"Playing {self.game_type}", description=f"It's {self.players[self.turn].mention}'s turn :)")
         game_picture = discord.File(self.game.generate_game_picture(), filename="image.png")
         embed.set_image(url="attachment://image.png")
         embed.set_footer(text="this is still a test.py. yes, really")
@@ -67,7 +68,7 @@ class MatchmakingView:
                 self.cached_elo[ctx.user.id] = get_elo_for_player(self.game_type, ctx.user.id)
             self.queued_players_id.append(ctx.user.id)
             self.queued_players_obj.append(ctx.user)
-            await self.generate_embed()
+            await self.update_embed()
         return True
 
     async def callback_start_game(self, ctx: discord.Interaction):
@@ -75,13 +76,13 @@ class MatchmakingView:
         if ctx.user.id != self.creator.id:
             await ctx.followup.send("You can't start the game (not the creator).", ephemeral=True)
             return True
-        embed = discord.Embed(title=f"Loading game {self.game_type}...", description="This should only be a moment.")
+        embed = CustomEmbed(title=f"Loading game {self.game_type}...", description="This should only be a moment.")
         self.outcome = True
         await self.followup.edit(embed=embed, view=None)
         await successful_matchmaking(self.game_type, self.followup, self.creator, self.queued_players_obj, self.cached_elo)
 
-    async def generate_embed(self):
-        embed = discord.Embed(title="Waiting for players...", description=f"_There are currently {len(self.queued_players_id)} in the queue._")
+    async def update_embed(self):
+        embed = CustomEmbed(title="Waiting for players...", description=f"_There are currently {len(self.queued_players_id)} in the queue._\nThis game ({self.game_type}) /requires at least {self.required_players} players and at most {self.maximum_players} players.")
         embed.add_field(name="Players:", value=convert_to_queued(self.queued_players_obj, self.cached_elo, self.creator), inline=False)
         view = discord.ui.View()
         join_button = discord.ui.Button(label="Join", style=discord.ButtonStyle.grey)
@@ -120,7 +121,7 @@ class MatchmakingView:
             if ctx.user.id == self.creator.id:
                 self.creator = self.queued_players_obj[0]
 
-            await self.generate_embed()
+            await self.update_embed()
         return True
 
     async def create_initial_paint(self):
