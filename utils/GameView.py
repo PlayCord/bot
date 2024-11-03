@@ -7,27 +7,33 @@ from doctest import debug_src
 
 import discord
 
+from configuration import constants
 from configuration.constants import *
 from utils.CustomEmbed import CustomEmbed
-from utils.Database import get_elo_for_player, formatted_elo
+from utils.Database import get_player
+from utils.Player import Player
 from utils.conversion import convert_to_queued, textify
 
 
 class GameView:
-    def __init__(self, game_type, message: discord.WebhookMessage, creator: discord.User, player_obj: list[discord.User], cached_elo: list):
+    def __init__(self, game_type, message: discord.WebhookMessage, creator: discord.User,
+                 player_obj: list[Player], cached_elo: list, rated: bool):
         self.message = message
         self.game_type = game_type
         self.creator = creator
         self.cached_elo = cached_elo
         random.shuffle(player_obj)
         self.players = player_obj
+        self.rated = rated
         self.turn = 0
         self.module = importlib.import_module(GAME_TYPES[game_type][0])
         self.game = getattr(self.module, GAME_TYPES[game_type][1])([player.id for player in self.players])
 
 
     async def display_game_state(self):
-        embed = CustomEmbed(title=f"Playing {self.game_type}", description=textify(TEXTIFY_CURRENT_GAME_TURN, {"player": self.players[self.turn].mention}))
+        embed = CustomEmbed(title=f"Playing {self.game_type}",
+                            description=textify(TEXTIFY_CURRENT_GAME_TURN,
+                                    {"player": self.players[self.turn].mention}))
         picture_bytes = self.game.generate_game_picture()
         image = io.BytesIO()
         image.write(picture_bytes)
@@ -50,14 +56,16 @@ class GameView:
 
 class MatchmakingView:
 
-    def __init__(self, creator: discord.User, game_type: str, followup: discord.Webhook):
+    def __init__(self, creator: discord.User, game_type: str, followup: discord.Webhook, rated: bool):
         self.game_type = game_type
         self.creator = creator
+        self.rated = rated
         self.module = importlib.import_module(GAME_TYPES[game_type][0])
         self.queued_players_id = [creator.id]
         self.queued_players_obj = [creator]
-        self.cached_elo = {creator.id: get_elo_for_player(self.game_type, creator.id)}
+        self.cached_elo = {creator.id: get_player(self.game_type, creator)}
         self.followup = followup
+        self.message: discord.WebhookMessage | None = None
         self.has_followed_up = False
         self.game = getattr(self.module, GAME_TYPES[game_type][1])
         self.required_players = self.game.minimum_players
@@ -71,7 +79,7 @@ class MatchmakingView:
             await ctx.followup.send("You are already in the game!", ephemeral=True)
         else:
             if ctx.user.id not in self.cached_elo.keys():
-                self.cached_elo[ctx.user.id] = get_elo_for_player(self.game_type, ctx.user.id)
+                self.cached_elo[ctx.user.id] = get_player(self.game_type, ctx.user).get_formatted_elo()
             self.queued_players_id.append(ctx.user.id)
             self.queued_players_obj.append(ctx.user)
             await self.update_embed()
@@ -85,7 +93,8 @@ class MatchmakingView:
         embed = CustomEmbed(title=f"Loading game {self.game_type}...", description="This should only be a moment.")
         self.outcome = True
         await self.followup.edit(embed=embed, view=None)
-        await successful_matchmaking(self.game_type, self.followup, self.creator, self.queued_players_obj, self.cached_elo)
+        await successful_matchmaking(self.game_type, self.followup, self.creator,
+                                     self.queued_players_obj, self.cached_elo, self.rated)
 
     async def update_embed(self):
         embed = CustomEmbed(title="Waiting for players...", description=f"_There are currently {len(self.queued_players_id)} in the queue._\nThis game ({self.game_type}) /requires at least {self.required_players} players and at most {self.maximum_players} players.")
@@ -103,10 +112,10 @@ class MatchmakingView:
         view.add_item(leave_button)
         view.add_item(start_game_button)
         if not self.has_followed_up:
-            self.followup: discord.WebhookMessage = await self.followup.send(embed=embed, view=view)
+            self.message: discord.WebhookMessage | None = await self.followup.send(embed=embed, view=view)
             self.has_followed_up = True
         else:
-            await self.followup.edit(embed=embed, view=view)
+            await self.message.edit(embed=embed, view=view)
 
 
     async def callback_leave_game(self, ctx: discord.Interaction):
@@ -121,7 +130,7 @@ class MatchmakingView:
 
             if not len(self.queued_players_id):
                 await ctx.followup.send("You were the last person in the lobby, so the game was cancelled!", ephemeral=True)
-                await self.followup.delete()
+                await self.message.delete()
                 self.outcome = False
                 return
             if ctx.user.id == self.creator.id:
@@ -138,6 +147,7 @@ class MatchmakingView:
 
 
 
-async def successful_matchmaking(game_type, webhook_message, creator, player_objects, cached_elo):
-    game = GameView(game_type, webhook_message, creator, player_objects, cached_elo)
+async def successful_matchmaking(game_type, webhook_message, creator, player_objects, cached_elo, rated):
+    game = GameView(game_type, webhook_message, creator, player_objects, cached_elo, rated)
+    constants.CURRENT_GAMES.update({game.message.channel.id: game}) # Register the game to the channel it's in
     await game.display_game_state()

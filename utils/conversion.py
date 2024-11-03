@@ -3,11 +3,15 @@ import random
 import discord
 
 from configuration.constants import LOGGING_ROOT
-from utils.Database import formatted_elo
+from utils.Player import Player
 
 
-def convert_to_queued(some_players: list[discord.User], cached_elo, creator):
-    return "\n".join([u.mention+f"{formatted_elo(cached_elo[u.id])} (Creator)" if u.id == creator.id else u.mention + f" {formatted_elo(cached_elo[u.id])}" for u in some_players])
+def convert_to_queued(some_players: list[Player], cached_elo, creator):
+    return "\n".join([u.mention+f"{u.get_formatted_elo()} (Creator)" if u.id == creator.id else u.mention + f" {u.get_formatted_elo()}" for u in some_players])
+
+def discord_users_to_player(game_type, users):
+
+    pass
 
 def textify(basis: dict[str,float], replacements: dict[str,str]):
     random_float = random.random()

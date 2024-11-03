@@ -12,10 +12,11 @@ MESSAGE_COMMAND_DISABLE = "disable"
 MESSAGE_COMMAND_ENABLE = "enable"
 MESSAGE_COMMAND_TOGGLE = "toggle"
 MESSAGE_COMMAND_SYNC = "sync"
-MESSAGE_COMMAND_SYNC_LOCAL_SERVER = "this"
+MESSAGE_COMMAND_CLEAR = "clear"
+MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER = "this"
 
 OWNERS = [897146430664355850]
-
+CONFIGURATION = {}
 
 WELCOME_MESSAGE = [
     (f"Hi! I'm {NAME}!", "Thanks for adding me to your server :D\nHere's some tips on how to get started.\n"
@@ -46,9 +47,14 @@ GAME_TYPES = {"tic_tac_toe": ["games.TicTacToeGame", "TicTacToeGame"]}
 
 
 TEXTIFY_CURRENT_GAME_TURN = {
-    ["It's {player}'s turn to play.", 0.979],
-    ["We checked the books, and it is *somehow* {player}'s turn to play. Not sure how that happened.", 0.01],
-    ["After journeying the Himalayas for many a year, we know that it's {player}'s turn", 0.01],
-    ["Did you know that the chance of this turn message appearing is 0.1%?. alsobythewayit's{player}'sturn", 0.001]
+    "It's {player}'s turn to play.": 0.529,
+    "Next up: {player}.": 0.45,
+    "We checked the books, and it is *somehow* {player}'s turn to play. Not sure how that happened.": 0.01,
+    "After journeying the Himalayas for many a year, we know that it's {player}'s turn": 0.01,
+    "Did you know that the chance of this turn message appearing is 0.1%?. alsobythewayit's{player}'sturn": 0.001
 
 }
+
+
+SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD = 0.20
+CURRENT_GAMES = []

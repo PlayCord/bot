@@ -8,13 +8,13 @@ from discord import app_commands
 
 import utils.logging_formatter
 from configuration.constants import *
+import configuration.constants as constants
 from ruamel.yaml import YAML
 
 from utils.CustomEmbed import CustomEmbed
 from utils.GameView import GameView, MatchmakingView
 
 logging.getLogger("discord").setLevel(logging.INFO)  # Discord.py logging level - INFO (don't want DEBUG)
-logging.getLogger("pymongo").setLevel(logging.INFO)  # Mongodb logging level - INFO (don't want DEBUG)
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -49,7 +49,7 @@ def load_configuration():
     return loaded_config_file
 
 config = load_configuration()
-
+constants.CONFIGURATION = config
 
 IS_ACTIVE = True
 
@@ -59,31 +59,19 @@ IS_ACTIVE = True
 client = discord.Client(intents=discord.Intents.all())
 tree = app_commands.CommandTree(client)  # Build command tree
 
-# db = None
-#
-# def connect_to_database():
-#     global db
-#     db = MongoClient(host=config[CONFIG_MONGODB_URI], serverSelectionTimeoutMS=SERVER_TIMEOUT)
-#     try:
-#         db.aprivatein.command('ismaster')  # Cheap command to block until connected/timeout
-#     except pymongo.errors.ServerSelectionTimeoutError:
-#         log.critical(f"Failed to connect to MongoDB database (uri=\"{config[CONFIG_MONGODB_URI]}\")")
-#         return False
-#     return True
-#
-# while True:
-#     if connect_to_database():
-#         break
-# log.debug("Successfully connected to MongoDB!")
-# watching_commands_access = db_client['commands']
-command_root = app_commands.Group(name=LOGGING_ROOT, description="The heart and soul of the game.")  # The command group
+
+
+# Root command registration
+command_root = app_commands.Group(name=LOGGING_ROOT, description="The heart and soul of the game.", guild_only=True)
+
+
 # I don't think that description is visible anywhere, but maybe it is lol.
 log.info(f"Welcome to {NAME} by @quantumbagel!")
 
 
 
 
-def generate_simple_embed(title: str, description: str) -> CustomEmbed:
+def simple_embed(title: str, description: str) -> CustomEmbed:
     """
     Generate a simple embed
     :param title: the title
@@ -101,7 +89,7 @@ async def send_simple_embed(ctx: discord.Interaction, title: str, description: s
     :param description: the description
     :return: the embed
     """
-    ctx.response.send_message(embed=generate_simple_embed(title, description), ephemeral=ephemeral)
+    ctx.response.send_message(embed=simple_embed(title, description), ephemeral=ephemeral)
 
 
 async def interaction_check(ctx: discord.Interaction) -> bool:
@@ -112,25 +100,22 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
     * DM
     * Role permission / positioning if no role set
     :param ctx: the Interaction to checker
-    :param f_log: the logger
     :return: true or false
     """
-    f_log = log.getChild("is_allowed")
+    logger = log.getChild("is_allowed")
     if not IS_ACTIVE:
-        embed = generate_simple_embed("Bot has been disabled!",
-                                      f"{NAME} has been temporarily disabled by @quantumbagel. This"
-                                      " is likely due to a critical bug being discovered.")
-        await ctx.response.send_message(embed=embed, ephemeral=True)
+        await send_simple_embed(ctx, "Bot has been disabled!", f"{NAME} "
+                                      f"has been temporarily disabled by a bot owner. This"
+                                      " is likely due to a critical bug or exploit being discovered.")
         return False
     if ctx.user.bot:
-        f_log.warning("Bot users are not allowed to use commands.")
+        logger.warning("Bot users are not allowed to use commands.")
         return False
     if str(ctx.channel.type) == "private":  # No DMs - yet
-        f_log.error("Commands don't work in DMs!")
-        embed = generate_simple_embed("Commands don't work in DMs!",
+        logger.error("Commands don't work in DMs!")
+        await send_simple_embed(ctx, "Commands don't work in DMs!",
                                       f"{NAME} is a server-only bot currently. requires a server for its commands to work."
                                       " Support for some DM commands may come in the future.")
-        await ctx.response.send_message(embed=embed, ephemeral=True)
         return False
 
     return True
@@ -152,14 +137,15 @@ async def on_message(msg: discord.Message) -> None:
         split = msg.content.split()
         if len(split) == 1:
             await tree.sync()
+            f_log.info(f"Performed authorized sync from user {msg.author.id} to all guilds.")
         else:
-            if split[1] == MESSAGE_COMMAND_SYNC_LOCAL_SERVER:
+            if split[1] == MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER:
                 g = msg.guild
             else:
                 g = discord.Object(id=int(split[1]))
             tree.copy_global_to(guild=g)
             await tree.sync(guild=g)
-        f_log.info(f"Performed authorized sync from user {msg.author.id}")
+            f_log.info(f"Performed authorized sync from user {msg.author.id} to guild \"{g.name}\" (id=\"{g.id}\")")
         await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)  # leave confirmation
         return
 
@@ -170,6 +156,7 @@ async def on_message(msg: discord.Message) -> None:
             return
         IS_ACTIVE = False
         f_log.critical(f"Bot has been disabled by authorized user {msg.author.id}.")
+
         await msg.add_reaction(MESSAGE_COMMAND_FAILED)  # leave confirmation
         return
 
@@ -192,6 +179,26 @@ async def on_message(msg: discord.Message) -> None:
         else:
             f_log.critical(f"Bot has been disabled by authorized user {msg.author.id}.")
             await msg.add_reaction(MESSAGE_COMMAND_FAILED)
+        return
+
+    elif msg.content == f"{LOGGING_ROOT}/{MESSAGE_COMMAND_CLEAR}" and msg.author.id in OWNERS:
+        split = msg.content.split()
+        if len(split) == 1:
+            tree.clear_commands(guild=None)
+            await tree.sync()
+            f_log.info(f"Performed authorized command tree clear from user {msg.author.id} "
+                       f"to all guilds.")
+        else:
+            if split[1] == MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER:
+                g = msg.guild
+            else:
+                g = discord.Object(id=int(split[1]))
+            tree.clear_commands(guild=g)
+            tree.copy_global_to(guild=g)
+            await tree.sync(guild=g)
+            f_log.info(f"Performed authorized command tree clear from user {msg.author.id} "
+                       f"to guild \"{g.name}\" (id=\"{g.id}\")")
+        await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)  # leave confirmation
         return
 
 
@@ -233,15 +240,15 @@ async def on_guild_remove(guild: discord.Guild) -> None:
 
 
 
-@command_root.command(name="tictactoe", description="game test.py")
+@command_root.command(name="tictactoe", description="Tic-Tac Toe is a game about replacing your toes with Tic-Tacs,"
+                                                    " obviously.")
 async def tictactoe(ctx: discord.Interaction):
     await ctx.response.defer()
     message = ctx.followup
 
-    g = MatchmakingView(ctx.user, "tic_tac_toe", message)
+    g = MatchmakingView(ctx.user, "tic_tac_toe", message, rated=True)
 
     await g.update_embed()
-
 
 
 
@@ -258,5 +265,3 @@ if __name__ == "__main__":
     except Exception as e:
         log.critical(str(e))
         log.critical(ERROR_INCORRECT_SETUP)
-else:
-    log.critical(ERROR_IMPORTED)
