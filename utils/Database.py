@@ -3,8 +3,9 @@ import trueskill
 import mysql.connector
 from mysql.connector import Error
 from ruamel.yaml import YAML
+from trueskill import dynamic_draw_probability
 
-from configuration.constants import LOGGING_ROOT, CONFIGURATION, GAME_TYPES
+from configuration.constants import LOGGING_ROOT, CONFIGURATION, GAME_TYPES, GAME_TRUESKILL, MU
 from utils.Player import Player
 import logging
 fake_data = {"tic_tac_toe": {1085939954758205561: 1000, 897146430664355850: 1200}}
@@ -52,7 +53,7 @@ def startup():
                           id INT PRIMARY KEY,
                           mu DECIMAL(10,4) NOT NULL,
                           sigma DECIMAL(10,4) NOT NULL,
-                          INDEX mu_sort (mu DESC, sigma));
+                          INDEX skill (mu DESC, sigma));
                        """)
     return True
 
@@ -94,7 +95,7 @@ def delete_player(user: discord.User):
     db.close()
     return True
 
-def update_player(game_type: str, user: discord.User, mu: float, sigma: float):
+def update_player(game_type: str, uuid: int, mu: float, sigma: float):
     db = create_connection()
     if db is None:
         return False  # Return false if failure to connect, because the action failed
@@ -102,15 +103,46 @@ def update_player(game_type: str, user: discord.User, mu: float, sigma: float):
     cursor = db.cursor()
     cursor.execute(f"USE {game_type}")  # Select database
     cursor.execute(f"INSERT INTO leaderboard (id, mu, sigma)"
-                   f"VALUES ({user.id}, {mu}, {sigma})"
+                   f"VALUES ({uuid}, {mu}, {sigma})"
                    f"ON DUPLICATE KEY UPDATE mu = {mu}, sigma = {sigma};")  # Delete UUID entries
-    db.commit()
 
     # Close connection
+    db.commit()
     cursor.close()
     db.close()
     return True
 
-def update_rankings(teams: list, game_type: str, cached_elo: dict):
-    # TODO: implement
-    trueskill.Rating()
+def update_rankings(teams: list, game_type: str):
+    game_type_data = GAME_TRUESKILL[game_type]
+
+    # The variables for the specific game type
+    sigma, beta, tau, draw_probability = (game_type_data["sigma"],
+                                          game_type_data["beta"],
+                                          game_type_data["tau"],
+                                          game_type_data["draw"])
+
+    environment = trueskill.TrueSkill(MU, sigma, beta, tau, draw_probability)  # Create game environment
+
+    # Convert Player to TrueSkill.Rating
+    outcome = []
+    for team in teams:
+        team_ratings = []
+        for player in team:
+            team_ratings.append(environment.create_rating(player.mu, player.sigma))
+        outcome.append(team_ratings)
+
+
+    updated_rating_groups = environment.rate(outcome)  # Rerate the players based on outcome
+
+    # Update the Player objects and send that data to update_player to propagate to the DB
+    for team_index, team in enumerate(updated_rating_groups):
+        for player_index, player in enumerate(team):
+            teams[team_index][player_index].mu = player.mu
+            teams[team_index][player_index].sigma = player.sigma
+            update_player(game_type, teams[team_index][player_index].id, player.mu, player.sigma)
+
+
+
+
+
+

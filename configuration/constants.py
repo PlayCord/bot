@@ -45,6 +45,12 @@ ERROR_INCORRECT_SETUP = ("This is likely due to:\n"
 
 GAME_TYPES = {"tic_tac_toe": ["games.TicTacToeGame", "TicTacToeGame"]}
 
+MU = 1000
+GAME_TRUESKILL = {"tic_tac_toe": {"sigma": 1/6,
+                                  "beta": 1/12,
+                                  "tau": 1/100,
+                                  "draw": 9/10}}
+
 
 TEXTIFY_CURRENT_GAME_TURN = {
     "It's {player}'s turn to play.": 0.529,
