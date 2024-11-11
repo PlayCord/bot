@@ -1,27 +1,32 @@
-import discord
 import trueskill
 import mysql.connector
 from mysql.connector import Error
-from ruamel.yaml import YAML
-from trueskill import dynamic_draw_probability
+from mysql.connector.pooling import PooledMySQLConnection
 
 import configuration.constants
 from configuration.constants import *
 from configuration.constants import LOGGING_ROOT, GAME_TYPES, GAME_TRUESKILL, MU
 from utils.Player import Player
 import logging
-fake_data = {"tic_tac_toe": {1085939954758205561: 1000, 897146430664355850: 1200}}
 
+# Database logger
 logger = logging.getLogger(f"{LOGGING_ROOT}.database")
 
 
-connections_made = 1
-def create_connection():
-    config = configuration.constants.CONFIGURATION
+connections_made = 1  # Keep track of how many connections were made
+
+def create_connection() -> PooledMySQLConnection | None:
+    """
+    Create a connection to the database.
+    :return: MySQL connection if success, None otherwise.
+    """
+    config = configuration.constants.CONFIGURATION  # Force a recopy of the configuration in case of changes.
     global connections_made
     log = logger.getChild("connect")
     log.debug(f"Establishing connection #{connections_made} to database")
-    connections_made += 1
+    connections_made += 1  # Update connection attempt counter
+
+    # Attempt a connection
     try:
         connection = mysql.connector.connect(
             host=config["db"]["domain"],  # Change if necessary
@@ -30,65 +35,95 @@ def create_connection():
             port=config["db"]["port"],
         )
         return connection
-    except Error as e:
+    except Error as e:  # Something went wrong.
         log.critical(f"Error connecting to database: {e}")
         return None
 
-def startup():
-    db = create_connection()
+
+def startup() -> bool:
+    """
+    Ensure the required database tables exist on startup.
+    :return: True if success, False otherwise (database connection failure).
+    """
+    db = create_connection()  # Get the connection
     if db is None:
         return False  # Return False if failure to start up
     cursor = db.cursor()
     for game_type in GAME_TYPES.keys():
         cursor.execute(f"CREATE DATABASE IF NOT EXISTS {game_type}") # Make sure all databases exist
         cursor.execute(f"USE {game_type}")
-        cursor.execute("""CREATE TABLE IF NOT EXISTS leaderboard (
+
+        # Create the leaderboard table within the game's database
+        cursor.execute("""CREATE TABLE IF NOT EXISTS leaderboard (  
                           id INT PRIMARY KEY,
                           mu DECIMAL(10,4) NOT NULL,
                           sigma DECIMAL(10,4) NOT NULL,
                           INDEX skill (mu DESC, sigma));
                        """)
+
+    cursor.close()  # Close the connection
+    db.close()
     return True
 
 
-
-def get_player(game_type, user: discord.User):
-    db = create_connection()
+def get_player(game_type: str, user: discord.User) -> Player | None:
+    """
+    Get a utils.Player object from the database.
+    :param game_type: The game_type the Player is playing
+    :param user: the discord.User object to base the player off
+    :return: the Player or None if failed (database connection error)
+    """
+    db = create_connection()  # Get the connection
     if db is None:
         return None  # Return none if failure to connect
 
     cursor = db.cursor()
     cursor.execute(f"USE {game_type}")  # Select database
     cursor.execute(f"SELECT * FROM leaderboard WHERE id={user.id}")  # Get id entries
-    results = cursor.fetchall()
-    if not len(results):  # Player is not in DB, return defaults
+
+    results = cursor.fetchall()  # Get the results of the query
+
+    if not len(results):  # Player is not in DB, return default values of mu and sigma
         id, mu, sigma = user.id, trueskill.MU, trueskill.SIGMA
     else:
-        id, mu, sigma = results[0]  # Database has info
+        id, mu, sigma = results[0]  # Database has info, return that
 
     player = Player(mu, sigma, user)  # Create player object from data
     # Close connection
     cursor.close()
     db.close()
 
-    return player
+    return player  # Return the created object
 
-def delete_player(user: discord.User):
+def delete_player(player: Player) -> bool:
+    """
+    Delete a player from the database.
+    :param player: The Player object to delete from the database
+    :return: True if success, False otherwise (database connection failure).
+    """
     db = create_connection()
     if db is None:
-        return False  # Return false if failure to connect, because the action failed
+        return False  # Return false if failure to connect because the action failed
 
     cursor = db.cursor()
     for game_type in GAME_TYPES.keys():
         cursor.execute(f"USE {game_type}")  # Select database
-        cursor.execute(f"DELETE FROM leaderboard WHERE id={user.id}")  # Delete id entries
+        cursor.execute(f"DELETE FROM leaderboard WHERE id={player.id}")  # Delete entries by id
+
+    db.commit()  # Force the changes
     # Close connection
-    db.commit()
     cursor.close()
     db.close()
     return True
 
-def update_player(game_type: str, id: int, mu: float, sigma: float):
+
+def update_player(game_type: str, player: Player) -> bool:
+    """
+    Update a player's mu/sigma values in the database.
+    :param game_type: the game_type the Player is playing
+    :param player: the Player object to use when updating the database
+    :return: True if success, False otherwise (database connection failure).
+    """
     db = create_connection()
     if db is None:
         return False  # Return false if failure to connect, because the action failed
@@ -96,8 +131,8 @@ def update_player(game_type: str, id: int, mu: float, sigma: float):
     cursor = db.cursor()
     cursor.execute(f"USE {game_type}")  # Select database
     cursor.execute(f"INSERT INTO leaderboard (id, mu, sigma)"
-                   f"VALUES ({id}, {mu}, {sigma})"
-                   f"ON DUPLICATE KEY UPDATE mu = {mu}, sigma = {sigma};")  # Delete id entries
+                   f"VALUES ({player.id}, {player.mu}, {player.sigma})"
+                   f"ON DUPLICATE KEY UPDATE mu = {player.mu}, sigma = {player.sigma};")  # Delete id entries
 
     # Close connection
     db.commit()
@@ -105,8 +140,17 @@ def update_player(game_type: str, id: int, mu: float, sigma: float):
     db.close()
     return True
 
-def update_rankings(teams: list, game_type: str):
-    game_type_data = GAME_TRUESKILL[game_type]
+
+def update_rankings(game_type: str, teams: list[list[Player]]) -> bool:
+    """
+    Update the ELO of the players in the database after a rated match has finished.
+    :param teams: an ordered list of the rankings of the teams (TrueSkill format)
+    :param game_type: the game type being playing
+    :return: True if success, False otherwise (database connection failure).
+
+    TODO: finish, use ID from Player objects
+    """
+    game_type_data = GAME_TRUESKILL[game_type]  # TrueSkill environment constants for this game
 
     # The variables for the specific game type
     sigma, beta, tau, draw_probability = (game_type_data["sigma"],
@@ -133,9 +177,3 @@ def update_rankings(teams: list, game_type: str):
             teams[team_index][player_index].mu = player.mu
             teams[team_index][player_index].sigma = player.sigma
             update_player(game_type, teams[team_index][player_index].id, player.mu, player.sigma)
-
-
-
-
-
-

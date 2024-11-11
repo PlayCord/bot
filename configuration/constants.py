@@ -1,5 +1,5 @@
 import discord
-
+IS_ACTIVE = True
 NAME = "Tyler's Demise"
 RUNTIME_EMOJIS = None
 LOGGING_ROOT = "playcord"

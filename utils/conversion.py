@@ -1,19 +1,21 @@
 import random
-
-import discord
-
 from configuration.constants import LOGGING_ROOT
 from utils.Player import Player
 
 
 def convert_to_queued(some_players: list[Player], creator):
-    return "\n".join([u.mention+f"{u.get_formatted_elo()} (Creator)" if u.id == creator.id else u.mention + f" {u.get_formatted_elo()}" for u in some_players])
+    return "\n".join([u.mention+f"{u.get_formatted_elo()} (Creator)" if u.id == creator.id
+                      else u.mention + f" {u.get_formatted_elo()}" for u in some_players])
 
-def discord_users_to_player(game_type, users):
 
-    pass
 
 def textify(basis: dict[str,float], replacements: dict[str,str]):
+    """
+    Randomly pick a message and fill variables
+    :param basis:
+    :param replacements:
+    :return:
+    """
     random_float = random.random()
     actually_picked_message = None
     if not len(basis.keys()):

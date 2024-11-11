@@ -1,6 +1,4 @@
-
 from cairosvg import svg2png
-
 from utils.InputTypes import String
 from utils.Property import Property
 import svg
@@ -10,8 +8,6 @@ class TicTacToeGame:
     minimum_players = 2
     maximum_players = 2
     options = [String("where to play", "move", autocomplete="ac_move")]
-
-
 
     def __init__(self, players):
 

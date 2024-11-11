@@ -1,4 +1,3 @@
-# PlayCord
 import importlib
 import logging
 import sys
@@ -16,6 +15,8 @@ from utils.CustomEmbed import CustomEmbed
 from utils.Database import get_player
 from utils.GameView import GameView, MatchmakingView
 from utils.InputTypes import Dropdown, InputType
+
+
 
 logging.getLogger("discord").setLevel(logging.INFO)  # Discord.py logging level - INFO (don't want DEBUG)
 
@@ -41,10 +42,10 @@ if __name__ != "__main__":
 
 
 
-def load_configuration():
+def load_configuration() -> dict:
     """
     Load configuration from constants.CONFIG_FILE
-    :return:
+    :return: the configuration as a dictionary
     """
     try:
         loaded_config_file = YAML().load(open(CONFIG_FILE))
@@ -57,8 +58,6 @@ def load_configuration():
 config = load_configuration()
 constants.CONFIGURATION = config
 
-IS_ACTIVE = True  # Use to keep track of whether the bot is alive TODO: move to constants
-
 database_startup = Database.startup()
 if not database_startup:
     log.critical("Database failed to connect on startup!")
@@ -66,16 +65,15 @@ if not database_startup:
 
 
 
-client = discord.Client(intents=discord.Intents.all())
+client = discord.Client(intents=discord.Intents.all())  # Create the client with all intents, so we can read messages
 tree = app_commands.CommandTree(client)  # Build command tree
 
 
 
 # Root command registration
-command_root = app_commands.Group(name=LOGGING_ROOT, description="The heart and soul of the game.", guild_only=True)
+command_root = app_commands.Group(name=LOGGING_ROOT, description="PlayCord command group. ChangeME", guild_only=True)
 
 
-# I don't think that description is visible anywhere, but maybe it is lol.
 log.info(f"Welcome to {NAME} by @quantumbagel!")
 
 
@@ -93,7 +91,7 @@ def simple_embed(title: str, description: str) -> CustomEmbed:
 
 
 async def send_simple_embed(ctx: discord.Interaction, title: str, description: str, ephemeral: bool = True,
-                            responded: bool = False):
+                            responded: bool = False) -> None:
     """
     Generate a simple embed
     :param title: the title
@@ -103,6 +101,7 @@ async def send_simple_embed(ctx: discord.Interaction, title: str, description: s
     if not responded:
         await ctx.response.send_message(embed=simple_embed(title, description), ephemeral=ephemeral)
     else:
+        # Use the followup for sending the embed simply because ctx.response won't work
         await ctx.followup.send(embed=simple_embed(title, description), ephemeral=ephemeral)
 
 
@@ -119,15 +118,17 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
     logger = log.getChild("is_allowed")
 
 
-    if not IS_ACTIVE:
+    if not IS_ACTIVE:  # Bot disabled via mesage command
         await send_simple_embed(ctx, "Bot has been disabled!", f"{NAME} "
                                       f"has been temporarily disabled by a bot owner. This"
                                       " is likely due to a critical bug or exploit being discovered.")
         return False
-    if ctx.user.bot:
+
+    if ctx.user.bot:  # We don't want no bots
         logger.warning("Bot users are not allowed to use commands.")
         return False
-    if str(ctx.channel.type) == "private":  # No DMs - yet
+
+    if str(ctx.channel.type) == "private":  # No DMs - maybe in the future?
         logger.error("Commands don't work in DMs!")
         await send_simple_embed(ctx, "Commands don't work in DMs!",
                                       f"{NAME} is a server-only bot currently. requires a server for its commands to work."
@@ -136,20 +137,30 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
 
     return True
 
-command_root.interaction_check = interaction_check
+command_root.interaction_check = interaction_check  # Set the interaction check
 
 
 @client.event
 async def on_message(msg: discord.Message) -> None:
     """
     Handle message commands
+
+    playcord/sync
+    playcord/sync this
+    playcord/synd <id>
+    playcord/disable
+    playcord/toggle
+    playcord/enable
+    playcord/clear
+    playcord/clear this
+    playcord/clear <id>
+
     :param msg: The message
     :return: None
     """
     global IS_ACTIVE
     f_log = log.getChild("event.on_message")
     # Message synchronization command
-    print(msg.channel.id, CURRENT_THREADS)
     if msg.author.bot:
         return
     if msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_SYNC}") and msg.author.id in OWNERS:  # Perform sync
@@ -203,6 +214,7 @@ async def on_message(msg: discord.Message) -> None:
             await msg.add_reaction(MESSAGE_COMMAND_FAILED)
         return
 
+    # Clear command tree
     elif msg.content == f"{LOGGING_ROOT}/{MESSAGE_COMMAND_CLEAR}" and msg.author.id in OWNERS:
         split = msg.content.split()
         if len(split) == 1:
@@ -265,15 +277,16 @@ async def on_guild_remove(guild: discord.Guild) -> None:
 @command_root.command(name="tictactoe", description="Tic-Tac Toe is a game about replacing your toes with Tic-Tacs,"
                                                     " obviously.")
 async def tictactoe(ctx: discord.Interaction):
-    #await ctx.response.defer()
-    #message = ctx.followup
+
 
     if not (ctx.channel.permissions_for(ctx.guild.me).create_private_threads
-            and ctx.channel.permissions_for(ctx.guild.me).send_messages):
+            and ctx.channel.permissions_for(ctx.guild.me).send_messages):  # Don't make the bot look stupid
         await send_simple_embed(ctx, title="Insufficient Permissions", description="Bot is missing permissions to function in this channel.")
         return
+
     await send_simple_embed(ctx, title="Loading game...", description="This should take less than a second. PlayCord is setting up everything behind the scenes.", ephemeral=False)
     thing = await ctx.original_response()
+
 
     g = MatchmakingView(ctx.user, "tic_tac_toe", thing, rated=True)
 
@@ -293,7 +306,7 @@ async def decode_discord_arguments(argument):
 
 
 
-async def handle(ctx: discord.Interaction, **arguments):
+async def handle_move(ctx: discord.Interaction, **arguments):
     if ctx.channel.type != discord.ChannelType.private_thread:
         await send_simple_embed(ctx, "Move commands can only be run in their respective threads",
                                 "Please use a bot-created thread to move. :)", responded=True)
@@ -331,39 +344,64 @@ async def handle_autocomplete(ctx: discord.Interaction, current: str, argument):
 move_group = app_commands.Group(name="move", description="Move controls")
 move_group.interaction_check = interaction_check
 
-def encode_argument(argument_name, argument_information):
-    argument_type = argument_information["type"]
-    optional_addendum = ''
+def encode_argument(argument_name, argument_information) -> str:
+    """
+    Encode an argument into the form
+    arg:str{=None}
+
+    :param argument_name: The name of the argument to encode
+    :param argument_information: Information about the argument (type and whether it is option)
+    :return:
+    """
+    argument_type = argument_information["type"].__name__  # Get string of type ("str")
+
 
     # Make the argument optional if required
+    optional_addendum = ''
     if argument_information["optional"]:
         optional_addendum = '=None'
 
     # hi:str=None or hi:str
-    return f"{argument_name}:{argument_type.__name__}{optional_addendum}"
+    return f"{argument_name}:{argument_type}{optional_addendum}"
 
 
 
-def encode_decorator(decorator_type, decorator_values):
+def encode_decorator(decorator_type, decorator_values) -> str:
+    """
+    Encode a decorator into the form
+
+    @app_commands.dec_name(arg=value, arg2=value2)
+    :param decorator_type: the decorator type (dec_name)
+    :param decorator_values: a dictionary of the decorators ({arg: value, arg2: value2})
+    :return: the encoded decorator as a string
+    """
     stringified_arguments = []
+
+    # Get a list like ["arg=value", "arg2=value2"]
     for command_argument in decorator_values:
          stringified_arguments.append(f"{command_argument}={str(decorator_values[command_argument])}")
-    function_arguments = ','.join(stringified_arguments)
-    return f"@app_commands.{decorator_type}({function_arguments})"
+    function_arguments = ','.join(stringified_arguments) # "arg=value,arg2=value
 
- # def autocomplete_possible_moves(self, argument_name, current, player):
- #        moves = {'00': 'Top Left', '01': 'Top Mid', '02': 'Top Right', '10': 'Mid Left', '11': 'Mid Mid', '12': 'Mid Right', '20': 'Bottom Left', '21': 'Bottom Mid', '22': 'Bottom Right'}
- #
- #        if argument_name == "move":
- #            available_moves = [i for i in moves if (i in self.get_player_moves(player.id)) and (current in moves[i])]
- #            return available_moves
+    return f"@app_commands.{decorator_type}({function_arguments})"  # Put it all together
 
-def build_function_definitions():
+
+def build_function_definitions() -> list[str]:
+    """
+    Build the dynamic functions
+
+    This includes:
+    move commands
+    autocomplete callbacks
+
+    :return: a list of strings each representing a function that needs to be added to the global
+    """
     context = []
-    for game in GAME_TYPES:
+    for game in GAME_TYPES:  # for each registered game
         # Import the game's module
-        game_class = getattr(importlib.import_module(GAME_TYPES[game][0]), GAME_TYPES[game][1])
+        game_class = getattr(importlib.import_module(GAME_TYPES[game][0]), GAME_TYPES[game][1])  # Get the game's class
         options: list[InputType] = game_class.options  # Get the game's defined move option set
+
+        # Decorators and arguments to build from
         decorators = {}
         arguments = {}
 
@@ -375,7 +413,7 @@ def build_function_definitions():
             if "autocomplete" not in option_decorators and option.autocomplete is not None:
                 option_decorators.update({"autocomplete": {option.name: "autocomplete_"+option.autocomplete}})
 
-            option_arguments = option.arguments()
+            option_arguments = option.arguments()  # Get the arguments
 
             # Add each argument
             for argument in option_arguments:
@@ -398,27 +436,31 @@ def build_function_definitions():
         for unencoded_argument in arguments:
             encoded_arguments.append(encode_argument(unencoded_argument, arguments[unencoded_argument]))
 
-        command_name = game+"_move"
+        command_name = game+"_move"  # Name of move command to register
 
 
+        # Build the move command
         move_command = (f"{'\n'.join(encoded_decorators)}\n"
                         f"@move_group.command(name='{game}', description='move i guess')\n"
                         f"async def {command_name}(ctx, {','.join(encoded_arguments)}):\n"
                         f"  await ctx.response.defer()\n"
-                        f"  await handle(ctx=ctx, arguments=locals())\n")
+                        f"  await handle_move(ctx=ctx, arguments=locals())\n")
 
         if "autocomplete" in decorators.keys():  # If there is any autocomplete support for this command
             for autocomplete in decorators["autocomplete"]:
+
+                # Name of autocomplete command
                 ac_command_name = decorators["autocomplete"][autocomplete]
 
+                # Actual autocomplete command
                 ac_command = (f"async def {ac_command_name}(ctx, current):\n"
                               f"   return await handle_autocomplete(ctx, current, \"{autocomplete}\")\n")
 
+                # Add the autocomplete command
                 context.append(ac_command)
 
+        # Add the move command, so autocomplete callbacks are built before the move command
         context.append(move_command)
-
-
 
     return context
 
@@ -435,7 +477,6 @@ if __name__ == "__main__":
             exec(command)  # Add the command
 
     except Exception as e:
-        raise e
         log.critical(str(e))
         log.critical("Error registering bot commands!")
         sys.exit(1)  # Exit here
