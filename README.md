@@ -67,6 +67,6 @@ We will accomplish this using the following:
   - [ ] Game started text
   - [ ] Button text
   - [ ] Game over text
-- [ ] Catch- [ ]all error response if there is a crash, instead of "interaction failed"
+- [ ] Catch-all error response if there is a crash, instead of "interaction failed"
   - [ ] Also, some method of logging crashes
 - [ ] Add comments and docstrings to code
