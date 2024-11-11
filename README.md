@@ -18,7 +18,7 @@ by [@quantumbagel](https://github.com/quantumbagel)
 PlayCord aims to become a bot capable of playing any game on Discord.
 We will accomplish this using the following:
 
-* Easy- [ ]to- [ ]understand API for creating games
+* Easy-to-understand API for creating games
 * Backend syntax/caching handled by PlayCord
 * SVG rendering
 * MySQL database for leaderboard
