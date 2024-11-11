@@ -9,7 +9,7 @@ class Player:
         self.mu = mu
         self.sigma = sigma
         self.name = user.name
-        self.uuid = user.id
+        self.id = user.id
         self.player_data = {}
         self.moves_made = 0
         self.eliminated = False

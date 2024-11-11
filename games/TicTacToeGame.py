@@ -1,7 +1,7 @@
-import io
 
 from cairosvg import svg2png
 
+from utils.InputTypes import String
 from utils.Property import Property
 import svg
 
@@ -9,6 +9,10 @@ class TicTacToeGame:
     description = "Tic-Tac-Toe. What else can I say?"
     minimum_players = 2
     maximum_players = 2
+    options = [String("where to play", "move", autocomplete="ac_move")]
+
+
+
     def __init__(self, players):
 
         # Initial state information
@@ -26,7 +30,6 @@ class TicTacToeGame:
         self.anti_diagonal_count = 0
 
     def generate_game_picture(self):
-
         # Define dimensions
         svg_size = 300
         cell_size = svg_size / 3
@@ -51,7 +54,7 @@ class TicTacToeGame:
                 x_pos = col * cell_size + cell_size / 2
                 y_pos = row * cell_size + cell_size / 2
 
-                if self.board[row][col].uuid == self.x:
+                if self.board[row][col].id == self.x.id:
                     # Draw X
                     offset = cell_size / 3
                     elements.append(
@@ -60,7 +63,7 @@ class TicTacToeGame:
                     elements.append(
                         svg.Line(x1=x_pos + offset, y1=y_pos - offset, x2=x_pos - offset, y2=y_pos + offset,
                                  stroke=x_color, stroke_width=5))
-                elif self.board[row][col].uuid == self.o:
+                elif self.board[row][col].id == self.o.id:
                     # Draw O
                     radius = cell_size / 3
                     elements.append(
@@ -76,18 +79,24 @@ class TicTacToeGame:
     def current_turn(self):
         return self.players[self.turn]
 
-    def get_player_moves(self, uuid) -> dict:
-        moves = {}
-        row_names = ["Left", "Middle", "Right"]
-        column_names = ["Top", "Middle", "Bottom"]
+    def ac_move(self, player):
+        moves = []
+        all_moves = {'00': 'Top Left', '01': 'Top Mid', '02': 'Top Right', '10': 'Mid Left', '11': 'Mid Mid', '12': 'Mid Right', '20': 'Bottom Left', '21': 'Bottom Mid', '22': 'Bottom Right'}
         for row in range(self.size):
             for column in range(self.size):
-                if self.board[row][column].uuid is None:
-                    moves.update({column_names[column] + row_names[row]: (row, column)})
+                if self.board[row][column].id is None:
+                    move_id = str(row)+str(column)
+                    moves.append({all_moves[move_id]: move_id})
         return moves
 
-    def move(self, uuid, move):
-        self.board[move[0]][move[1]].uuid = uuid
+    def valid_move(self, id, move):
+        square = move["move"]
+        return self.board[int(square[0])][int(square[1])].id is None
+
+    def move(self, arguments):
+        print("inner2", arguments)
+        move = arguments["move"]
+        self.board[int(move[0])][int(move[1])].id = id
         self.turn += 1
         if self.turn == len(self.players):
             self.turn = 0

@@ -5,26 +5,19 @@ from mysql.connector import Error
 from ruamel.yaml import YAML
 from trueskill import dynamic_draw_probability
 
-from configuration.constants import LOGGING_ROOT, CONFIGURATION, GAME_TYPES, GAME_TRUESKILL, MU
+import configuration.constants
+from configuration.constants import *
+from configuration.constants import LOGGING_ROOT, GAME_TYPES, GAME_TRUESKILL, MU
 from utils.Player import Player
 import logging
 fake_data = {"tic_tac_toe": {1085939954758205561: 1000, 897146430664355850: 1200}}
-def load_configuration():
-    """
-    Load configuration from constants.CONFIG_FILE
-    :return:
-    """
-    try:
-        loaded_config_file = YAML().load(open("../configuration/config.yaml"))
-    except FileNotFoundError:
-        return None
-    return loaded_config_file
 
-config = load_configuration()
 logger = logging.getLogger(f"{LOGGING_ROOT}.database")
+
+
 connections_made = 1
 def create_connection():
-    global config
+    config = configuration.constants.CONFIGURATION
     global connections_made
     log = logger.getChild("connect")
     log.debug(f"Establishing connection #{connections_made} to database")
@@ -66,12 +59,12 @@ def get_player(game_type, user: discord.User):
 
     cursor = db.cursor()
     cursor.execute(f"USE {game_type}")  # Select database
-    cursor.execute(f"SELECT * FROM leaderboard WHERE id={user.id}")  # Get UUID entries
+    cursor.execute(f"SELECT * FROM leaderboard WHERE id={user.id}")  # Get id entries
     results = cursor.fetchall()
     if not len(results):  # Player is not in DB, return defaults
-        uuid, mu, sigma = user.id, trueskill.MU, trueskill.SIGMA
+        id, mu, sigma = user.id, trueskill.MU, trueskill.SIGMA
     else:
-        uuid, mu, sigma = results[0]  # Database has info
+        id, mu, sigma = results[0]  # Database has info
 
     player = Player(mu, sigma, user)  # Create player object from data
     # Close connection
@@ -88,14 +81,14 @@ def delete_player(user: discord.User):
     cursor = db.cursor()
     for game_type in GAME_TYPES.keys():
         cursor.execute(f"USE {game_type}")  # Select database
-        cursor.execute(f"DELETE FROM leaderboard WHERE id={user.id}")  # Delete UUID entries
+        cursor.execute(f"DELETE FROM leaderboard WHERE id={user.id}")  # Delete id entries
     # Close connection
     db.commit()
     cursor.close()
     db.close()
     return True
 
-def update_player(game_type: str, uuid: int, mu: float, sigma: float):
+def update_player(game_type: str, id: int, mu: float, sigma: float):
     db = create_connection()
     if db is None:
         return False  # Return false if failure to connect, because the action failed
@@ -103,8 +96,8 @@ def update_player(game_type: str, uuid: int, mu: float, sigma: float):
     cursor = db.cursor()
     cursor.execute(f"USE {game_type}")  # Select database
     cursor.execute(f"INSERT INTO leaderboard (id, mu, sigma)"
-                   f"VALUES ({uuid}, {mu}, {sigma})"
-                   f"ON DUPLICATE KEY UPDATE mu = {mu}, sigma = {sigma};")  # Delete UUID entries
+                   f"VALUES ({id}, {mu}, {sigma})"
+                   f"ON DUPLICATE KEY UPDATE mu = {mu}, sigma = {sigma};")  # Delete id entries
 
     # Close connection
     db.commit()
