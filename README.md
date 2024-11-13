@@ -45,8 +45,8 @@ We will accomplish this using the following:
 - [ ] Lock threads on game end
 - [ ] Prevent certain thread members (that aren't in game) from sending messages
 - [ ] Heck, prevent anyone from just "sending messages" in game threads?
-  - [ ] From what I've found, this is impossible
-- [ ] Remove the "Setting up stuff" message edit event for main thread and private threads
+  - [ ] From what I've found, this is impossible?
+- [ ] Remove the "Setting up stuff" message edit event for main thread and private threads(COMPLETED)
   - [ ] We probably don't even need this, it takes more time than just a defer()
 - [ ] Better permission checking for commands
   - [ ] This includes

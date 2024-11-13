@@ -39,9 +39,6 @@ if __name__ != "__main__":
     sys.exit(1)
 
 
-
-
-
 def load_configuration() -> dict:
     """
     Load configuration from constants.CONFIG_FILE
@@ -56,10 +53,10 @@ def load_configuration() -> dict:
     return loaded_config_file
 
 config = load_configuration()
-constants.CONFIGURATION = config
+constants.CONFIGURATION = config  # Set global configuration
 
-database_startup = Database.startup()
-if not database_startup:
+database_startup = Database.startup()  # Start up the database
+if not database_startup:  # Database better work lol
     log.critical("Database failed to connect on startup!")
     sys.exit(1)
 
@@ -136,6 +133,7 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
         return False
 
     return True
+
 
 command_root.interaction_check = interaction_check  # Set the interaction check
 
@@ -236,10 +234,6 @@ async def on_message(msg: discord.Message) -> None:
         return
 
 
-
-
-
-
 @client.event
 async def on_guild_join(guild: discord.Guild) -> None:
     """
@@ -248,13 +242,18 @@ async def on_guild_join(guild: discord.Guild) -> None:
     :return: nothing
     """
     f_log = log.getChild("event.guild_join")
-    f_log.info("Added to guild \"" + guild.name + f"\"! (id={guild.id})")
+    f_log.info("Added to guild \"" + guild.name + f"\"! (id={guild.id})")  # Log join
+
+    # Send welcome message
     embed = CustomEmbed(title=WELCOME_MESSAGE[0][0],
                           description=WELCOME_MESSAGE[0][1],
                           color=EMBED_COLOR)
-    for line in WELCOME_MESSAGE[1:]:
+
+
+    for line in WELCOME_MESSAGE[1:]:  # Dynamically add fields from configuration value
         embed.add_field(name=line[0], value=line[1])
 
+    # Make a attempt at sending to the system channel, but don't crash if it doesn't exist
     try:
         await guild.system_channel.send(embed=embed)
     except AttributeError:
@@ -265,17 +264,14 @@ async def on_guild_join(guild: discord.Guild) -> None:
 async def on_guild_remove(guild: discord.Guild) -> None:
     """
     Purge data from guilds we were kicked from.
+    TODO: implement
     :param guild: The guild we were removed from
     :return: nothing
     """
-    f_log = log.getChild("event.guild_remove")
-
     pass
 
 
-
-@command_root.command(name="tictactoe", description="Tic-Tac Toe is a game about replacing your toes with Tic-Tacs,"
-                                                    " obviously.")
+@command_root.command(name="tictactoe", description="Tic-Tac Toe is a game about replacing your toes with Tic-Tacs,"                                                    " obviously.")
 async def tictactoe(ctx: discord.Interaction):
 
 
@@ -296,14 +292,19 @@ async def tictactoe(ctx: discord.Interaction):
 
     await g.update_embed()
 
-async def decode_discord_arguments(argument):
-    if isinstance(argument, Choice):
-        return argument.value
-    if isinstance(argument, User):
-        return get_player(argument.id)
-    else:
-        return argument
 
+async def decode_discord_arguments(argument: Choice | typing.Any) -> Player | typing.Any:
+    """
+    Decode discord arguments from discord so they can be passed to the move function
+    Currently implemented: app_commands.Choice
+    User move command -> Parser -> decode_discord_arguments -> GameView -> internal Game move function
+    :param argument: the argument
+    :return: the decoded argument
+    """
+    if isinstance(argument, Choice):  # Choice should just return its value
+        return argument.value
+    else:  # Just return the argument
+        return argument
 
 
 async def handle_move(ctx: discord.Interaction, **arguments):
@@ -322,27 +323,53 @@ async def handle_move(ctx: discord.Interaction, **arguments):
     await CURRENT_GAMES[CURRENT_THREADS[ctx.channel.id]].move(pass_through_arguments)
     await ctx.followup.send(content="Moved", ephemeral=True, delete_after=5)
 
-async def handle_autocomplete(ctx: discord.Interaction, current: str, argument):
-    game_view = CURRENT_GAMES[CURRENT_THREADS[ctx.channel.id]]
-    player = get_player(game_view.game_type, ctx.user)
+
+async def handle_autocomplete(ctx: discord.Interaction, current: str, argument) -> list[Choice[str]]:
+    """
+    Crappy autocomplete. TODO: make this algorithm better at predicting
+    :param ctx: discord context
+    :param current: the current typed argument (like "do" for someone typing "dog")
+    :param argument: Which argument we are completing
+    :return: A list of Choices representing the possibilities
+    """
+
+    # Get the current game
+    try:
+        game_view = CURRENT_GAMES[CURRENT_THREADS[ctx.channel.id]]
+    except KeyError:  # Game not in this channel
+        return [app_commands.Choice(name="There is no game in this channel!", value="")]
+
+    player = get_player(game_view.game_type, ctx.user)  # Get the player who called this function
 
     ac_callback = None
     for option in game_view.game.options:
         if option.name == argument:
+            # Get the autocomplete callback for this argument
+            # This MUST exist because this function was called
             ac_callback = getattr(game_view.game, option.autocomplete)
 
-    things = ac_callback(player)
+    player_options = ac_callback(player)  # Get the options for the player from the backend
+
+    # Get all valid options
+    valid_player_options = []
+    for option in player_options:
+        name = next(iter(option))
+        if current.lower() in name.lower():
+            valid_player_options.append([name, option[name]])
+
+    # Sort based on how early the string is
+    # i.e. DOg > hairDO for string "do"
+    final_autocomplete = sorted(valid_player_options, key=lambda x: x[0].lower().index(current.lower()))
 
 
-
-    return [app_commands.Choice(name=next(iter(ac_option)),value=ac_option[next(iter(ac_option))]) for ac_option in things]
-
-
+    return [app_commands.Choice(name=ac_option[0],value=ac_option[1])  # Return as Choices instead of list of lists
+            for ac_option in final_autocomplete]
 
 
-
+# Group for all move commands TODO: rework for less confusing? is this fine?
 move_group = app_commands.Group(name="move", description="Move controls")
-move_group.interaction_check = interaction_check
+move_group.interaction_check = interaction_check  # Set interaction check as well for this group
+
 
 def encode_argument(argument_name, argument_information) -> str:
     """
@@ -351,7 +378,7 @@ def encode_argument(argument_name, argument_information) -> str:
 
     :param argument_name: The name of the argument to encode
     :param argument_information: Information about the argument (type and whether it is option)
-    :return:
+    :return: the encoded argument
     """
     argument_type = argument_information["type"].__name__  # Get string of type ("str")
 
@@ -363,7 +390,6 @@ def encode_argument(argument_name, argument_information) -> str:
 
     # hi:str=None or hi:str
     return f"{argument_name}:{argument_type}{optional_addendum}"
-
 
 
 def encode_decorator(decorator_type, decorator_values) -> str:
@@ -463,8 +489,6 @@ def build_function_definitions() -> list[str]:
         context.append(move_command)
 
     return context
-
-
 
 
 if __name__ == "__main__":

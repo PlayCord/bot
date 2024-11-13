@@ -192,10 +192,8 @@ class MatchmakingView:
             await ctx.followup.send("You can't start the game (not the creator).", ephemeral=True)
             return
 
-        # Temporary "loading game" embed. TODO: remove this
-        embed = CustomEmbed(title=f"Loading game {self.game_type}...", description="This should only be a moment.")
+        # The matchmaking was successful!
         self.outcome = True
-        await self.message.edit(embed=embed, view=None)
 
         # Start the GameView
         await successful_matchmaking(self.game_type, self.message, self.creator,
