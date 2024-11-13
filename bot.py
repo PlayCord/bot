@@ -15,7 +15,7 @@ from utils.CustomEmbed import CustomEmbed
 from utils.Database import get_player
 from utils.GameView import GameView, MatchmakingView
 from utils.InputTypes import Dropdown, InputType
-
+import typing
 
 
 logging.getLogger("discord").setLevel(logging.INFO)  # Discord.py logging level - INFO (don't want DEBUG)
@@ -293,7 +293,7 @@ async def tictactoe(ctx: discord.Interaction):
     await g.update_embed()
 
 
-async def decode_discord_arguments(argument: Choice | typing.Any) -> Player | typing.Any:
+async def decode_discord_arguments(argument: Choice | typing.Any) -> typing.Any:
     """
     Decode discord arguments from discord so they can be passed to the move function
     Currently implemented: app_commands.Choice
@@ -493,12 +493,14 @@ def build_function_definitions() -> list[str]:
 
 if __name__ == "__main__":
     try:
-        move_commands = build_function_definitions()  # Build game move callbacks
-
+        commands = build_function_definitions()  # Build game move callbacks
+        log.info(f"Built {len(commands)} hooks.")
         # Register commands
-        for command in move_commands:
-            print(command)
+        for command in commands:
             exec(command)  # Add the command
+
+        log.info(f"Hooks registered.")
+
 
     except Exception as e:
         log.critical(str(e))
