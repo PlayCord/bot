@@ -11,16 +11,16 @@ from utils.Player import Player
 from utils.conversion import convert_to_queued, textify
 
 
-class GameView:
+class GameInterface:
     """
     A class that handles the interface between the game and discord
 
-    Discord <--> Bot <--> GameView <--> Game
+    Discord <--> Bot <--> GameInterface <--> Game
     """
     def __init__(self, game_type: str, status_message: discord.WebhookMessage, creator: discord.User,
                  players: list[Player], rated: bool) -> None:
         """
-        Create the GameView
+        Create the GameInterface
         :param game_type: The game type as defined in constants.py
         :param status_message: The message already created by the bot outside the not-yet-existent thread
         :param creator: the User (discord) who created the lobby TODO: change to Player
@@ -77,17 +77,30 @@ class GameView:
         self.thread = game_thread
         self.game_message = await self.thread.send(embed=getting_ready_embed)
 
-    async def move(self, arguments: dict[str, typing.Any]) -> None:
+    async def move(self, ctx: discord.Interaction, arguments: dict[str, typing.Any]) -> None:
         """
         Make a move. This function is called dynamically by handle_move in the main program.
         How it works:
         1. Call the game's move function
         2. Update the game message based on the changes to the move
+        :param ctx: Discord context window
         :param arguments: the list of preparsed arguments to pass directly into the move function
         :return: None
         """
+        if ctx.user.id != self.game.current_turn().id:
+            message = await ctx.followup.send(content="It isn't your turn right now!", ephemeral=True)
+            await message.delete(delay=5)
+            return
         self.game.move(arguments)  # Move
+
+        if (outcome := self.game.outcome()) is not None:
+            if isinstance(outcome, Player):
+                return
+            return
+
         await self.display_game_state()  # Update game state
+        message = await ctx.followup.send(content="Move made!", ephemeral=True)
+        await message.delete(delay=5)
 
     async def display_game_state(self) -> None:
         """
@@ -118,9 +131,9 @@ class GameView:
         await self.game_message.edit(embed=embed, attachments=[game_picture])
 
 
-class MatchmakingView:
+class MatchmakingInterface:
     """
-    MatchmakingView - the class that handles matchmaking for a game, where control is promptly handed off to a GameView
+    MatchmakingInterface - the class that handles matchmaking for a game, where control is promptly handed off to a GameInterface
     via the successful_matchmaking function.
     """
     def __init__(self, creator: discord.User, game_type: str, message: discord.InteractionMessage, rated: bool):
@@ -195,7 +208,7 @@ class MatchmakingView:
         # The matchmaking was successful!
         self.outcome = True
 
-        # Start the GameView
+        # Start the GameInterface
         await successful_matchmaking(self.game_type, self.message, self.creator,
                                      self.queued_players, self.rated)
 
@@ -212,26 +225,14 @@ class MatchmakingView:
         embed.add_field(name="Players:", value=convert_to_queued(self.queued_players, self.creator), inline=False)
 
         # View for matchmaking buttons
-        view = discord.ui.View()
 
         # Can the start button be pressed?
         start_enabled = self.maximum_players >= len(self.queued_players) >= self.required_players
 
-        # Each button
-        join_button = discord.ui.Button(label="Join", style=discord.ButtonStyle.grey)
-        leave_button = discord.ui.Button(label="Leave", style=discord.ButtonStyle.gray)
-        start_game_button = discord.ui.Button(label="Start", style=discord.ButtonStyle.blurple,
-                                              disabled=not start_enabled)
-
-        # Set the callbacks for the buttons
-        join_button.callback = self.callback_ready_game
-        leave_button.callback = self.callback_leave_game
-        start_game_button.callback = self.callback_start_game
-
-        # Register the buttons to the view
-        view.add_item(join_button)
-        view.add_item(leave_button)
-        view.add_item(start_game_button)
+        view = MatchmakingView(join_button_callback=self.callback_ready_game,
+                               leave_button_callback=self.callback_leave_game,
+                               start_button_callback=self.callback_start_game,
+                               can_start=start_enabled)
 
         # Update the embed in Discord
         await self.message.edit(embed=embed, view=view)
@@ -271,14 +272,15 @@ class MatchmakingView:
 
 
 
-async def successful_matchmaking(game_type, message, creator, players, rated):
+async def successful_matchmaking(game_type: str, message, creator: discord.User, players: list[Player], rated: bool)\
+        -> None:
     """
-    Callback called by MatchmakingView when the game is successfully started
-    Sets up and registers a new GameView.
+    Callback called by MatchmakingInterface when the game is successfully started
+    Sets up and registers a new GameInterface.
     :param game_type: the game type to start
-    :param message: the message used for matchmaking by MatchmakingView
+    :param message: the message used for matchmaking by MatchmakingInterface
     :param creator: who created the game
-    :param players: a list of players to pass to GameView
+    :param players: a list of players to pass to GameInterface
     :param rated: whether the game is rated
     :return: Nothing
     """
@@ -293,8 +295,8 @@ async def successful_matchmaking(game_type, message, creator, players, rated):
     # Send the spectate view and embed
     await message.edit(embed=join_thread_embed, view=view)
 
-    # Set up a new GameView
-    game = GameView(game_type, message, creator, players, rated)
+    # Set up a new GameInterface
+    game = GameInterface(game_type, message, creator, players, rated)
     await game.thread_setup()
 
     # Register the game to the channel it's in TODO: fix bug that allows only one game per channel, too lazy rn
@@ -302,3 +304,56 @@ async def successful_matchmaking(game_type, message, creator, players, rated):
     constants.CURRENT_THREADS.update({game.thread.id: game.status_message.channel.id})
 
     await game.display_game_state()  # Send the game display state
+
+
+async def game_over(final_rankings, rated, thread, outbound_message, ):
+    pass
+
+
+class DynamicButtonView(discord.ui.View):
+    def __init__(self, buttons):
+        super().__init__(timeout=None)
+
+        for button in buttons:
+            for argument in ["label", "style", "id", "emoji", "disabled", "callback"]:
+                if argument not in button.keys():
+                    if argument == "disabled":
+                        button[argument] = False
+                        continue
+                    button[argument] = None
+
+            item = discord.ui.Button(label=button["label"], style=button["style"],
+                                     custom_id=button["id"], emoji=button["emoji"], disabled=button["disabled"])
+            if button["callback"] is not None:
+
+                item.callback = button["callback"]
+            else:
+                item.callback = self._fail_callback
+            self.add_item(item)
+
+
+    async def _fail_callback(self, interaction: discord.Interaction):
+        embed = interaction.message.embeds[0] # There can only be one... embed :0
+        for child in self.children:  # Disable all children
+            child.disabled = True
+
+        await interaction.response.edit_message(embed=embed, view=self)  # Update message
+
+        msg = await interaction.followup.send(content="That interaction is no longer active due to a bot restart!"
+                                                " Please create a new interaction :)", ephemeral=True)
+
+        await msg.delete(delay=10)
+
+
+
+
+
+class MatchmakingView(DynamicButtonView):
+    def __init__(self, join_button_callback=None, leave_button_callback=None,
+                 start_button_callback=None, can_start=True):
+        super().__init__([{"label": "Join", "style": discord.ButtonStyle.gray, "id": "join", "callback": join_button_callback},
+                          {"label": "Leave", "style": discord.ButtonStyle.gray, "id": "leave", "callback": leave_button_callback},
+                          {"label": "Start", "style": discord.ButtonStyle.blurple, "id": "start", "callback": start_button_callback, "disabled": not can_start}])
+
+
+

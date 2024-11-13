@@ -24,6 +24,7 @@ class TicTacToeGame:
         self.column_count = [0 for _ in range(self.size)]
         self.diagonal_count = 0
         self.anti_diagonal_count = 0
+        self.last_move = None
 
     def generate_game_picture(self):
         # Define dimensions
@@ -49,8 +50,7 @@ class TicTacToeGame:
             for col in range(3):
                 x_pos = col * cell_size + cell_size / 2
                 y_pos = row * cell_size + cell_size / 2
-
-                if self.board[row][col].id == self.x.id:
+                if self.board[row][col] == self.x:
                     # Draw X
                     offset = cell_size / 3
                     elements.append(
@@ -59,7 +59,7 @@ class TicTacToeGame:
                     elements.append(
                         svg.Line(x1=x_pos + offset, y1=y_pos - offset, x2=x_pos - offset, y2=y_pos + offset,
                                  stroke=x_color, stroke_width=5))
-                elif self.board[row][col].id == self.o.id:
+                elif self.board[row][col] == self.o:
                     # Draw O
                     radius = cell_size / 3
                     elements.append(
@@ -67,7 +67,7 @@ class TicTacToeGame:
 
         # Build the elements into a SVG bytestring
         drawing = svg.SVG(width=svg_size, height=svg_size, elements=elements)
-
+        print(elements)
         # Force the bytestring into a file-like object so we can upload it.
         stuff = svg2png(bytestring=drawing.as_str())
         return stuff
@@ -77,7 +77,8 @@ class TicTacToeGame:
 
     def ac_move(self, player):
         moves = []
-        all_moves = {'00': 'Top Left', '01': 'Top Mid', '02': 'Top Right', '10': 'Mid Left', '11': 'Mid Mid', '12': 'Mid Right', '20': 'Bottom Left', '21': 'Bottom Mid', '22': 'Bottom Right'}
+        all_moves = {'00': 'Top Left', '01': 'Top Mid', '02': 'Top Right', '10': 'Mid Left', '11': 'Mid Mid',
+                     '12': 'Mid Right', '20': 'Bottom Left', '21': 'Bottom Mid', '22': 'Bottom Right'}
         for row in range(self.size):
             for column in range(self.size):
                 if self.board[row][column].id is None:
@@ -85,31 +86,31 @@ class TicTacToeGame:
                     moves.append({all_moves[move_id]: move_id})
         return moves
 
-    def valid_move(self, id, move):
-        square = move["move"]
-        return self.board[int(square[0])][int(square[1])].id is None
-
     def move(self, arguments):
-        print("inner2", arguments)
         move = arguments["move"]
-        self.board[int(move[0])][int(move[1])].id = id
+        self.last_move = [int(move[0]), int(move[1])]
+        self.board[int(move[0])][int(move[1])].take(self.players[self.turn])
         self.turn += 1
         if self.turn == len(self.players):
             self.turn = 0
 
-    def outcome(self, last_move):
-        row = last_move[0]
-        column = last_move[1]
+    def outcome(self):
+        for i in range(3):
+            # Check rows
+            if self.board[i][0] == self.board[i][1] == self.board[i][2] != None:
+                return self.board[i][0].owner
 
-        self.row_count[row] += 1
-        self.column_count[column] += 1
-        if row == column:
-            self.diagonal_count += 1
-        if row + column == self.size:
-            self.anti_diagonal_count += 1
-        if self.row_count[row] == self.size or self.column_count[column] == self.size or self.diagonal_count == self.size or self.anti_diagonal_count == self.size:
-            return True
-        return False
+            # Check columns
+            if self.board[0][i] == self.board[1][i] == self.board[2][i] != None:
+                return self.board[0][i].owner
+
+            # Check diagonals
+        if self.board[0][0] == self.board[1][1] == self.board[2][2] != None:
+            return self.board[0][0].owner
+        if self.board[0][2] == self.board[1][1] == self.board[2][0] != None:
+            return self.board[0][2].owner
+
+        return None
 
 
 

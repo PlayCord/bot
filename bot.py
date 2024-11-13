@@ -13,7 +13,7 @@ from ruamel.yaml import YAML
 from utils import Database
 from utils.CustomEmbed import CustomEmbed
 from utils.Database import get_player
-from utils.GameView import GameView, MatchmakingView
+from utils.GameInterface import GameInterface, MatchmakingInterface, MatchmakingView
 from utils.InputTypes import Dropdown, InputType
 import typing
 
@@ -72,6 +72,7 @@ command_root = app_commands.Group(name=LOGGING_ROOT, description="PlayCord comma
 
 
 log.info(f"Welcome to {NAME} by @quantumbagel!")
+
 
 
 
@@ -137,6 +138,11 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
 
 command_root.interaction_check = interaction_check  # Set the interaction check
 
+
+@client.event
+async def on_ready():
+    # Register views to the bot
+    client.add_view(MatchmakingView())
 
 @client.event
 async def on_message(msg: discord.Message) -> None:
@@ -284,7 +290,7 @@ async def tictactoe(ctx: discord.Interaction):
     thing = await ctx.original_response()
 
 
-    g = MatchmakingView(ctx.user, "tic_tac_toe", thing, rated=True)
+    g = MatchmakingInterface(ctx.user, "tic_tac_toe", thing, rated=True)
 
     if g.failed is not None:
         await thing.edit(embed=g.failed)
@@ -297,7 +303,7 @@ async def decode_discord_arguments(argument: Choice | typing.Any) -> typing.Any:
     """
     Decode discord arguments from discord so they can be passed to the move function
     Currently implemented: app_commands.Choice
-    User move command -> Parser -> decode_discord_arguments -> GameView -> internal Game move function
+    User move command -> Parser -> decode_discord_arguments -> GameInterface -> internal Game move function
     :param argument: the argument
     :return: the decoded argument
     """
@@ -316,12 +322,11 @@ async def handle_move(ctx: discord.Interaction, **arguments):
         await send_simple_embed(ctx, "Move commands can only be run in their respective threads",
                                 "Please use a bot-created thread to move. :)", responded=True)
         return
-    print("outer", arguments)
     pass_through_arguments: dict = arguments["arguments"]
     pass_through_arguments.pop("ctx")
     pass_through_arguments = {a: await decode_discord_arguments(pass_through_arguments[a]) for a in pass_through_arguments.keys()}
-    await CURRENT_GAMES[CURRENT_THREADS[ctx.channel.id]].move(pass_through_arguments)
-    await ctx.followup.send(content="Moved", ephemeral=True, delete_after=5)
+    await CURRENT_GAMES[CURRENT_THREADS[ctx.channel.id]].move(ctx, pass_through_arguments)
+
 
 
 async def handle_autocomplete(ctx: discord.Interaction, current: str, argument) -> list[Choice[str]]:
@@ -469,7 +474,7 @@ def build_function_definitions() -> list[str]:
         move_command = (f"{'\n'.join(encoded_decorators)}\n"
                         f"@move_group.command(name='{game}', description='move i guess')\n"
                         f"async def {command_name}(ctx, {','.join(encoded_arguments)}):\n"
-                        f"  await ctx.response.defer()\n"
+                        f"  await ctx.response.defer(ephemeral=True)\n"
                         f"  await handle_move(ctx=ctx, arguments=locals())\n")
 
         if "autocomplete" in decorators.keys():  # If there is any autocomplete support for this command

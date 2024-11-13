@@ -1,3 +1,5 @@
+import builtins
+
 import discord
 
 from configuration.constants import SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD
@@ -28,5 +30,9 @@ class Player:
         else:
             return str(int(self.mu))
 
+    def __eq__(self, other):
+        if other is None:
+            return False
+        return self.id == other.id and self.name == other.name and self.mu == other.mu and self.sigma == other.sigma
 
 
