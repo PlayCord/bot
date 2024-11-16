@@ -3,12 +3,15 @@ import io
 import random
 import typing
 
+import trueskill
+
 from configuration import constants
 from configuration.constants import *
 from utils.CustomEmbed import CustomEmbed
-from utils.Database import get_player
+from utils.Database import get_player, update_rankings, update_player
 from utils.Player import Player
 from utils.conversion import convert_to_queued, textify
+
 
 
 class GameInterface:
@@ -93,12 +96,50 @@ class GameInterface:
             return
         self.game.move(arguments)  # Move
 
-        if (outcome := self.game.outcome()) is not None:
-            if isinstance(outcome, Player):
-                return
-            return
 
         await self.display_game_state()  # Update game state
+
+        if (outcome := self.game.outcome()) is not None:  # Game is over
+            sigma = MU * GAME_TRUESKILL[self.game_type]["sigma"]
+            beta = MU * GAME_TRUESKILL[self.game_type]["beta"]
+            tau = MU * GAME_TRUESKILL[self.game_type]["tau"]
+            draw = GAME_TRUESKILL[self.game_type]["draw"]
+
+            environment = trueskill.TrueSkill(mu=MU, sigma=sigma, beta=beta, tau=tau, draw_probability=draw,
+                                              backend="mpmath")
+            # Two cases implemented:
+            if isinstance(outcome, Player):  # Somebody won, everybody else lost. No way of comparison (tic-tac-toe)
+                # Winner's rating
+                winner = environment.create_rating(outcome.mu, outcome.sigma)
+
+                # All the losers
+                losers = [{p: environment.create_rating(p.mu, p.sigma)} for p in self.players if p != outcome]
+
+                rating_groups = [{outcome: winner}, *losers]  # Make the rating groups
+                rankings = [0, *[1 for _ in range(len(self.players)-1)]]  # Rankings = [0, 1, 1, ..., 1] for this case
+
+            elif isinstance(outcome, list):  # More generic position placement
+                # Format:
+                # [[p1, p2], [p3], [p4]] indicates p1 and p2 tied, p3 got third, p4 got fourth
+                # What if there are teams? screw you
+
+                current_ranking = 0
+                rankings = []
+                rating_groups = []
+                for placement in outcome:
+                    for player in placement:
+                        rankings.append(current_ranking)
+                        rating_groups.append({player: environment.create_rating(player.mu, player.sigma)})
+                    current_ranking += 1
+
+            print(environment, rating_groups)
+            adjusted_rating_groups = environment.rate(rating_groups=rating_groups, ranks=rankings)
+
+            await game_over(self.game_type, adjusted_rating_groups, rankings, self.rated, self.thread, self.status_message)
+            return
+
+
+
         message = await ctx.followup.send(content="Move made!", ephemeral=True)
         await message.delete(delay=5)
 
@@ -300,17 +341,72 @@ async def successful_matchmaking(game_type: str, message, creator: discord.User,
     await game.thread_setup()
 
     # Register the game to the channel it's in TODO: fix bug that allows only one game per channel, too lazy rn
-    constants.CURRENT_GAMES.update({game.status_message.channel.id: game})
-    constants.CURRENT_THREADS.update({game.thread.id: game.status_message.channel.id})
+    constants.CURRENT_GAMES.update({game.thread.id: game})
 
     await game.display_game_state()  # Send the game display state
 
 
-async def game_over(final_rankings, rated, thread, outbound_message, ):
-    pass
+async def game_over(game_type, rating_groups: list[dict[Player, trueskill.Rating]], rankings, rated, thread: discord.Thread, outbound_message):
+    # TODO: implement outbound game over view
+
+    player_ratings = {}
+    current_place = 1
+    nums_current_place = 0
+    matching = 0
+    keys = [next(iter(p)) for p in rating_groups]
+    all_ratings = {list(p.keys())[0]:list(p.values())[0] for p in rating_groups}
+    for i, pre_rated_player in enumerate(keys):
+        if rankings[i] == matching:
+            nums_current_place += 1
+        else:
+            current_place += nums_current_place
+            matching = rankings[i]
+            nums_current_place = 1
+
+        starting_mu, starting_sigma = pre_rated_player.mu, pre_rated_player.sigma
+        aftermath_mu, aftermath_sigma = all_ratings[pre_rated_player].mu, all_ratings[pre_rated_player].sigma
+
+        mu_delta = str(round(aftermath_mu - starting_mu))
+        if not mu_delta.startswith("-"):
+            mu_delta = "+" + mu_delta
+
+        player_ratings.update({pre_rated_player.id: {"old_rating": round(starting_mu), "delta": mu_delta, "place": current_place, "new_rating": aftermath_mu, "new_sigma": aftermath_sigma}})
+
+    print(player_ratings)
+
+    player_string = "\n".join([f"{player_ratings[p]["place"]}. <@{p}> {player_ratings[p]["old_rating"]} ({player_ratings[p]["delta"]})" for p in player_ratings])
+
+    print(rating_groups)
+    game_over_embed = CustomEmbed(title="oh my goodness game is over", description="I'm too lazy to implement this")
+    game_over_embed.add_field(name="Rankings", value=player_string)
+
+    # Send the embed
+    await outbound_message.edit(embed=game_over_embed, view=None)
+
+    await thread.edit(locked=True, archived=True, reason="Game is over.")
+
+    final_ranking_embed = CustomEmbed(title="That's all, folks!", description="The game is over.")
+    final_ranking_embed.add_field(name="Final Rankings", value=player_string)
+
+    await thread.send(embed=final_ranking_embed)
+
+    for player_id in player_ratings:
+        player_data = player_ratings[player_id]
+        update_player(game_type, Player(mu=player_data["new_rating"], sigma=player_data["new_sigma"],
+                                        user=discord.Object(id=player_id)))
+
+
+
+
 
 
 class DynamicButtonView(discord.ui.View):
+    """
+    Hoo boy
+    this is cursed
+    "Simple" way of making a button-only persistent view
+    Only took 3 hours :)
+    """
     def __init__(self, buttons):
         super().__init__(timeout=None)
 
@@ -333,19 +429,22 @@ class DynamicButtonView(discord.ui.View):
 
 
     async def _fail_callback(self, interaction: discord.Interaction):
+        """
+        If a "dead" view is interacted, simply disable each component and update the message
+        also send an ephemeral message to the interacter
+        :param interaction: discord context
+        :return: nothing
+        """
         embed = interaction.message.embeds[0] # There can only be one... embed :0
         for child in self.children:  # Disable all children
             child.disabled = True
 
-        await interaction.response.edit_message(embed=embed, view=self)  # Update message
+        await interaction.response.edit_message(embed=embed, view=self)  # Update message, because you can't autoupdate
 
         msg = await interaction.followup.send(content="That interaction is no longer active due to a bot restart!"
                                                 " Please create a new interaction :)", ephemeral=True)
 
         await msg.delete(delay=10)
-
-
-
 
 
 class MatchmakingView(DynamicButtonView):

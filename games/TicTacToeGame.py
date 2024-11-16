@@ -1,4 +1,6 @@
 from cairosvg import svg2png
+
+from utils import Player
 from utils.InputTypes import String
 from utils.Property import Property
 import svg
@@ -65,7 +67,7 @@ class TicTacToeGame:
                     elements.append(
                         svg.Circle(cx=x_pos, cy=y_pos, r=radius, stroke=o_color, stroke_width=5, fill="none"))
 
-        # Build the elements into a SVG bytestring
+        # Build the elements into an SVG bytestring
         drawing = svg.SVG(width=svg_size, height=svg_size, elements=elements)
         print(elements)
         # Force the bytestring into a file-like object so we can upload it.
@@ -94,8 +96,11 @@ class TicTacToeGame:
         if self.turn == len(self.players):
             self.turn = 0
 
-    def outcome(self):
+    def outcome(self) -> Player:
+        draw = True
         for i in range(3):
+            if self.board[i][0] == None or self.board[i][1] == None or self.board[i][2] == None:
+                draw = False
             # Check rows
             if self.board[i][0] == self.board[i][1] == self.board[i][2] != None:
                 return self.board[i][0].owner
@@ -110,6 +115,8 @@ class TicTacToeGame:
         if self.board[0][2] == self.board[1][1] == self.board[2][0] != None:
             return self.board[0][2].owner
 
+        if draw:
+            return [[self.players[0], self.players[1]]]
         return None
 
 

@@ -1,3 +1,5 @@
+import decimal
+
 import trueskill
 import mysql.connector
 from mysql.connector import Error
@@ -55,7 +57,7 @@ def startup() -> bool:
 
         # Create the leaderboard table within the game's database
         cursor.execute("""CREATE TABLE IF NOT EXISTS leaderboard (  
-                          id INT PRIMARY KEY,
+                          id BIGINT UNSIGNED PRIMARY KEY,
                           mu DECIMAL(10,4) NOT NULL,
                           sigma DECIMAL(10,4) NOT NULL,
                           INDEX skill (mu DESC, sigma));
@@ -84,9 +86,13 @@ def get_player(game_type: str, user: discord.User) -> Player | None:
     results = cursor.fetchall()  # Get the results of the query
 
     if not len(results):  # Player is not in DB, return default values of mu and sigma
-        id, mu, sigma = user.id, trueskill.MU, trueskill.SIGMA
+        id, mu, sigma = user.id, MU, GAME_TRUESKILL[game_type]["sigma"] * MU
     else:
-        id, mu, sigma = results[0]  # Database has info, return that
+        id, mu, sigma = results[0]
+        # Database has info, return that
+        # Idk why, but we get a decimal.Decimal (infinite precision?)
+        mu = float(mu)
+        sigma = float(sigma)
 
     player = Player(mu, sigma, user)  # Create player object from data
     # Close connection

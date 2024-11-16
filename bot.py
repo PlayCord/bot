@@ -3,6 +3,7 @@ import logging
 import sys
 
 import discord
+import trueskill
 from discord import app_commands, ChannelType, Member, User
 from discord.app_commands import Choice
 import utils.logging_formatter
@@ -16,6 +17,8 @@ from utils.Database import get_player
 from utils.GameInterface import GameInterface, MatchmakingInterface, MatchmakingView
 from utils.InputTypes import Dropdown, InputType
 import typing
+
+
 
 
 logging.getLogger("discord").setLevel(logging.INFO)  # Discord.py logging level - INFO (don't want DEBUG)
@@ -318,15 +321,15 @@ async def handle_move(ctx: discord.Interaction, **arguments):
         await send_simple_embed(ctx, "Move commands can only be run in their respective threads",
                                 "Please use a bot-created thread to move. :)", responded=True)
         return
-    if ctx.channel.id not in CURRENT_THREADS.keys():
+    if ctx.channel.id not in CURRENT_GAMES.keys():
         await send_simple_embed(ctx, "Move commands can only be run in their respective threads",
                                 "Please use a bot-created thread to move. :)", responded=True)
         return
     pass_through_arguments: dict = arguments["arguments"]
     pass_through_arguments.pop("ctx")
     pass_through_arguments = {a: await decode_discord_arguments(pass_through_arguments[a]) for a in pass_through_arguments.keys()}
-    await CURRENT_GAMES[CURRENT_THREADS[ctx.channel.id]].move(ctx, pass_through_arguments)
-
+    AUTOCOMPLETE_CACHE[ctx.channel.id] = {}  # Reset autocomplete cache
+    await CURRENT_GAMES[ctx.channel.id].move(ctx, pass_through_arguments)
 
 
 async def handle_autocomplete(ctx: discord.Interaction, current: str, argument) -> list[Choice[str]]:
@@ -339,21 +342,42 @@ async def handle_autocomplete(ctx: discord.Interaction, current: str, argument) 
     """
 
     # Get the current game
+    logger = log.getChild("autocomplete")
     try:
-        game_view = CURRENT_GAMES[CURRENT_THREADS[ctx.channel.id]]
+        game_view = CURRENT_GAMES[ctx.channel.id]
     except KeyError:  # Game not in this channel
+        logger.info(f"There is no game from channel #{ctx.channel.mention} (id={ctx.channel.id}). Not autocompleting.")
         return [app_commands.Choice(name="There is no game in this channel!", value="")]
 
     player = get_player(game_view.game_type, ctx.user)  # Get the player who called this function
+    try:
+        player_options = AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][argument][current]
+        logger.info(f"Successfully used autocomplete cache: channel_id={ctx.channel.id}, user_id={ctx.user.id}, argument={argument}, current=\"{current}\"")
+    except KeyError:
+        ac_callback = None
+        for option in game_view.game.options:
+            if option.name == argument:
+                # Get the autocomplete callback for this argument
+                # This MUST exist because this function was called
+                ac_callback = getattr(game_view.game, option.autocomplete)
 
-    ac_callback = None
-    for option in game_view.game.options:
-        if option.name == argument:
-            # Get the autocomplete callback for this argument
-            # This MUST exist because this function was called
-            ac_callback = getattr(game_view.game, option.autocomplete)
-
-    player_options = ac_callback(player)  # Get the options for the player from the backend
+        if not option.force_reload:
+            try:
+                # Get the options for the player from the backend
+                player_options = ac_callback(player)
+                if ctx.channel.id not in AUTOCOMPLETE_CACHE:
+                    AUTOCOMPLETE_CACHE[ctx.channel.id] = {}
+                if ctx.user.id not in AUTOCOMPLETE_CACHE[ctx.channel.id]:
+                    AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id] = {}
+                if argument not in AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id]:
+                    AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][argument] = {}
+                AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][argument].update({current: player_options})
+            except TypeError:
+                logger.critical(f"handle_autocomplete was called without a matching callback function."
+                                f" channel_id={ctx.channel.id}, user_id={ctx.user.id}, argument={argument},"
+                                f" options={game_view.game.options}, current=\"{current}\"")
+        else:
+            logger.info("force_reload blocked autocomplete cache")
 
     # Get all valid options
     valid_player_options = []

@@ -1,6 +1,6 @@
 import discord
 IS_ACTIVE = True
-NAME = "Tyler's Demise"
+NAME = "PlayCord"
 RUNTIME_EMOJIS = None
 LOGGING_ROOT = "playcord"
 SERVER_TIMEOUT = 5000
@@ -56,7 +56,7 @@ TEXTIFY_CURRENT_GAME_TURN = {
     "It's {player}'s turn to play.": 0.529,
     "Next up: {player}.": 0.45,
     "We checked the books, and it is *somehow* {player}'s turn to play. Not sure how that happened.": 0.01,
-    "After journeying the Himalayas for many a year, we know that it's {player}'s turn": 0.01,
+    "After journeying the Himalayas for many a year, we now know that it's {player}'s turn!": 0.01,
     "Did you know that the chance of this turn message appearing is 0.1%?. alsobythewayit's{player}'sturn": 0.001
 
 }
@@ -64,4 +64,9 @@ TEXTIFY_CURRENT_GAME_TURN = {
 
 SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD = 0.20
 CURRENT_GAMES = {}
-CURRENT_THREADS = {}
+
+AUTOCOMPLETE_CACHE = {}
+
+# game_id
+# - user_id
+# - - current: autocompletes

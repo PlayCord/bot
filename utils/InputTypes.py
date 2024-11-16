@@ -11,7 +11,7 @@ class InputType:
     optional: bool
 
 
-    def __init__(self, description, argument_name, optional, autocomplete):
+    def __init__(self, description, argument_name, optional, autocomplete, force_reload):
         self.description = description
         self.name = argument_name
         if not self._verify_name():
@@ -19,6 +19,7 @@ class InputType:
         self.optional = optional
         self.type = "default"
         self.autocomplete = autocomplete
+        self.force_reload = force_reload
 
     def _verify_name(self):
         for char in self.name:
@@ -36,10 +37,10 @@ class InputType:
 
 class String(InputType):
 
-    def __init__(self, description, argument_name, optional=False, autocomplete=None):
+    def __init__(self, description, argument_name, optional=False, autocomplete=None, force_reload=False):
         super().__init__(description=description,
                          argument_name=argument_name,
-                         optional=optional, autocomplete=autocomplete)
+                         optional=optional, autocomplete=autocomplete, force_reload=force_reload)
         self.type = "string"
 
     def arguments(self):
@@ -53,7 +54,8 @@ class Dropdown(InputType):
     def __init__(self, description, argument_name, options: dict, optional=False):
         super().__init__(description=description,
                          argument_name=argument_name,
-                         optional=optional)
+                         optional=optional, autocomplete=None,
+                         force_reload=False)
         self.type = "string"
         self.options = [Choice(name=option[0], value=option[1]) for option in options.items()]
 
@@ -63,19 +65,3 @@ class Dropdown(InputType):
 
     def decorators(self):
         return {"choices": {self.name: self.options}}
-
-# class AutocompleteString(InputType):
-#
-#     def __init__(self, description, argument_name, autocomplete, optional=False):
-#         super().__init__(description=description,
-#                          argument_name=argument_name,
-#                          optional=optional)
-#         self.autocomplete = autocomplete
-#         self.type = "autocomplete_string"
-#
-#
-#     def arguments(self):
-#         return {self.name: {"type": str, "optional": self.optional}}
-#
-#     def decorators(self):
-#         return {"autocomplete": {self.name: self.autocomplete}}
