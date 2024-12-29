@@ -3,28 +3,47 @@ from configuration.constants import LOGGING_ROOT
 from utils.Player import Player
 
 
-def convert_to_queued(players: list[Player], creator) -> str:
+def column_names(players: list[Player]) -> str:
     """
     Convert a list of players into a string representing the list of players
 
-    ex:
-    @Player1 25? (Creator)
-    @Player2 50
-    @Player3 100000?
-
-    TODO: add additional functionality (like nonrated games)
-
-    :param players: the players to create a list from
-    :param creator: the Player object representing the player who created the lobby
-    :return: the concatenated string
+    @player
+    @player2
     """
-    return "\n".join([u.mention+f"{u.get_formatted_elo()} (Creator)" if u.id == creator.id
-                      else u.mention + f" {u.get_formatted_elo()}" for u in players])
+    return "\n".join([u.mention for u in players])
+
+def column_elo(players: list[Player]) -> str:
+    """
+    Convert a list of players into a string representing the list of players
+
+    238
+    237?
+    """
+    return "\n".join([u.get_formatted_elo() for u in players])
+
+def column_creator(players: list[Player], creator: Player) -> str:
+    """
+    Convert a list of players into a string representing the list of players's creator status
+
+    Creator
+    <blank>
+    """
+    return "\n".join(["Creator" if u.id == creator.id else "" for u in players])
+
+
+def column_turn(players: list[Player], turn: Player) -> str:
+    """
+    Convert a list of players into a string representing the list of players
+
+    Creator
+    <blank>
+    """
+    return "\n".join(["✅" if u.id == turn.id else "" for u in players])
 
 
 
 def textify(basis: dict[str,float], replacements: dict[str,str]) -> str:
-    """
+    """de
     Randomly pick a message and fill variables
     :param basis: A list of messages
     :param replacements: A list of things to replace
@@ -61,3 +80,29 @@ def textify(basis: dict[str,float], replacements: dict[str,str]) -> str:
         actually_picked_message = actually_picked_message.replace("{"+replacement+"}", replacements[replacement])
 
     return actually_picked_message
+
+def player_representative(possible_players):
+    if type(possible_players) == int:
+        return str(possible_players)
+    nums = sorted(set(possible_players))
+
+    result = []
+    start = nums[0]
+    for i in range(1, len(nums) + 1):
+        # Check if the current number is not consecutive
+        if i == len(nums) or nums[i] != nums[i - 1] + 1:
+            # If there's a range (start != nums[i-1]), add range, else just a single number
+            if start == nums[i - 1]:
+                result.append(str(start))
+            else:
+                result.append(f"{start}-{nums[i - 1]}")
+            if i < len(nums):
+                start = nums[i]
+
+    return ", ".join(result)
+
+def player_verification_function(possible_players):
+    if type(possible_players) == int:
+        return lambda x: x == possible_players
+    else:
+        return lambda x: x in set(possible_players)

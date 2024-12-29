@@ -154,7 +154,7 @@ async def on_message(msg: discord.Message) -> None:
 
     playcord/sync
     playcord/sync this
-    playcord/synd <id>
+    playcord/sync <id>
     playcord/disable
     playcord/toggle
     playcord/enable
@@ -279,9 +279,21 @@ async def on_guild_remove(guild: discord.Guild) -> None:
     """
     pass
 
+@command_root.command(name="invite", description="Invite a player to play the game you're queued for")
+async def command_invite(ctx: discord.Interaction,
+                         user: discord.User,
+                         user2: discord.User = None,
+                         user3: discord.User = None,
+                         user4: discord.User = None,
+                         user5: discord.User = None) -> None:
+    invited_users = {user, user2, user3, user4, user5}
+    for invited_user in filter(None, invited_users):  # Filter out None values
+        continue
+    await ctx.response.send_message("Invites sent successfully.", ephemeral=True)
+    
 
 @command_root.command(name="tictactoe", description="Tic-Tac Toe is a game about replacing your toes with Tic-Tacs,"                                                    " obviously.")
-async def tictactoe(ctx: discord.Interaction):
+async def tictactoe(ctx: discord.Interaction, rated: bool = True):
 
 
     if not (ctx.channel.permissions_for(ctx.guild.me).create_private_threads
@@ -293,7 +305,7 @@ async def tictactoe(ctx: discord.Interaction):
     thing = await ctx.original_response()
 
 
-    g = MatchmakingInterface(ctx.user, "tic_tac_toe", thing, rated=True)
+    g = MatchmakingInterface(ctx.user, "tic_tac_toe", thing, rated=rated)
 
     if g.failed is not None:
         await thing.edit(embed=g.failed)
@@ -306,7 +318,8 @@ async def decode_discord_arguments(argument: Choice | typing.Any) -> typing.Any:
     """
     Decode discord arguments from discord so they can be passed to the move function
     Currently implemented: app_commands.Choice
-    User move command -> Parser -> decode_discord_arguments -> GameInterface -> internal Game move function
+
+    User move command -> Parser -> **decode_discord_arguments** -> GameInterface -> internal Game move function
     :param argument: the argument
     :return: the decoded argument
     """
@@ -328,6 +341,9 @@ async def handle_move(ctx: discord.Interaction, **arguments):
     pass_through_arguments: dict = arguments["arguments"]
     pass_through_arguments.pop("ctx")
     pass_through_arguments = {a: await decode_discord_arguments(pass_through_arguments[a]) for a in pass_through_arguments.keys()}
+
+
+
     AUTOCOMPLETE_CACHE[ctx.channel.id] = {}  # Reset autocomplete cache
     await CURRENT_GAMES[ctx.channel.id].move(ctx, pass_through_arguments)
 
@@ -424,8 +440,8 @@ def encode_argument(argument_name, argument_information) -> str:
 def encode_decorator(decorator_type, decorator_values) -> str:
     """
     Encode a decorator into the form
-
     @app_commands.dec_name(arg=value, arg2=value2)
+
     :param decorator_type: the decorator type (dec_name)
     :param decorator_values: a dictionary of the decorators ({arg: value, arg2: value2})
     :return: the encoded decorator as a string
@@ -496,7 +512,7 @@ def build_function_definitions() -> list[str]:
 
         # Build the move command
         move_command = (f"{'\n'.join(encoded_decorators)}\n"
-                        f"@move_group.command(name='{game}', description='move i guess')\n"
+                        f"@move_group.command(name='{game}', description='{game_class.command_description}')\n"
                         f"async def {command_name}(ctx, {','.join(encoded_arguments)}):\n"
                         f"  await ctx.response.defer(ephemeral=True)\n"
                         f"  await handle_move(ctx=ctx, arguments=locals())\n")

@@ -8,10 +8,10 @@ import trueskill
 from configuration import constants
 from configuration.constants import *
 from utils.CustomEmbed import CustomEmbed
-from utils.Database import get_player, update_rankings, update_player
+from utils.Database import get_player, update_player
 from utils.Player import Player
-from utils.conversion import convert_to_queued, textify
-
+from utils.conversion import textify, column_creator, column_names, column_elo, column_turn, player_representative, \
+    player_verification_function
 
 
 class GameInterface:
@@ -44,10 +44,14 @@ class GameInterface:
         self.rated = rated  # Is the game rated?
         self.thread = None  # The thread object after self.thread_setup() is called
         self.game_message = None  # The message representing the game after self.thread_setup() is called
-
+        self.info_message = None # The message showing game info, whose turn, and what players.
+        # also made by self.thread_setup()
         self.module = importlib.import_module(GAME_TYPES[game_type][0])  # Game module
         # Game class instantiated with the players
         self.game = getattr(self.module, GAME_TYPES[game_type][1])(self.players)
+
+        for p in players:
+            IN_GAME.append(p)
 
     async def thread_setup(self) -> None:
         """
@@ -66,18 +70,20 @@ class GameInterface:
             rated_prefix = ""
 
         game_thread = await self.status_message.channel.create_thread(  # Create the private thread.
-            name=f"{rated_prefix}{self.game_type} game (PlayCord)",
+            name=f"{rated_prefix}{self.game.name} game ({NAME})",
             type=discord.ChannelType.private_thread, invitable=False)  # Don't allow people to add themselves
 
         for player in self.players:  # Add users to the thread
             await game_thread.add_user(player.user)
 
+
+        game_info_embed = CustomEmbed(description="<a:loading:1318216218116620348>").remove_footer()
         # Temporary embed TODO: remove this and make it cleaner while still guaranteeing the bot gets the first message
-        getting_ready_embed = CustomEmbed(title="Almost done!",
-                                          description="The game is about to start! This should only take a moment.")
+        getting_ready_embed = CustomEmbed(description="<a:loading:1318216218116620348>").remove_footer()
 
         # Set the thread and game message in the class
         self.thread = game_thread
+        self.info_message = await self.thread.send(embed=game_info_embed)
         self.game_message = await self.thread.send(embed=getting_ready_embed)
 
     async def move(self, ctx: discord.Interaction, arguments: dict[str, typing.Any]) -> None:
@@ -99,12 +105,14 @@ class GameInterface:
 
         await self.display_game_state()  # Update game state
 
+
         if (outcome := self.game.outcome()) is not None:  # Game is over
             sigma = MU * GAME_TRUESKILL[self.game_type]["sigma"]
             beta = MU * GAME_TRUESKILL[self.game_type]["beta"]
             tau = MU * GAME_TRUESKILL[self.game_type]["tau"]
             draw = GAME_TRUESKILL[self.game_type]["draw"]
 
+            # mpmath backend = near infinite floating point precision
             environment = trueskill.TrueSkill(mu=MU, sigma=sigma, beta=beta, tau=tau, draw_probability=draw,
                                               backend="mpmath")
             # Two cases implemented:
@@ -135,6 +143,14 @@ class GameInterface:
             print(environment, rating_groups)
             adjusted_rating_groups = environment.rate(rating_groups=rating_groups, ranks=rankings)
 
+            print(IN_GAME, 'before postgame')
+            print(IN_GAME, [p.id for p in self.players])
+            for p in self.players:
+                IN_GAME.remove(p)
+            print(IN_GAME, 'after postgame')
+
+            message = await ctx.followup.send(content="Game over!", ephemeral=True)
+            await message.delete(delay=5)
             await game_over(self.game_type, adjusted_rating_groups, rankings, self.rated, self.thread, self.status_message)
             return
 
@@ -151,25 +167,42 @@ class GameInterface:
         """
 
         # Embed to send as the updated game state
-        embed = CustomEmbed(title=f"Playing {self.game_type}",
+        info_embed = CustomEmbed(title=f"Playing {self.game.name} with {len(self.players)} players",
                             description=textify(TEXTIFY_CURRENT_GAME_TURN,
-                                    {"player": self.game.current_turn().mention}))
+                                    {"player": self.game.current_turn().mention})).remove_footer()
 
-        picture_bytes = self.game.generate_game_picture()  # Get the bytes of the game state as an image
+        state_embed = CustomEmbed().remove_footer()
 
-        # Shenanigans to convert into a discord.File
-        image = io.BytesIO()
-        image.write(picture_bytes)
-        image.seek(0)
-        game_picture = discord.File(image, filename="image.png")
+        game_state = self.game.state()  # Get the bytes of the game state as an image
 
-        # Add players and image to the embed
-        embed.set_image(url="attachment://image.png")
-        embed.set_footer(text="bagel.exe is not responding")  #
-        embed.add_field(name="Players:", value=convert_to_queued(self.players, self.creator))
+        state_types = {}
+        limits = {}
+        picture = None
+        for state_type in game_state:
+            state_type._embed_transform(state_embed)
+            limits[state_type.type] = state_type.limit
+            if state_type.type in state_types:
+                state_types[state_type.type] += 1
+            else:
+                state_types[state_type.type] = 1
+            if state_type.type == "image":  # Flag to extract discord.File object from the image type
+                picture = state_type.game_picture
+
+        for limit_type in limits:
+             if state_types[limit_type] > limits[limit_type]:
+                 state_embed = CustomEmbed(title="Error displaying game state!",
+                                     description="TODO: add a selector of functionality for this error")
+
+
+
+
+        info_embed.insert_field_at(0, name="Players:", value=column_names(self.players))
+        info_embed.add_field(name="Ratings:", value=column_elo(self.players))
+        info_embed.add_field(name="Turn:", value=column_turn(self.players, self.game.current_turn()))
 
         # Edit the game message with the new embed
-        await self.game_message.edit(embed=embed, attachments=[game_picture])
+        await self.info_message.edit(embed=info_embed)
+        await self.game_message.edit(embed=state_embed, attachments=[picture])
 
 
 class MatchmakingInterface:
@@ -205,12 +238,14 @@ class MatchmakingInterface:
             self.failed = fail_embed
             return
 
+        IN_MATCHMAKING.extend(self.queued_players)
+
         # Game class
         self.game = getattr(self.module, GAME_TYPES[game_type][1])
 
         # Required and maximum players for game TODO: more complex requirements for start/stop
-        self.required_players = self.game.minimum_players
-        self.maximum_players = self.game.maximum_players
+        self.player_verification_function = player_verification_function(self.game.players)
+        self.allowed_players = player_representative(self.game.players)
 
         self.outcome = None  # Whether the matchmaking was successful (True, None, or False)
 
@@ -231,6 +266,7 @@ class MatchmakingInterface:
                 await ctx.followup.send("Couldn't connect to DB!", ephemeral=True)
                 return
             self.queued_players.append(new_player)  # Add the player to queued_players
+            IN_MATCHMAKING.append(new_player)
             await self.update_embed()  # Update embed on discord side
 
 
@@ -259,16 +295,24 @@ class MatchmakingInterface:
         :return: Nothing
         """
         # Set up the embed
-        embed = CustomEmbed(title="Waiting for players...",
-                            description=f"_There are currently {len(self.queued_players)} in the queue._\n"
-                                        f"This game ({self.game_type}) /requires at least {self.required_players}"
-                                        f" players and at most {self.maximum_players} players.")
-        embed.add_field(name="Players:", value=convert_to_queued(self.queued_players, self.creator), inline=False)
+
+        game_rated_text = "Rated" if self.rated else "Not Rated"
+
+        embed = CustomEmbed(title=f"Queueing for {self.game.name}...",
+                            description=f"⏰{self.game.time}\u2800\u2800"
+                                        f"👤{self.allowed_players}\u2800\u2800"
+                                        f"📈{self.game.difficulty}\u2800\u2800"
+                                        f"📊{game_rated_text}")
+
+        embed.add_field(name="Players:", value=column_names(self.queued_players), inline=False)
+
+        embed.add_field(name="Game Info:", value=self.game.description, inline=False)
+        embed.add_field(name="Game by:", value=f"[{self.game.author}]({self.game.author_link})\n[Source]({self.game.source_link})")
 
         # View for matchmaking buttons
 
         # Can the start button be pressed?
-        start_enabled = self.maximum_players >= len(self.queued_players) >= self.required_players
+        start_enabled = self.player_verification_function(len(self.queued_players))
 
         view = MatchmakingView(join_button_callback=self.callback_ready_game,
                                leave_button_callback=self.callback_leave_game,
@@ -295,8 +339,8 @@ class MatchmakingInterface:
             for player in self.queued_players:
                 if player.id == ctx.user.id:
                     self.queued_players.remove(player)
+                    IN_MATCHMAKING.remove(player)
                     break
-
             # Nobody is left lol
             if not len(self.queued_players):
                 await ctx.followup.send("You were the last person in the lobby, so the game was cancelled!", ephemeral=True)
@@ -331,6 +375,12 @@ async def successful_matchmaking(game_type: str, message, creator: discord.User,
     view = discord.ui.View()
     spectate_button = discord.ui.Button(label="Spectate", style=discord.ButtonStyle.blurple)
     view.add_item(spectate_button)
+
+    print(IN_MATCHMAKING, 'matchmaking before pregame')
+    for p in players:
+        IN_MATCHMAKING.remove(p)
+
+    print(IN_MATCHMAKING, 'matchmaking after pregame')
 
 
     # Send the spectate view and embed
@@ -372,12 +422,10 @@ async def game_over(game_type, rating_groups: list[dict[Player, trueskill.Rating
 
         player_ratings.update({pre_rated_player.id: {"old_rating": round(starting_mu), "delta": mu_delta, "place": current_place, "new_rating": aftermath_mu, "new_sigma": aftermath_sigma}})
 
-    print(player_ratings)
 
-    player_string = "\n".join([f"{player_ratings[p]["place"]}. <@{p}> {player_ratings[p]["old_rating"]} ({player_ratings[p]["delta"]})" for p in player_ratings])
+    player_string = "\n".join([f"{player_ratings[p]["place"]}.\u2800<@{p}>\u2800{player_ratings[p]["old_rating"]}\u2800({player_ratings[p]["delta"]})" for p in player_ratings])
 
-    print(rating_groups)
-    game_over_embed = CustomEmbed(title="oh my goodness game is over", description="I'm too lazy to implement this")
+    game_over_embed = CustomEmbed(title="Game Over", description="This is the end")
     game_over_embed.add_field(name="Rankings", value=player_string)
 
     # Send the embed
@@ -389,6 +437,8 @@ async def game_over(game_type, rating_groups: list[dict[Player, trueskill.Rating
     final_ranking_embed.add_field(name="Final Rankings", value=player_string)
 
     await thread.send(embed=final_ranking_embed)
+
+
 
     for player_id in player_ratings:
         player_data = player_ratings[player_id]

@@ -8,7 +8,7 @@ from configuration.constants import SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD
 
 
 class Player:
-    def __init__(self, mu, sigma, user: discord.User | discord.Object):
+    def __init__(self, mu, sigma, user: discord.User | discord.Object, ranking):
         self.user = user
         self.mu = mu
         self.sigma = sigma
@@ -19,6 +19,7 @@ class Player:
         self.id = user.id
         self.player_data = {}
         self.moves_made = 0
+        self.ranking = ranking
 
     @property
     def mention(self):
@@ -42,3 +43,9 @@ class Player:
 
     def __hash__(self):
         return hash(repr(self))
+
+    def __str__(self):
+        return self.mention
+
+    def __repr__(self):
+        return f"Player(id={self.id}, mu={self.mu}, sigma={self.sigma})"

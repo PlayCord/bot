@@ -43,10 +43,10 @@ ERROR_INCORRECT_SETUP = ("This is likely due to:\n"
                          "2. Incorrect discord token\n"
                          "3. Incorrectly set up discord bot")
 
-GAME_TYPES = {"tic_tac_toe": ["games.TicTacToeGame", "TicTacToeGame"]}
+GAME_TYPES = {"tictactoe": ["games.TicTacToeGame", "TicTacToeGame"]}
 
 MU = 1000
-GAME_TRUESKILL = {"tic_tac_toe": {"sigma": 1/6,
+GAME_TRUESKILL = {"tictactoe": {"sigma": 1/6,
                                   "beta": 1/12,
                                   "tau": 1/100,
                                   "draw": 9/10}}
@@ -63,7 +63,17 @@ TEXTIFY_CURRENT_GAME_TURN = {
 
 
 SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD = 0.20
+
+# Current ongoing games
+# Format:
+# {game thread id: GameInterface object}
 CURRENT_GAMES = {}
+
+
+
+IN_GAME = []
+IN_MATCHMAKING = []
+
 
 AUTOCOMPLETE_CACHE = {}
 

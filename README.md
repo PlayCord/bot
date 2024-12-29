@@ -15,7 +15,7 @@ by [@quantumbagel](https://github.com/quantumbagel)
 
 ### Project Aims
 
-PlayCord aims to become a bot capable of playing any game on Discord.
+PlayCord aims to become a bot capable of playing any paper/pencil game on Discord.
 We will accomplish this using the following:
 
 * Easy-to-understand API for creating games

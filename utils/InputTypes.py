@@ -37,10 +37,10 @@ class InputType:
 
 class String(InputType):
 
-    def __init__(self, description, argument_name, optional=False, autocomplete=None, force_reload=False):
+    def __init__(self, description, argument_name, optional=False, autocomplete=None, force_reload=False,):
         super().__init__(description=description,
                          argument_name=argument_name,
-                         optional=optional, autocomplete=autocomplete, force_reload=force_reload)
+                         optional=optional, autocomplete=autocomplete, force_reload=force_reload,)
         self.type = "string"
 
     def arguments(self):

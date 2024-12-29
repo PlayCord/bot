@@ -60,6 +60,7 @@ def startup() -> bool:
                           id BIGINT UNSIGNED PRIMARY KEY,
                           mu DECIMAL(10,4) NOT NULL,
                           sigma DECIMAL(10,4) NOT NULL,
+                          ranking BIGINT UNSIGNED NOT NULL,
                           INDEX skill (mu DESC, sigma));
                        """)
 
@@ -86,15 +87,15 @@ def get_player(game_type: str, user: discord.User) -> Player | None:
     results = cursor.fetchall()  # Get the results of the query
 
     if not len(results):  # Player is not in DB, return default values of mu and sigma
-        id, mu, sigma = user.id, MU, GAME_TRUESKILL[game_type]["sigma"] * MU
+        id, mu, sigma, ranking = user.id, MU, GAME_TRUESKILL[game_type]["sigma"] * MU, None
     else:
-        id, mu, sigma = results[0]
+        id, mu, sigma, ranking = results[0]
         # Database has info, return that
         # Idk why, but we get a decimal.Decimal (infinite precision?)
         mu = float(mu)
         sigma = float(sigma)
 
-    player = Player(mu, sigma, user)  # Create player object from data
+    player = Player(mu, sigma, user, ranking)  # Create player object from data
     # Close connection
     cursor.close()
     db.close()
@@ -138,7 +139,7 @@ def update_player(game_type: str, player: Player) -> bool:
     cursor.execute(f"USE {game_type}")  # Select database
     cursor.execute(f"INSERT INTO leaderboard (id, mu, sigma)"
                    f"VALUES ({player.id}, {player.mu}, {player.sigma})"
-                   f"ON DUPLICATE KEY UPDATE mu = {player.mu}, sigma = {player.sigma};")  # Delete id entries
+                   f"ON DUPLICATE KEY UPDATE mu = {player.mu}, sigma = {player.sigma};")  # update on id entries
 
     # Close connection
     db.commit()
@@ -183,3 +184,29 @@ def update_rankings(game_type: str, teams: list[list[Player]]) -> bool:
             teams[team_index][player_index].mu = player.mu
             teams[team_index][player_index].sigma = player.sigma
             update_player(game_type, teams[team_index][player_index].id, player.mu, player.sigma)
+            
+            
+def update_db_rankings(game_type):
+    db = create_connection()
+    if db is None:
+        return False  # Return false if failure to connect, because the action failed
+
+    cursor = db.cursor()
+    cursor.execute(f"USE {game_type}")  # Select database
+    cursor.execute("""CREATE TEMPORARY TABLE temp_leaderboard_ranking AS
+    SELECT id, FIND_IN_SET(mu, (
+        SELECT GROUP_CONCAT(sub.mu ORDER BY sub.mu DESC, sub.sigma)
+        FROM leaderboard AS sub
+    )) AS ranking
+    FROM leaderboard;
+    UPDATE leaderboard AS ldr
+    JOIN temp_leaderboard_ranking AS temp
+    ON ldr.id = temp.id
+    SET ldr.ranking = temp.ranking;
+    DROP TEMPORARY TABLE temp_leaderboard_ranking;""")
+
+    # Close connection
+    db.commit()
+    cursor.close()
+    db.close()
+    return True

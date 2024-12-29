@@ -1,15 +1,27 @@
+import random
+
 from cairosvg import svg2png
 
 from utils import Player
+from utils.GameStateTypes import GameStateType, ImageType, FieldType, InfoRows
 from utils.InputTypes import String
 from utils.Property import Property
 import svg
 
 class TicTacToeGame:
-    description = "Tic-Tac-Toe. What else can I say?"
-    minimum_players = 2
-    maximum_players = 2
+    command_description = "The classic game of Xs and Os, brought to discord"
+    description = ("Tic-Tac-Toe on Discord! The game is pretty self-explanatory,"
+                   " just take turns placing Xs and Os until one player gets three in a row!")
+    name = "Tic-Tac-Toe"
+    players = 2
     options = [String("where to play", "move", autocomplete="ac_move")]
+    author = "@quantumbagel"
+    version = "1.0"
+    author_link = "https://github.com/quantumbagel"
+    source_link = "https://github.com/quantumbagel/PlayCord/blob/main/games/TicTacToeGame.py"
+    time = "2min"
+    difficulty = "Literally Braindead"
+
 
     def __init__(self, players):
 
@@ -28,7 +40,7 @@ class TicTacToeGame:
         self.anti_diagonal_count = 0
         self.last_move = None
 
-    def generate_game_picture(self):
+    def state(self):
         # Define dimensions
         svg_size = 300
         cell_size = svg_size / 3
@@ -69,10 +81,10 @@ class TicTacToeGame:
 
         # Build the elements into an SVG bytestring
         drawing = svg.SVG(width=svg_size, height=svg_size, elements=elements)
-        print(elements)
         # Force the bytestring into a file-like object so we can upload it.
         stuff = svg2png(bytestring=drawing.as_str())
-        return stuff
+        return [ImageType(bytes=stuff), InfoRows({self.x: {"Team": ":x:"},
+                                                  self.o: {"Team": ":o:"}})]
 
     def current_turn(self):
         return self.players[self.turn]
@@ -97,31 +109,26 @@ class TicTacToeGame:
             self.turn = 0
 
     def outcome(self) -> Player:
-        draw = True
-        for i in range(3):
-            if self.board[i][0] == None or self.board[i][1] == None or self.board[i][2] == None:
-                draw = False
-            # Check rows
-            if self.board[i][0] == self.board[i][1] == self.board[i][2] != None:
-                return self.board[i][0].owner
+        # Check rows
+        for row in self.board:
+            if row[0].id is not None and all(cell.id == row[0].id for cell in row):
+                return row[0].owner  # Return the winner's owner
 
-            # Check columns
-            if self.board[0][i] == self.board[1][i] == self.board[2][i] != None:
-                return self.board[0][i].owner
+        # Check columns
+        for col in range(3):
+            if self.board[0][col].id is not None and all(self.board[row][col].id == self.board[0][col].id for row in range(3)):
+                return self.board[0][col].owner  # Return the winner's owner
 
-            # Check diagonals
-        if self.board[0][0] == self.board[1][1] == self.board[2][2] != None:
-            return self.board[0][0].owner
-        if self.board[0][2] == self.board[1][1] == self.board[2][0] != None:
-            return self.board[0][2].owner
+        # Check diagonals
+        if self.board[0][0].id is not None and all(self.board[i][i].id == self.board[0][0].id for i in range(3)):
+            return self.board[0][0].owner  # Return the winner's owner
+        if self.board[0][2].id is not None and all(self.board[i][2 - i].id == self.board[0][2].id for i in range(3)):
+            return self.board[0][2].owner  # Return the winner's owner
 
-        if draw:
-            return [[self.players[0], self.players[1]]]
-        return None
-
-
-
-
-
+        # Check for a draw (self.board is full and no winner)
+        if all(cell.id is not None for row in self.board for cell in row):
+            # Collect all unique IDs from the self.board
+            ids = [[self.players[0], self.players[1]]]
+            return ids  # Return list of both IDs
 
 
