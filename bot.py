@@ -287,12 +287,34 @@ async def command_invite(ctx: discord.Interaction,
                          user4: discord.User = None,
                          user5: discord.User = None) -> None:
     invited_users = {user, user2, user3, user4, user5}
+
+
+
+    if ctx.user.id not in IN_MATCHMAKING:
+        await ctx.response.send_message("You aren't in matchmaking, so you can't invite people to play.")  # TODO: invites start games
+        return
+    matchmaker: MatchmakingInterface = IN_MATCHMAKING[ctx.user.id]
+    game_type = matchmaker.game.name
+    server_id = matchmaker.message.guild.id
+
+    failed_invites = {}
     for invited_user in filter(None, invited_users):  # Filter out None values
+        if invited_user not in matchmaker.message.guild.members:
+            failed_invites[invited_user] = "Member was not in server that the game was"
+            continue
+        embed = CustomEmbed(title=f"👋 Do you want to play a game?", description=f"{ctx.user.mention} has invited you to play a game of {game_type} in \"{matchmaker.message.guild.name}.\" If you don't want to play, just ignore this message. You can also change your DM settings with /playcord settings")
+        view = discord.ui.View()
+        button = discord.ui.Button(label="Join Game", style=discord.ButtonStyle.green)
+        view.add_item(button)
+        await invited_user.send(embed=embed, view=view)
         continue
-    await ctx.response.send_message("Invites sent successfully.", ephemeral=True)
+    if not len(failed_invites):
+        await ctx.response.send_message("Invites sent successfully.", ephemeral=True)
+    else:
+        pass
     
 
-@command_root.command(name="tictactoe", description="Tic-Tac Toe is a game about replacing your toes with Tic-Tacs,"                                                    " obviously.")
+@command_root.command(name="tictactoe", description="Tic-Tac Toe is a game about replacing your toes with Tic-Tacs, obviously.")
 async def tictactoe(ctx: discord.Interaction, rated: bool = True):
 
 
@@ -305,7 +327,7 @@ async def tictactoe(ctx: discord.Interaction, rated: bool = True):
     thing = await ctx.original_response()
 
 
-    g = MatchmakingInterface(ctx.user, "tic_tac_toe", thing, rated=rated)
+    g = MatchmakingInterface(ctx.user, "tictactoe", thing, rated=rated)
 
     if g.failed is not None:
         await thing.edit(embed=g.failed)

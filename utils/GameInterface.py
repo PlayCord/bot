@@ -51,7 +51,7 @@ class GameInterface:
         self.game = getattr(self.module, GAME_TYPES[game_type][1])(self.players)
 
         for p in players:
-            IN_GAME.append(p)
+            IN_GAME.update({p: self})
 
     async def thread_setup(self) -> None:
         """
@@ -140,14 +140,11 @@ class GameInterface:
                         rating_groups.append({player: environment.create_rating(player.mu, player.sigma)})
                     current_ranking += 1
 
-            print(environment, rating_groups)
             adjusted_rating_groups = environment.rate(rating_groups=rating_groups, ranks=rankings)
 
-            print(IN_GAME, 'before postgame')
-            print(IN_GAME, [p.id for p in self.players])
+
             for p in self.players:
-                IN_GAME.remove(p)
-            print(IN_GAME, 'after postgame')
+                IN_GAME.pop(p)
 
             message = await ctx.followup.send(content="Game over!", ephemeral=True)
             await message.delete(delay=5)
@@ -238,7 +235,7 @@ class MatchmakingInterface:
             self.failed = fail_embed
             return
 
-        IN_MATCHMAKING.extend(self.queued_players)
+        IN_MATCHMAKING.update({p: self for p in self.queued_players})
 
         # Game class
         self.game = getattr(self.module, GAME_TYPES[game_type][1])
@@ -266,7 +263,7 @@ class MatchmakingInterface:
                 await ctx.followup.send("Couldn't connect to DB!", ephemeral=True)
                 return
             self.queued_players.append(new_player)  # Add the player to queued_players
-            IN_MATCHMAKING.append(new_player)
+            IN_MATCHMAKING.update({new_player: self})
             await self.update_embed()  # Update embed on discord side
 
 
@@ -339,7 +336,7 @@ class MatchmakingInterface:
             for player in self.queued_players:
                 if player.id == ctx.user.id:
                     self.queued_players.remove(player)
-                    IN_MATCHMAKING.remove(player)
+                    IN_MATCHMAKING.pop(player)
                     break
             # Nobody is left lol
             if not len(self.queued_players):
@@ -378,7 +375,7 @@ async def successful_matchmaking(game_type: str, message, creator: discord.User,
 
     print(IN_MATCHMAKING, 'matchmaking before pregame')
     for p in players:
-        IN_MATCHMAKING.remove(p)
+        IN_MATCHMAKING.pop(p)
 
     print(IN_MATCHMAKING, 'matchmaking after pregame')
 
