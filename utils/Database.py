@@ -60,7 +60,7 @@ def startup() -> bool:
                           id BIGINT UNSIGNED PRIMARY KEY,
                           mu DECIMAL(10,4) NOT NULL,
                           sigma DECIMAL(10,4) NOT NULL,
-                          ranking BIGINT UNSIGNED NOT NULL,
+                          ranking BIGINT UNSIGNED DEFAULT null,
                           INDEX skill (mu DESC, sigma));
                        """)
 
@@ -184,6 +184,8 @@ def update_rankings(game_type: str, teams: list[list[Player]]) -> bool:
             teams[team_index][player_index].mu = player.mu
             teams[team_index][player_index].sigma = player.sigma
             update_player(game_type, teams[team_index][player_index].id, player.mu, player.sigma)
+
+    print("output", update_db_rankings(game_type))
             
             
 def update_db_rankings(game_type):
@@ -199,14 +201,17 @@ def update_db_rankings(game_type):
         FROM leaderboard AS sub
     )) AS ranking
     FROM leaderboard;
-    UPDATE leaderboard AS ldr
+    """)
+    cursor.execute("""UPDATE leaderboard AS ldr
     JOIN temp_leaderboard_ranking AS temp
     ON ldr.id = temp.id
     SET ldr.ranking = temp.ranking;
-    DROP TEMPORARY TABLE temp_leaderboard_ranking;""")
-
+    """)
+    cursor.execute("DROP TEMPORARY TABLE temp_leaderboard_ranking;")
     # Close connection
     db.commit()
     cursor.close()
     db.close()
     return True
+
+

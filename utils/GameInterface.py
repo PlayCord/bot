@@ -1,14 +1,13 @@
 import importlib
-import io
 import random
+import traceback
 import typing
 
 import trueskill
 
-from configuration import constants
 from configuration.constants import *
-from utils.CustomEmbed import CustomEmbed
-from utils.Database import get_player, update_player
+from utils.CustomEmbed import CustomEmbed, ErrorEmbed
+from utils.Database import get_player, update_player, update_rankings, update_db_rankings
 from utils.Player import Player
 from utils.conversion import textify, column_creator, column_names, column_elo, column_turn, player_representative, \
     player_verification_function
@@ -86,12 +85,13 @@ class GameInterface:
         self.info_message = await self.thread.send(embed=game_info_embed)
         self.game_message = await self.thread.send(embed=getting_ready_embed)
 
-    async def move(self, ctx: discord.Interaction, arguments: dict[str, typing.Any]) -> None:
+    async def move(self, ctx: discord.Interaction, name, arguments: dict[str, typing.Any]) -> None:
         """
         Make a move. This function is called dynamically by handle_move in the main program.
         How it works:
         1. Call the game's move function
         2. Update the game message based on the changes to the move
+        :param name: Name of movement function to call
         :param ctx: Discord context window
         :param arguments: the list of preparsed arguments to pass directly into the move function
         :return: None
@@ -100,55 +100,24 @@ class GameInterface:
             message = await ctx.followup.send(content="It isn't your turn right now!", ephemeral=True)
             await message.delete(delay=5)
             return
-        self.game.move(arguments)  # Move
+        try:
+            move_return_value = getattr(self.game, name)(arguments)
+        except Exception as e:
+            error_embed = ErrorEmbed(what_failed=f"Error occurred while making a move! ({type(e)})", reason=traceback.format_exc())
+            await ctx.followup.send(embed=error_embed, ephemeral=True)
+            await game_over(self.game_type, traceback.format_exc(), self.players, self.rated, self.thread, self.status_message)
+            return
+        # TODO: parse move return
 
 
         await self.display_game_state()  # Update game state
 
 
         if (outcome := self.game.outcome()) is not None:  # Game is over
-            sigma = MU * GAME_TRUESKILL[self.game_type]["sigma"]
-            beta = MU * GAME_TRUESKILL[self.game_type]["beta"]
-            tau = MU * GAME_TRUESKILL[self.game_type]["tau"]
-            draw = GAME_TRUESKILL[self.game_type]["draw"]
-
-            # mpmath backend = near infinite floating point precision
-            environment = trueskill.TrueSkill(mu=MU, sigma=sigma, beta=beta, tau=tau, draw_probability=draw,
-                                              backend="mpmath")
-            # Two cases implemented:
-            if isinstance(outcome, Player):  # Somebody won, everybody else lost. No way of comparison (tic-tac-toe)
-                # Winner's rating
-                winner = environment.create_rating(outcome.mu, outcome.sigma)
-
-                # All the losers
-                losers = [{p: environment.create_rating(p.mu, p.sigma)} for p in self.players if p != outcome]
-
-                rating_groups = [{outcome: winner}, *losers]  # Make the rating groups
-                rankings = [0, *[1 for _ in range(len(self.players)-1)]]  # Rankings = [0, 1, 1, ..., 1] for this case
-
-            elif isinstance(outcome, list):  # More generic position placement
-                # Format:
-                # [[p1, p2], [p3], [p4]] indicates p1 and p2 tied, p3 got third, p4 got fourth
-                # What if there are teams? screw you
-
-                current_ranking = 0
-                rankings = []
-                rating_groups = []
-                for placement in outcome:
-                    for player in placement:
-                        rankings.append(current_ranking)
-                        rating_groups.append({player: environment.create_rating(player.mu, player.sigma)})
-                    current_ranking += 1
-
-            adjusted_rating_groups = environment.rate(rating_groups=rating_groups, ranks=rankings)
-
-
-            for p in self.players:
-                IN_GAME.pop(p)
 
             message = await ctx.followup.send(content="Game over!", ephemeral=True)
             await message.delete(delay=5)
-            await game_over(self.game_type, adjusted_rating_groups, rankings, self.rated, self.thread, self.status_message)
+            await game_over(self.game_type, outcome, self.players, self.rated, self.thread, self.status_message)
             return
 
 
@@ -207,7 +176,8 @@ class MatchmakingInterface:
     MatchmakingInterface - the class that handles matchmaking for a game, where control is promptly handed off to a GameInterface
     via the successful_matchmaking function.
     """
-    def __init__(self, creator: discord.User, game_type: str, message: discord.InteractionMessage, rated: bool):
+    def __init__(self, creator: discord.User, game_type: str, message: discord.InteractionMessage,
+                 rated: bool, private: bool):
         # Whether the startup of the matchmaking interaction failed
         self.failed = None
 
@@ -220,21 +190,30 @@ class MatchmakingInterface:
         # Is the game rated?
         self.rated = rated
 
+        # Whether joining the game is open
+        self.private = private
+
+        # Allowed players for whitelist
+        self.whitelist = {get_player(game_type, creator)}
+
+        # Disallowed players (blacklist
+        self.blacklist = set()
+
         # Game module
         self.module = importlib.import_module(GAME_TYPES[game_type][0])
 
         # Start the list of queued players with just the creator
-        self.queued_players = [get_player(game_type, creator)]
+        self.queued_players = set(self.whitelist)
 
         # The message context to edit when making updates
         self.message = message
 
-        if self.queued_players == [None]:  # Couldn't get information on the creator, so fail now
+        if self.queued_players == {None}:  # Couldn't get information on the creator, so fail now
             fail_embed = CustomEmbed(title="Couldn't connect to database!", description="The bot failed to connect to the database."
                                                                                   " This is likely a temporary error, try again later!")
             self.failed = fail_embed
             return
-
+        CURRENT_MATCHMAKING.update({self.message.id: self})
         IN_MATCHMAKING.update({p: self for p in self.queued_players})
 
         # Game class
@@ -254,7 +233,6 @@ class MatchmakingInterface:
         :return: Nothing
         """
         await ctx.response.defer()  # Prevent button from failing
-
         if ctx.user.id in [p.id for p in self.queued_players]:  # Can't join if you are already in
             await ctx.followup.send("You are already in the game!", ephemeral=True)
         else:
@@ -262,9 +240,108 @@ class MatchmakingInterface:
             if new_player is None:  # Couldn't retrieve information, so don't join them
                 await ctx.followup.send("Couldn't connect to DB!", ephemeral=True)
                 return
-            self.queued_players.append(new_player)  # Add the player to queued_players
+            if not self.private:
+                if new_player in self.blacklist:
+                    await ctx.followup.send(f"You are banned from this game!"
+                                            f" Ask the owner of the game {self.creator.mention}"
+                                            f" to unban you!", ephemeral=True)
+                    return
+                self.queued_players.add(new_player)  # Add the player to queued_players
+                IN_MATCHMAKING.update({new_player: self})
+                await self.update_embed()  # Update embed on discord side
+            else:
+                if new_player not in self.whitelist:
+                    await ctx.followup.send("You are not on the whitelist for this private game!", ephemeral=True)
+                    return
+                self.queued_players.add(new_player)  # Add the player to queued_players
+                IN_MATCHMAKING.update({new_player: self})
+                await self.update_embed()  # Update embed on discord side
+
+
+
+    async def accept_invite(self, player):
+        if player.id in [p.id for p in self.queued_players]:  # Can't join if you are already in
+            return "You are already in the game!"
+        else:
+            new_player = get_player(self.game_type, player)
+            if new_player is None:  # Couldn't retrieve information, so don't join them
+                return "Couldn't connect to DB!"
+            if self.private:
+                self.whitelist.add(new_player)
+            else:
+                try:
+                    self.blacklist.remove(new_player)
+                except KeyError:
+                    pass
+            self.queued_players.add(new_player)  # Add the player to queued_players
             IN_MATCHMAKING.update({new_player: self})
             await self.update_embed()  # Update embed on discord side
+
+
+    async def ban(self, player, reason):
+        new_player = get_player(self.game_type, player)
+        if new_player is None:  # Couldn't retrieve information, so don't join them
+            return "Couldn't connect to DB!"
+
+        # Kick if already in and update embed
+        kicked = False
+        if new_player.id in [p.id for p in self.queued_players]:
+            kicked = True
+            self.queued_players.remove(new_player)
+            IN_MATCHMAKING.pop(new_player)
+
+        # end game if necessary
+        if not len(self.queued_players):
+            await self.message.delete()  # Remove matchmaking message
+            self.outcome = False
+            return "idk why you banned yourself when you are the only one in the lobby, lol"
+
+        if player.id == self.creator.id:  # Update creator if the person leaving was the creator.
+            self.creator = next(iter(self.queued_players)).user
+
+        # If private game: remove from whitelist
+        # If public game: add to blacklist
+        if self.private:
+            try:
+                self.whitelist.remove(new_player)
+            except KeyError:
+                return "Can't ban someone who isn't on the whitelist anyway!"
+        else:
+            self.blacklist.add(new_player)
+
+        await self.update_embed()  # Update embed now that we have done all operations
+
+        if kicked: return f"Successfully kicked and banned {player.mention} from the game for reason \"{reason}\""
+        return f"Successfully banned {player.mention} from the game for reason \"{reason}\""
+
+
+    async def kick(self, player, reason):
+
+
+
+        new_player = get_player(self.game_type, player)
+        if new_player is None:  # Couldn't retrieve information, so don't join them
+            return "Couldn't connect to DB!"
+
+        kicked = False
+        if new_player.id in [p.id for p in self.queued_players]:  # Kick if already in
+            kicked = True
+            self.queued_players.remove(new_player)
+            IN_MATCHMAKING.pop(new_player)
+            await self.update_embed()
+
+        # end game if necessary
+        if not len(self.queued_players):
+            await self.message.delete()  # Remove matchmaking message
+            self.outcome = False
+            return ("idk why you thought kicking yourself was a smart idea "
+                    "when you are the only one in the lobby, lol")
+
+        if player.id == self.creator.id:  # Update creator if the person leaving was the creator.
+            self.creator = next(iter(self.queued_players)).user
+
+        if kicked: return f"Successfully kicked {player.mention} from the game for reason \"{reason}\""
+        return f"Didn't kick anyone: {player.mention} isn't in this lobby!"
 
 
     async def callback_start_game(self, ctx: discord.Interaction) -> None:
@@ -282,9 +359,11 @@ class MatchmakingInterface:
         # The matchmaking was successful!
         self.outcome = True
 
+        print(IN_MATCHMAKING, self.queued_players)
         # Start the GameInterface
         await successful_matchmaking(self.game_type, self.message, self.creator,
                                      self.queued_players, self.rated)
+
 
     async def update_embed(self) -> None:
         """
@@ -294,14 +373,24 @@ class MatchmakingInterface:
         # Set up the embed
 
         game_rated_text = "Rated" if self.rated else "Not Rated"
+        private_text = "🔐Private" if self.private else "🔓Public"
 
         embed = CustomEmbed(title=f"Queueing for {self.game.name}...",
-                            description=f"⏰{self.game.time}\u2800\u2800"
-                                        f"👤{self.allowed_players}\u2800\u2800"
-                                        f"📈{self.game.difficulty}\u2800\u2800"
-                                        f"📊{game_rated_text}")
+                            description=f"⏰{self.game.time}{LONG_SPACE_EMBED*2}"
+                                        f"👤{self.allowed_players}{LONG_SPACE_EMBED*2}"
+                                        f"📈{self.game.difficulty}{LONG_SPACE_EMBED*2}"
+                                        f"📊{game_rated_text}{LONG_SPACE_EMBED*2}"
+                                        f"{private_text}")
 
-        embed.add_field(name="Players:", value=column_names(self.queued_players), inline=False)
+        embed.add_field(name="Players:", value=column_names(self.queued_players), inline=True)
+        embed.add_field(name="Rating:", value=column_elo(self.queued_players), inline=True)
+        embed.add_field(name="Creator:", value=column_creator(self.queued_players, self.creator), inline=True)
+
+
+        if self.private:
+            embed.add_field(name="Whitelist:", value=column_names(list(self.whitelist)), inline=True)
+        elif len(self.blacklist):
+            embed.add_field(name="Blacklist:", value=column_names(list(self.blacklist)), inline=True)
 
         embed.add_field(name="Game Info:", value=self.game.description, inline=False)
         embed.add_field(name="Game by:", value=f"[{self.game.author}]({self.game.author_link})\n[Source]({self.game.source_link})")
@@ -346,12 +435,10 @@ class MatchmakingInterface:
                 return
 
             if ctx.user.id == self.creator.id:  # Update creator if the person leaving was the creator.
-                self.creator = self.queued_players[0].user
+                self.creator = next(iter(self.queued_players)).user
 
             await self.update_embed()  # Update embed again
         return
-
-
 
 
 async def successful_matchmaking(game_type: str, message, creator: discord.User, players: list[Player], rated: bool)\
@@ -369,39 +456,89 @@ async def successful_matchmaking(game_type: str, message, creator: discord.User,
 
     # Placeholder spectate button TODO: correctly implement
     join_thread_embed = CustomEmbed(title="Game started!", description="ya click button if u want to spectate")
-    view = discord.ui.View()
-    spectate_button = discord.ui.Button(label="Spectate", style=discord.ButtonStyle.blurple)
-    view.add_item(spectate_button)
 
-    print(IN_MATCHMAKING, 'matchmaking before pregame')
+
     for p in players:
         IN_MATCHMAKING.pop(p)
 
-    print(IN_MATCHMAKING, 'matchmaking after pregame')
+    CURRENT_MATCHMAKING.pop(message.id)
 
-
-    # Send the spectate view and embed
-    await message.edit(embed=join_thread_embed, view=view)
 
     # Set up a new GameInterface
-    game = GameInterface(game_type, message, creator, players, rated)
+    game = GameInterface(game_type, message, creator, list(players), rated)  # fix: turn advantageous set to list for gameinterface
     await game.thread_setup()
 
-    # Register the game to the channel it's in TODO: fix bug that allows only one game per channel, too lazy rn
-    constants.CURRENT_GAMES.update({game.thread.id: game})
+
+    # Register the game to the channel it's in
+    CURRENT_GAMES.update({game.thread.id: game})
+
+
+    await message.edit(embed=join_thread_embed, view=SpectateView(spectate_button_id=f"spectate/{game.thread.id}",
+                                                                  game_link=game.info_message.jump_url))
 
     await game.display_game_state()  # Send the game display state
 
 
-async def game_over(game_type, rating_groups: list[dict[Player, trueskill.Rating]], rankings, rated, thread: discord.Thread, outbound_message):
+async def game_over(game_type, outcome, players, rated, thread: discord.Thread, outbound_message):
     # TODO: implement outbound game over view
+
+    sigma = MU * GAME_TRUESKILL[game_type]["sigma"]
+    beta = MU * GAME_TRUESKILL[game_type]["beta"]
+    tau = MU * GAME_TRUESKILL[game_type]["tau"]
+    draw = GAME_TRUESKILL[game_type]["draw"]
+
+    # mpmath backend = near infinite floating point precision
+    environment = trueskill.TrueSkill(mu=MU, sigma=sigma, beta=beta, tau=tau, draw_probability=draw,
+                                      backend="mpmath")
+    # Two cases implemented:
+
+    if isinstance(outcome, str):  # Error
+        game_over_embed = ErrorEmbed(what_failed="Error during a move!", reason=outcome)
+        # Send the embed
+        await outbound_message.edit(embed=game_over_embed)
+
+        await thread.edit(locked=True, archived=True, reason="Game crashed.")
+
+
+
+        await thread.send(embed=game_over_embed)
+        return
+
+    if isinstance(outcome, Player):  # Somebody won, everybody else lost. No way of comparison (tic-tac-toe)
+        # Winner's rating
+        winner = environment.create_rating(outcome.mu, outcome.sigma)
+
+        # All the losers
+        losers = [{p: environment.create_rating(p.mu, p.sigma)} for p in players if p != outcome]
+
+        rating_groups = [{outcome: winner}, *losers]  # Make the rating groups
+        rankings = [0, *[1 for _ in range(len(players) - 1)]]  # Rankings = [0, 1, 1, ..., 1] for this case
+
+    elif isinstance(outcome, list):  # More generic position placement
+        # Format:
+        # [[p1, p2], [p3], [p4]] indicates p1 and p2 tied, p3 got third, p4 got fourth
+        # What if there are teams? screw you
+
+        current_ranking = 0
+        rankings = []
+        rating_groups = []
+        for placement in outcome:
+            for player in placement:
+                rankings.append(current_ranking)
+                rating_groups.append({player: environment.create_rating(player.mu, player.sigma)})
+            current_ranking += 1
+
+    adjusted_rating_groups = environment.rate(rating_groups=rating_groups, ranks=rankings)
+
+    for p in players:
+        IN_GAME.pop(p)
 
     player_ratings = {}
     current_place = 1
     nums_current_place = 0
     matching = 0
-    keys = [next(iter(p)) for p in rating_groups]
-    all_ratings = {list(p.keys())[0]:list(p.values())[0] for p in rating_groups}
+    keys = [next(iter(p)) for p in adjusted_rating_groups]
+    all_ratings = {list(p.keys())[0]:list(p.values())[0] for p in adjusted_rating_groups}
     for i, pre_rated_player in enumerate(keys):
         if rankings[i] == matching:
             nums_current_place += 1
@@ -419,10 +556,10 @@ async def game_over(game_type, rating_groups: list[dict[Player, trueskill.Rating
 
         player_ratings.update({pre_rated_player.id: {"old_rating": round(starting_mu), "delta": mu_delta, "place": current_place, "new_rating": aftermath_mu, "new_sigma": aftermath_sigma}})
 
+    print(player_ratings)
+    player_string = "\n".join([f"{player_ratings[p]["place"]}.{LONG_SPACE_EMBED}<@{p}>{LONG_SPACE_EMBED}{player_ratings[p]["old_rating"]}{LONG_SPACE_EMBED}({player_ratings[p]["delta"]})" for p in player_ratings])
 
-    player_string = "\n".join([f"{player_ratings[p]["place"]}.\u2800<@{p}>\u2800{player_ratings[p]["old_rating"]}\u2800({player_ratings[p]["delta"]})" for p in player_ratings])
-
-    game_over_embed = CustomEmbed(title="Game Over", description="This is the end")
+    game_over_embed = CustomEmbed(title="Game Over", description="That's the end! Thanks for playing :)")
     game_over_embed.add_field(name="Rankings", value=player_string)
 
     # Send the embed
@@ -430,7 +567,7 @@ async def game_over(game_type, rating_groups: list[dict[Player, trueskill.Rating
 
     await thread.edit(locked=True, archived=True, reason="Game is over.")
 
-    final_ranking_embed = CustomEmbed(title="That's all, folks!", description="The game is over.")
+    final_ranking_embed = CustomEmbed(title="That's all, folks!", description="Hope you had fun playing :)")
     final_ranking_embed.add_field(name="Final Rankings", value=player_string)
 
     await thread.send(embed=final_ranking_embed)
@@ -443,8 +580,7 @@ async def game_over(game_type, rating_groups: list[dict[Player, trueskill.Rating
                                         user=discord.Object(id=player_id)))
 
 
-
-
+    update_db_rankings(game_type)
 
 
 class DynamicButtonView(discord.ui.View):
@@ -458,7 +594,7 @@ class DynamicButtonView(discord.ui.View):
         super().__init__(timeout=None)
 
         for button in buttons:
-            for argument in ["label", "style", "id", "emoji", "disabled", "callback"]:
+            for argument in ["label", "style", "id", "emoji", "disabled", "callback", "link"]:
                 if argument not in button.keys():
                     if argument == "disabled":
                         button[argument] = False
@@ -466,14 +602,26 @@ class DynamicButtonView(discord.ui.View):
                     button[argument] = None
 
             item = discord.ui.Button(label=button["label"], style=button["style"],
-                                     custom_id=button["id"], emoji=button["emoji"], disabled=button["disabled"])
-            if button["callback"] is not None:
-
-                item.callback = button["callback"]
-            else:
+                                     custom_id=button["id"], emoji=button["emoji"], disabled=button["disabled"],
+                                     url=button["link"])
+            if button["callback"] is None:
                 item.callback = self._fail_callback
+            elif button["callback"] == "none":
+                item.callback = self._null_callback
+            else:
+                item.callback = button["callback"]
+
+
+
             self.add_item(item)
 
+    async def _null_callback(self, interaction: discord.Interaction):
+        """
+        TODO: add logging here. This is a NULL callback
+        :param interaction: discord context
+        :return:
+        """
+        pass
 
     async def _fail_callback(self, interaction: discord.Interaction):
         """
@@ -502,4 +650,13 @@ class MatchmakingView(DynamicButtonView):
                           {"label": "Start", "style": discord.ButtonStyle.blurple, "id": "start", "callback": start_button_callback, "disabled": not can_start}])
 
 
+class InviteView(DynamicButtonView):
+    def __init__(self, join_button_id=None, game_link=None):
+        super().__init__([{"label": "Join Game", "style": discord.ButtonStyle.blurple, "id": join_button_id, "callback": "none"},
+                          {"label": "Go To Game (won't join)", "style": discord.ButtonStyle.gray, "link": game_link}])
 
+
+class SpectateView(DynamicButtonView):
+    def __init__(self, spectate_button_id=None, game_link=None):
+        super().__init__([{"label": "Spectate Game", "style": discord.ButtonStyle.blurple, "id": spectate_button_id, "callback": "none"},
+                          {"label": "Go To Game (won't join)", "style": discord.ButtonStyle.gray, "link": game_link}])

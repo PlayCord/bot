@@ -1,20 +1,23 @@
 import importlib
 import logging
 import sys
+import traceback
+from symtable import Function
+from typing import Any
 
 import discord
 import trueskill
 from discord import app_commands, ChannelType, Member, User
-from discord.app_commands import Choice
+from discord.app_commands import Choice, Group
 import utils.logging_formatter
 from configuration.constants import *
 import configuration.constants as constants
 from ruamel.yaml import YAML
 
-from utils import Database
-from utils.CustomEmbed import CustomEmbed
+from utils import Database, CommandType
+from utils.CustomEmbed import CustomEmbed, ErrorEmbed
 from utils.Database import get_player
-from utils.GameInterface import GameInterface, MatchmakingInterface, MatchmakingView
+from utils.GameInterface import GameInterface, MatchmakingInterface, MatchmakingView, InviteView
 from utils.InputTypes import Dropdown, InputType
 import typing
 
@@ -51,7 +54,7 @@ def load_configuration() -> dict:
         loaded_config_file = YAML().load(open(CONFIG_FILE))
     except FileNotFoundError:
         log.critical("Configuration file not found.")
-        return None
+        return
     log.debug("Successfully loaded configuration file!")
     return loaded_config_file
 
@@ -78,19 +81,6 @@ log.info(f"Welcome to {NAME} by @quantumbagel!")
 
 
 
-
-
-def simple_embed(title: str, description: str) -> CustomEmbed:
-    """
-    Generate a simple embed
-    :param title: the title
-    :param description: the description
-    :return: the embed
-    """
-    embed = CustomEmbed(title=title, description=description)
-    return embed
-
-
 async def send_simple_embed(ctx: discord.Interaction, title: str, description: str, ephemeral: bool = True,
                             responded: bool = False) -> None:
     """
@@ -100,10 +90,10 @@ async def send_simple_embed(ctx: discord.Interaction, title: str, description: s
     :return: the embed
     """
     if not responded:
-        await ctx.response.send_message(embed=simple_embed(title, description), ephemeral=ephemeral)
+        await ctx.response.send_message(embed=CustomEmbed(title=title, description=description), ephemeral=ephemeral)
     else:
         # Use the followup for sending the embed simply because ctx.response won't work
-        await ctx.followup.send(embed=simple_embed(title, description), ephemeral=ephemeral)
+        await ctx.followup.send(embed=CustomEmbed(title=title, description=description), ephemeral=ephemeral)
 
 
 async def interaction_check(ctx: discord.Interaction) -> bool:
@@ -129,13 +119,6 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
         logger.warning("Bot users are not allowed to use commands.")
         return False
 
-    if str(ctx.channel.type) == "private":  # No DMs - maybe in the future?
-        logger.error("Commands don't work in DMs!")
-        await send_simple_embed(ctx, "Commands don't work in DMs!",
-                                      f"{NAME} is a server-only bot currently. requires a server for its commands to work."
-                                      " Support for some DM commands may come in the future.")
-        return False
-
     return True
 
 
@@ -143,9 +126,38 @@ command_root.interaction_check = interaction_check  # Set the interaction check
 
 
 @client.event
+async def on_interaction(ctx: discord.Interaction):
+    """
+    Callback activated after every bot interaction. For the purposes of this bot,
+     this is used to handle button interactions.
+    :param ctx:
+    :return:
+    """
+    # Log interaction
+    log.getChild("event.on_interaction").debug(f"Interaction of type '{ctx.type}' received: {ctx.data}")
+
+    custom_id = ctx.data.get("custom_id")  # Get custom ID
+    if custom_id is None:  # Not button
+        return
+
+    if custom_id.startswith("invite/"):  # Invite accept button
+        await invite_accept_callback(ctx)
+    if custom_id.startswith("spectate/"):  # Spectate button
+        await spectate_callback(ctx)
+
+@client.event
 async def on_ready():
+    """
+    Callback activated after the bot is ready (connected to gateway).
+    Only things we need to do is register button views and rich presence.
+    :return:
+    """
     # Register views to the bot
     client.add_view(MatchmakingView())
+    activity = discord.Activity(type=discord.ActivityType.playing,
+                                   name="paper and pencil games on discord!", state=f"Watching {len(client.guilds)} servers!")
+    await client.change_presence(activity=activity, status=discord.Status.online)
+
 
 @client.event
 async def on_message(msg: discord.Message) -> None:
@@ -170,21 +182,35 @@ async def on_message(msg: discord.Message) -> None:
     # Message synchronization command
     if msg.author.bot:
         return
+
+
     if msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_SYNC}") and msg.author.id in OWNERS:  # Perform sync
         split = msg.content.split()
-        if len(split) == 1:
-            await tree.sync()
+        if len(split) == 1:  # just /sync
+            try:
+                await tree.sync()
+            except discord.app_commands.errors.CommandSyncFailure as e:
+                await msg.add_reaction(MESSAGE_COMMAND_FAILED)
+                await msg.reply(embed=ErrorEmbed(f"Couldn't sync commands! ({type(e)})", traceback.format_exc()))
+                return
             f_log.info(f"Performed authorized sync from user {msg.author.id} to all guilds.")
         else:
-            if split[1] == MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER:
+            if split[1] == MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER:  # sync this
                 g = msg.guild
             else:
                 try:
-                    g = discord.Object(id=int(split[1]))
+                    g = discord.Object(id=int(split[1]))  # sync 983459383
                 except ValueError:
                     return
+
+            # Actually sync
             tree.copy_global_to(guild=g)
-            await tree.sync(guild=g)
+            try:
+                await tree.sync(guild=g)
+            except discord.app_commands.errors.CommandSyncFailure as e:  # Something went wrong
+                await msg.add_reaction(MESSAGE_COMMAND_FAILED)
+                await msg.reply(embed=ErrorEmbed(f"Couldn't sync commands! ({type(e)})", traceback.format_exc()))
+                return
             f_log.info(f"Performed authorized sync from user {msg.author.id} to guild \"{g.name}\" (id=\"{g.id}\")")
         await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)  # leave confirmation
         return
@@ -197,7 +223,7 @@ async def on_message(msg: discord.Message) -> None:
         IS_ACTIVE = False
         f_log.critical(f"Bot has been disabled by authorized user {msg.author.id}.")
 
-        await msg.add_reaction(MESSAGE_COMMAND_FAILED)  # leave confirmation
+        await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)  # leave confirmation
         return
 
     # Enable
@@ -218,7 +244,7 @@ async def on_message(msg: discord.Message) -> None:
             await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)  # leave confirmation
         else:
             f_log.critical(f"Bot has been disabled by authorized user {msg.author.id}.")
-            await msg.add_reaction(MESSAGE_COMMAND_FAILED)
+            await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)
         return
 
     # Clear command tree
@@ -279,55 +305,200 @@ async def on_guild_remove(guild: discord.Guild) -> None:
     """
     pass
 
-@command_root.command(name="invite", description="Invite a player to play the game you're queued for")
+async def invite_accept_callback(ctx: discord.Interaction):
+    await ctx.response.defer()  # Prevent button interaction from failing
+    matchmaker_id: str = ctx.data['custom_id'].replace('invite/', "")
+    if int(matchmaker_id) in CURRENT_MATCHMAKING:
+        matchmaker: MatchmakingInterface = CURRENT_MATCHMAKING[int(matchmaker_id)]
+        error = await matchmaker.accept_invite(ctx.user)
+        if error is not None:
+            await ctx.followup.send(error, ephemeral=True)
+            return
+        await ctx.followup.send("You have joined the game! Press 'Go To Game' to go to the server where the game is", ephemeral=True)
+    else:
+        await ctx.followup.send("This invite has expired.", ephemeral=True)
+    view = discord.ui.View.from_message(ctx.message)
+    for button in view.children:
+        if button.custom_id == "invite/"+matchmaker_id:
+            button.disabled = True
+    await ctx.message.edit(view=view, embed=ctx.message.embeds[0])
+
+
+async def spectate_callback(ctx: discord.Interaction):
+    await ctx.response.defer()
+
+
+
+@command_root.command(name="invite", description="Invite a player to play a game, or remove them from the blacklist in public games.")
 async def command_invite(ctx: discord.Interaction,
                          user: discord.User,
                          user2: discord.User = None,
                          user3: discord.User = None,
                          user4: discord.User = None,
                          user5: discord.User = None) -> None:
-    invited_users = {user, user2, user3, user4, user5}
+    """
+    /invite: invites a user to a game.
+    :param ctx: discord Context
+    :param user: Player to invite to the game
+    :param user2: Second player to invite to the game
+    :param user3: Third player to invite to the game
+    :param user4: Fourth player to invite to the game
+    :param user5: Fifth player to invite to the game
+    :return: Nothing, yet
+    """
+    invited_users = {user, user2, user3, user4, user5}  # Condense to unique users
 
+    id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}  # get matchmaking by player ID
 
-
-    if ctx.user.id not in IN_MATCHMAKING:
-        await ctx.response.send_message("You aren't in matchmaking, so you can't invite people to play.")  # TODO: invites start games
+    if ctx.user.id not in id_matchmaking:  # Player isn't in matchmaking
+        await ctx.response.send_message("You aren't in matchmaking, so you can't invite people to play.",
+                                        ephemeral=True)  # TODO: invites start games
         return
-    matchmaker: MatchmakingInterface = IN_MATCHMAKING[ctx.user.id]
+
+    matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]  # Get the matchmaker for the game the player is in
+
+    if matchmaker.private and matchmaker.creator.id != ctx.user.id:  # Only creators can invite in private games
+        await ctx.response.send_message("You aren't the creator of this game, so you can't invite people to play.",
+                                        ephemeral=True)
+        return
+
     game_type = matchmaker.game.name
-    server_id = matchmaker.message.guild.id
 
     failed_invites = {}
     for invited_user in filter(None, invited_users):  # Filter out None values
         if invited_user not in matchmaker.message.guild.members:
             failed_invites[invited_user] = "Member was not in server that the game was"
             continue
-        embed = CustomEmbed(title=f"👋 Do you want to play a game?", description=f"{ctx.user.mention} has invited you to play a game of {game_type} in \"{matchmaker.message.guild.name}.\" If you don't want to play, just ignore this message. You can also change your DM settings with /playcord settings")
-        view = discord.ui.View()
-        button = discord.ui.Button(label="Join Game", style=discord.ButtonStyle.green)
-        view.add_item(button)
-        await invited_user.send(embed=embed, view=view)
+        if invited_user.id in [p.id for p in matchmaker.queued_players]:
+            failed_invites[invited_user] = "Member was already in matchmaking."
+            continue
+        if invited_user in IN_GAME:
+            failed_invites[invited_user] = "Member was already in a game."
+            continue
+        if invited_user.bot:
+            failed_invites[invited_user] = "Member was a bot :skull:."
+            continue
+        embed = CustomEmbed(title=f"👋 Do you want to play a game?", description=f"{ctx.user.mention} has invited you to play a game of {game_type} in \"{matchmaker.message.guild.name}.\" If you don't want to play, just ignore this message.")
+
+        await invited_user.send(embed=embed, view=InviteView(join_button_id="invite/"+str(matchmaker.message.id), game_link=matchmaker.message.jump_url))
         continue
     if not len(failed_invites):
         await ctx.response.send_message("Invites sent successfully.", ephemeral=True)
+        return
+    elif len(failed_invites) == len(invited_users):
+        message = "Failed to send any invites. Errors:"
     else:
-        pass
-    
+        message = "Failed to send invites to the following users:"
+
+    final = message + "\n"
+    for fail in failed_invites:
+        final += f"{fail.mention} - {failed_invites[fail]}\n"
+    await ctx.response.send_message(final, ephemeral=True)
+
+@command_root.command(name="kick", description="Remove a user from your lobby without banning them.")
+async def command_kick(ctx: discord.Interaction, user: discord.User, reason: str = None):
+    """
+
+    :param ctx:
+    :param user:
+    :param reason:
+    :return:
+    """
+    id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
+
+    if ctx.user.id not in id_matchmaking:
+        await ctx.response.send_message("You aren't in matchmaking, so you can't kick anyone.",
+                                        ephemeral=True)
+        return
+    matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
+    if matchmaker.creator.id != ctx.user.id:
+        await ctx.response.send_message("You aren't the creator of this game, so you can't kick people from the game.",
+                                        ephemeral=True)
+        return
+
+    return_value = await matchmaker.kick(user, reason)
+
+    await ctx.response.send_message(return_value, ephemeral=True)
+
+@command_root.command(name="ban", description="Either removes a user from the whitelist (private games)"
+                                              "or adds them to the blacklist (public games)")
+async def command_ban(ctx: discord.Interaction, user: discord.User, reason: str = None):
+    id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
+
+    if ctx.user.id not in id_matchmaking:
+        await ctx.response.send_message("You aren't in matchmaking, so you can't ban anyone.",
+                                        ephemeral=True)
+        return
+    matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
+    if matchmaker.creator.id != ctx.user.id:
+        await ctx.response.send_message("You aren't the creator of this game, so you can't ban people from the game.",
+                                        ephemeral=True)
+        return
+
+    return_value = await matchmaker.ban(user, reason)
+
+    await ctx.response.send_message(return_value, ephemeral=True)
+    pass
+
+
+
+@command_root.command(name="stats", description="Get stats about the bot")
+async def command_stats(ctx: discord.Interaction):
+    server_count = len(client.guilds)
+    member_count = len(set(client.get_all_members()))
+
+    shard_id = ctx.guild.shard_id
+
+    shard_ping = client.latency
+    shard_servers = len([guild for guild in client.guilds if guild.shard_id == shard_id])
+
+    embed = CustomEmbed(title='PlayCord Stats <:pointing:1328138400808828969>')
+
+    embed.add_field(name='💻 Bot Version:', value=VERSION)
+    embed.add_field(name='🐍 discord.py Version:', value=discord.__version__)
+    embed.add_field(name='Total Guilds:', value=server_count)
+    embed.add_field(name='<:user:1328138963512201256> Total Users:', value=member_count)
+    embed.add_field(name='#️⃣ Shard ID:', value=shard_id)
+    embed.add_field(name='🛜 Shard Ping:', value=str(round(shard_ping*100, 2)) + " ms")
+    embed.add_field(name='Shard Guilds:', value=shard_servers)
+    embed.add_field(name='👾 Games Loaded:', value=len(GAME_TYPES))
+
+    await ctx.response.send_message(embed=embed)
+
+@command_root.command(name="about", description="About the bot")
+async def command_about(ctx: discord.Interaction):
+
+
+
+    embed = CustomEmbed(title='About PlayCord 🎲')
+    embed.add_field(name="Bot by:", value="[@quantumbagel](https://github.com/quantumbagel)")
+    embed.add_field(name="Source code:", value="[here](https://github.com/quantumbagel/PlayCord)")
+    embed.add_field(name="Cats", value="3 UwU 🐈‍⬛🐈‍⬛🐈‍⬛")
+    embed.add_field(name="Libraries used:", value="discord.py\nsvg.py\nruamel.yaml\ncairosvg\ntrueskill\nmpmath", inline=False)
+    embed.set_footer(text="©	️2025 Julian Reder. All rights reserved. Except the 3rd.")
+
+    await ctx.response.send_message(embed=embed)
+
 
 @command_root.command(name="tictactoe", description="Tic-Tac Toe is a game about replacing your toes with Tic-Tacs, obviously.")
-async def tictactoe(ctx: discord.Interaction, rated: bool = True):
+async def tictactoe(ctx: discord.Interaction, rated: bool = True, private: bool = False):
 
 
     if not (ctx.channel.permissions_for(ctx.guild.me).create_private_threads
             and ctx.channel.permissions_for(ctx.guild.me).send_messages):  # Don't make the bot look stupid
-        await send_simple_embed(ctx, title="Insufficient Permissions", description="Bot is missing permissions to function in this channel.")
+        await send_simple_embed(ctx, title="Insufficient Permissions", description="Bot is missing permissions to function in this channel.", ephemeral=True)
         return
 
-    await send_simple_embed(ctx, title="Loading game...", description="This should take less than a second. PlayCord is setting up everything behind the scenes.", ephemeral=False)
+    if ctx.channel.type == discord.ChannelType.public_thread or ctx.channel.type == discord.ChannelType.private_thread:
+        await send_simple_embed(ctx, title="Invalid Channel Type",
+                                description="This command cannot be run in public or private threads.", ephemeral=True)
+
+    await ctx.response.send_message(embed=CustomEmbed(description="<a:loading:1318216218116620348>").remove_footer())
     thing = await ctx.original_response()
 
 
-    g = MatchmakingInterface(ctx.user, "tictactoe", thing, rated=rated)
+
+    g = MatchmakingInterface(ctx.user, "tictactoe", thing, rated=rated, private=private)
 
     if g.failed is not None:
         await thing.edit(embed=g.failed)
@@ -351,7 +522,7 @@ async def decode_discord_arguments(argument: Choice | typing.Any) -> typing.Any:
         return argument
 
 
-async def handle_move(ctx: discord.Interaction, **arguments):
+async def handle_move(ctx: discord.Interaction, name, arguments):
     if ctx.channel.type != discord.ChannelType.private_thread:
         await send_simple_embed(ctx, "Move commands can only be run in their respective threads",
                                 "Please use a bot-created thread to move. :)", responded=True)
@@ -360,19 +531,17 @@ async def handle_move(ctx: discord.Interaction, **arguments):
         await send_simple_embed(ctx, "Move commands can only be run in their respective threads",
                                 "Please use a bot-created thread to move. :)", responded=True)
         return
-    pass_through_arguments: dict = arguments["arguments"]
-    pass_through_arguments.pop("ctx")
-    pass_through_arguments = {a: await decode_discord_arguments(pass_through_arguments[a]) for a in pass_through_arguments.keys()}
-
-
-
+    arguments.pop("ctx")
+    arguments = {a: await decode_discord_arguments(arguments[a]) for a in arguments.keys()}
+    print(arguments)
     AUTOCOMPLETE_CACHE[ctx.channel.id] = {}  # Reset autocomplete cache
-    await CURRENT_GAMES[ctx.channel.id].move(ctx, pass_through_arguments)
+    await CURRENT_GAMES[ctx.channel.id].move(ctx, name, arguments)
 
 
-async def handle_autocomplete(ctx: discord.Interaction, current: str, argument) -> list[Choice[str]]:
+async def handle_autocomplete(ctx: discord.Interaction, function, current: str, argument) -> list[Choice[str]]:
     """
     Crappy autocomplete. TODO: make this algorithm better at predicting
+    :param function:
     :param ctx: discord context
     :param current: the current typed argument (like "do" for someone typing "dog")
     :param argument: Which argument we are completing
@@ -389,15 +558,17 @@ async def handle_autocomplete(ctx: discord.Interaction, current: str, argument) 
 
     player = get_player(game_view.game_type, ctx.user)  # Get the player who called this function
     try:
-        player_options = AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][argument][current]
-        logger.info(f"Successfully used autocomplete cache: channel_id={ctx.channel.id}, user_id={ctx.user.id}, argument={argument}, current=\"{current}\"")
+        player_options = AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][function][argument][current]
+        logger.info(f"Successfully used autocomplete cache: channel_id={ctx.channel.id}, user_id={ctx.user.id}, function={function} argument={argument}, current=\"{current}\"")
     except KeyError:
         ac_callback = None
-        for option in game_view.game.options:
-            if option.name == argument:
-                # Get the autocomplete callback for this argument
-                # This MUST exist because this function was called
-                ac_callback = getattr(game_view.game, option.autocomplete)
+        for move in game_view.game.moves:
+            for option in move.options:
+                if option.name == argument:
+                    # Get the autocomplete callback for this argument
+                    # This MUST exist because this function was called
+                    ac_callback = getattr(game_view.game, option.autocomplete)
+                    break
 
         if not option.force_reload:
             try:
@@ -407,12 +578,14 @@ async def handle_autocomplete(ctx: discord.Interaction, current: str, argument) 
                     AUTOCOMPLETE_CACHE[ctx.channel.id] = {}
                 if ctx.user.id not in AUTOCOMPLETE_CACHE[ctx.channel.id]:
                     AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id] = {}
-                if argument not in AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id]:
-                    AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][argument] = {}
-                AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][argument].update({current: player_options})
+                if function not in AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id]:
+                    AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][function] = {}
+                if argument not in AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][function]:
+                    AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][function][argument] = {}
+                AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][function][argument].update({current: player_options})
             except TypeError:
                 logger.critical(f"handle_autocomplete was called without a matching callback function."
-                                f" channel_id={ctx.channel.id}, user_id={ctx.user.id}, argument={argument},"
+                                f" channel_id={ctx.channel.id}, user_id={ctx.user.id}, function={function} argument={argument},"
                                 f" options={game_view.game.options}, current=\"{current}\"")
         else:
             logger.info("force_reload blocked autocomplete cache")
@@ -478,7 +651,7 @@ def encode_decorator(decorator_type, decorator_values) -> str:
     return f"@app_commands.{decorator_type}({function_arguments})"  # Put it all together
 
 
-def build_function_definitions() -> list[str]:
+def build_function_definitions() -> dict[Group, list[Any]]:
     """
     Build the dynamic functions
 
@@ -488,72 +661,91 @@ def build_function_definitions() -> list[str]:
 
     :return: a list of strings each representing a function that needs to be added to the global
     """
-    context = []
+    context = {}
     for game in GAME_TYPES:  # for each registered game
         # Import the game's module
         game_class = getattr(importlib.import_module(GAME_TYPES[game][0]), GAME_TYPES[game][1])  # Get the game's class
-        options: list[InputType] = game_class.options  # Get the game's defined move option set
+
+
+        moves: list[CommandType] = game_class.moves  # Get the game's defined move option set
 
         # Decorators and arguments to build from
         decorators = {}
         arguments = {}
 
-        for option in options:
-            # Obtain the decorators and arguments that the option uses
-            option_decorators = option.decorators()
+        for move in moves:
+            temp_decorators = {}
+            temp_arguments = {}
+            for option in move.options:
+                # Obtain the decorators and arguments that the option uses
+                option_decorators = option.decorators()
 
-            # Autocomplete check
-            if "autocomplete" not in option_decorators and option.autocomplete is not None:
-                option_decorators.update({"autocomplete": {option.name: "autocomplete_"+option.autocomplete}})
+                # Autocomplete check
+                if "autocomplete" not in option_decorators and option.autocomplete is not None:
+                    option_decorators.update({"autocomplete": {option.name: "autocomplete_"+option.autocomplete}})
 
-            option_arguments = option.arguments()  # Get the arguments
+                option_arguments = option.arguments()  # Get the arguments
 
-            # Add each argument
-            for argument in option_arguments:
-                arguments.update({argument: option_arguments[argument]})
+                # Add each argument
+                for argument in option_arguments:
+                    temp_arguments.update({argument: option_arguments[argument]})
 
-            # Add each decorator, but some extra logic for stacking multiple variables of same decorator type
-            for decorator in option_decorators.keys():
-                if decorator not in decorators.keys():
-                    decorators[decorator] = option_decorators[decorator]
-                else:
-                    decorators[decorator].update({decorator: option_decorators[decorator]})
-
-        # Encode decorators to text
-        encoded_decorators = []
-        for unencoded_decorator in decorators:
-            encoded_decorators.append(encode_decorator(unencoded_decorator, decorators[unencoded_decorator]))
-
-        # Encode arguments to text
-        encoded_arguments = []
-        for unencoded_argument in arguments:
-            encoded_arguments.append(encode_argument(unencoded_argument, arguments[unencoded_argument]))
-
-        command_name = game+"_move"  # Name of move command to register
+                # Add each decorator, but some extra logic for stacking multiple variables of same decorator type
+                for decorator in option_decorators.keys():
+                    if decorator not in decorators.keys():
+                        temp_decorators[decorator] = option_decorators[decorator]
+                    else:
+                        temp_decorators[decorator].update({decorator: option_decorators[decorator]})
+            decorators[move.name] = temp_decorators
+            arguments[move.name] = temp_arguments
 
 
-        # Build the move command
-        move_command = (f"{'\n'.join(encoded_decorators)}\n"
-                        f"@move_group.command(name='{game}', description='{game_class.command_description}')\n"
-                        f"async def {command_name}(ctx, {','.join(encoded_arguments)}):\n"
-                        f"  await ctx.response.defer(ephemeral=True)\n"
-                        f"  await handle_move(ctx=ctx, arguments=locals())\n")
 
-        if "autocomplete" in decorators.keys():  # If there is any autocomplete support for this command
-            for autocomplete in decorators["autocomplete"]:
+        for this_move in moves:
+            # Encode decorators to text
+            encoded_decorators = []
 
-                # Name of autocomplete command
-                ac_command_name = decorators["autocomplete"][autocomplete]
+            this_move_decorators = decorators[this_move.name]
+            this_move_arguments = arguments[this_move.name]
 
-                # Actual autocomplete command
-                ac_command = (f"async def {ac_command_name}(ctx, current):\n"
-                              f"   return await handle_autocomplete(ctx, current, \"{autocomplete}\")\n")
+            dynamic_command_group = app_commands.Group(name=game, description=game_class.command_description)
+            context[dynamic_command_group] = []
 
-                # Add the autocomplete command
-                context.append(ac_command)
 
-        # Add the move command, so autocomplete callbacks are built before the move command
-        context.append(move_command)
+            for unencoded_decorator in this_move_decorators:
+                encoded_decorators.append(encode_decorator(unencoded_decorator, this_move_decorators[unencoded_decorator]))
+
+            # Encode arguments to text
+            encoded_arguments = []
+            for unencoded_argument in this_move_arguments:
+                encoded_arguments.append(encode_argument(unencoded_argument, this_move_arguments[unencoded_argument]))
+
+            command_name = game+"_"+this_move.name  # Name of move command to register
+
+
+            # Build the move command
+            move_command = (f"{'\n'.join(encoded_decorators)}\n"
+                            f"@group.command(name='{this_move.name}', description='{this_move.description}')\n"
+                            f"async def {command_name}(ctx, {','.join(encoded_arguments)}):\n"
+                            f"  await ctx.response.defer(ephemeral=True)\n"
+                            f"  await handle_move(ctx=ctx, name=\"{this_move.name}\", arguments=locals())\n")
+
+            if "autocomplete" in this_move_decorators.keys():  # If there is any autocomplete support for this command
+                for autocomplete in this_move_decorators["autocomplete"]:
+
+                    # Name of autocomplete command
+                    ac_command_name = this_move_decorators["autocomplete"][autocomplete]
+
+                    # Actual autocomplete command
+                    ac_command = (f"async def {ac_command_name}(ctx, current):\n"
+                                  f"   return await handle_autocomplete(ctx, \"{this_move.name}\", current, \"{autocomplete}\")\n")
+
+                    # Add the autocomplete command
+                    context[dynamic_command_group].append(ac_command)
+
+            # Add the move command, so autocomplete callbacks are built before the move command
+            context[dynamic_command_group].append(move_command)
+
 
     return context
 
@@ -563,8 +755,10 @@ if __name__ == "__main__":
         commands = build_function_definitions()  # Build game move callbacks
         log.info(f"Built {len(commands)} hooks.")
         # Register commands
-        for command in commands:
-            exec(command)  # Add the command
+        for group in commands:
+            tree.add_command(group)
+            for command in commands[group]:
+                exec(command)  # Add the command
 
         log.info(f"Hooks registered.")
 
@@ -572,7 +766,7 @@ if __name__ == "__main__":
     except Exception as e:
         log.critical(str(e))
         log.critical("Error registering bot commands!")
-        sys.exit(1)  # Exit here
+        raise e
     try:
 
         # Add command groups to tree

@@ -66,7 +66,7 @@ class ImageType:
     def _embed_transform(self, embed):
         # Add players and image to the embed
         embed.set_image(url="attachment://image.png")
-
+ 
 class FooterType:
 
     def __init__(self, text):

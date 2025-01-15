@@ -3,6 +3,7 @@ import random
 from cairosvg import svg2png
 
 from utils import Player
+from utils.CommandType import Command
 from utils.GameStateTypes import GameStateType, ImageType, FieldType, InfoRows
 from utils.InputTypes import String
 from utils.Property import Property
@@ -14,7 +15,7 @@ class TicTacToeGame:
                    " just take turns placing Xs and Os until one player gets three in a row!")
     name = "Tic-Tac-Toe"
     players = 2
-    options = [String("where to play", "move", autocomplete="ac_move")]
+    moves = [Command(name="move", description="Place a piece down.", options=[String("where to play", "move", autocomplete="ac_move")])]
     author = "@quantumbagel"
     version = "1.0"
     author_link = "https://github.com/quantumbagel"
@@ -38,7 +39,6 @@ class TicTacToeGame:
         self.column_count = [0 for _ in range(self.size)]
         self.diagonal_count = 0
         self.anti_diagonal_count = 0
-        self.last_move = None
 
     def state(self):
         # Define dimensions
@@ -102,11 +102,11 @@ class TicTacToeGame:
 
     def move(self, arguments):
         move = arguments["move"]
-        self.last_move = [int(move[0]), int(move[1])]
         self.board[int(move[0])][int(move[1])].take(self.players[self.turn])
         self.turn += 1
         if self.turn == len(self.players):
             self.turn = 0
+
 
     def outcome(self) -> Player:
         # Check rows

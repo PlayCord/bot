@@ -1,4 +1,6 @@
 import discord
+
+VERSION = "dev12"
 IS_ACTIVE = True
 NAME = "PlayCord"
 RUNTIME_EMOJIS = None
@@ -68,11 +70,11 @@ SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD = 0.20
 # Format:
 # {game thread id: GameInterface object}
 CURRENT_GAMES = {}
+CURRENT_MATCHMAKING = {}
 
 
-
-IN_GAME = {}
-IN_MATCHMAKING = {}
+IN_GAME = {} # user id: gameinterface
+IN_MATCHMAKING = {}  # user id: matchmakinginterface
 
 
 AUTOCOMPLETE_CACHE = {}
@@ -80,3 +82,6 @@ AUTOCOMPLETE_CACHE = {}
 # game_id
 # - user_id
 # - - current: autocompletes
+
+
+LONG_SPACE_EMBED = "\u2800"  # discord hides spaces when there is more than one in a row, this fixes it

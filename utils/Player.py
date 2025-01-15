@@ -8,7 +8,7 @@ from configuration.constants import SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD
 
 
 class Player:
-    def __init__(self, mu, sigma, user: discord.User | discord.Object, ranking):
+    def __init__(self, mu, sigma, user: discord.User | discord.Object, ranking = None):
         self.user = user
         self.mu = mu
         self.sigma = sigma
@@ -23,17 +23,22 @@ class Player:
 
     @property
     def mention(self):
-        return f"<@{self.id}>"  # Don't use the potential self.user.mention because it could be a Object
+        return f"<@{self.id}>"  # Don't use the potential self.user.mention because it could be an Object
 
     def move(self, new_player_data: dict):
         self.moves_made += 1
         self.player_data.update(new_player_data)
 
     def get_formatted_elo(self):
-        if self.sigma > SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD * self.mu:  # TODO: confirm
-            return str(int(self.mu)) + "?"
+        if self.ranking is None:
+            ranking_addend = ""
         else:
-            return str(int(self.mu))
+            ranking_addend = f" (#{self.ranking})"
+        if self.sigma > SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD * self.mu:  # TODO: confirm
+            return str(int(self.mu)) + "?" + ranking_addend
+        else:
+            return str(int(self.mu)) + ranking_addend
+
 
     def __eq__(self, other):
         if other is None:
