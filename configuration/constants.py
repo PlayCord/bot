@@ -1,6 +1,6 @@
 import discord
 
-VERSION = "dev12"
+VERSION = "dev13"
 IS_ACTIVE = True
 NAME = "PlayCord"
 RUNTIME_EMOJIS = None
@@ -33,7 +33,6 @@ EMBED_COLOR = discord.Color.from_rgb(255, 87, 51)
 
 
 CONFIG_BOT_SECRET = "secret"
-CONFIG_MONGODB_URI = "mongodb"
 
 CONFIG_FILE = "configuration/config.yaml"
 

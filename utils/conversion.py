@@ -1,9 +1,13 @@
 import random
+
+import discord
+from discord import User
+
 from configuration.constants import LOGGING_ROOT
 from utils.Player import Player
 
 
-def column_names(players: list[Player]) -> str:
+def column_names(players: list[Player] | set[Player]) -> str:
     """
     Convert a list of players into a string representing the list of players
 
@@ -12,7 +16,7 @@ def column_names(players: list[Player]) -> str:
     """
     return "\n".join([u.mention for u in players])
 
-def column_elo(players: list[Player]) -> str:
+def column_elo(players: list[Player] | set[Player]) -> str:
     """
     Convert a list of players into a string representing the list of players
 
@@ -21,7 +25,7 @@ def column_elo(players: list[Player]) -> str:
     """
     return "\n".join([u.get_formatted_elo() for u in players])
 
-def column_creator(players: list[Player], creator: Player) -> str:
+def column_creator(players: list[Player] | set[Player], creator: Player | User) -> str:
     """
     Convert a list of players into a string representing the list of players's creator status
 
@@ -31,7 +35,7 @@ def column_creator(players: list[Player], creator: Player) -> str:
     return "\n".join(["Creator" if u.id == creator.id else "" for u in players])
 
 
-def column_turn(players: list[Player], turn: Player) -> str:
+def column_turn(players: list[Player] | set[Player], turn: Player | User) -> str:
     """
     Convert a list of players into a string representing the list of players
 
@@ -106,3 +110,7 @@ def player_verification_function(possible_players):
         return lambda x: x == possible_players
     else:
         return lambda x: x in set(possible_players)
+
+
+def contextify(ctx: discord.Interaction):
+    return f"guild_id={ctx.guild.id} guild_name={ctx.guild.name!r} user_id={ctx.user.id}, user_name={ctx.user.name}, is_bot={ctx.user.bot}, data={ctx.data}, type={ctx.type!r}"

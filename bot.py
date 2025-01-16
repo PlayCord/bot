@@ -1,13 +1,15 @@
+import asyncio
 import importlib
 import logging
+import random
 import sys
+import time
 import traceback
-from symtable import Function
+import typing
 from typing import Any
 
 import discord
-import trueskill
-from discord import app_commands, ChannelType, Member, User
+from discord import app_commands
 from discord.app_commands import Choice, Group
 import utils.logging_formatter
 from configuration.constants import *
@@ -17,12 +19,8 @@ from ruamel.yaml import YAML
 from utils import Database, CommandType
 from utils.CustomEmbed import CustomEmbed, ErrorEmbed
 from utils.Database import get_player
-from utils.GameInterface import GameInterface, MatchmakingInterface, MatchmakingView, InviteView
-from utils.InputTypes import Dropdown, InputType
-import typing
-
-
-
+from utils.GameInterface import MatchmakingInterface, MatchmakingView, InviteView
+from utils.conversion import contextify
 
 logging.getLogger("discord").setLevel(logging.INFO)  # Discord.py logging level - INFO (don't want DEBUG)
 
@@ -40,31 +38,38 @@ ch.setFormatter(utils.logging_formatter.Formatter())  # custom formatter
 root_logger.handlers = [ch]  # Make sure to not double print
 
 log = logging.getLogger(LOGGING_ROOT)  # Base logger
+startup_logger = log.getChild("startup")
 if __name__ != "__main__":
-    log.critical(ERROR_IMPORTED)
+    startup_logger.critical(ERROR_IMPORTED)
     sys.exit(1)
 
 
-def load_configuration() -> dict:
+def load_configuration() -> dict | None:
     """
     Load configuration from constants.CONFIG_FILE
     :return: the configuration as a dictionary
     """
+    begin_load_config = time.time()
     try:
         loaded_config_file = YAML().load(open(CONFIG_FILE))
     except FileNotFoundError:
-        log.critical("Configuration file not found.")
+        startup_logger.critical("Configuration file not found.")
         return
-    log.debug("Successfully loaded configuration file!")
+    startup_logger.debug(f"Successfully loaded configuration file in {round((time.time()-begin_load_config)*100, 4)}ms!")
     return loaded_config_file
 
 config = load_configuration()
+if config is None:
+    sys.exit(1)
 constants.CONFIGURATION = config  # Set global configuration
 
+database_startup_time = time.time()
 database_startup = Database.startup()  # Start up the database
 if not database_startup:  # Database better work lol
-    log.critical("Database failed to connect on startup!")
+    startup_logger.critical("Database failed to connect on startup!")
     sys.exit(1)
+else:
+    startup_logger.info(f"Database startup completed in {round((time.time() - database_startup_time)*100, 4)}ms.")
 
 
 
@@ -77,7 +82,7 @@ tree = app_commands.CommandTree(client)  # Build command tree
 command_root = app_commands.Group(name=LOGGING_ROOT, description="PlayCord command group. ChangeME", guild_only=True)
 
 
-log.info(f"Welcome to {NAME} by @quantumbagel!")
+startup_logger.info(f"Welcome to {NAME} by @quantumbagel!")
 
 
 
@@ -85,9 +90,12 @@ async def send_simple_embed(ctx: discord.Interaction, title: str, description: s
                             responded: bool = False) -> None:
     """
     Generate a simple embed
+    :param ephemeral: whether it should be invisible ephemeral or not
+    :param ctx: discord context
+    :param responded: has interaction been responded to?
     :param title: the title
     :param description: the description
-    :return: the embed
+    :return: nothing
     """
     if not responded:
         await ctx.response.send_message(embed=CustomEmbed(title=title, description=description), ephemeral=ephemeral)
@@ -109,19 +117,25 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
     logger = log.getChild("is_allowed")
 
 
-    if not IS_ACTIVE:  # Bot disabled via mesage command
+    if not IS_ACTIVE:  # Bot disabled via message command
         await send_simple_embed(ctx, "Bot has been disabled!", f"{NAME} "
                                       f"has been temporarily disabled by a bot owner. This"
                                       " is likely due to a critical bug or exploit being discovered.")
+        logger.warning("Interaction attempted when bot was disabled. "+contextify(ctx))
         return False
 
-    if ctx.user.bot:  # We don't want no bots
+    if ctx.user.bot:  # We don't want any bots
         logger.warning("Bot users are not allowed to use commands.")
         return False
 
     return True
 
+async def command_error(ctx: discord.Interaction, error_message):
+    f_log = log.getChild("error")
+    f_log.warning(f"Exception in command: {error_message} {contextify(ctx)}")
+    await ctx.response.send_message(embed=ErrorEmbed(what_failed=f"While running the command {ctx.command.name!r}, there was an error {error_message!r}", reason=traceback.format_exc()), ephemeral=True)
 
+command_root.error(command_error)
 command_root.interaction_check = interaction_check  # Set the interaction check
 
 
@@ -134,7 +148,7 @@ async def on_interaction(ctx: discord.Interaction):
     :return:
     """
     # Log interaction
-    log.getChild("event.on_interaction").debug(f"Interaction of type '{ctx.type}' received: {ctx.data}")
+    log.getChild("event.on_interaction").debug(f"Interaction received: {contextify(ctx)}")
 
     custom_id = ctx.data.get("custom_id")  # Get custom ID
     if custom_id is None:  # Not button
@@ -144,6 +158,8 @@ async def on_interaction(ctx: discord.Interaction):
         await invite_accept_callback(ctx)
     if custom_id.startswith("spectate/"):  # Spectate button
         await spectate_callback(ctx)
+    if custom_id.startswith("peek/"):
+        await peek_callback(ctx)
 
 @client.event
 async def on_ready():
@@ -154,9 +170,7 @@ async def on_ready():
     """
     # Register views to the bot
     client.add_view(MatchmakingView())
-    activity = discord.Activity(type=discord.ActivityType.playing,
-                                   name="paper and pencil games on discord!", state=f"Watching {len(client.guilds)} servers!")
-    await client.change_presence(activity=activity, status=discord.Status.online)
+    client.loop.create_task(presence())  # Register presence
 
 
 @client.event
@@ -179,6 +193,7 @@ async def on_message(msg: discord.Message) -> None:
     """
     global IS_ACTIVE
     f_log = log.getChild("event.on_message")
+
     # Message synchronization command
     if msg.author.bot:
         return
@@ -288,7 +303,7 @@ async def on_guild_join(guild: discord.Guild) -> None:
     for line in WELCOME_MESSAGE[1:]:  # Dynamically add fields from configuration value
         embed.add_field(name=line[0], value=line[1])
 
-    # Make a attempt at sending to the system channel, but don't crash if it doesn't exist
+    # Make an attempt at sending to the system channel, but don't crash if it doesn't exist
     try:
         await guild.system_channel.send(embed=embed)
     except AttributeError:
@@ -303,10 +318,22 @@ async def on_guild_remove(guild: discord.Guild) -> None:
     :param guild: The guild we were removed from
     :return: nothing
     """
-    pass
+    f_log = log.getChild("event.guild_remove")
+    f_log.info(f"Removed from guild {guild.name!r}! (id={guild.id}). that makes me sad :(")
 
+
+async def presence():
+    while True:
+        games = ["Tic-Tac-Toe", "paper and pencil games"]
+        activity = discord.Activity(type=discord.ActivityType.playing,
+                                    name=random.choice(games)+" on Discord", state=f"Servicing {len(client.guilds)} servers and {len(client.users)} users")
+
+        await client.change_presence(activity=activity, status=discord.Status.online)
+        await asyncio.sleep(15)
 async def invite_accept_callback(ctx: discord.Interaction):
     await ctx.response.defer()  # Prevent button interaction from failing
+    f_log = log.getChild("event.invite_accept")
+    f_log.debug(f"invite-accept clicked: {contextify(ctx)}")
     matchmaker_id: str = ctx.data['custom_id'].replace('invite/', "")
     if int(matchmaker_id) in CURRENT_MATCHMAKING:
         matchmaker: MatchmakingInterface = CURRENT_MATCHMAKING[int(matchmaker_id)]
@@ -315,8 +342,10 @@ async def invite_accept_callback(ctx: discord.Interaction):
             await ctx.followup.send(error, ephemeral=True)
             return
         await ctx.followup.send("You have joined the game! Press 'Go To Game' to go to the server where the game is", ephemeral=True)
+        f_log.debug(f"Invite successfully accepted: {contextify(ctx)}")
     else:
         await ctx.followup.send("This invite has expired.", ephemeral=True)
+        f_log.debug(f"Invite expired: {contextify(ctx)}")
     view = discord.ui.View.from_message(ctx.message)
     for button in view.children:
         if button.custom_id == "invite/"+matchmaker_id:
@@ -325,9 +354,39 @@ async def invite_accept_callback(ctx: discord.Interaction):
 
 
 async def spectate_callback(ctx: discord.Interaction):
+    f_log = log.getChild("event.spectate")
+    f_log.debug(f"spectate button clicked: {contextify(ctx)}")
     await ctx.response.defer()
+    thread_id: str = ctx.data['custom_id'].replace('spectate/', "")
 
+    thread = client.get_channel(int(thread_id))
+    try:
+        if thread is None:
+            thread = client.get_channel(int(thread_id))
+        await thread.add_user(ctx.user)
+        await ctx.followup.send("Successfully added user to game channel!", ephemeral=True)
+    except discord.errors.NotFound:
+        await ctx.followup.send("That game no longer exists!", ephemeral=True)
+        return
 
+async def peek_callback(ctx: discord.Interaction):
+    game_message_id: str = ctx.data['custom_id'].replace('peek/', "").split("/")[1]
+    thread_id: str = ctx.data['custom_id'].replace('peek/', "").split("/")[0]
+
+    f_log = log.getChild("event.peek")
+    f_log.debug(f"peeked button clicked: {contextify(ctx)}")
+    await ctx.response.defer()
+    thread = client.get_channel(int(thread_id))
+    try:
+        if thread is None:
+            thread = client.get_channel(int(thread_id))
+
+        msg = await thread.fetch_message(int(game_message_id))
+
+        await ctx.followup.send(embed=msg.embeds[0], ephemeral=True)
+    except discord.errors.NotFound:
+        await ctx.followup.send("That game no longer exists!", ephemeral=True)
+        return
 
 @command_root.command(name="invite", description="Invite a player to play a game, or remove them from the blacklist in public games.")
 async def command_invite(ctx: discord.Interaction,
@@ -346,13 +405,18 @@ async def command_invite(ctx: discord.Interaction,
     :param user5: Fifth player to invite to the game
     :return: Nothing, yet
     """
+    f_log = log.getChild("command.invite")
+    f_log.debug(f"/invite called: {contextify(ctx)}")
     invited_users = {user, user2, user3, user4, user5}  # Condense to unique users
+    if None in invited_users:
+        invited_users.remove(None)
 
     id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}  # get matchmaking by player ID
 
     if ctx.user.id not in id_matchmaking:  # Player isn't in matchmaking
         await ctx.response.send_message("You aren't in matchmaking, so you can't invite people to play.",
                                         ephemeral=True)  # TODO: invites start games
+        f_log.debug(f"/invite rejected: not in matchmaking. {contextify(ctx)}")
         return
 
     matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]  # Get the matchmaker for the game the player is in
@@ -360,10 +424,10 @@ async def command_invite(ctx: discord.Interaction,
     if matchmaker.private and matchmaker.creator.id != ctx.user.id:  # Only creators can invite in private games
         await ctx.response.send_message("You aren't the creator of this game, so you can't invite people to play.",
                                         ephemeral=True)
+        f_log.debug(f"/invite rejected: not creator. {contextify(ctx)}")
         return
 
     game_type = matchmaker.game.name
-
     failed_invites = {}
     for invited_user in filter(None, invited_users):  # Filter out None values
         if invited_user not in matchmaker.message.guild.members:
@@ -378,18 +442,21 @@ async def command_invite(ctx: discord.Interaction,
         if invited_user.bot:
             failed_invites[invited_user] = "Member was a bot :skull:."
             continue
+
         embed = CustomEmbed(title=f"👋 Do you want to play a game?", description=f"{ctx.user.mention} has invited you to play a game of {game_type} in \"{matchmaker.message.guild.name}.\" If you don't want to play, just ignore this message.")
 
         await invited_user.send(embed=embed, view=InviteView(join_button_id="invite/"+str(matchmaker.message.id), game_link=matchmaker.message.jump_url))
         continue
     if not len(failed_invites):
+        f_log.debug(
+            f"/invite success: {len(invited_users)} succeeded, 0 failed. {contextify(ctx)}")
         await ctx.response.send_message("Invites sent successfully.", ephemeral=True)
         return
     elif len(failed_invites) == len(invited_users):
         message = "Failed to send any invites. Errors:"
     else:
         message = "Failed to send invites to the following users:"
-
+    f_log.debug(f"/invite partial or no success: {len(invited_users)-len(failed_invites)} succeeded, {len(failed_invites)} failed. {contextify(ctx)}")
     final = message + "\n"
     for fail in failed_invites:
         final += f"{fail.mention} - {failed_invites[fail]}\n"
@@ -398,20 +465,24 @@ async def command_invite(ctx: discord.Interaction,
 @command_root.command(name="kick", description="Remove a user from your lobby without banning them.")
 async def command_kick(ctx: discord.Interaction, user: discord.User, reason: str = None):
     """
+    Kick the user from the lobby with a reason.
 
-    :param ctx:
-    :param user:
-    :param reason:
-    :return:
+    :param ctx: discord context window
+    :param user: user to kick
+    :param reason: string representing reason
+    :return: nothing
     """
+    f_log = log.getChild("command.kick")
     id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
 
     if ctx.user.id not in id_matchmaking:
+        f_log.debug(f"Failed to kick user: kicker not in matchmaking. {contextify(ctx)}")
         await ctx.response.send_message("You aren't in matchmaking, so you can't kick anyone.",
                                         ephemeral=True)
         return
     matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
     if matchmaker.creator.id != ctx.user.id:
+        f_log.debug(f"Failed to kick user: not creator of game. {contextify(ctx)}")
         await ctx.response.send_message("You aren't the creator of this game, so you can't kick people from the game.",
                                         ephemeral=True)
         return
@@ -423,14 +494,17 @@ async def command_kick(ctx: discord.Interaction, user: discord.User, reason: str
 @command_root.command(name="ban", description="Either removes a user from the whitelist (private games)"
                                               "or adds them to the blacklist (public games)")
 async def command_ban(ctx: discord.Interaction, user: discord.User, reason: str = None):
+    f_log = log.getChild("command.ban")
     id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
 
     if ctx.user.id not in id_matchmaking:
+        f_log.debug(f"Failed to ban user: banner not in matchmaking. {contextify(ctx)}")
         await ctx.response.send_message("You aren't in matchmaking, so you can't ban anyone.",
                                         ephemeral=True)
         return
     matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
     if matchmaker.creator.id != ctx.user.id:
+        f_log.debug(f"Failed to ban user: attempted banner of creator. {contextify(ctx)}")
         await ctx.response.send_message("You aren't the creator of this game, so you can't ban people from the game.",
                                         ephemeral=True)
         return
@@ -444,6 +518,8 @@ async def command_ban(ctx: discord.Interaction, user: discord.User, reason: str 
 
 @command_root.command(name="stats", description="Get stats about the bot")
 async def command_stats(ctx: discord.Interaction):
+    f_log = log.getChild("command.stats")
+    f_log.debug(f"/stats called: {contextify(ctx)}")
     server_count = len(client.guilds)
     member_count = len(set(client.get_all_members()))
 
@@ -456,49 +532,58 @@ async def command_stats(ctx: discord.Interaction):
 
     embed.add_field(name='💻 Bot Version:', value=VERSION)
     embed.add_field(name='🐍 discord.py Version:', value=discord.__version__)
-    embed.add_field(name='Total Guilds:', value=server_count)
+    embed.add_field(name='🏘️ Total Guilds:', value=server_count)
     embed.add_field(name='<:user:1328138963512201256> Total Users:', value=member_count)
     embed.add_field(name='#️⃣ Shard ID:', value=shard_id)
     embed.add_field(name='🛜 Shard Ping:', value=str(round(shard_ping*100, 2)) + " ms")
-    embed.add_field(name='Shard Guilds:', value=shard_servers)
+    embed.add_field(name='🏘️️ Shard Guilds:', value=shard_servers)
     embed.add_field(name='👾 Games Loaded:', value=len(GAME_TYPES))
-
+    embed.add_field(name="⏰ In Matchmaking:", value=len(IN_MATCHMAKING))
+    embed.add_field(name="🎮 In Game:", value=len(IN_GAME))
     await ctx.response.send_message(embed=embed)
 
 @command_root.command(name="about", description="About the bot")
 async def command_about(ctx: discord.Interaction):
-
-
-
+    f_log = log.getChild("command.about")
+    f_log.debug(f"/about called: {contextify(ctx)}")
     embed = CustomEmbed(title='About PlayCord 🎲')
     embed.add_field(name="Bot by:", value="[@quantumbagel](https://github.com/quantumbagel)")
     embed.add_field(name="Source code:", value="[here](https://github.com/quantumbagel/PlayCord)")
-    embed.add_field(name="Cats", value="3 UwU 🐈‍⬛🐈‍⬛🐈‍⬛")
-    embed.add_field(name="Libraries used:", value="discord.py\nsvg.py\nruamel.yaml\ncairosvg\ntrueskill\nmpmath", inline=False)
-    embed.set_footer(text="©	️2025 Julian Reder. All rights reserved. Except the 3rd.")
+    embed.add_field(name="PFP/Banner:", value="[@soldship](https://github.com/quantumsoldship)")
+    libraries = ["discord.py", "svg.py", "ruamel.yaml", "cairosvg", "trueskill", "mpmath"]
+    embed.add_field(name="Inspiration:", value="[LoRiggio (Liar's Dice Bot)](https://github.com/Pixelz22/LoRiggioDev)"
+                                               " by [@Pixelz22](https://github.com/Pixelz22)\n"
+                                               "You know the drill, I had to beat Tyler :)", inline=True)
+    embed.add_field(name="Libraries used:", value="\n".join([f"[{lib}](https://pypi.org/project/{lib})" for lib in libraries]), inline=False)
+    embed.add_field(name="Development time:", value="October 2024 - Present/")
+
+    embed.set_footer(text="©	2025 Julian Reder. All rights reserved. Except the 3rd.")
 
     await ctx.response.send_message(embed=embed)
 
 
 @command_root.command(name="tictactoe", description="Tic-Tac Toe is a game about replacing your toes with Tic-Tacs, obviously.")
 async def tictactoe(ctx: discord.Interaction, rated: bool = True, private: bool = False):
+    await begin_game(ctx, "tictactoe", rated=rated, private=private)
 
-
+async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = True, private: bool = False):
+    f_log = log.getChild("matchmaking")
+    f_log.debug(f"matchmaking called for game {game_type!r}: {contextify(ctx)}")
     if not (ctx.channel.permissions_for(ctx.guild.me).create_private_threads
             and ctx.channel.permissions_for(ctx.guild.me).send_messages):  # Don't make the bot look stupid
+        f_log.info(f"insufficient permissions triggered on matchmaking attempt for game {game_type!r}: {contextify(ctx)}")
         await send_simple_embed(ctx, title="Insufficient Permissions", description="Bot is missing permissions to function in this channel.", ephemeral=True)
         return
 
     if ctx.channel.type == discord.ChannelType.public_thread or ctx.channel.type == discord.ChannelType.private_thread:
+        f_log.info(f"invalid channel type triggered on matchmaking attempt for game {game_type!r}: {contextify(ctx)}")
         await send_simple_embed(ctx, title="Invalid Channel Type",
                                 description="This command cannot be run in public or private threads.", ephemeral=True)
 
     await ctx.response.send_message(embed=CustomEmbed(description="<a:loading:1318216218116620348>").remove_footer())
     thing = await ctx.original_response()
 
-
-
-    g = MatchmakingInterface(ctx.user, "tictactoe", thing, rated=rated, private=private)
+    g = MatchmakingInterface(ctx.user, game_type, thing, rated=rated, private=private)
 
     if g.failed is not None:
         await thing.edit(embed=g.failed)
@@ -604,11 +689,6 @@ async def handle_autocomplete(ctx: discord.Interaction, function, current: str, 
 
     return [app_commands.Choice(name=ac_option[0],value=ac_option[1])  # Return as Choices instead of list of lists
             for ac_option in final_autocomplete]
-
-
-# Group for all move commands TODO: rework for less confusing? is this fine?
-move_group = app_commands.Group(name="move", description="Move controls")
-move_group.interaction_check = interaction_check  # Set interaction check as well for this group
 
 
 def encode_argument(argument_name, argument_information) -> str:
@@ -753,25 +833,26 @@ def build_function_definitions() -> dict[Group, list[Any]]:
 if __name__ == "__main__":
     try:
         commands = build_function_definitions()  # Build game move callbacks
-        log.info(f"Built {len(commands)} hooks.")
+        startup_logger.info(f"Built command hooks for {len(commands)} groups (games)"
+                 f" and {sum([len(commands[g]) for g in commands])} callbacks (autocomplete and move commands).")
         # Register commands
         for group in commands:
             tree.add_command(group)
             for command in commands[group]:
+                startup_logger.debug(f"Registering command:\n{command}")
                 exec(command)  # Add the command
 
-        log.info(f"Hooks registered.")
+        startup_logger.info(f"All hooks registered.")
 
 
     except Exception as e:
-        log.critical(str(e))
-        log.critical("Error registering bot commands!")
+        startup_logger.critical(str(e))
+        startup_logger.critical("Error registering bot commands!")
         raise e
     try:
 
         # Add command groups to tree
         tree.add_command(command_root)
-        tree.add_command(move_group)
 
         # Run the bot :)
         client.run(config[CONFIG_BOT_SECRET], log_handler=None)

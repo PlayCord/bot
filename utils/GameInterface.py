@@ -1,4 +1,5 @@
 import importlib
+import logging
 import random
 import traceback
 import typing
@@ -10,7 +11,7 @@ from utils.CustomEmbed import CustomEmbed, ErrorEmbed
 from utils.Database import get_player, update_player, update_rankings, update_db_rankings
 from utils.Player import Player
 from utils.conversion import textify, column_creator, column_names, column_elo, column_turn, player_representative, \
-    player_verification_function
+    player_verification_function, contextify
 
 
 class GameInterface:
@@ -178,6 +179,9 @@ class MatchmakingInterface:
     """
     def __init__(self, creator: discord.User, game_type: str, message: discord.InteractionMessage,
                  rated: bool, private: bool):
+
+        self.logger = logging.getLogger("playcord.matchmaking_interface")
+
         # Whether the startup of the matchmaking interaction failed
         self.failed = None
 
@@ -209,7 +213,8 @@ class MatchmakingInterface:
         self.message = message
 
         if self.queued_players == {None}:  # Couldn't get information on the creator, so fail now
-            fail_embed = CustomEmbed(title="Couldn't connect to database!", description="The bot failed to connect to the database."
+            fail_embed = ErrorEmbed(what_failed="Couldn't connect to database!",
+                                    reason="The bot failed to connect to the database."
                                                                                   " This is likely a temporary error, try again later!")
             self.failed = fail_embed
             return
@@ -350,6 +355,8 @@ class MatchmakingInterface:
         :param ctx: Discord context
         :return: Nothing
         """
+        log = self.logger.getChild("start_game")
+        log.debug(f"Attempting to start the game... {contextify(ctx)}")
         await ctx.response.defer()  # Prevent button interaction from failing
 
         if ctx.user.id != self.creator.id:  # Don't have permissions to start the game
@@ -359,7 +366,6 @@ class MatchmakingInterface:
         # The matchmaking was successful!
         self.outcome = True
 
-        print(IN_MATCHMAKING, self.queued_players)
         # Start the GameInterface
         await successful_matchmaking(self.game_type, self.message, self.creator,
                                      self.queued_players, self.rated)
@@ -388,9 +394,9 @@ class MatchmakingInterface:
 
 
         if self.private:
-            embed.add_field(name="Whitelist:", value=column_names(list(self.whitelist)), inline=True)
+            embed.add_field(name="Whitelist:", value=column_names(self.whitelist), inline=True)
         elif len(self.blacklist):
-            embed.add_field(name="Blacklist:", value=column_names(list(self.blacklist)), inline=True)
+            embed.add_field(name="Blacklist:", value=column_names(self.blacklist), inline=True)
 
         embed.add_field(name="Game Info:", value=self.game.description, inline=False)
         embed.add_field(name="Game by:", value=f"[{self.game.author}]({self.game.author_link})\n[Source]({self.game.source_link})")
@@ -454,8 +460,8 @@ async def successful_matchmaking(game_type: str, message, creator: discord.User,
     :return: Nothing
     """
 
-    # Placeholder spectate button TODO: correctly implement
-    join_thread_embed = CustomEmbed(title="Game started!", description="ya click button if u want to spectate")
+    # Placeholder spectate button
+    join_thread_embed = CustomEmbed(title="Game started!", description="Click the button if you want to spectate the game, or just view the game's progress.")
 
 
     for p in players:
@@ -474,9 +480,48 @@ async def successful_matchmaking(game_type: str, message, creator: discord.User,
 
 
     await message.edit(embed=join_thread_embed, view=SpectateView(spectate_button_id=f"spectate/{game.thread.id}",
+                                                                  peek_button_id=f"peek/{game.thread.id}/{game.game_message.id}",
                                                                   game_link=game.info_message.jump_url))
 
     await game.display_game_state()  # Send the game display state
+
+
+
+async def rating_groups_to_string(rankings, groups):
+    player_ratings = {}
+    current_place = 1
+    nums_current_place = 0
+    matching = 0
+    keys = [next(iter(p)) for p in groups]
+    all_ratings = {list(p.keys())[0]: list(p.values())[0] for p in groups}
+    for i, pre_rated_player in enumerate(keys):
+        if rankings[i] == matching:
+            nums_current_place += 1
+        else:
+            current_place += nums_current_place
+            matching = rankings[i]
+            nums_current_place = 1
+
+        starting_mu, starting_sigma = pre_rated_player.mu, pre_rated_player.sigma
+        aftermath_mu, aftermath_sigma = all_ratings[pre_rated_player].mu, all_ratings[pre_rated_player].sigma
+
+        mu_delta = str(round(aftermath_mu - starting_mu))
+        if not mu_delta.startswith("-"):
+            mu_delta = "+" + mu_delta
+
+        player_ratings.update({pre_rated_player.id: {"old_rating": round(starting_mu), "delta": mu_delta,
+                                                     "place": current_place, "new_rating": aftermath_mu,
+                                                     "new_sigma": aftermath_sigma}})
+
+    player_string = "\n".join([
+                                  f"{player_ratings[p]["place"]}.{LONG_SPACE_EMBED}<@{p}>{LONG_SPACE_EMBED}{player_ratings[p]["old_rating"]}{LONG_SPACE_EMBED}({player_ratings[p]["delta"]})"
+                                  for p in player_ratings])
+
+    return player_string, player_ratings
+
+
+async def non_rated_groups_to_string(rankings, groups):
+    return rankings + "\n" + groups
 
 
 async def game_over(game_type, outcome, players, rated, thread: discord.Thread, outbound_message):
@@ -496,68 +541,61 @@ async def game_over(game_type, outcome, players, rated, thread: discord.Thread, 
         game_over_embed = ErrorEmbed(what_failed="Error during a move!", reason=outcome)
         # Send the embed
         await outbound_message.edit(embed=game_over_embed)
-
         await thread.edit(locked=True, archived=True, reason="Game crashed.")
-
-
-
         await thread.send(embed=game_over_embed)
         return
 
-    if isinstance(outcome, Player):  # Somebody won, everybody else lost. No way of comparison (tic-tac-toe)
-        # Winner's rating
-        winner = environment.create_rating(outcome.mu, outcome.sigma)
+    if rated:
 
-        # All the losers
-        losers = [{p: environment.create_rating(p.mu, p.sigma)} for p in players if p != outcome]
+        if isinstance(outcome, Player):  # Somebody won, everybody else lost. No way of comparison (tic-tac-toe)
+            # Winner's rating
+            winner = environment.create_rating(outcome.mu, outcome.sigma)
 
-        rating_groups = [{outcome: winner}, *losers]  # Make the rating groups
-        rankings = [0, *[1 for _ in range(len(players) - 1)]]  # Rankings = [0, 1, 1, ..., 1] for this case
+            # All the losers
+            losers = [{p: environment.create_rating(p.mu, p.sigma)} for p in players if p != outcome]
 
-    elif isinstance(outcome, list):  # More generic position placement
-        # Format:
-        # [[p1, p2], [p3], [p4]] indicates p1 and p2 tied, p3 got third, p4 got fourth
-        # What if there are teams? screw you
+            rating_groups = [{outcome: winner}, *losers]  # Make the rating groups
+            rankings = [0, *[1 for _ in range(len(players) - 1)]]  # Rankings = [0, 1, 1, ..., 1] for this case
 
-        current_ranking = 0
-        rankings = []
-        rating_groups = []
-        for placement in outcome:
-            for player in placement:
-                rankings.append(current_ranking)
-                rating_groups.append({player: environment.create_rating(player.mu, player.sigma)})
-            current_ranking += 1
+        elif isinstance(outcome, list):  # More generic position placement
+            # Format:
+            # [[p1, p2], [p3], [p4]] indicates p1 and p2 tied, p3 got third, p4 got fourth
+            # What if there are teams? screw you
 
-    adjusted_rating_groups = environment.rate(rating_groups=rating_groups, ranks=rankings)
+            current_ranking = 0
+            rankings = []
+            rating_groups = []
+            for placement in outcome:
+                for player in placement:
+                    rankings.append(current_ranking)
+                    rating_groups.append({player: environment.create_rating(player.mu, player.sigma)})
+                current_ranking += 1
+
+        adjusted_rating_groups = environment.rate(rating_groups=rating_groups, ranks=rankings)
+
+        player_string, player_ratings = await rating_groups_to_string(rankings, adjusted_rating_groups)
+    else:  # Non-rated game
+        if isinstance(outcome, Player):
+            groups = [outcome, *[p for p in players]]  # Make the rating groups
+            rankings = [0, *[1 for _ in range(len(players) - 1)]]  # Rankings = [0, 1, 1, ..., 1] for this case
+
+        elif isinstance(outcome, list):
+            current_ranking = 0
+            rankings = []
+            groups = []
+            for placement in outcome:
+                for player in placement:
+                    rankings.append(current_ranking)
+                    groups.append(player)
+                current_ranking += 1
+
+        player_string = rating_groups_to_string(rankings, groups)
+
+
 
     for p in players:
         IN_GAME.pop(p)
 
-    player_ratings = {}
-    current_place = 1
-    nums_current_place = 0
-    matching = 0
-    keys = [next(iter(p)) for p in adjusted_rating_groups]
-    all_ratings = {list(p.keys())[0]:list(p.values())[0] for p in adjusted_rating_groups}
-    for i, pre_rated_player in enumerate(keys):
-        if rankings[i] == matching:
-            nums_current_place += 1
-        else:
-            current_place += nums_current_place
-            matching = rankings[i]
-            nums_current_place = 1
-
-        starting_mu, starting_sigma = pre_rated_player.mu, pre_rated_player.sigma
-        aftermath_mu, aftermath_sigma = all_ratings[pre_rated_player].mu, all_ratings[pre_rated_player].sigma
-
-        mu_delta = str(round(aftermath_mu - starting_mu))
-        if not mu_delta.startswith("-"):
-            mu_delta = "+" + mu_delta
-
-        player_ratings.update({pre_rated_player.id: {"old_rating": round(starting_mu), "delta": mu_delta, "place": current_place, "new_rating": aftermath_mu, "new_sigma": aftermath_sigma}})
-
-    print(player_ratings)
-    player_string = "\n".join([f"{player_ratings[p]["place"]}.{LONG_SPACE_EMBED}<@{p}>{LONG_SPACE_EMBED}{player_ratings[p]["old_rating"]}{LONG_SPACE_EMBED}({player_ratings[p]["delta"]})" for p in player_ratings])
 
     game_over_embed = CustomEmbed(title="Game Over", description="That's the end! Thanks for playing :)")
     game_over_embed.add_field(name="Rankings", value=player_string)
@@ -572,15 +610,13 @@ async def game_over(game_type, outcome, players, rated, thread: discord.Thread, 
 
     await thread.send(embed=final_ranking_embed)
 
+    if rated:
+        for player_id in player_ratings:
+            player_data = player_ratings[player_id]
+            update_player(game_type, Player(mu=player_data["new_rating"], sigma=player_data["new_sigma"],
+                                            user=discord.Object(id=player_id)))
 
-
-    for player_id in player_ratings:
-        player_data = player_ratings[player_id]
-        update_player(game_type, Player(mu=player_data["new_rating"], sigma=player_data["new_sigma"],
-                                        user=discord.Object(id=player_id)))
-
-
-    update_db_rankings(game_type)
+        update_db_rankings(game_type)
 
 
 class DynamicButtonView(discord.ui.View):
@@ -657,6 +693,7 @@ class InviteView(DynamicButtonView):
 
 
 class SpectateView(DynamicButtonView):
-    def __init__(self, spectate_button_id=None, game_link=None):
+    def __init__(self, spectate_button_id=None, peek_button_id=None, game_link=None):
         super().__init__([{"label": "Spectate Game", "style": discord.ButtonStyle.blurple, "id": spectate_button_id, "callback": "none"},
+                          {"label": "Peek", "style": discord.ButtonStyle.gray, "id": peek_button_id, "callback": "none"},
                           {"label": "Go To Game (won't join)", "style": discord.ButtonStyle.gray, "link": game_link}])
