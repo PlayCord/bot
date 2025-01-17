@@ -30,22 +30,22 @@ We will accomplish this using the following:
 - [ ] Game class doesn't represent current API, TicTacToeGame does
 - [ ] Need to read up on TrueSkill and fix Player.get_formatted_elo
 - [ ] Player order is currently randomized, this should be changed for some games (API)
-- [ ] Bug with TicTacToeGame.generate_game_picture prevents game board SVG from being updated
-- [ ] Missing many InputTypes, most notably Integer
-- [ ] Autocomplete does not consider player input, the literal reason it was added.
-- [ ] Game over state not implemented.
-- [ ] The "spectate" button doesn't work and the text associated with it is nonsense
+- [x] Bug with TicTacToeGame.generate_game_picture prevents game board SVG from being updated
+- [x] Missing many InputTypes, most notably Integer
+- [x] Autocomplete does not consider player input, the literal reason it was added.
+- [x] Game over state not implemented.
+- [x] The "spectate" button doesn't work and the text associated with it is nonsense
 - [ ] Emojis
   - [ ] API support for registering emojis
   - [ ] API support for getting emojis
   - [ ] Buttons need emojis
   - [ ] Rip off Tyler
-- [ ] Dynamic game thread names
+- [x] Dynamic game thread names
   - [ ] Include names of players? time? bot name?
-- [ ] Lock threads on game end
+- [x] Lock threads on game end
 - [ ] Prevent certain thread members (that aren't in game) from sending messages
 - [ ] Heck, prevent anyone from just "sending messages" in game threads?
-  - [ ] From what I've found, this is impossible?
+  - [x] From what I've found, this is impossible?
 - [ ] Remove the "Setting up stuff" message edit event for main thread and private threads(COMPLETED)
   - [ ] We probably don't even need this, it takes more time than just a defer()
 - [ ] Better permission checking for commands
@@ -70,3 +70,7 @@ We will accomplish this using the following:
 - [ ] Catch-all error response if there is a crash, instead of "interaction failed"
   - [ ] Also, some method of logging crashes
 - [ ] Add comments and docstrings to code
+
+New features:
+- [ ] Button feature as a CommandType for games
+- [ ] 

@@ -3,3 +3,4 @@ class Command:
         self.name = name
         self.options = options
         self.description = description
+

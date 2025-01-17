@@ -44,13 +44,19 @@ ERROR_INCORRECT_SETUP = ("This is likely due to:\n"
                          "2. Incorrect discord token\n"
                          "3. Incorrectly set up discord bot")
 
-GAME_TYPES = {"tictactoe": ["games.TicTacToeGame", "TicTacToeGame"]}
+GAME_TYPES = {"tictactoe": ["games.TicTacToeGame", "TicTacToeGame"],
+              "tictactoev2": ["games.TicTacToeV2", "TicTacToeGame"]}
 
 MU = 1000
 GAME_TRUESKILL = {"tictactoe": {"sigma": 1/6,
                                   "beta": 1/12,
                                   "tau": 1/100,
-                                  "draw": 9/10}}
+                                  "draw": 9/10},
+                  "tictactoev2": {"sigma": 1 / 6,
+                                "beta": 1 / 12,
+                                "tau": 1 / 100,
+                                "draw": 9 / 10}
+                  }
 
 
 TEXTIFY_CURRENT_GAME_TURN = {

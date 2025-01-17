@@ -66,7 +66,7 @@ class ImageType:
     def _embed_transform(self, embed):
         # Add players and image to the embed
         embed.set_image(url="attachment://image.png")
- 
+
 class FooterType:
 
     def __init__(self, text):
@@ -77,3 +77,17 @@ class FooterType:
     def _embed_transform(self, embed):
         embed.set_footer(text=self.text)
 
+
+class ButtonType:
+
+    def __init__(self, name, callback, style):
+        self.type = "button"
+        self.limit = 25
+        self.name = name
+        self.style = style
+        self.callback = callback
+
+    def _view_transform(self, view: discord.ui.View, game_id):
+        view.add_item(discord.ui.Button(style=discord.ButtonStyle.blurple,
+                                        label=self.name,
+                                        custom_id=f"custom/{game_id}/{self.callback.__name__}"))

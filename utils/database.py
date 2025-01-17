@@ -185,8 +185,6 @@ def update_rankings(game_type: str, teams: list[list[Player]]) -> bool:
             teams[team_index][player_index].sigma = player.sigma
             update_player(game_type, teams[team_index][player_index].id, player.mu, player.sigma)
 
-    print("output", update_db_rankings(game_type))
-            
             
 def update_db_rankings(game_type):
     db = create_connection()

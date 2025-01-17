@@ -7,11 +7,13 @@ import typing
 import trueskill
 
 from configuration.constants import *
-from utils.CustomEmbed import CustomEmbed, ErrorEmbed
-from utils.Database import get_player, update_player, update_rankings, update_db_rankings
+from utils.Game import Game
+from utils.embeds import CustomEmbed, ErrorEmbed, GameOverviewEmbed
+from utils.database import get_player, update_player, update_rankings, update_db_rankings
 from utils.Player import Player
 from utils.conversion import textify, column_creator, column_names, column_elo, column_turn, player_representative, \
     player_verification_function, contextify
+from utils.views import MatchmakingView, SpectateView
 
 
 class GameInterface:
@@ -43,8 +45,8 @@ class GameInterface:
         self.players = players
         self.rated = rated  # Is the game rated?
         self.thread = None  # The thread object after self.thread_setup() is called
-        self.game_message = None  # The message representing the game after self.thread_setup() is called
-        self.info_message = None # The message showing game info, whose turn, and what players.
+        self.game_messages = []  # The message representing the game after self.thread_setup() is called
+        self.info_messages = [] # The message showing game info, whose turn, and what players.
         # also made by self.thread_setup()
         self.module = importlib.import_module(GAME_TYPES[game_type][0])  # Game module
         # Game class instantiated with the players
@@ -104,11 +106,13 @@ class GameInterface:
         try:
             move_return_value = getattr(self.game, name)(arguments)
         except Exception as e:
-            error_embed = ErrorEmbed(what_failed=f"Error occurred while making a move! ({type(e)})", reason=traceback.format_exc())
+            error_embed = ErrorEmbed(ctx, what_failed=f"Error occurred while making a move! ({type(e)})", reason=traceback.format_exc())
             await ctx.followup.send(embed=error_embed, ephemeral=True)
             await game_over(self.game_type, traceback.format_exc(), self.players, self.rated, self.thread, self.status_message)
             return
-        # TODO: parse move return
+
+        # if move_return_value is None:  # No return value, therefore this was a
+
 
 
         await self.display_game_state()  # Update game state
@@ -129,16 +133,16 @@ class GameInterface:
     async def display_game_state(self) -> None:
         """
         Use the Game class (self.game) to get an updated version of the game state.
-        TODO: allow the Game class to provide more than just an image and let it use embed fields and player objects
         :return: None
         """
-
+        current_turn = self.game.current_turn()
         # Embed to send as the updated game state
         info_embed = CustomEmbed(title=f"Playing {self.game.name} with {len(self.players)} players",
                             description=textify(TEXTIFY_CURRENT_GAME_TURN,
-                                    {"player": self.game.current_turn().mention})).remove_footer()
+                                    {"player": current_turn.mention})).remove_footer()
 
         state_embed = CustomEmbed().remove_footer()
+        state_view = discord.ui.View()
 
         game_state = self.game.state()  # Get the bytes of the game state as an image
 
@@ -146,7 +150,10 @@ class GameInterface:
         limits = {}
         picture = None
         for state_type in game_state:
-            state_type._embed_transform(state_embed)
+            if hasattr(state_type, "_embed_transform"):
+                state_type._embed_transform(state_embed)
+            if hasattr(state_type, "_view_transform"):
+                state_type._view_transform(state_view, self.thread.id)
             limits[state_type.type] = state_type.limit
             if state_type.type in state_types:
                 state_types[state_type.type] += 1
@@ -161,15 +168,16 @@ class GameInterface:
                                      description="TODO: add a selector of functionality for this error")
 
 
-
-
         info_embed.insert_field_at(0, name="Players:", value=column_names(self.players))
         info_embed.add_field(name="Ratings:", value=column_elo(self.players))
-        info_embed.add_field(name="Turn:", value=column_turn(self.players, self.game.current_turn()))
+        info_embed.add_field(name="Turn:", value=column_turn(self.players, current_turn))
 
         # Edit the game message with the new embed
         await self.info_message.edit(embed=info_embed)
-        await self.game_message.edit(embed=state_embed, attachments=[picture])
+        await self.game_message.edit(embed=state_embed, view=state_view, attachments=[picture])
+
+        # Edit overview embed with new data
+        await self.status_message.edit(embed=GameOverviewEmbed(self.game.name, self.rated, self.players, current_turn))
 
 
 class MatchmakingInterface:
@@ -263,13 +271,19 @@ class MatchmakingInterface:
                 await self.update_embed()  # Update embed on discord side
 
 
-
-    async def accept_invite(self, player):
+    async def accept_invite(self, ctx: discord.Interaction) -> str | None:
+        player = ctx.user
+        log = self.logger.getChild("accept_invite")
         if player.id in [p.id for p in self.queued_players]:  # Can't join if you are already in
+            log.debug(f"Player {player.id} ({player.name}) attempted to accept invite, but they are already in the game! "
+                      f"{contextify(ctx)}")
             return "You are already in the game!"
         else:
             new_player = get_player(self.game_type, player)
             if new_player is None:  # Couldn't retrieve information, so don't join them
+                log.warning(
+                    f"Player {player.id} ({player.name}) attempted to accept invite, but we couldn't connect to the database!"
+                    f"{contextify(ctx)}")
                 return "Couldn't connect to DB!"
             if self.private:
                 self.whitelist.add(new_player)
@@ -280,7 +294,11 @@ class MatchmakingInterface:
                     pass
             self.queued_players.add(new_player)  # Add the player to queued_players
             IN_MATCHMAKING.update({new_player: self})
+            log.debug(
+                f"Successfully accepted invite for {player.id} ({player.name})!"
+                f"{contextify(ctx)}")
             await self.update_embed()  # Update embed on discord side
+
 
 
     async def ban(self, player, reason):
@@ -361,14 +379,20 @@ class MatchmakingInterface:
 
         if ctx.user.id != self.creator.id:  # Don't have permissions to start the game
             await ctx.followup.send("You can't start the game (not the creator).", ephemeral=True)
+            log.debug(f"Game failed to start because player {ctx.user.id} ({ctx.user.name}) was not the creator. "
+                      f"{contextify(ctx)}")
             return
 
         # The matchmaking was successful!
         self.outcome = True
 
+        log.debug(f"Game successfully started by {ctx.user.id} ({ctx.user.name})!"
+                  f"{contextify(ctx)}")
         # Start the GameInterface
-        await successful_matchmaking(self.game_type, self.message, self.creator,
-                                     self.queued_players, self.rated)
+
+        await self.message.edit(embed=CustomEmbed(description="<a:loading:1318216218116620348>").remove_footer(), view=None)
+        await successful_matchmaking(game_type=self.game_type, game_class=self.game, message=self.message, creator=self.creator,
+                                     players=self.queued_players, rated=self.rated)
 
 
     async def update_embed(self) -> None:
@@ -447,11 +471,12 @@ class MatchmakingInterface:
         return
 
 
-async def successful_matchmaking(game_type: str, message, creator: discord.User, players: list[Player], rated: bool)\
+async def successful_matchmaking(game_type: str, game_class: Game, message, creator: discord.User, players: set[Player], rated: bool)\
         -> None:
     """
     Callback called by MatchmakingInterface when the game is successfully started
     Sets up and registers a new GameInterface.
+    :param game_class: the uninstantiated Game class that will be played, used
     :param game_type: the game type to start
     :param message: the message used for matchmaking by MatchmakingInterface
     :param creator: who created the game
@@ -461,7 +486,11 @@ async def successful_matchmaking(game_type: str, message, creator: discord.User,
     """
 
     # Placeholder spectate button
-    join_thread_embed = CustomEmbed(title="Game started!", description="Click the button if you want to spectate the game, or just view the game's progress.")
+    join_thread_embed = GameOverviewEmbed(game_name=game_class.name,
+                                          rated=rated,
+                                          players=players,
+                                          turn=None)
+
 
 
     for p in players:
@@ -482,6 +511,7 @@ async def successful_matchmaking(game_type: str, message, creator: discord.User,
     await message.edit(embed=join_thread_embed, view=SpectateView(spectate_button_id=f"spectate/{game.thread.id}",
                                                                   peek_button_id=f"peek/{game.thread.id}/{game.game_message.id}",
                                                                   game_link=game.info_message.jump_url))
+
 
     await game.display_game_state()  # Send the game display state
 
@@ -617,83 +647,3 @@ async def game_over(game_type, outcome, players, rated, thread: discord.Thread, 
                                             user=discord.Object(id=player_id)))
 
         update_db_rankings(game_type)
-
-
-class DynamicButtonView(discord.ui.View):
-    """
-    Hoo boy
-    this is cursed
-    "Simple" way of making a button-only persistent view
-    Only took 3 hours :)
-    """
-    def __init__(self, buttons):
-        super().__init__(timeout=None)
-
-        for button in buttons:
-            for argument in ["label", "style", "id", "emoji", "disabled", "callback", "link"]:
-                if argument not in button.keys():
-                    if argument == "disabled":
-                        button[argument] = False
-                        continue
-                    button[argument] = None
-
-            item = discord.ui.Button(label=button["label"], style=button["style"],
-                                     custom_id=button["id"], emoji=button["emoji"], disabled=button["disabled"],
-                                     url=button["link"])
-            if button["callback"] is None:
-                item.callback = self._fail_callback
-            elif button["callback"] == "none":
-                item.callback = self._null_callback
-            else:
-                item.callback = button["callback"]
-
-
-
-            self.add_item(item)
-
-    async def _null_callback(self, interaction: discord.Interaction):
-        """
-        TODO: add logging here. This is a NULL callback
-        :param interaction: discord context
-        :return:
-        """
-        pass
-
-    async def _fail_callback(self, interaction: discord.Interaction):
-        """
-        If a "dead" view is interacted, simply disable each component and update the message
-        also send an ephemeral message to the interacter
-        :param interaction: discord context
-        :return: nothing
-        """
-        embed = interaction.message.embeds[0] # There can only be one... embed :0
-        for child in self.children:  # Disable all children
-            child.disabled = True
-
-        await interaction.response.edit_message(embed=embed, view=self)  # Update message, because you can't autoupdate
-
-        msg = await interaction.followup.send(content="That interaction is no longer active due to a bot restart!"
-                                                " Please create a new interaction :)", ephemeral=True)
-
-        await msg.delete(delay=10)
-
-
-class MatchmakingView(DynamicButtonView):
-    def __init__(self, join_button_callback=None, leave_button_callback=None,
-                 start_button_callback=None, can_start=True):
-        super().__init__([{"label": "Join", "style": discord.ButtonStyle.gray, "id": "join", "callback": join_button_callback},
-                          {"label": "Leave", "style": discord.ButtonStyle.gray, "id": "leave", "callback": leave_button_callback},
-                          {"label": "Start", "style": discord.ButtonStyle.blurple, "id": "start", "callback": start_button_callback, "disabled": not can_start}])
-
-
-class InviteView(DynamicButtonView):
-    def __init__(self, join_button_id=None, game_link=None):
-        super().__init__([{"label": "Join Game", "style": discord.ButtonStyle.blurple, "id": join_button_id, "callback": "none"},
-                          {"label": "Go To Game (won't join)", "style": discord.ButtonStyle.gray, "link": game_link}])
-
-
-class SpectateView(DynamicButtonView):
-    def __init__(self, spectate_button_id=None, peek_button_id=None, game_link=None):
-        super().__init__([{"label": "Spectate Game", "style": discord.ButtonStyle.blurple, "id": spectate_button_id, "callback": "none"},
-                          {"label": "Peek", "style": discord.ButtonStyle.gray, "id": peek_button_id, "callback": "none"},
-                          {"label": "Go To Game (won't join)", "style": discord.ButtonStyle.gray, "link": game_link}])

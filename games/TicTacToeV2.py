@@ -2,7 +2,7 @@ from cairosvg import svg2png
 
 from utils import Player
 from api.CommandTypes import Command
-from api.GameStateTypes import ImageType, InfoRows
+from api.GameStateTypes import ImageType, InfoRows, ButtonType
 from api.InputTypes import String
 import svg
 
@@ -10,13 +10,13 @@ class TicTacToeGame:
     command_description = "The classic game of Xs and Os, brought to discord"
     description = ("Tic-Tac-Toe on Discord! The game is pretty self-explanatory,"
                    " just take turns placing Xs and Os until one player gets three in a row!")
-    name = "Tic-Tac-Toe"
+    name = "Tic-Tac-Toe V2"
     players = 2
     moves = [Command(name="move", description="Place a piece down.", options=[String("where to play", "move", autocomplete="ac_move")])]
     author = "@quantumbagel"
     version = "1.0"
     author_link = "https://github.com/quantumbagel"
-    source_link = "https://github.com/quantumbagel/PlayCord/blob/main/games/TicTacToeGame.py"
+    source_link = "https://github.com/quantumbagel/PlayCord/blob/main/games/TicTacToeV2.py"
     time = "2min"
     difficulty = "Literally Braindead"
 
@@ -36,8 +36,6 @@ class TicTacToeGame:
         self.column_count = [0 for _ in range(self.size)]
         self.diagonal_count = 0
         self.anti_diagonal_count = 0
-
-
 
     def state(self):
         # Define dimensions
@@ -83,11 +81,13 @@ class TicTacToeGame:
         # Force the bytestring into a file-like object so we can upload it.
         stuff = svg2png(bytestring=drawing.as_str())
         return [ImageType(bytes=stuff), InfoRows({self.x: {"Team": ":x:"},
-                                                  self.o: {"Team": ":o:"}})]
+                                                  self.o: {"Team": ":o:"}}), ButtonType("Click for free nuggies", self.nuggies, 1)]
 
     def current_turn(self):
         return self.players[self.turn]
 
+    def nuggies(self, player):
+        pass
     def ac_move(self, player):
         moves = []
         all_moves = {'00': 'Top Left', '01': 'Top Mid', '02': 'Top Right', '10': 'Mid Left', '11': 'Mid Mid',

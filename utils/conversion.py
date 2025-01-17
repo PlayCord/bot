@@ -3,7 +3,7 @@ import random
 import discord
 from discord import User
 
-from configuration.constants import LOGGING_ROOT
+from configuration.constants import LOGGING_ROOT, LONG_SPACE_EMBED
 from utils.Player import Player
 
 
@@ -32,7 +32,7 @@ def column_creator(players: list[Player] | set[Player], creator: Player | User) 
     Creator
     <blank>
     """
-    return "\n".join(["Creator" if u.id == creator.id else "" for u in players])
+    return "\n".join(["✅" if u.id == creator.id else LONG_SPACE_EMBED for u in players])
 
 
 def column_turn(players: list[Player] | set[Player], turn: Player | User) -> str:
@@ -42,7 +42,7 @@ def column_turn(players: list[Player] | set[Player], turn: Player | User) -> str
     Creator
     <blank>
     """
-    return "\n".join(["✅" if u.id == turn.id else "" for u in players])
+    return "\n".join(["✅" if ((turn is not None) and (u.id == turn.id)) else LONG_SPACE_EMBED for u in players])
 
 
 
@@ -112,5 +112,8 @@ def player_verification_function(possible_players):
         return lambda x: x in set(possible_players)
 
 
-def contextify(ctx: discord.Interaction):
-    return f"guild_id={ctx.guild.id} guild_name={ctx.guild.name!r} user_id={ctx.user.id}, user_name={ctx.user.name}, is_bot={ctx.user.bot}, data={ctx.data}, type={ctx.type!r}"
+def contextify(ctx: discord.Interaction | discord.Member):
+    if type(ctx) == discord.Interaction:
+        return f"guild_id={ctx.guild.id} guild_name={ctx.guild.name!r} user_id={ctx.user.id}, user_name={ctx.user.name}, is_bot={ctx.user.bot}, data={ctx.data}, type={ctx.type!r}"
+    elif type(ctx) == discord.Member:
+        return f"guild_id={ctx.guild.id} guild_name={ctx.guild.name!r} user_id={ctx.user.id}, user_name={ctx.user.name}, is_bot={ctx.user.bot}, data={ctx.data}, type={ctx.type!r}"

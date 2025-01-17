@@ -8,18 +8,17 @@ import traceback
 import typing
 from typing import Any
 
-import discord
 from discord import app_commands
 from discord.app_commands import Choice, Group
-import utils.logging_formatter
+from utils.formatter import Formatter
 from configuration.constants import *
 import configuration.constants as constants
 from ruamel.yaml import YAML
-
-from utils import Database, CommandType
-from utils.CustomEmbed import CustomEmbed, ErrorEmbed
-from utils.Database import get_player
-from utils.GameInterface import MatchmakingInterface, MatchmakingView, InviteView
+from api.CommandTypes import Command
+from utils import database
+from utils.embeds import CustomEmbed, ErrorEmbed
+from utils.views import MatchmakingView, InviteView
+from utils.interfaces import MatchmakingInterface
 from utils.conversion import contextify
 
 logging.getLogger("discord").setLevel(logging.INFO)  # Discord.py logging level - INFO (don't want DEBUG)
@@ -34,7 +33,7 @@ root_logger.setLevel(logging.DEBUG)
 ch = logging.StreamHandler(stream=sys.stdout)
 ch.setLevel(logging.DEBUG)
 
-ch.setFormatter(utils.logging_formatter.Formatter())  # custom formatter
+ch.setFormatter(Formatter())  # custom formatter
 root_logger.handlers = [ch]  # Make sure to not double print
 
 log = logging.getLogger(LOGGING_ROOT)  # Base logger
@@ -64,7 +63,7 @@ if config is None:
 constants.CONFIGURATION = config  # Set global configuration
 
 database_startup_time = time.time()
-database_startup = Database.startup()  # Start up the database
+database_startup = database.startup()  # Start up the database
 if not database_startup:  # Database better work lol
     startup_logger.critical("Database failed to connect on startup!")
     sys.exit(1)
@@ -133,7 +132,7 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
 async def command_error(ctx: discord.Interaction, error_message):
     f_log = log.getChild("error")
     f_log.warning(f"Exception in command: {error_message} {contextify(ctx)}")
-    await ctx.response.send_message(embed=ErrorEmbed(what_failed=f"While running the command {ctx.command.name!r}, there was an error {error_message!r}", reason=traceback.format_exc()), ephemeral=True)
+    await ctx.response.send_message(embed=ErrorEmbed(ctx=ctx, what_failed=f"While running the command {ctx.command.name!r}, there was an error {error_message!r}", reason=traceback.format_exc()), ephemeral=True)
 
 command_root.error(command_error)
 command_root.interaction_check = interaction_check  # Set the interaction check
@@ -206,7 +205,7 @@ async def on_message(msg: discord.Message) -> None:
                 await tree.sync()
             except discord.app_commands.errors.CommandSyncFailure as e:
                 await msg.add_reaction(MESSAGE_COMMAND_FAILED)
-                await msg.reply(embed=ErrorEmbed(f"Couldn't sync commands! ({type(e)})", traceback.format_exc()))
+                await msg.reply(embed=ErrorEmbed(what_failed=f"Couldn't sync commands! ({type(e)})", reason=traceback.format_exc()))
                 return
             f_log.info(f"Performed authorized sync from user {msg.author.id} to all guilds.")
         else:
@@ -224,7 +223,7 @@ async def on_message(msg: discord.Message) -> None:
                 await tree.sync(guild=g)
             except discord.app_commands.errors.CommandSyncFailure as e:  # Something went wrong
                 await msg.add_reaction(MESSAGE_COMMAND_FAILED)
-                await msg.reply(embed=ErrorEmbed(f"Couldn't sync commands! ({type(e)})", traceback.format_exc()))
+                await msg.reply(embed=ErrorEmbed(what_failed=f"Couldn't sync commands! ({type(e)})", reason=traceback.format_exc()))
                 return
             f_log.info(f"Performed authorized sync from user {msg.author.id} to guild \"{g.name}\" (id=\"{g.id}\")")
         await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)  # leave confirmation
@@ -324,12 +323,19 @@ async def on_guild_remove(guild: discord.Guild) -> None:
 
 async def presence():
     while True:
-        games = ["Tic-Tac-Toe", "paper and pencil games"]
+        options = []
+        for game in GAME_TYPES:
+            info = GAME_TYPES[game]
+            options.append(getattr(importlib.import_module(info[0]), info[1]).name)
+        options.extend(["paper and pencil games", "fun", "distracting dervishes", "electrifying entertainment",
+                        "gripping games"])
         activity = discord.Activity(type=discord.ActivityType.playing,
-                                    name=random.choice(games)+" on Discord", state=f"Servicing {len(client.guilds)} servers and {len(client.users)} users")
+                                    name=random.choice(options)+" on Discord", state=f"Servicing {len(client.guilds)} servers and {len(client.users)} users")
 
         await client.change_presence(activity=activity, status=discord.Status.online)
         await asyncio.sleep(15)
+
+
 async def invite_accept_callback(ctx: discord.Interaction):
     await ctx.response.defer()  # Prevent button interaction from failing
     f_log = log.getChild("event.invite_accept")
@@ -337,7 +343,7 @@ async def invite_accept_callback(ctx: discord.Interaction):
     matchmaker_id: str = ctx.data['custom_id'].replace('invite/', "")
     if int(matchmaker_id) in CURRENT_MATCHMAKING:
         matchmaker: MatchmakingInterface = CURRENT_MATCHMAKING[int(matchmaker_id)]
-        error = await matchmaker.accept_invite(ctx.user)
+        error = await matchmaker.accept_invite(ctx)
         if error is not None:
             await ctx.followup.send(error, ephemeral=True)
             return
@@ -555,7 +561,7 @@ async def command_about(ctx: discord.Interaction):
                                                " by [@Pixelz22](https://github.com/Pixelz22)\n"
                                                "You know the drill, I had to beat Tyler :)", inline=True)
     embed.add_field(name="Libraries used:", value="\n".join([f"[{lib}](https://pypi.org/project/{lib})" for lib in libraries]), inline=False)
-    embed.add_field(name="Development time:", value="October 2024 - Present/")
+    embed.add_field(name="Development time:", value="October 2024 - Present")
 
     embed.set_footer(text="©	2025 Julian Reder. All rights reserved. Except the 3rd.")
 
@@ -565,6 +571,10 @@ async def command_about(ctx: discord.Interaction):
 @command_root.command(name="tictactoe", description="Tic-Tac Toe is a game about replacing your toes with Tic-Tacs, obviously.")
 async def tictactoe(ctx: discord.Interaction, rated: bool = True, private: bool = False):
     await begin_game(ctx, "tictactoe", rated=rated, private=private)
+
+@command_root.command(name="tictactoev2", description="Tic-Tac Toe is a game about replacing your toes with Tic-Tacs, obviously.")
+async def tictactoev2(ctx: discord.Interaction, rated: bool = True, private: bool = False):
+    await begin_game(ctx, "tictactoev2", rated=rated, private=private)
 
 async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = True, private: bool = False):
     f_log = log.getChild("matchmaking")
@@ -618,7 +628,6 @@ async def handle_move(ctx: discord.Interaction, name, arguments):
         return
     arguments.pop("ctx")
     arguments = {a: await decode_discord_arguments(arguments[a]) for a in arguments.keys()}
-    print(arguments)
     AUTOCOMPLETE_CACHE[ctx.channel.id] = {}  # Reset autocomplete cache
     await CURRENT_GAMES[ctx.channel.id].move(ctx, name, arguments)
 
@@ -641,7 +650,7 @@ async def handle_autocomplete(ctx: discord.Interaction, function, current: str, 
         logger.info(f"There is no game from channel #{ctx.channel.mention} (id={ctx.channel.id}). Not autocompleting.")
         return [app_commands.Choice(name="There is no game in this channel!", value="")]
 
-    player = get_player(game_view.game_type, ctx.user)  # Get the player who called this function
+    player = database.get_player(game_view.game_type, ctx.user)  # Get the player who called this function
     try:
         player_options = AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][function][argument][current]
         logger.info(f"Successfully used autocomplete cache: channel_id={ctx.channel.id}, user_id={ctx.user.id}, function={function} argument={argument}, current=\"{current}\"")
@@ -747,7 +756,7 @@ def build_function_definitions() -> dict[Group, list[Any]]:
         game_class = getattr(importlib.import_module(GAME_TYPES[game][0]), GAME_TYPES[game][1])  # Get the game's class
 
 
-        moves: list[CommandType] = game_class.moves  # Get the game's defined move option set
+        moves: list[Command] = game_class.moves  # Get the game's defined move option set
 
         # Decorators and arguments to build from
         decorators = {}
