@@ -1,6 +1,6 @@
 import discord
 
-from configuration.constants import EMBED_COLOR
+from configuration.constants import EMBED_COLOR, ERROR_COLOR
 from utils.conversion import contextify, column_names, column_elo, column_creator, column_turn
 
 
@@ -29,9 +29,9 @@ class CustomEmbed(discord.Embed):
 class ErrorEmbed(discord.Embed):
 
     def __init__(self, ctx=None, what_failed=None, reason=None):
-        super().__init__(title="<a:facepalm:1328480069156606144> Something went wrong!", color=EMBED_COLOR)  # Force a consistent embed color based on the config
+        super().__init__(title="<a:facepalm:1328480069156606144> Something went wrong!", color=ERROR_COLOR)  # Force a consistent embed color based on the config
         self.add_field(name="<:github:1329546977377259692> Please report the issue on GitHub",
-                       value="I would really appreciate if you reported this error (and a detailed description of what you did to cause it if possible) on the [GitHub issue tracker](https://github.com/quantumbagel/PlayCord/issues)")
+                       value="I would really appreciate if you reported this error (and a detailed description of what you did to cause it if possible) on the [GitHub issue tracker](https://github.com/PlayCord/bot/issues)")
         if ctx is not None:
             self.add_field(name="<:clueless:1329547266087718975> Context:", value=contextify(ctx), inline=False)
         if what_failed is not None:

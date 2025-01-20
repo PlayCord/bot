@@ -7,7 +7,8 @@ from api.InputTypes import String
 import svg
 
 class TicTacToeGame:
-    command_description = "The classic game of Xs and Os, brought to discord"
+    begin_command_description = "The classic game of Xs and Os, brought to discord"
+    move_command_group_description = "Commands for TicTacToe"
     description = ("Tic-Tac-Toe on Discord! The game is pretty self-explanatory,"
                    " just take turns placing Xs and Os until one player gets three in a row!")
     name = "Tic-Tac-Toe"
@@ -16,7 +17,7 @@ class TicTacToeGame:
     author = "@quantumbagel"
     version = "1.0"
     author_link = "https://github.com/quantumbagel"
-    source_link = "https://github.com/quantumbagel/PlayCord/blob/main/games/TicTacToeGame.py"
+    source_link = "https://github.com/PlayCord/bot/blob/main/games/TicTacToeGame.py"
     time = "2min"
     difficulty = "Literally Braindead"
 

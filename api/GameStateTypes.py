@@ -1,6 +1,10 @@
 import io
-
+from typing import Callable
+from emoji import is_emoji
 import discord
+from discord import ButtonStyle
+
+from utils.Player import Player
 
 
 class GameStateType:
@@ -79,15 +83,61 @@ class FooterType:
 
 
 class ButtonType:
+    """
 
-    def __init__(self, name, callback, style):
+    """
+    def __init__(self,
+                 name: str | None,
+                 callback: Callable[[Player, dict], None],
+                 emoji: str = None,
+                 row: int | None = None,
+                 style: ButtonStyle = discord.ButtonStyle.gray,
+                 arguments: dict = None,
+                 require_current_turn: bool = True):
         self.type = "button"
         self.limit = 25
-        self.name = name
+        if not name:  # Empty string or None
+            self.name = "​"  # Zero width space for no label
+        else:
+            self.name = name
         self.style = style
         self.callback = callback
+        self.arguments = arguments
+        self.row = row
+        if emoji is None:
+            self.emoji = None
+        elif is_emoji(emoji):  # Default emoji
+            self.emoji = emoji
+        else:
+            emoji_formatted = emoji.replace("<", "").replace(">", "").split(":")
+            emoji_animated = emoji_formatted[0] == "a"
+            if emoji_animated:
+                emoji_name = emoji_formatted[1]
+                emoji_id = int(emoji_formatted[2])
+            else:
+                emoji_name = emoji_formatted[0]
+                emoji_id = int(emoji_formatted[1])
+            self.emoji = discord.PartialEmoji(name=emoji_name, id=emoji_id, animated=emoji_animated)
+
+
+        self.require_current_turn = require_current_turn
+        if self.arguments is not None:
+            self.parsed_arguments = ",".join([f'{key}={value}' for key, value in self.arguments.items()])
+        else:
+            self.parsed_arguments = ""
 
     def _view_transform(self, view: discord.ui.View, game_id):
+        """
+        Add the button to the view.
+        :param view: View to add the button to.
+        :param game_id: game ID for callback
+        :return: Nothing (view object is passed as memory location)
+        """
+
+        # Note: c/ means current turn IS required, n/ means NO
         view.add_item(discord.ui.Button(style=discord.ButtonStyle.blurple,
                                         label=self.name,
-                                        custom_id=f"custom/{game_id}/{self.callback.__name__}"))
+                                        emoji=self.emoji,
+                                        row=self.row,
+                                        custom_id=f"{'c' if self.require_current_turn else 'n'}/{game_id}/"
+                                                  f"{self.callback.__name__}/{self.parsed_arguments}"))

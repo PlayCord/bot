@@ -25,12 +25,13 @@ WELCOME_MESSAGE = [
                           "Please note that this introduction (or the bot) doesn't contain details on how to"
                           " use the bot. For that, please check the README (linked below)."),
     ("What is this bot?", f"{NAME} is a bot for playing any variety of quick game on Discord."),
-    ("Where's the README?", "Right [here](https://github.com/quantumbagel/PlayCord/blob/master/README.md) :D"),
+    ("Where's the README?", "Right [here](https://github.com/PlayCord/bot/blob/master/README.md) :D"),
     ("Who made you?", "[@quantumbagel on Github](https://github.com/quantumbagel)")
 ]
 
-EMBED_COLOR = discord.Color.from_rgb(255, 87, 51)
-
+EMBED_COLOR = discord.Color.from_str("#6877ED")
+ERROR_COLOR = discord.Color.from_str("#ED6868")
+INFO_COLOR = discord.Color.from_str("#9A9CB0")
 
 CONFIG_BOT_SECRET = "secret"
 

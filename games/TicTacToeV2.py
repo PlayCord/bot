@@ -1,3 +1,6 @@
+import copy
+
+import discord
 from cairosvg import svg2png
 
 from utils import Player
@@ -7,7 +10,8 @@ from api.InputTypes import String
 import svg
 
 class TicTacToeGame:
-    command_description = "The classic game of Xs and Os, brought to discord"
+    begin_command_description = "The classic game of Xs and Os, brought to discord"
+    move_command_group_description = "Commands for TicTacToe"
     description = ("Tic-Tac-Toe on Discord! The game is pretty self-explanatory,"
                    " just take turns placing Xs and Os until one player gets three in a row!")
     name = "Tic-Tac-Toe V2"
@@ -16,7 +20,7 @@ class TicTacToeGame:
     author = "@quantumbagel"
     version = "1.0"
     author_link = "https://github.com/quantumbagel"
-    source_link = "https://github.com/quantumbagel/PlayCord/blob/main/games/TicTacToeV2.py"
+    source_link = "https://github.com/PlayCord/bot/blob/main/games/TicTacToeV2.py"
     time = "2min"
     difficulty = "Literally Braindead"
 
@@ -38,56 +42,35 @@ class TicTacToeGame:
         self.anti_diagonal_count = 0
 
     def state(self):
-        # Define dimensions
-        svg_size = 300
-        cell_size = svg_size / 3
-        line_color = "white"
-        x_color = "blue"
-        o_color = "red"
+        buttons = []
+        for col in range(3):
+            for row in range(3):
+                name = None
+                emoji = None
+                if self.board[row][col].id == self.x.id:
+                    emoji = "❌"
+                elif self.board[row][col].id == self.o.id:
+                    emoji = "⭕"
 
-        # All SVG elements
-        elements = []
-        # Draw grid lines
-        for i in range(1, 3):
-            # Vertical line
-            elements.append(
-                svg.Line(x1=i * cell_size, y1=0, x2=i * cell_size, y2=svg_size, stroke=line_color, stroke_width=5))
-            # Horizontal line
-            elements.append(
-                svg.Line(x1=0, y1=i * cell_size, x2=svg_size, y2=i * cell_size, stroke=line_color, stroke_width=5))
 
-        # Add X and O markers based on the board positions
-        for row in range(3):
-            for col in range(3):
-                x_pos = col * cell_size + cell_size / 2
-                y_pos = row * cell_size + cell_size / 2
-                if self.board[row][col] == self.x:
-                    # Draw X
-                    offset = cell_size / 3
-                    elements.append(
-                        svg.Line(x1=x_pos - offset, y1=y_pos - offset, x2=x_pos + offset, y2=y_pos + offset,
-                                 stroke=x_color, stroke_width=5))
-                    elements.append(
-                        svg.Line(x1=x_pos + offset, y1=y_pos - offset, x2=x_pos - offset, y2=y_pos + offset,
-                                 stroke=x_color, stroke_width=5))
-                elif self.board[row][col] == self.o:
-                    # Draw O
-                    radius = cell_size / 3
-                    elements.append(
-                        svg.Circle(cx=x_pos, cy=y_pos, r=radius, stroke=o_color, stroke_width=5, fill="none"))
+                if emoji == "❌":
+                    color = 4
+                elif name == "⭕":
+                    color = 3
+                else:
+                    color = 2
 
-        # Build the elements into an SVG bytestring
-        drawing = svg.SVG(width=svg_size, height=svg_size, elements=elements)
-        # Force the bytestring into a file-like object so we can upload it.
-        stuff = svg2png(bytestring=drawing.as_str())
-        return [ImageType(bytes=stuff), InfoRows({self.x: {"Team": ":x:"},
-                                                  self.o: {"Team": ":o:"}}), ButtonType("Click for free nuggies", self.nuggies, 1)]
+                button = ButtonType(name=name, emoji=emoji, callback=self.move, row=row, style=color, arguments={"move": str(col)+str(row)})
+                buttons.append(button)
+        return_this = [InfoRows({self.x: {"Team": ":x:"},self.o: {"Team": ":o:"}})]
+        return_this.extend(buttons)
+
+        return return_this
 
     def current_turn(self):
         return self.players[self.turn]
 
-    def nuggies(self, player):
-        pass
+
     def ac_move(self, player):
         moves = []
         all_moves = {'00': 'Top Left', '01': 'Top Mid', '02': 'Top Right', '10': 'Mid Left', '11': 'Mid Mid',
@@ -99,9 +82,8 @@ class TicTacToeGame:
                     moves.append({all_moves[move_id]: move_id})
         return moves
 
-    def move(self, arguments):
-        move = arguments["move"]
-        self.board[int(move[0])][int(move[1])].take(self.players[self.turn])
+    def move(self, player, move):
+        self.board[int(move[1])][int(move[0])].take(self.players[self.turn])
         self.turn += 1
         if self.turn == len(self.players):
             self.turn = 0
