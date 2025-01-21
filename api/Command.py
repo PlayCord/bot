@@ -10,4 +10,3 @@ class Command:
         self.options = options
         self.description = description
         self.require_current_turn = require_current_turn
-
