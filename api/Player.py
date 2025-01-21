@@ -1,9 +1,4 @@
-import builtins
-import decimal
-
 import discord
-from trueskill import TrueSkill
-
 from configuration.constants import SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD
 
 

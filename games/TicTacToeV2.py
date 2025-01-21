@@ -1,13 +1,7 @@
-import copy
-
-import discord
-from cairosvg import svg2png
-
-from utils import Player
-from api.CommandTypes import Command
-from api.GameStateTypes import ImageType, InfoRows, ButtonType
-from api.InputTypes import String
-import svg
+from api import Player
+from api.Command import Command
+from api.MessageComponents import DataTable, Button
+from api.Arguments import String
 
 class TicTacToeGame:
     begin_command_description = "The classic game of Xs and Os, brought to discord"
@@ -55,14 +49,14 @@ class TicTacToeGame:
 
                 if emoji == "❌":
                     color = 4
-                elif name == "⭕":
+                elif emoji == "⭕":
                     color = 3
                 else:
                     color = 2
 
-                button = ButtonType(name=name, emoji=emoji, callback=self.move, row=row, style=color, arguments={"move": str(col)+str(row)})
+                button = Button(name=name, emoji=emoji, callback=self.move, row=row, style=color, arguments={"move": str(col) + str(row)})
                 buttons.append(button)
-        return_this = [InfoRows({self.x: {"Team": ":x:"},self.o: {"Team": ":o:"}})]
+        return_this = [DataTable({self.x: {"Team:": ":x:"}, self.o: {"Team:": ":o:"}})]
         return_this.extend(buttons)
 
         return return_this

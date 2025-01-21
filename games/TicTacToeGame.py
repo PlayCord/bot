@@ -1,9 +1,9 @@
 from cairosvg import svg2png
 
-from utils import Player
-from api.CommandTypes import Command
-from api.GameStateTypes import ImageType, InfoRows
-from api.InputTypes import String
+from api import Player
+from api.Command import Command
+from api.MessageComponents import Image, DataTable
+from api.Arguments import String
 import svg
 
 class TicTacToeGame:
@@ -83,8 +83,8 @@ class TicTacToeGame:
         drawing = svg.SVG(width=svg_size, height=svg_size, elements=elements)
         # Force the bytestring into a file-like object so we can upload it.
         stuff = svg2png(bytestring=drawing.as_str())
-        return [ImageType(bytes=stuff), InfoRows({self.x: {"Team": ":x:"},
-                                                  self.o: {"Team": ":o:"}})]
+        return [Image(bytes=stuff), DataTable({self.x: {"Team": ":x:"},
+                                               self.o: {"Team": ":o:"}})]
 
     def current_turn(self):
         return self.players[self.turn]

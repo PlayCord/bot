@@ -15,7 +15,7 @@ from utils.formatter import Formatter
 from configuration.constants import *
 import configuration.constants as constants
 from ruamel.yaml import YAML
-from api.CommandTypes import Command
+from api.Command import Command
 from utils import database
 from utils.embeds import CustomEmbed, ErrorEmbed
 from utils.views import MatchmakingView, InviteView
@@ -143,7 +143,7 @@ command_root.interaction_check = interaction_check  # Set the interaction check
 play.interaction_check = interaction_check
 
 @client.event
-async def on_interaction(ctx: discord.Interaction):
+async def on_interaction(ctx: discord.Interaction) -> None:
     """
     Callback activated after every bot interaction. For the purposes of this bot,
      this is used to handle button interactions.
@@ -168,7 +168,7 @@ async def on_interaction(ctx: discord.Interaction):
         await peek_callback(ctx)
 
 @client.event
-async def on_ready():
+async def on_ready() -> None:
     """
     Callback activated after the bot is ready (connected to gateway).
     Only things we need to do is register button views and rich presence.
@@ -342,7 +342,7 @@ async def on_guild_remove(guild: discord.Guild) -> None:
     f_log.info(f"Removed from guild {guild.name!r}! (id={guild.id}). that makes me sad :(")
 
 
-async def presence():
+async def presence() -> None:
     """
     Manage the presence of the bot.
     Rotates through presets and game names
@@ -414,59 +414,110 @@ async def game_button_callback(ctx: discord.Interaction, current_turn_required: 
 
 
 
-async def invite_accept_callback(ctx: discord.Interaction):
+async def invite_accept_callback(ctx: discord.Interaction) -> None:
+    """
+    Callback for clicking on invite buttons.
+    Custom id is of the form invite/MATCHMAKERID
+
+    :param ctx: discord context from button click
+    :return: nothing
+    """
+
     await ctx.response.defer()  # Prevent button interaction from failing
+
+    # Log method activation
     f_log = log.getChild("callback.invite_accept")
     f_log.debug(f"invite-accept clicked: {contextify(ctx)}")
+
+    # Get matchmaker ID
     matchmaker_id: str = ctx.data['custom_id'].replace('invite/', "")
+
+    # If matchmaking is still happening, try to accept
     if int(matchmaker_id) in CURRENT_MATCHMAKING:
         matchmaker: MatchmakingInterface = CURRENT_MATCHMAKING[int(matchmaker_id)]
-        error = await matchmaker.accept_invite(ctx)
-        if error: return
-        await ctx.followup.send("You have joined the game! Press 'Go To Game' to go to the server where the game is", ephemeral=True)
-        f_log.debug(f"Invite successfully accepted: {contextify(ctx)}")
-    else:
+        error = await matchmaker.accept_invite(ctx)  # will return if invite accept failed
+        if not error:
+            await ctx.followup.send("You have joined the game! Press 'Go To Game' to go to the server where the game is", ephemeral=True)
+            f_log.debug(f"Invite successfully accepted: {contextify(ctx)}")
+    else:  # Matchmaking is over or bot restarted
         await ctx.followup.send("This invite has expired.", ephemeral=True)
         f_log.debug(f"Invite expired: {contextify(ctx)}")
+
+    # Disable invite button for click, regardless of success
     view = discord.ui.View.from_message(ctx.message)
     for button in view.children:
         if button.custom_id == "invite/"+matchmaker_id:
             button.disabled = True
+
+    # Update invite embed
     await ctx.message.edit(view=view, embed=ctx.message.embeds[0])
 
 
-async def spectate_callback(ctx: discord.Interaction):
+async def spectate_callback(ctx: discord.Interaction) -> None:
+    """
+    Callback for clicking on spectate buttons.
+    Custom ID format: spectate/GAMEID
+    :param ctx: discord context
+    :return: nothing
+    """
+    
+    # Defer button interaction
+    await ctx.response.defer()
+    
+    # Log that method was called
     f_log = log.getChild("callback.spectate")
     f_log.debug(f"spectate button clicked: {contextify(ctx)}")
-    await ctx.response.defer()
-    thread_id: str = ctx.data['custom_id'].replace('spectate/', "")
+    
+    # Get game ID
+    game_id: str = ctx.data['custom_id'].replace('spectate/', "")
 
-    thread = client.get_channel(int(thread_id))
+    thread = client.get_channel(int(game_id))  # Try to get thread
     try:
-        if thread is None:
-            thread = client.get_channel(int(thread_id))
-        await thread.add_user(ctx.user)
+        if thread is None:  # Thread doesn't exist
+            thread = client.fetch_channel(int(game_id))  # Use API
+        await thread.add_user(ctx.user)  # Add user to channel
         await ctx.followup.send("Successfully added user to game channel!", ephemeral=True)
-    except discord.errors.NotFound:
+    except discord.errors.NotFound:  # API said no lol
         await ctx.followup.send("That game no longer exists!", ephemeral=True)
         return
 
-async def peek_callback(ctx: discord.Interaction):
-    game_message_id: str = ctx.data['custom_id'].replace('peek/', "").split("/")[1]
-    thread_id: str = ctx.data['custom_id'].replace('peek/', "").split("/")[0]
 
+async def peek_callback(ctx: discord.Interaction) -> None:
+    """
+    Callback for peek buttons.
+    Custom ID format: peek/GAMEID/MESSAGEID
+    :param ctx: discord context
+    :return: Nothing
+    """
+    await ctx.response.defer()  # Defer button interaction
+
+    # Log that interaction was activated
     f_log = log.getChild("callback.peek")
     f_log.debug(f"peeked button clicked: {contextify(ctx)}")
-    await ctx.response.defer()
-    thread = client.get_channel(int(thread_id))
+
+    # Get data
+    data = ctx.data['custom_id'].replace('peek/', "").split("/")
+
+    # Unpack variables
+    game_message_id: str = data[1]
+    game_id: str = data[0]
+
+    # Try to get thread from cache
+    thread = client.get_channel(int(game_id))
     try:
         if thread is None:
-            thread = client.get_channel(int(thread_id))
+            thread = client.get_channel(int(game_id))  # Use API if needed
 
-        msg = await thread.fetch_message(int(game_message_id))
+        msg = await thread.fetch_message(int(game_message_id))  # Fetch message, unfortunately we need API
 
-        await ctx.followup.send(embed=msg.embeds[0], ephemeral=True)
-    except discord.errors.NotFound:
+        # Get view from message to send back with disabled buttons
+        message_view = discord.ui.View.from_message(msg)
+
+        for button in message_view.children:  # don't want those buttons clickable lol
+            button.disabled = True
+
+        await ctx.followup.send(embed=msg.embeds[0], view=message_view, ephemeral=True)
+    except discord.errors.NotFound:  # API takes the L
         await ctx.followup.send("That game no longer exists!", ephemeral=True)
         return
 

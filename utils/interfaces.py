@@ -8,10 +8,10 @@ import typing
 import trueskill
 
 from configuration.constants import *
-from utils.Game import Game
+from api.Game import Game
 from utils.embeds import CustomEmbed, ErrorEmbed, GameOverviewEmbed
 from utils.database import get_player, update_player, update_db_rankings
-from utils.Player import Player
+from api.Player import Player
 from utils.conversion import textify, column_creator, column_names, column_elo, column_turn, player_representative, \
     player_verification_function, contextify
 from utils.views import MatchmakingView, SpectateView

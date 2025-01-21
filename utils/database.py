@@ -1,5 +1,3 @@
-import decimal
-
 import trueskill
 import mysql.connector
 from mysql.connector import Error
@@ -8,7 +6,7 @@ from mysql.connector.pooling import PooledMySQLConnection
 import configuration.constants
 from configuration.constants import *
 from configuration.constants import LOGGING_ROOT, GAME_TYPES, GAME_TRUESKILL, MU
-from utils.Player import Player
+from api.Player import Player
 import logging
 
 # Database logger

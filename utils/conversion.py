@@ -4,7 +4,7 @@ import discord
 from discord import User
 
 from configuration.constants import LOGGING_ROOT, LONG_SPACE_EMBED
-from utils.Player import Player
+from api.Player import Player
 
 
 def column_names(players: list[Player] | set[Player]) -> str:
