@@ -37,9 +37,9 @@ def column_creator(players: list[Player] | set[Player], creator: Player | User) 
 
 def column_turn(players: list[Player] | set[Player], turn: Player | User) -> str:
     """
-    Convert a list of players into a string representing the list of players
+    Convert a list of players into a string representing the list of players and whose turn it is
 
-    Creator
+    ✅
     <blank>
     """
     return "\n".join(["✅" if ((turn is not None) and (u.id == turn.id)) else LONG_SPACE_EMBED for u in players])
@@ -85,7 +85,13 @@ def textify(basis: dict[str,float], replacements: dict[str,str]) -> str:
 
     return actually_picked_message
 
-def player_representative(possible_players):
+def player_representative(possible_players: list[int]):
+    """
+    Turns a list of players into a string representing the list of possible players
+    e.g. [2, 3, 4, 5] -> 2-5, [2,3,5] -> 2-3, 5
+    :param possible_players:
+    :return: string representing the the amount
+    """
     if type(possible_players) == int:
         return str(possible_players)
     nums = sorted(set(possible_players))
@@ -105,14 +111,26 @@ def player_representative(possible_players):
 
     return ", ".join(result)
 
-def player_verification_function(possible_players):
-    if type(possible_players) == int:
+def player_verification_function(possible_players: list[int] | int):
+    """
+    function that returns a lambda representing a function checking if an argument is in the list of possible players
+     (or equal to a number)
+    :param possible_players: either an integer or a list of integers representing the possible player count
+    :return: a function that checks if an argument is in the list of possible player counts
+    """
+    if type(possible_players) == int:  # One number
         return lambda x: x == possible_players
-    else:
+    else:  # Many numbers
         return lambda x: x in set(possible_players)
 
 
 def contextify(ctx: discord.Interaction | discord.Member):
+    """
+    return a string representing detailed information about the interaction
+    TODO: move to analytics module
+    :param ctx: discord context
+    :return: a string representing detailed information about the interaction
+    """
     if type(ctx) == discord.Interaction:
         return f"guild_id={ctx.guild.id} guild_name={ctx.guild.name!r} user_id={ctx.user.id}, user_name={ctx.user.name}, is_bot={ctx.user.bot}, data={ctx.data}, type={ctx.type!r}"
     elif type(ctx) == discord.Member:

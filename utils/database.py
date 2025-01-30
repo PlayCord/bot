@@ -13,7 +13,7 @@ import logging
 logger = logging.getLogger(f"{LOGGING_ROOT}.database")
 
 
-connections_made = 1  # Keep track of how many connections were made
+connections_made = 1  # Keep track of how many connections were made for logging purposes
 
 def create_connection() -> PooledMySQLConnection | None:
     """
@@ -89,7 +89,7 @@ def get_player(game_type: str, user: discord.User) -> Player | None:
     else:
         id, mu, sigma, ranking = results[0]
         # Database has info, return that
-        # Idk why, but we get a decimal.Decimal (infinite precision?)
+        # Idk why, but we get a decimal.Decimal (infinite precision?), so convert to float
         mu = float(mu)
         sigma = float(sigma)
 
@@ -185,12 +185,19 @@ def update_rankings(game_type: str, teams: list[list[Player]]) -> bool:
 
             
 def update_db_rankings(game_type):
+    """
+    Update the global ranking of the players in the database after a rated match has finished.
+    :param game_type: which game type to update rankings in
+    :return: True if success, False otherwise (database connection failure).
+    """
     db = create_connection()
     if db is None:
         return False  # Return false if failure to connect, because the action failed
 
     cursor = db.cursor()
     cursor.execute(f"USE {game_type}")  # Select database
+
+    # Create temporary table with new ranking
     cursor.execute("""CREATE TEMPORARY TABLE temp_leaderboard_ranking AS
     SELECT id, FIND_IN_SET(mu, (
         SELECT GROUP_CONCAT(sub.mu ORDER BY sub.mu DESC, sub.sigma)
@@ -198,16 +205,19 @@ def update_db_rankings(game_type):
     )) AS ranking
     FROM leaderboard;
     """)
+
+    # Update production table with temporary data
     cursor.execute("""UPDATE leaderboard AS ldr
     JOIN temp_leaderboard_ranking AS temp
     ON ldr.id = temp.id
     SET ldr.ranking = temp.ranking;
     """)
+
+    # Drop temporary table
     cursor.execute("DROP TEMPORARY TABLE temp_leaderboard_ranking;")
+
     # Close connection
     db.commit()
     cursor.close()
     db.close()
     return True
-
-

@@ -1,15 +1,28 @@
+import typing
+
 import discord
 
+class DynamicButtonDict(typing.TypedDict, total=False):
+
+    label: str
+    style: discord.ButtonStyle
+    id: str
+    emoji: str | discord.PartialEmoji
+    disabled: bool
+    callback: typing.Callable | str
+    link: str
 
 class DynamicButtonView(discord.ui.View):
     """
-    Hoo boy
-    this is cursed
-    "Simple" way of making a button-only persistent view
-    Only took 3 hours :)
+
     """
-    def __init__(self, buttons):
-        super().__init__(timeout=None)
+    def __init__(self, buttons: list[DynamicButtonDict]):
+        """
+        Create a dynamic button view
+        :param buttons: list of buttons as dictionaries
+        look at class D
+        """
+        super().__init__(timeout=None)  # timeout=None required for persistent views, per discord docs
 
         for button in buttons:
             for argument in ["label", "style", "id", "emoji", "disabled", "callback", "link"]:
@@ -48,8 +61,9 @@ class DynamicButtonView(discord.ui.View):
         :param interaction: discord context
         :return: nothing
         """
-        embed = interaction.message.embeds[0] # There can only be one... embed :0
-        for child in self.children:  # Disable all children
+        embed = interaction.message.embeds[0] # There can only be one... embed :O
+
+        for child in self.children:  # Disable all children via drop kicking
             child.disabled = True
 
         await interaction.response.edit_message(embed=embed, view=self)  # Update message, because you can't autoupdate
@@ -57,7 +71,7 @@ class DynamicButtonView(discord.ui.View):
         msg = await interaction.followup.send(content="That interaction is no longer active due to a bot restart!"
                                                 " Please create a new interaction :)", ephemeral=True)
 
-        await msg.delete(delay=10)
+        await msg.delete(delay=10)  # autodelete message
 
 
 class MatchmakingView(DynamicButtonView):
@@ -75,6 +89,9 @@ class InviteView(DynamicButtonView):
 
 
 class SpectateView(DynamicButtonView):
+    """
+    View for status message
+    """
     def __init__(self, spectate_button_id=None, peek_button_id=None, game_link=None):
         super().__init__([{"label": "Spectate Game", "style": discord.ButtonStyle.blurple, "id": spectate_button_id, "callback": "none"},
                           {"label": "Peek", "style": discord.ButtonStyle.gray, "id": peek_button_id, "callback": "none"},

@@ -92,7 +92,8 @@ class TicTacToeGame:
 
         # Check columns
         for col in range(3):
-            if self.board[0][col].id is not None and all(self.board[row][col].id == self.board[0][col].id for row in range(3)):
+            if (self.board[0][col].id is not None and
+                    all(self.board[row][col].id == self.board[0][col].id for row in range(3))):
                 return self.board[0][col].owner  # Return the winner's owner
 
         # Check diagonals

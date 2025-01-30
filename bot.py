@@ -735,7 +735,11 @@ async def command_about(ctx: discord.Interaction):
     embed.add_field(name="Inspiration:", value="[LoRiggio (Liar's Dice Bot)](https://github.com/Pixelz22/LoRiggioDev)"
                                                " by [@Pixelz22](https://github.com/Pixelz22)\n"
                                                "You know the drill, I had to beat Tyler :)", inline=True)
-    embed.add_field(name="Libraries used:", value="\n".join([f"[{lib}](https://pypi.org/project/{lib})" for lib in libraries]), inline=False)
+    embed.add_field(name="@USSyorktown10",
+                    value="For this [awesome]"
+                          "(https://github.com/PlayCord/bot/commit/9cb0262239be27b7bb04da5f1abc10c1990de3e7) commit.")
+    embed.add_field(name="Libraries used:",
+                    value="\n".join([f"[{lib}](https://pypi.org/project/{lib})" for lib in libraries]), inline=False)
     embed.add_field(name="Development time:", value="October 2024 - Present")
     embed.set_footer(text="©	2025 Julian Reder. All rights reserved. Except the 3rd.")
 

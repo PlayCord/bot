@@ -8,8 +8,7 @@ import typing
 import trueskill
 
 from configuration.constants import *
-from api.Game import Game
-from utils.embeds import CustomEmbed, ErrorEmbed, GameOverviewEmbed
+from utils.embeds import CustomEmbed, ErrorEmbed, GameOverviewEmbed, GameOverEmbed
 from utils.database import get_player, update_player, update_db_rankings
 from api.Player import Player
 from utils.conversion import textify, column_creator, column_names, column_elo, column_turn, player_representative, \
@@ -111,7 +110,7 @@ class GameInterface:
         except Exception as e:
             error_embed = ErrorEmbed(ctx, what_failed=f"Error occurred while making a move! ({type(e)})", reason=traceback.format_exc())
             await ctx.followup.send(embed=error_embed, ephemeral=True)
-            await game_over(self.game_type, traceback.format_exc(), self.players, self.rated, self.thread, self.status_message)
+            await game_over(self, traceback.format_exc())
             return
 
         # if move_return_value is None:  # No return value, therefore this was a
@@ -122,7 +121,7 @@ class GameInterface:
 
             message = await ctx.followup.send(content="Game over!", ephemeral=True)
             await message.delete(delay=5)
-            await game_over(self.game_type, outcome, self.players, self.rated, self.thread, self.status_message)
+            await game_over(self, outcome)
             return
 
 
@@ -177,7 +176,7 @@ class GameInterface:
 
             message = await ctx.followup.send(content="Game over!", ephemeral=True)
             await message.delete(delay=5)
-            await game_over(self.game_type, outcome, self.players, self.rated, self.thread, self.status_message)
+            await game_over(self, outcome)
             return
 
 
@@ -378,8 +377,12 @@ class MatchmakingInterface:
         :param ctx: discord context with information about the invite
         :return: whether the invite succeeded or failed
         """
-        player = ctx.user
+
+        player = ctx.user  # We use this a LOT in this function, make it easier to read
+
+        # Get logger
         log = self.logger.getChild("accept_invite")
+
         if player.id in [p.id for p in self.queued_players]:  # Can't join if you are already in
             log.debug(f"Player {player.id} ({player.name}) attempted to accept invite, but they are already in the game! "
                       f"{contextify(ctx)}")
@@ -393,6 +396,8 @@ class MatchmakingInterface:
                     f"{contextify(ctx)}")
                 await ctx.followup.send("Couldn't connect to DB!", ephemeral=True)
                 return False
+
+            # Add to whitelist or remove from blacklist, depending on private/public status
             if self.private:
                 self.whitelist.add(new_player)
             else:
@@ -400,6 +405,7 @@ class MatchmakingInterface:
                     self.blacklist.remove(new_player)
                 except KeyError:
                     pass
+
             self.queued_players.add(new_player)  # Add the player to queued_players
             IN_MATCHMAKING.update({new_player: self})
             log.debug(
@@ -408,7 +414,7 @@ class MatchmakingInterface:
             await self.update_embed()  # Update embed on discord side
         return True
 
-    async def ban(self, player, reason):
+    async def ban(self, player, reason) -> None:
         new_player = get_player(self.game_type, player)
         if new_player is None:  # Couldn't retrieve information, so don't join them
             return "Couldn't connect to DB!"
@@ -444,7 +450,7 @@ class MatchmakingInterface:
         if kicked: return f"Successfully kicked and banned {player.mention} from the game for reason {reason!r}"
         return f"Successfully banned {player.mention} from the game for reason {reason!r}"
 
-    async def kick(self, player, reason):
+    async def kick(self, player, reason) -> None:
 
 
 
@@ -563,92 +569,174 @@ class MatchmakingInterface:
 
 
 
-async def successful_matchmaking(game_type: str, game_class: Game, message, creator: discord.User, players: set[Player], rated: bool)\
-        -> None:
+async def successful_matchmaking(interface: MatchmakingInterface) -> None:
     """
     Callback called by MatchmakingInterface when the game is successfully started
     Sets up and registers a new GameInterface.
-    :param game_class: the uninstantiated Game class that will be played, used
-    :param game_type: the game type to start
-    :param message: the message used for matchmaking by MatchmakingInterface
-    :param creator: who created the game
-    :param players: a list of players to pass to GameInterface
-    :param rated: whether the game is rated
+    :param interface: MatchmakingInterface that will be registered as a GameInterface by this function
     :return: Nothing
     """
 
-    # Placeholder spectate button
+    # Extract class variables
+    game_class = interface.game_type
+    rated = interface.rated
+    players = interface.queued_players
+    message = interface.message
+    game_type = interface.game_type
+    creator = interface.creator
+
     join_thread_embed = GameOverviewEmbed(game_name=game_class.name,
                                           rated=rated,
                                           players=players,
                                           turn=None)
 
-
-
+    # Remove players in this matchmaking from IN_MATCHMAKING
     for p in players:
         IN_MATCHMAKING.pop(p)
 
-    CURRENT_MATCHMAKING.pop(message.id)
-
+    CURRENT_MATCHMAKING.pop(message.id)  # Remove the MatchmakingInterface from the CURRENT_MATCHMAKING tracker
 
     # Set up a new GameInterface
-    game = GameInterface(game_type, message, creator, list(players), rated)  # fix: turn advantageous set to list for gameinterface
-    await game.setup()
-
+    game = GameInterface(game_type, message, creator, list(players), rated)
+    await game.setup()  # Setup thread and other stuff
 
     # Register the game to the channel it's in
     CURRENT_GAMES.update({game.thread.id: game})
 
-
+    # Edit the status message with the SpectateView
     await message.edit(embed=join_thread_embed, view=SpectateView(spectate_button_id=f"spectate/{game.thread.id}",
                                                                   peek_button_id=f"peek/{game.thread.id}/{game.game_message.id}",
                                                                   game_link=game.info_message.jump_url))
 
-
     await game.display_game_state()  # Send the game display state
 
 
+async def rating_groups_to_string(rankings, groups) -> tuple[str, dict[str, typing.Any]]:
+    """
+    Converts the rankings and groups from a rated game into a string representing the outcome of the game.
+    :param rankings: Rankings (format: list of places such as [1, 1, 2, 3] to correlate with groups)
+    :param groups: groups (format: [{player: player_rating}] where player is a Player object and player_rating
+     is an trueskill.Rating object
+    :return: String representing the outcome of the game (format:
+    1. PlayerInFirst
+    2T. PlayerInSecond
+    2T. PlayerAlsoInSecond
+    4. LastPlayer
+    )
+    """
 
-async def rating_groups_to_string(rankings, groups):
+    # Dictionary containing all data relevant to the ratings
     player_ratings = {}
+
+    # Place tracking variables
     current_place = 1
     nums_current_place = 0
     matching = 0
+
+    # Turn list of dictionaries into a list of all the keys from the dictionaries
     keys = [next(iter(p)) for p in groups]
+
+    # Convert the list of dictionaries into one dictionary with all of the keys
     all_ratings = {list(p.keys())[0]: list(p.values())[0] for p in groups}
-    for i, pre_rated_player in enumerate(keys):
-        if rankings[i] == matching:
+
+    for i, pre_rated_player in enumerate(keys):  # Loop
+
+        # Logic for keeping track of place
+        if rankings[i] == matching: # Same place ID as last person
+            # Update the number of people who got the current place ID
             nums_current_place += 1
-        else:
+        else:  # Different ID, update to new ID and reset nums_current_place
             current_place += nums_current_place
             matching = rankings[i]
             nums_current_place = 1
 
+        # Extract starting and ending rating variables
         starting_mu, starting_sigma = pre_rated_player.mu, pre_rated_player.sigma
         aftermath_mu, aftermath_sigma = all_ratings[pre_rated_player].mu, all_ratings[pre_rated_player].sigma
 
+        # Change in ELO
         mu_delta = str(round(aftermath_mu - starting_mu))
-        if not mu_delta.startswith("-"):
+
+        if not mu_delta.startswith("-"):  # Add a "+" to the delta if it isn't negative
             mu_delta = "+" + mu_delta
 
+        # Add data for the player to player_ratings
         player_ratings.update({pre_rated_player.id: {"old_rating": round(starting_mu), "delta": mu_delta,
-                                                     "place": current_place, "new_rating": aftermath_mu,
+                                                     "place": current_place, "tied": rankings.count(rankings[i]) > 1,
+                                                     "new_rating": aftermath_mu,
                                                      "new_sigma": aftermath_sigma}})
-
+    # Concatenate to
+    # 1. PlayerOne 1 (+384)
+    # 2. PlayerTwo 30 (+2)
+    # 3. PlayerThreeWhoSucks 20 (-20)
     player_string = "\n".join([
-                                  f"{player_ratings[p]["place"]}.{LONG_SPACE_EMBED}<@{p}>{LONG_SPACE_EMBED}{player_ratings[p]["old_rating"]}{LONG_SPACE_EMBED}({player_ratings[p]["delta"]})"
+                                  f"{player_ratings[p]["place"]}{"T" if player_ratings[p]["tied"] else ""}."
+                                  f"{LONG_SPACE_EMBED}<@{p}>{LONG_SPACE_EMBED}{player_ratings[p]["old_rating"]}"
+                                  f"{LONG_SPACE_EMBED}({player_ratings[p]["delta"]})"
                                   for p in player_ratings])
 
+    # Return both the concatenated string AND the rating dictionary, as it is needed for the game_over function
     return player_string, player_ratings
 
 
-async def non_rated_groups_to_string(rankings, groups):
-    return rankings + "\n" + groups
+async def non_rated_groups_to_string(rankings, groups) -> str:
+    """
+    Create the string representing the groups for the game over screen
+    :param rankings: Rankings: format [0, 1, 1, 2] for first place, two tied for 2nd, and 3rd. Corresponds to groups
+    :param groups: Groups: format [list of players], places correspond to places in rankings
+    :return: string of the groups formatted to display
+    """
+
+    # Output list to concatenate
+    player_ratings = []
+
+    # Loop variables
+    current_place = 1
+    nums_current_place = 0
+    matching = 0
+
+    # Loop through players
+    for i, pre_rated_player in enumerate(groups):
+        # Ranking of current player = last player ranked, so increment the number of people
+        if rankings[i] == matching:
+            nums_current_place += 1
+        # New ranking
+        else:
+            current_place += nums_current_place  # Add number of people who were in previous ranking position
+            matching = rankings[i]  # Now matching current player's ranking ID
+            nums_current_place = 1
+
+        # Check if tied
+        show_tied = ""
+        if rankings.count(rankings[i]) > 1:  # More than one player tied for same score
+            show_tied = 'T'  # Display "T" (1T.)
+
+        # Add format PLACE[TIED].   MENTION
+        player_ratings.append(f"{current_place}{show_tied}.{LONG_SPACE_EMBED}{pre_rated_player.mention}")
+    return "\n".join(player_ratings)  # concatenate and return
 
 
-async def game_over(game_type, outcome, players, rated, thread: discord.Thread, outbound_message):
-    # TODO: implement outbound game over view
+async def game_over(interface: GameInterface,  outcome: str | Player | list[list[Player]]) -> None:
+    """
+    Callback called by GameInterface when the game is over. Easily the most technically complicated function
+    in the entire API
 
+    :param interface: GameInterface that the game_over was triggered by
+    :param outcome: outcome of the game. There are three possibilities: string for error,
+     one player who won (all other players lost), or a list of list of players formatted like this:
+     [[p1, p2], [p3], [p4]] indicates p1 and p2 tied, p3 got third, p4 got fourth
+    :param players: list of players to rate or display rating
+    :return: Nothing
+    """
+
+    # Extract class variables
+    game_type = interface.game_type
+    thread = interface.thread
+    outbound_message = interface.status_message
+    rated = interface.rated
+    players = interface.players
+
+    # Get environment constants
     sigma = MU * GAME_TRUESKILL[game_type]["sigma"]
     beta = MU * GAME_TRUESKILL[game_type]["beta"]
     tau = MU * GAME_TRUESKILL[game_type]["tau"]
@@ -657,8 +745,8 @@ async def game_over(game_type, outcome, players, rated, thread: discord.Thread, 
     # mpmath backend = near infinite floating point precision
     environment = trueskill.TrueSkill(mu=MU, sigma=sigma, beta=beta, tau=tau, draw_probability=draw,
                                       backend="mpmath")
-    # Two cases implemented:
 
+    # There are three cases: str (error) Player (one person won) list[list[Player]] (detailed ranking)
     if isinstance(outcome, str):  # Error
         game_over_embed = ErrorEmbed(what_failed="Error during a move!", reason=outcome)
         # Send the embed
@@ -668,7 +756,6 @@ async def game_over(game_type, outcome, players, rated, thread: discord.Thread, 
         return
 
     if rated:
-
         if isinstance(outcome, Player):  # Somebody won, everybody else lost. No way of comparison (tic-tac-toe)
             # Winner's rating
             winner = environment.create_rating(outcome.mu, outcome.sigma)
@@ -679,7 +766,7 @@ async def game_over(game_type, outcome, players, rated, thread: discord.Thread, 
             rating_groups = [{outcome: winner}, *losers]  # Make the rating groups
             rankings = [0, *[1 for _ in range(len(players) - 1)]]  # Rankings = [0, 1, 1, ..., 1] for this case
 
-        elif isinstance(outcome, list):  # More generic position placement
+        else:  # More generic position placement
             # Format:
             # [[p1, p2], [p3], [p4]] indicates p1 and p2 tied, p3 got third, p4 got fourth
             # What if there are teams? screw you
@@ -693,12 +780,18 @@ async def game_over(game_type, outcome, players, rated, thread: discord.Thread, 
                     rating_groups.append({player: environment.create_rating(player.mu, player.sigma)})
                 current_ranking += 1
 
+        # Rerate the groups
         adjusted_rating_groups = environment.rate(rating_groups=rating_groups, ranks=rankings)
-
         player_string, player_ratings = await rating_groups_to_string(rankings, adjusted_rating_groups)
+
     else:  # Non-rated game
+
+        # In case of impossible fail: no rankings
+        rankings = []
+        groups = []
+
         if isinstance(outcome, Player):
-            groups = [outcome, *[p for p in players]]  # Make the rating groups
+            groups = [outcome, *[p for p in players if p != outcome]]  # Make the rating groups
             rankings = [0, *[1 for _ in range(len(players) - 1)]]  # Rankings = [0, 1, 1, ..., 1] for this case
 
         elif isinstance(outcome, list):
@@ -711,31 +804,30 @@ async def game_over(game_type, outcome, players, rated, thread: discord.Thread, 
                     groups.append(player)
                 current_ranking += 1
 
-        player_string = rating_groups_to_string(rankings, groups)
+        player_string = await non_rated_groups_to_string(rankings, groups)
 
-
-
-    for p in players:
+    for p in players:  # Players playing this game are no longer in the game... it's over lol
         IN_GAME.pop(p)
 
+    CURRENT_GAMES.pop(thread.id)  # Remove this game from the CURRENT_GAMES tracker
 
-    game_over_embed = CustomEmbed(title="Game Over", description="That's the end! Thanks for playing :)")
-    game_over_embed.add_field(name="Rankings", value=player_string)
+    # Create GameOverEmbed to show in the status and info messages
+    game_over_embed = GameOverEmbed(rankings=player_string)
 
-    # Send the embed
+    # Send the embed to overview / game thread
+    await thread.send(embed=game_over_embed)
     await outbound_message.edit(embed=game_over_embed, view=None)
 
+    # Close the game thread
     await thread.edit(locked=True, archived=True, reason="Game is over.")
 
-    final_ranking_embed = CustomEmbed(title="That's all, folks!", description="Hope you had fun playing :)")
-    final_ranking_embed.add_field(name="Final Rankings", value=player_string)
 
-    await thread.send(embed=final_ranking_embed)
-
+    # If the game is rated, perform the relatively intensive task of updating the DB rankings
     if rated:
-        for player_id in player_ratings:
+        for player_id in player_ratings:  # Every rated player, post new ratings in the database
             player_data = player_ratings[player_id]
-            update_player(game_type, Player(mu=player_data["new_rating"], sigma=player_data["new_sigma"],
+            update_player(game_type, Player(mu=player_data["new_rating"],
+                                            sigma=player_data["new_sigma"],
                                             user=discord.Object(id=player_id)))
 
-        update_db_rankings(game_type)
+        update_db_rankings(game_type)  # Update ranking db variable

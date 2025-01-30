@@ -64,3 +64,10 @@ class GameOverviewEmbed(CustomEmbed):
         self.add_field(name="Players:", value=column_names(players), inline=True)
         self.add_field(name="Ratings:", value=column_elo(players), inline=True)
         self.add_field(name="Turn:", value=column_turn(players, turn), inline=True)
+
+
+class GameOverEmbed(CustomEmbed):
+
+    def __init__(self, rankings):  # TODO: add game_name and other customization
+        super().__init__(title="Game over!", description=f"Thanks so much for playing this game :)")
+        self.add_field(name="Rankings:", value=rankings, inline=True)
