@@ -1,8 +1,8 @@
 # PlayCord
+
 _a discord bot for simple games_
 
 by [@quantumbagel](https://github.com/quantumbagel)
-
 
 ### Sections to add to README
 
@@ -11,7 +11,6 @@ by [@quantumbagel](https://github.com/quantumbagel)
 * Features
 * Dependencies
 * List of games (both planned and implemented)
-
 
 ### Project Aims
 
@@ -24,53 +23,44 @@ We will accomplish this using the following:
 * MySQL database for leaderboard
 * TrueSkill rating system
 
-
 ### Current TODOs
-- [ ] Property class is essentially just a number. It can and should have more functionality (linked nodes, etc)
-- [ ] Game class doesn't represent current API, TicTacToeGame does
+
 - [ ] Need to read up on TrueSkill and fix Player.get_formatted_elo
 - [ ] Player order is currently randomized, this should be changed for some games (API)
-- [x] Bug with TicTacToeGame.generate_game_picture prevents game board SVG from being updated
-- [x] Missing many InputTypes, most notably Integer
-- [x] Autocomplete does not consider player input, the literal reason it was added.
-- [x] Game over state not implemented.
-- [x] The "spectate" button doesn't work and the text associated with it is nonsense
 - [ ] Emojis
-  - [ ] API support for registering emojis
-  - [ ] API support for getting emojis
-  - [ ] Buttons need emojis
-  - [ ] Rip off Tyler
-- [x] Dynamic game thread names
-  - [ ] Include names of players? time? bot name?
-- [x] Lock threads on game end
+    - [ ] API support for registering emojis
+    - [ ] API support for getting emojis
+    - [ ] Buttons need emojis
+    - [ ] Rip off Tyler
 - [ ] Prevent certain thread members (that aren't in game) from sending messages
 - [ ] Heck, prevent anyone from just "sending messages" in game threads?
-  - [x] From what I've found, this is impossible?
-- [ ] Remove the "Setting up stuff" message edit event for main thread and private threads(COMPLETED)
-  - [ ] We probably don't even need this, it takes more time than just a defer()
+    - [x] From what I've found, this is impossible?
 - [ ] Better permission checking for commands
-  - [ ] This includes
-    - [ ] the ability to start games (or inability)
-    - [ ] the ability to join games (or inability)
-  - [ ] Also, prevent the wrong move command from even bothering to check in the wrong channel and just failing it
+    - [ ] This includes
+        - [ ] the ability to start games (or inability)
+        - [ ] the ability to join games (or inability)
+    - [ ] Also, prevent the wrong move command from even bothering to check in the wrong channel and just failing it
 - [ ] Leaderboards
-  - [ ] /leaderboard \<game\> command
-    - [ ] top x, top worldwide, server
-    - [ ] pagination, etc
-  - [ ] Top X globally ranked message in the get_formatted_elo function, etc
-- [ ] Bot presence
-  - [ ] yea, pretty simple i know
-- [ ] Add description to bot
+    - [ ] /leaderboard \<game\> command
+        - [ ] top x, top worldwide, server
+        - [ ] pagination, etc
+    - [ ] Top X globally ranked message in the get_formatted_elo function, etc
 - [ ] /help command for bot
-- [ ] Finish this stupid README
 - [ ] Textify more text areas, including
-  - [ ] Game started text
-  - [ ] Button text
-  - [ ] Game over text
-- [ ] Catch-all error response if there is a crash, instead of "interaction failed"
-  - [ ] Also, some method of logging crashes
-- [ ] Add comments and docstrings to code
+    - [ ] Game started text
+    - [ ] Button text
+    - [ ] Game over text
+- [ ] /playcord catalog <PAGE> for list of games, which is paginated
+- [ ] /playcord profile <USER> for data on user
+- [ ] Rework the MySQL database to something else, because it SUCKS
+- [ ] Add analytic event system
+- [ ] Cross-server matchmaking
+- [ ] Ability to change game settings (/playcord settings), such as the type of game, whether rated, and private status
+- [ ] Add variables for ALL string fields in constants.py
+- [ ] API Docs
+- [ ] Other games:
+    - [ ] Liar's Dice
+    - [ ] Poker (Texas Holdem)
+    - [ ] Chess
 
-New features:
-- [ ] Button feature as a CommandType for games
-- [ ] 
+If you find this project cool, I would love it if you starred my repository 🤩
