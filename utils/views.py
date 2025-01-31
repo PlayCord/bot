@@ -75,17 +75,40 @@ class DynamicButtonView(discord.ui.View):
 
 
 class MatchmakingView(DynamicButtonView):
+    """
+    View for matchmaking message
+    """
     def __init__(self, join_button_callback=None, leave_button_callback=None,
                  start_button_callback=None, can_start=True):
-        super().__init__([{"label": "Join", "style": discord.ButtonStyle.gray, "id": "join", "callback": join_button_callback},
-                          {"label": "Leave", "style": discord.ButtonStyle.gray, "id": "leave", "callback": leave_button_callback},
-                          {"label": "Start", "style": discord.ButtonStyle.blurple, "id": "start", "callback": start_button_callback, "disabled": not can_start}])
+        """
+        Create a matchmaking view
+        :param join_button_callback: function that will be called when the join button is clicked
+        :param leave_button_callback: function that will be called when the leave button is clicked
+        :param start_button_callback: function that will be called when the start button is clicked
+        :param can_start: whether the game can be started
+        """
+        super().__init__([{"label": "Join", "style": discord.ButtonStyle.gray, "id": "join",
+                           "callback": join_button_callback},
+                          {"label": "Leave", "style": discord.ButtonStyle.gray, "id": "leave",
+                           "callback": leave_button_callback},
+                          {"label": "Start", "style": discord.ButtonStyle.blurple, "id": "start",
+                           "callback": start_button_callback, "disabled": not can_start}])
 
 
 class InviteView(DynamicButtonView):
+    """
+    View for invitation DM
+    """
     def __init__(self, join_button_id=None, game_link=None):
-        super().__init__([{"label": "Join Game", "style": discord.ButtonStyle.blurple, "id": join_button_id, "callback": "none"},
-                          {"label": "Go To Game (won't join)", "style": discord.ButtonStyle.gray, "link": game_link}])
+        """
+        Create a invite view
+        :param join_button_id: the custom ID of the join button
+        :param game_link: the link to the game
+        """
+        super().__init__([{"label": "Join Game", "style": discord.ButtonStyle.blurple,
+                           "id": join_button_id, "callback": "none"},
+                          {"label": "Go To Game (won't join)",
+                           "style": discord.ButtonStyle.gray, "link": game_link}])
 
 
 class SpectateView(DynamicButtonView):
@@ -93,6 +116,15 @@ class SpectateView(DynamicButtonView):
     View for status message
     """
     def __init__(self, spectate_button_id=None, peek_button_id=None, game_link=None):
-        super().__init__([{"label": "Spectate Game", "style": discord.ButtonStyle.blurple, "id": spectate_button_id, "callback": "none"},
-                          {"label": "Peek", "style": discord.ButtonStyle.gray, "id": peek_button_id, "callback": "none"},
-                          {"label": "Go To Game (won't join)", "style": discord.ButtonStyle.gray, "link": game_link}])
+        """
+        Create a spectate view
+        :param spectate_button_id: custom ID of the spectate button
+        :param peek_button_id: custom ID of the peek button
+        :param game_link: the link to the game
+        """
+        super().__init__([{"label": "Spectate Game", "style": discord.ButtonStyle.blurple,
+                           "id": spectate_button_id, "callback": "none"},
+                          {"label": "Peek", "style": discord.ButtonStyle.gray, "id": peek_button_id,
+                           "callback": "none"},
+                          {"label": "Go To Game (won't join)", "style": discord.ButtonStyle.gray,
+                           "link": game_link}])

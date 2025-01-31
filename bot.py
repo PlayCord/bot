@@ -10,17 +10,17 @@ from typing import Any
 
 from discord import app_commands
 from discord.app_commands import Choice, Group
-
-from utils.formatter import Formatter
-from configuration.constants import *
-import configuration.constants as constants
 from ruamel.yaml import YAML
+
+import configuration.constants as constants
 from api.Command import Command
+from configuration.constants import *
 from utils import database
-from utils.embeds import CustomEmbed, ErrorEmbed
-from utils.views import MatchmakingView, InviteView
-from utils.interfaces import MatchmakingInterface, GameInterface
 from utils.conversion import contextify
+from utils.embeds import CustomEmbed, ErrorEmbed
+from utils.formatter import Formatter
+from utils.interfaces import GameInterface, MatchmakingInterface
+from utils.views import InviteView, MatchmakingView
 
 logging.getLogger("discord").setLevel(logging.INFO)  # Discord.py logging level - INFO (don't want DEBUG)
 
@@ -59,8 +59,10 @@ def load_configuration() -> dict | None:
     except FileNotFoundError:
         startup_logger.critical("Configuration file not found.")
         return
-    startup_logger.debug(f"Successfully loaded configuration file in {round((time.time()-begin_load_config)*100, 4)}ms!")
+    startup_logger.debug(
+        f"Successfully loaded configuration file in {round((time.time() - begin_load_config) * 100, 4)}ms!")
     return loaded_config_file
+
 
 config = load_configuration()
 if config is None:
@@ -73,20 +75,14 @@ if not database_startup:  # Database better work lol
     startup_logger.critical("Database failed to connect on startup!")
     sys.exit(1)
 else:
-    startup_logger.info(f"Database startup completed in {round((time.time() - database_startup_time)*100, 4)}ms.")
-
-
+    startup_logger.info(f"Database startup completed in {round((time.time() - database_startup_time) * 100, 4)}ms.")
 
 client = discord.Client(intents=discord.Intents.all())  # Create the client with all intents, so we can read messages
 tree = app_commands.CommandTree(client)  # Build command tree
 
-
-
 # Root command registration
 command_root = app_commands.Group(name=LOGGING_ROOT, description="PlayCord command group. ChangeME", guild_only=True)
 play = app_commands.Group(name="play", description="Play all da games here", guild_only=True)
-
-
 
 
 async def send_simple_embed(ctx: discord.Interaction, title: str, description: str, ephemeral: bool = True,
@@ -119,12 +115,11 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
     """
     logger = log.getChild("is_allowed")
 
-
     if not IS_ACTIVE:  # Bot disabled via message command
         await send_simple_embed(ctx, "Bot has been disabled!", f"{NAME} "
-                                      f"has been temporarily disabled by a bot owner. This"
-                                      " is likely due to a critical bug or exploit being discovered.")
-        logger.warning("Interaction attempted when bot was disabled. "+contextify(ctx))
+                                                               f"has been temporarily disabled by a bot owner. This"
+                                                               " is likely due to a critical bug or exploit being discovered.")
+        logger.warning("Interaction attempted when bot was disabled. " + contextify(ctx))
         return False
 
     if ctx.user.bot:  # We don't want any bots
@@ -133,14 +128,19 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
 
     return True
 
+
 async def command_error(ctx: discord.Interaction, error_message):
     f_log = log.getChild("error")
     f_log.warning(f"Exception in command: {error_message} {contextify(ctx)}")
-    await ctx.response.send_message(embed=ErrorEmbed(ctx=ctx, what_failed=f"While running the command {ctx.command.name!r}, there was an error {error_message!r}", reason=traceback.format_exc()), ephemeral=True)
+    await ctx.response.send_message(embed=ErrorEmbed(ctx=ctx,
+                                                     what_failed=f"While running the command {ctx.command.name!r}, there was an error {error_message!r}",
+                                                     reason=traceback.format_exc()), ephemeral=True)
+
 
 command_root.error(command_error)
 command_root.interaction_check = interaction_check  # Set the interaction check
 play.interaction_check = interaction_check
+
 
 @client.event
 async def on_interaction(ctx: discord.Interaction) -> None:
@@ -158,7 +158,7 @@ async def on_interaction(ctx: discord.Interaction) -> None:
         return
     if custom_id.startswith("c/"):  # Game view button: turn required
         await game_button_callback(ctx, current_turn_required=True)
-    if custom_id.startswith("n/"):   # Game view button: turn not required
+    if custom_id.startswith("n/"):  # Game view button: turn not required
         await game_button_callback(ctx, current_turn_required=False)
     if custom_id.startswith("invite/"):  # Invite accept button
         await invite_accept_callback(ctx)
@@ -166,6 +166,7 @@ async def on_interaction(ctx: discord.Interaction) -> None:
         await spectate_callback(ctx)
     if custom_id.startswith("peek/"):
         await peek_callback(ctx)
+
 
 @client.event
 async def on_ready() -> None:
@@ -177,7 +178,7 @@ async def on_ready() -> None:
     global startup_initial_time
 
     if startup_initial_time:
-        startup_logger.info(f"Client connected after {round((time.time()-startup_initial_time)*100, 4)}ms.")
+        startup_logger.info(f"Client connected after {round((time.time() - startup_initial_time) * 100, 4)}ms.")
         startup_initial_time = 0  # To prevent reconnects showing this message
 
     # Register views to the bot
@@ -210,14 +211,12 @@ async def on_message(msg: discord.Message) -> None:
     if msg.author.bot:
         return
 
-
     if msg.channel.id in CURRENT_GAMES:
         try:
             await msg.delete()
         except discord.Forbidden or discord.NotFound:
             pass
         return
-
 
     if msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_SYNC}") and msg.author.id in OWNERS:  # Perform sync
         split = msg.content.split()
@@ -226,7 +225,8 @@ async def on_message(msg: discord.Message) -> None:
                 await tree.sync()
             except discord.app_commands.errors.CommandSyncFailure as e:
                 await msg.add_reaction(MESSAGE_COMMAND_FAILED)
-                await msg.reply(embed=ErrorEmbed(what_failed=f"Couldn't sync commands! ({type(e)})", reason=traceback.format_exc()))
+                await msg.reply(
+                    embed=ErrorEmbed(what_failed=f"Couldn't sync commands! ({type(e)})", reason=traceback.format_exc()))
                 return
             f_log.info(f"Performed authorized sync from user {msg.author.id} to all guilds.")
         else:
@@ -244,7 +244,8 @@ async def on_message(msg: discord.Message) -> None:
                 await tree.sync(guild=g)
             except discord.app_commands.errors.CommandSyncFailure as e:  # Something went wrong
                 await msg.add_reaction(MESSAGE_COMMAND_FAILED)
-                await msg.reply(embed=ErrorEmbed(what_failed=f"Couldn't sync commands! ({type(e)})", reason=traceback.format_exc()))
+                await msg.reply(
+                    embed=ErrorEmbed(what_failed=f"Couldn't sync commands! ({type(e)})", reason=traceback.format_exc()))
                 return
             f_log.info(f"Performed authorized sync from user {msg.author.id} to guild {g.name!r} (id={g.id!r})")
         await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)  # leave confirmation
@@ -316,9 +317,8 @@ async def on_guild_join(guild: discord.Guild) -> None:
 
     # Send welcome message
     embed = CustomEmbed(title=WELCOME_MESSAGE[0][0],
-                          description=WELCOME_MESSAGE[0][1],
-                          color=EMBED_COLOR)
-
+                        description=WELCOME_MESSAGE[0][1],
+                        color=EMBED_COLOR)
 
     for line in WELCOME_MESSAGE[1:]:  # Dynamically add fields from configuration value
         embed.add_field(name=line[0], value=line[1])
@@ -359,11 +359,13 @@ async def presence() -> None:
     while True:
         # Make a random activity
         activity = discord.Activity(type=discord.ActivityType.playing,
-                                    name=random.choice(options)+" on Discord", state=f"Servicing {len(client.guilds)} servers and {len(client.users)} users")
+                                    name=random.choice(options) + " on Discord",
+                                    state=f"Servicing {len(client.guilds)} servers and {len(client.users)} users")
         # Change presence
         await client.change_presence(activity=activity, status=discord.Status.online)
         # 15 seconds is the cooldown
         await asyncio.sleep(15)
+
 
 async def game_button_callback(ctx: discord.Interaction, current_turn_required: bool = True) -> None:
     """
@@ -404,14 +406,15 @@ async def game_button_callback(ctx: discord.Interaction, current_turn_required: 
         view = discord.ui.View.from_message(ctx.message)
         for button in view.children:
             button.disabled = True
-        await ctx.message.edit(view=view, embed=ctx.message.embeds[0])
+        try:
+            await ctx.message.edit(view=view, embed=ctx.message.embeds[0])
+        except discord.HTTPException as e:
+            f_log.warning(f"Failed to disable game! This is likely fine: exc={str(e)}")
         return
 
     # Call move_by_button callback
     await game_interface.move_by_button(ctx=ctx, name=function_id, arguments=arguments,
                                         current_turn_required=current_turn_required)
-
-
 
 
 async def invite_accept_callback(ctx: discord.Interaction) -> None:
@@ -437,7 +440,8 @@ async def invite_accept_callback(ctx: discord.Interaction) -> None:
         matchmaker: MatchmakingInterface = CURRENT_MATCHMAKING[int(matchmaker_id)]
         error = await matchmaker.accept_invite(ctx)  # will return if invite accept failed
         if not error:
-            await ctx.followup.send("You have joined the game! Press 'Go To Game' to go to the server where the game is", ephemeral=True)
+            await ctx.followup.send(
+                "You have joined the game! Press 'Go To Game' to go to the server where the game is", ephemeral=True)
             f_log.debug(f"Invite successfully accepted: {contextify(ctx)}")
     else:  # Matchmaking is over or bot restarted
         await ctx.followup.send("This invite has expired.", ephemeral=True)
@@ -446,7 +450,7 @@ async def invite_accept_callback(ctx: discord.Interaction) -> None:
     # Disable invite button for click, regardless of success
     view = discord.ui.View.from_message(ctx.message)
     for button in view.children:
-        if button.custom_id == "invite/"+matchmaker_id:
+        if button.custom_id == "invite/" + matchmaker_id:
             button.disabled = True
 
     # Update invite embed
@@ -460,14 +464,14 @@ async def spectate_callback(ctx: discord.Interaction) -> None:
     :param ctx: discord context
     :return: nothing
     """
-    
+
     # Defer button interaction
     await ctx.response.defer()
-    
+
     # Log that method was called
     f_log = log.getChild("callback.spectate")
     f_log.debug(f"spectate button clicked: {contextify(ctx)}")
-    
+
     # Get game ID
     game_id: str = ctx.data['custom_id'].replace('spectate/', "")
 
@@ -522,11 +526,11 @@ async def peek_callback(ctx: discord.Interaction) -> None:
         return
 
 
-
 # Bot commands
 
 
-@command_root.command(name="invite", description="Invite a player to play a game, or remove them from the blacklist in public games.")
+@command_root.command(name="invite",
+                      description="Invite a player to play a game, or remove them from the blacklist in public games.")
 async def command_invite(ctx: discord.Interaction,
                          user: discord.User,
                          user2: discord.User = None,
@@ -594,7 +598,7 @@ async def command_invite(ctx: discord.Interaction,
 
         # Send embed and inviteview (note: invite ID is not game id, but actually the matchmaker's message id)
         await invited_user.send(embed=embed,
-                                view=InviteView(join_button_id="invite/"+str(matchmaker.message.id),
+                                view=InviteView(join_button_id="invite/" + str(matchmaker.message.id),
                                                 game_link=matchmaker.message.jump_url))
         continue
 
@@ -608,7 +612,7 @@ async def command_invite(ctx: discord.Interaction,
         message = "Failed to send any invites. Errors:"
     else:
         message = "Failed to send invites to the following users:"
-    f_log.debug(f"/invite partial or no success: {len(invited_users)-len(failed_invites)} succeeded,"
+    f_log.debug(f"/invite partial or no success: {len(invited_users) - len(failed_invites)} succeeded,"
                 f" {len(failed_invites)} failed. {contextify(ctx)}")
     final = message + "\n"
     for fail in failed_invites:
@@ -645,6 +649,7 @@ async def command_kick(ctx: discord.Interaction, user: discord.User, reason: str
 
     await ctx.response.send_message(return_value, ephemeral=True)
 
+
 @command_root.command(name="ban", description="Either removes a user from the whitelist (private games)"
                                               "or adds them to the blacklist (public games)")
 async def command_ban(ctx: discord.Interaction, user: discord.User, reason: str = None):
@@ -667,7 +672,6 @@ async def command_ban(ctx: discord.Interaction, user: discord.User, reason: str 
 
     await ctx.response.send_message(return_value, ephemeral=True)
     pass
-
 
 
 @command_root.command(name="stats", description="Get stats about the bot")
@@ -708,7 +712,7 @@ async def command_stats(ctx: discord.Interaction):
     # Row 2
     embed.add_field(name='<:user:1328138963512201256> Total Users:', value=member_count)
     embed.add_field(name='#️⃣ Shard ID:', value=shard_id)
-    embed.add_field(name='🛜 Shard Ping:', value=str(round(shard_ping*100, 2)) + " ms")
+    embed.add_field(name='🛜 Shard Ping:', value=str(round(shard_ping * 100, 2)) + " ms")
 
     # Row 3
     embed.add_field(name='🏘️️ Shard Guilds:', value=shard_servers)
@@ -720,12 +724,12 @@ async def command_stats(ctx: discord.Interaction):
 
     await ctx.response.send_message(embed=embed)
 
+
 @command_root.command(name="about", description="About the bot")
 async def command_about(ctx: discord.Interaction):
     f_log = log.getChild("command.about")
     libraries = ["discord.py", "svg.py", "ruamel.yaml", "cairosvg", "trueskill", "mpmath"]
     f_log.debug(f"/about called: {contextify(ctx)}")  # Send context
-
 
     # Build about embed
     embed = CustomEmbed(title='About PlayCord 🎲', color=INFO_COLOR)
@@ -737,7 +741,8 @@ async def command_about(ctx: discord.Interaction):
                                                "You know the drill, I had to beat Tyler :)", inline=True)
     embed.add_field(name="@USSyorktown10",
                     value="For this [awesome]"
-                          "(https://github.com/PlayCord/bot/commit/9cb0262239be27b7bb04da5f1abc10c1990de3e7) commit.")
+                          "(https://github.com/PlayCord/bot/commit/9cb0262239be27b7bb04da5f1abc10c1990de3e7) commit.",
+                    inline=False)
     embed.add_field(name="Libraries used:",
                     value="\n".join([f"[{lib}](https://pypi.org/project/{lib})" for lib in libraries]), inline=False)
     embed.add_field(name="Development time:", value="October 2024 - Present")
@@ -789,8 +794,6 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
         return
 
     await interface.update_embed()  # Update embeds (first paint)
-
-
 
 
 async def handle_move(ctx: discord.Interaction, name, arguments) -> None:
@@ -896,10 +899,10 @@ async def handle_autocomplete(ctx: discord.Interaction, function, current: str, 
         else:
             # No autocomplete cache
             logger.info(f"force_reload blocked autocomplete cache function={function} argument={argument},"
-                                f" options={game_view.game.options}, current={current!r} {contextify(ctx)}")
+                        f" options={game_view.game.options}, current={current!r} {contextify(ctx)}")
 
             try:
-                player_options = ac_callback(player) # try to get autocomplete data
+                player_options = ac_callback(player)  # try to get autocomplete data
             except TypeError:
                 logger.critical(f"handle_autocomplete was called without a matching callback function."
                                 f" function={function} argument={argument},"
@@ -917,7 +920,7 @@ async def handle_autocomplete(ctx: discord.Interaction, function, current: str, 
     # i.e. DOg > hairDO for string "do"
     final_autocomplete = sorted(valid_player_options, key=lambda x: x[0].lower().index(current.lower()))
 
-    return [app_commands.Choice(name=ac_option[0],value=ac_option[1])  # Return as Choices instead of list of lists
+    return [app_commands.Choice(name=ac_option[0], value=ac_option[1])  # Return as Choices instead of list of lists
             for ac_option in final_autocomplete]
 
 
@@ -950,7 +953,6 @@ def encode_argument(argument_name, argument_information) -> str:
     """
     argument_type = argument_information["type"].__name__  # Get string of type ("str")
 
-
     # Make the argument optional if required
     optional_addendum = ''
     if argument_information["optional"]:
@@ -973,8 +975,8 @@ def encode_decorator(decorator_type, decorator_values) -> str:
 
     # Get a list like ["arg=value", "arg2=value2"]
     for command_argument in decorator_values:
-         stringified_arguments.append(f"{command_argument}={str(decorator_values[command_argument])}")
-    function_arguments = ','.join(stringified_arguments) # "arg=value,arg2=value
+        stringified_arguments.append(f"{command_argument}={str(decorator_values[command_argument])}")
+    function_arguments = ','.join(stringified_arguments)  # "arg=value,arg2=value
 
     return f"@app_commands.{decorator_type}({function_arguments})"  # Put it all together
 
@@ -1020,7 +1022,7 @@ def build_function_definitions() -> dict[Group, list[Any]]:
                 # Autocomplete check
                 if "autocomplete" not in option_decorators and option.autocomplete is not None:
                     option_decorators.update({"autocomplete":
-                                                  {option.name: "autocomplete_"+option.autocomplete}})
+                                                  {option.name: "autocomplete_" + option.autocomplete}})
 
                 option_arguments = option.arguments()  # Get the arguments from the option
 
@@ -1038,8 +1040,6 @@ def build_function_definitions() -> dict[Group, list[Any]]:
             # Set decorators and arguments for the move
             decorators[move.name] = temp_decorators
             arguments[move.name] = temp_arguments
-
-
 
         for this_move in moves:
             # Encode decorators to text
@@ -1064,8 +1064,7 @@ def build_function_definitions() -> dict[Group, list[Any]]:
                 encoded_arguments.append(
                     encode_argument(unencoded_argument, this_move_arguments[unencoded_argument]))
 
-            command_name = game+"_"+this_move.name  # Name of move command to register (e.g. tictactoe_move)
-
+            command_name = game + "_" + this_move.name  # Name of move command to register (e.g. tictactoe_move)
 
             # Build the move command
             move_command = (f"{'\n'.join(encoded_decorators)}\n"
@@ -1076,7 +1075,6 @@ def build_function_definitions() -> dict[Group, list[Any]]:
 
             if "autocomplete" in this_move_decorators.keys():  # If there is any autocomplete support for this command
                 for autocomplete in this_move_decorators["autocomplete"]:
-
                     # Name of autocomplete command
                     ac_command_name = this_move_decorators["autocomplete"][autocomplete]
 
@@ -1084,13 +1082,11 @@ def build_function_definitions() -> dict[Group, list[Any]]:
                     ac_command = (f"async def {ac_command_name}(ctx, current):\n"
                                   f"   return await handle_autocomplete(ctx, {this_move.name!r}, current, {autocomplete!r})\n")
 
-
                     # Add the autocomplete command
                     context[dynamic_command_group].append(ac_command)
 
             # Add the move command, so autocomplete callbacks are built before the move command
             context[dynamic_command_group].append(move_command)
-
 
     return context
 
@@ -1101,7 +1097,7 @@ if __name__ == "__main__":
     try:
         commands = build_function_definitions()  # Build game move callbacks
         startup_logger.info(f"Built command hooks for {len(commands)} groups (games)"
-                 f" and {sum([len(commands[g]) for g in commands])} callbacks (autocomplete and move commands).")
+                            f" and {sum([len(commands[g]) for g in commands])} callbacks (autocomplete and move commands).")
         # Register commands
         for group in commands:
             tree.add_command(group)
@@ -1123,7 +1119,7 @@ if __name__ == "__main__":
         tree.add_command(command_root)
 
         # Run the bot :)
-        startup_logger.info(f"Starting client after {round((time.time() - startup_initial_time)*100, 4)}ms")
+        startup_logger.info(f"Starting client after {round((time.time() - startup_initial_time) * 100, 4)}ms")
         client.run(config[CONFIG_BOT_SECRET], log_handler=None)
     except Exception as e:  # Something went wrong
         log.critical(str(e))

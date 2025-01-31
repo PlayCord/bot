@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 import inspect
 import logging
@@ -7,12 +8,13 @@ import typing
 
 import trueskill
 
-from configuration.constants import *
-from utils.embeds import CustomEmbed, ErrorEmbed, GameOverviewEmbed, GameOverEmbed
-from utils.database import get_player, update_player, update_db_rankings
 from api.Player import Player
-from utils.conversion import textify, column_creator, column_names, column_elo, column_turn, player_representative, \
-    player_verification_function, contextify
+from api.Response import Response
+from configuration.constants import *
+from utils.conversion import column_creator, column_elo, column_names, column_turn, contextify, player_representative, \
+    player_verification_function, textify
+from utils.database import get_player, update_db_rankings, update_player
+from utils.embeds import CustomEmbed, ErrorEmbed, GameOverEmbed, GameOverviewEmbed
 from utils.views import MatchmakingView, SpectateView
 
 
@@ -22,6 +24,7 @@ class GameInterface:
 
     Discord <--> Bot <--> GameInterface <--> Game
     """
+
     def __init__(self, game_type: str, status_message: discord.WebhookMessage, creator: discord.User,
                  players: list[Player], rated: bool) -> None:
         """
@@ -45,17 +48,21 @@ class GameInterface:
         self.players = players
         self.rated = rated  # Is the game rated?
         self.thread = None  # The thread object after self.setup() is called
-        self.game_messages = []  # The message representing the game after self.setup() is called
-        self.info_messages = [] # The message showing game info, whose turn, and what players.
+        self.game_message = None  # The message representing the game after self.setup() is called
+        self.info_message = None  # The message showing game info, whose turn, and what players.
         # also made by self.setup()
         self.module = importlib.import_module(GAME_TYPES[game_type][0])  # Game module
         # Game class instantiated with the players
         self.game = getattr(self.module, GAME_TYPES[game_type][1])(self.players)
 
         self.current_turn = None
+        self.logger = logging.getLogger(f"GameInterface[{game_type}]")
 
         for p in players:
             IN_GAME.update({p: self})
+
+        self.processing_move = asyncio.Lock()
+        self.ending_game = False
 
     async def setup(self) -> None:
         """
@@ -67,7 +74,8 @@ class GameInterface:
         Due to an async limitation, this function must be called on the class directly after it is created.
         :return: Nothing
         """
-
+        log = self.logger.getChild("setup")
+        log.debug(f"Setting up game interface for a new game. matchmaker ID: {self.status_message.id}")
         rated_prefix = "Rated "  # Add "Rated" to the name of the thread if the game
         if not self.rated:
             rated_prefix = ""
@@ -79,7 +87,6 @@ class GameInterface:
         for player in self.players:  # Add users to the thread
             await game_thread.add_user(player.user)
 
-
         game_info_embed = CustomEmbed(description="<a:loading:1318216218116620348>").remove_footer()
         # Temporary embed TODO: remove this and make it cleaner while still guaranteeing the bot gets the first message
         getting_ready_embed = CustomEmbed(description="<a:loading:1318216218116620348>").remove_footer()
@@ -88,48 +95,69 @@ class GameInterface:
         self.thread = game_thread
         self.info_message = await self.thread.send(embed=game_info_embed)
         self.game_message = await self.thread.send(embed=getting_ready_embed)
+        log.debug(
+            f"Finished game setup for a new game. matchmaker ID: {self.status_message.id} game ID: {self.thread.id}")
 
-    async def move_by_command(self, ctx: discord.Interaction, name, arguments: dict[str, typing.Any], current_turn_required: bool = True) -> None:
+    async def move_by_command(self, ctx: discord.Interaction, name, arguments: dict[str, typing.Any],
+                              current_turn_required: bool = True) -> None:
         """
         Make a move by command. This function is called dynamically by handle_move in the main program.
         How it works:
         1. Call the game's move function
         2. Update the game message based on the changes to the move
+        :param current_turn_required: whether the current turn is required for this command
         :param name: Name of movement function to call
         :param ctx: Discord context window
         :param arguments: the list of preparsed arguments to pass directly into the move function
         :return: None
         """
-        self.current_turn = self.game.current_turn()
-        if ctx.user.id != self.current_turn.id and current_turn_required:
-            message = await ctx.followup.send(content="It isn't your turn right now!", ephemeral=True)
-            await message.delete(delay=5)
-            return
-        try:
-            move_return_value = getattr(self.game, name)(get_player(self.game_type, ctx.user), **arguments)  # TODO: add multiple types of return data for this
-        except Exception as e:
-            error_embed = ErrorEmbed(ctx, what_failed=f"Error occurred while making a move! ({type(e)})", reason=traceback.format_exc())
-            await ctx.followup.send(embed=error_embed, ephemeral=True)
-            await game_over(self, traceback.format_exc())
+        log = self.logger.getChild("move[command]")
+        if self.ending_game:  # Don't move if the game is ending
+            log.warning(f"Denied interaction to command {name!r} with arguments {arguments!r}"
+                        f" because the game is ending!"
+                        f" context: {contextify(ctx)}")
             return
 
-        # if move_return_value is None:  # No return value, therefore this was a
+        async with self.processing_move:  # Get move processing lock
+            log.debug(f"Now processing move command {name!r} with arguments {arguments!r} context: {contextify(ctx)}")
+            self.current_turn = self.game.current_turn()
+            if ctx.user.id != self.current_turn.id and current_turn_required:
+                log.debug(f"current_turn_required command failed because it isn't this player's turn"
+                          f" (should be {self.current_turn}) context: {contextify(ctx)}")
+                message = await ctx.followup.send(content="It isn't your turn right now!", ephemeral=True)
+                await message.delete(delay=5)
+                return
+            try:
+                # Call the move function with arguments (player, <expanded arguments>
+                move_response: Response = getattr(self.game, name)(get_player(self.game_type, ctx.user), **arguments)
+            except Exception as e:
+                log.error(f"Error {e!r} with command {name!r} with arguments {arguments!r}"
+                          f" context: {contextify(ctx)}.")
+                error_embed = ErrorEmbed(ctx, what_failed=f"Error occurred while making a move! ({type(e)})",
+                                         reason=traceback.format_exc())
+                await ctx.followup.send(embed=error_embed, ephemeral=True)
+                return
 
-        await self.display_game_state()  # Update game state
+            if move_response is not None:
+                send_move, set_delete_hook = move_response.generate_message(ctx.followup.send, self.thread.id,
+                                                                            enable_view_components=False)
+                sent_message = await send_move
+                await set_delete_hook(sent_message)
+            else:
+                await ctx.delete_original_response()
 
-        if (outcome := self.game.outcome()) is not None:  # Game is over
+            await self.display_game_state()  # Update game state
 
-            message = await ctx.followup.send(content="Game over!", ephemeral=True)
-            await message.delete(delay=5)
-            await game_over(self, outcome)
-            return
+            if (outcome := self.game.outcome()) is not None:  # Game is over
+                log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
+                          f" context: {contextify(ctx)}")
+                message = await ctx.followup.send(content="Game over!", ephemeral=True)
+                await message.delete(delay=5)
+                await game_over(self, outcome)
+                return
 
-
-
-        message = await ctx.followup.send(content="Move made!", ephemeral=True)
-        await message.delete(delay=5)
-
-    async def move_by_button(self, ctx: discord.Interaction, name, arguments: dict[str, typing.Any], current_turn_required: bool = True) -> None:
+    async def move_by_button(self, ctx: discord.Interaction, name, arguments: dict[str, typing.Any],
+                             current_turn_required: bool = True) -> None:
         """
         Callback for a move triggered by a button. This function is called dynamically by
         game_button_callback in the main program.
@@ -139,50 +167,73 @@ class GameInterface:
         :param current_turn_required: whether the current turn is required for the button click
         :return: Nothing
         """
-        # Update current turn
-        self.current_turn = self.game.current_turn()
-
-        # Check to make sure that it is current turn (if required)
-        if ctx.user.id != self.current_turn.id and current_turn_required:
-            message = await ctx.followup.send(content="It isn't your turn right now!", ephemeral=True)
-            await message.delete(delay=5)
+        log = self.logger.getChild("move[button]")
+        if self.ending_game:  # Don't move if the game is ending
+            log.warning(f"Denied interaction to command {name!r} with arguments {arguments!r}"
+                        f" because the game is ending!"
+                        f" context: {contextify(ctx)}")
             return
 
-        # Get callback
-        callback_function = getattr(self.game, name)
+        async with self.processing_move:  # Get move processing lock
+            log.debug(f"Now processing move command {name!r} with arguments {arguments!r} context: {contextify(ctx)}")
+            # Update current turn
+            self.current_turn = self.game.current_turn()
 
-        # Get signature
-        signature = inspect.signature(callback_function).parameters
+            # Check to make sure that it is current turn (if required)
+            if ctx.user.id != self.current_turn.id and current_turn_required:
+                log.debug(f"current_turn_required command failed because it isn't this player's turn"
+                          f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
+                message = await ctx.followup.send(content="It isn't your turn right now!", ephemeral=True)
+                await message.delete(delay=5)
+                return
 
-        # Convert str to int and float if required
-        type_converted_arguments = {}
-        for arg in arguments:
-            argument_type = signature[arg].annotation
-            if argument_type is int:
-                type_converted_arguments[arg] = int(arguments[arg])
-            elif argument_type is float:
-                type_converted_arguments[arg] = float(arguments[arg])
+            # Get callback
+            callback_function = getattr(self.game, name)
+
+            # Get signature
+            signature = inspect.signature(callback_function).parameters
+
+            # Convert str to int and float if required
+            type_converted_arguments = {}
+            for arg in arguments:
+                argument_type = signature[arg].annotation
+                if argument_type is int:
+                    type_converted_arguments[arg] = int(arguments[arg])
+                elif argument_type is float:
+                    type_converted_arguments[arg] = float(arguments[arg])
+                else:
+                    type_converted_arguments[arg] = arguments[arg]
+
+            # Call button's callback with player and converted arguments
+            try:
+                # Call the move function with arguments (player, <expanded arguments>)
+                move_response: Response = callback_function(get_player(self.game_type, ctx.user),
+                                                            **type_converted_arguments)
+            except Exception as e:
+                log.error(f"Error {e!r} with command {name!r} with arguments {arguments!r}"
+                          f" context: {contextify(ctx)}.")
+                error_embed = ErrorEmbed(ctx, what_failed=f"Error occurred while making a move! ({type(e)})",
+                                         reason=traceback.format_exc())
+                await ctx.followup.send(embed=error_embed, ephemeral=True)
+                return
+
+            if move_response is not None:
+                send_move, set_delete_hook = move_response.generate_message(ctx.followup.send, self.thread.id,
+                                                                            enable_view_components=False)
+                sent_message = await send_move
+                await set_delete_hook(sent_message)
             else:
-                type_converted_arguments[arg] = arguments[arg]
+                await ctx.delete_original_response()
 
-        # Get return value of move
-        move_return_value = callback_function(get_player(self.game_type, ctx.user),
-                                              **type_converted_arguments)
+            # Update display painting
+            await self.display_game_state()
 
-        # Update display painting
-        await self.display_game_state()
+            if (outcome := self.game.outcome()) is not None:  # Game is over
 
-        if (outcome := self.game.outcome()) is not None:  # Game is over
-
-            message = await ctx.followup.send(content="Game over!", ephemeral=True)
-            await message.delete(delay=5)
-            await game_over(self, outcome)
-            return
-
-
-
-        message = await ctx.followup.send(content="Move made!", ephemeral=True)
-        await message.delete(delay=5)
+                message = await ctx.followup.send(content="Game over!", ephemeral=True)
+                await message.delete(delay=5)
+                await game_over(self, outcome)
+                return
 
     async def display_game_state(self) -> None:
         """
@@ -193,8 +244,8 @@ class GameInterface:
         self.current_turn = self.game.current_turn()
         # Embed to send as the updated game state
         info_embed = CustomEmbed(title=f"Playing {self.game.name} with {len(self.players)} players",
-                            description=textify(TEXTIFY_CURRENT_GAME_TURN,
-                                    {"player": self.current_turn.mention})).remove_footer()
+                                 description=textify(TEXTIFY_CURRENT_GAME_TURN,
+                                                     {"player": self.current_turn.mention})).remove_footer()
 
         # Game state embed and view
         state_embed = CustomEmbed().remove_footer()
@@ -236,11 +287,10 @@ class GameInterface:
                         f" This could cause a bad paint. game_id={self.thread.id} game_type={self.game_type}")
 
         for limit_type in limits:
-             if state_types[limit_type] > limits[limit_type]:
+            if state_types[limit_type] > limits[limit_type]:
                 log.warning(f"Unsure method determined that state type {limit_type!r}"
                             f" was over the limit ({state_types[limit_type]} > {limits[limit_type]})"
                             f" game_id={self.thread.id} game_type={self.game_type}")
-
 
         # Add info embed data
         info_embed.add_field(name="Players:", value=column_names(self.players))
@@ -258,7 +308,8 @@ class GameInterface:
         await self.game_message.edit(embed=state_embed, view=state_view, attachments=attachments)
 
         # Edit overview embed with new data
-        await self.status_message.edit(embed=GameOverviewEmbed(self.game.name, self.rated, self.players, self.current_turn))
+        await self.status_message.edit(
+            embed=GameOverviewEmbed(self.game.name, self.rated, self.players, self.current_turn))
 
 
 class MatchmakingInterface:
@@ -266,6 +317,7 @@ class MatchmakingInterface:
     MatchmakingInterface - the class that handles matchmaking for a game, where control is promptly handed off to a GameInterface
     via the successful_matchmaking function.
     """
+
     def __init__(self, creator: discord.User, game_type: str, message: discord.InteractionMessage,
                  rated: bool, private: bool):
 
@@ -304,7 +356,7 @@ class MatchmakingInterface:
         if self.queued_players == {None}:  # Couldn't get information on the creator, so fail now
             fail_embed = ErrorEmbed(what_failed="Couldn't connect to database!",
                                     reason="The bot failed to connect to the database."
-                                                                                  " This is likely a temporary error, try again later!")
+                                           " This is likely a temporary error, try again later!")
             self.failed = fail_embed
             return
         CURRENT_MATCHMAKING.update({self.message.id: self})
@@ -337,12 +389,11 @@ class MatchmakingInterface:
         # Public/Private
 
         embed = CustomEmbed(title=f"Queueing for {self.game.name}...",
-                            description=f"⏰{self.game.time}{LONG_SPACE_EMBED*2}"
-                                        f"👤{self.allowed_players}{LONG_SPACE_EMBED*2}"
-                                        f"📈{self.game.difficulty}{LONG_SPACE_EMBED*2}"
-                                        f"📊{game_rated_text}{LONG_SPACE_EMBED*2}"
+                            description=f"⏰{self.game.time}{LONG_SPACE_EMBED * 2}"
+                                        f"👤{self.allowed_players}{LONG_SPACE_EMBED * 2}"
+                                        f"📈{self.game.difficulty}{LONG_SPACE_EMBED * 2}"
+                                        f"📊{game_rated_text}{LONG_SPACE_EMBED * 2}"
                                         f"{private_text}")
-
 
         # Add columns for names, elo, and creator status
         embed.add_field(name="Players:", value=column_names(self.queued_players), inline=True)
@@ -357,7 +408,8 @@ class MatchmakingInterface:
 
         # Credits for game
         embed.add_field(name="Game Info:", value=self.game.description, inline=False)
-        embed.add_field(name="Game by:", value=f"[{self.game.author}]({self.game.author_link})\n[Source]({self.game.source_link})")
+        embed.add_field(name="Game by:",
+                        value=f"[{self.game.author}]({self.game.author_link})\n[Source]({self.game.source_link})")
 
         # Can the start button be pressed?
         start_enabled = self.player_verification_function(len(self.queued_players))
@@ -384,8 +436,9 @@ class MatchmakingInterface:
         log = self.logger.getChild("accept_invite")
 
         if player.id in [p.id for p in self.queued_players]:  # Can't join if you are already in
-            log.debug(f"Player {player.id} ({player.name}) attempted to accept invite, but they are already in the game! "
-                      f"{contextify(ctx)}")
+            log.debug(
+                f"Player {player.id} ({player.name}) attempted to accept invite, but they are already in the game! "
+                f"{contextify(ctx)}")
             await ctx.followup.send("You are already in the game!", ephemeral=True)
             return False
         else:
@@ -414,7 +467,13 @@ class MatchmakingInterface:
             await self.update_embed()  # Update embed on discord side
         return True
 
-    async def ban(self, player, reason) -> None:
+    async def ban(self, player: Player, reason: str) -> str | None:
+        """
+        Ban a player from the game with reason
+        :param player: the player to ban
+        :param reason: the reason the player was banned
+        :return: Error code or None if no error
+        """
         new_player = get_player(self.game_type, player)
         if new_player is None:  # Couldn't retrieve information, so don't join them
             return "Couldn't connect to DB!"
@@ -450,10 +509,13 @@ class MatchmakingInterface:
         if kicked: return f"Successfully kicked and banned {player.mention} from the game for reason {reason!r}"
         return f"Successfully banned {player.mention} from the game for reason {reason!r}"
 
-    async def kick(self, player, reason) -> None:
-
-
-
+    async def kick(self, player: Player, reason: str) -> str | None:
+        """
+        Kick a player from the game with reason
+        :param player: the player to kick
+        :param reason: reason the player was kicked
+        :return: error or None if no error
+        """
         new_player = get_player(self.game_type, player)
         if new_player is None:  # Couldn't retrieve information, so don't join them
             return "Couldn't connect to DB!"
@@ -529,7 +591,8 @@ class MatchmakingInterface:
                     break
             # Nobody is left lol
             if not len(self.queued_players):
-                await ctx.followup.send("You were the last person in the lobby, so the game was cancelled!", ephemeral=True)
+                await ctx.followup.send("You were the last person in the lobby, so the game was cancelled!",
+                                        ephemeral=True)
                 await self.message.delete()  # Remove matchmaking message
                 self.outcome = False
                 return
@@ -563,10 +626,9 @@ class MatchmakingInterface:
                   f"{contextify(ctx)}")
         # Start the GameInterface
 
-        await self.message.edit(embed=CustomEmbed(description="<a:loading:1318216218116620348>").remove_footer(), view=None)
-        await successful_matchmaking(game_type=self.game_type, game_class=self.game, message=self.message, creator=self.creator,
-                                     players=self.queued_players, rated=self.rated)
-
+        await self.message.edit(embed=CustomEmbed(description="<a:loading:1318216218116620348>").remove_footer(),
+                                view=None)
+        await successful_matchmaking(interface=self)
 
 
 async def successful_matchmaking(interface: MatchmakingInterface) -> None:
@@ -578,7 +640,7 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
     """
 
     # Extract class variables
-    game_class = interface.game_type
+    game_class = interface.game
     rated = interface.rated
     players = interface.queued_players
     message = interface.message
@@ -611,7 +673,8 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
     await game.display_game_state()  # Send the game display state
 
 
-async def rating_groups_to_string(rankings, groups) -> tuple[str, dict[str, typing.Any]]:
+async def rating_groups_to_string(rankings: list[int], groups: list[dict[Player, trueskill.Rating]]) \
+        -> tuple[str, dict[str, typing.Any]]:
     """
     Converts the rankings and groups from a rated game into a string representing the outcome of the game.
     :param rankings: Rankings (format: list of places such as [1, 1, 2, 3] to correlate with groups)
@@ -642,7 +705,7 @@ async def rating_groups_to_string(rankings, groups) -> tuple[str, dict[str, typi
     for i, pre_rated_player in enumerate(keys):  # Loop
 
         # Logic for keeping track of place
-        if rankings[i] == matching: # Same place ID as last person
+        if rankings[i] == matching:  # Same place ID as last person
             # Update the number of people who got the current place ID
             nums_current_place += 1
         else:  # Different ID, update to new ID and reset nums_current_place
@@ -670,16 +733,16 @@ async def rating_groups_to_string(rankings, groups) -> tuple[str, dict[str, typi
     # 2. PlayerTwo 30 (+2)
     # 3. PlayerThreeWhoSucks 20 (-20)
     player_string = "\n".join([
-                                  f"{player_ratings[p]["place"]}{"T" if player_ratings[p]["tied"] else ""}."
-                                  f"{LONG_SPACE_EMBED}<@{p}>{LONG_SPACE_EMBED}{player_ratings[p]["old_rating"]}"
-                                  f"{LONG_SPACE_EMBED}({player_ratings[p]["delta"]})"
-                                  for p in player_ratings])
+        f"{player_ratings[p]["place"]}{"T" if player_ratings[p]["tied"] else ""}."
+        f"{LONG_SPACE_EMBED}<@{p}>{LONG_SPACE_EMBED}{player_ratings[p]["old_rating"]}"
+        f"{LONG_SPACE_EMBED}({player_ratings[p]["delta"]})"
+        for p in player_ratings])
 
     # Return both the concatenated string AND the rating dictionary, as it is needed for the game_over function
     return player_string, player_ratings
 
 
-async def non_rated_groups_to_string(rankings, groups) -> str:
+async def non_rated_groups_to_string(rankings: list[int], groups: list[Player]) -> str:
     """
     Create the string representing the groups for the game over screen
     :param rankings: Rankings: format [0, 1, 1, 2] for first place, two tied for 2nd, and 3rd. Corresponds to groups
@@ -716,7 +779,7 @@ async def non_rated_groups_to_string(rankings, groups) -> str:
     return "\n".join(player_ratings)  # concatenate and return
 
 
-async def game_over(interface: GameInterface,  outcome: str | Player | list[list[Player]]) -> None:
+async def game_over(interface: GameInterface, outcome: str | Player | list[list[Player]]) -> None:
     """
     Callback called by GameInterface when the game is over. Easily the most technically complicated function
     in the entire API
@@ -725,11 +788,11 @@ async def game_over(interface: GameInterface,  outcome: str | Player | list[list
     :param outcome: outcome of the game. There are three possibilities: string for error,
      one player who won (all other players lost), or a list of list of players formatted like this:
      [[p1, p2], [p3], [p4]] indicates p1 and p2 tied, p3 got third, p4 got fourth
-    :param players: list of players to rate or display rating
     :return: Nothing
     """
 
     # Extract class variables
+    interface.ending_game = True
     game_type = interface.game_type
     thread = interface.thread
     outbound_message = interface.status_message
@@ -820,7 +883,6 @@ async def game_over(interface: GameInterface,  outcome: str | Player | list[list
 
     # Close the game thread
     await thread.edit(locked=True, archived=True, reason="Game is over.")
-
 
     # If the game is rated, perform the relatively intensive task of updating the DB rankings
     if rated:

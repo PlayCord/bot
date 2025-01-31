@@ -22,8 +22,8 @@ CONFIGURATION = {}
 
 WELCOME_MESSAGE = [
     (f"Hi! I'm {NAME}!", "Thanks for adding me to your server :D\nHere's some tips on how to get started.\n"
-                          "Please note that this introduction (or the bot) doesn't contain details on how to"
-                          " use the bot. For that, please check the README (linked below)."),
+                         "Please note that this introduction (or the bot) doesn't contain details on how to"
+                         " use the bot. For that, please check the README (linked below)."),
     ("What is this bot?", f"{NAME} is a bot for playing any variety of quick game on Discord."),
     ("Where's the README?", "Right [here](https://github.com/PlayCord/bot/blob/master/README.md) :D"),
     ("Who made you?", "[@quantumbagel on Github](https://github.com/quantumbagel)")
@@ -37,7 +37,6 @@ CONFIG_BOT_SECRET = "secret"
 
 CONFIG_FILE = "configuration/config.yaml"
 
-
 ERROR_IMPORTED = "This file is NOT designed to be imported. Please run bot.py directly!"
 ERROR_NO_SYSTEM_CHANNEL = "No system channel is set - not sending anything."
 ERROR_INCORRECT_SETUP = ("This is likely due to:\n"
@@ -45,20 +44,13 @@ ERROR_INCORRECT_SETUP = ("This is likely due to:\n"
                          "2. Incorrect discord token\n"
                          "3. Incorrectly set up discord bot")
 
-GAME_TYPES = {"tictactoe": ["games.TicTacToeGame", "TicTacToeGame"],
-              "tictactoev2": ["games.TicTacToeV2", "TicTacToeGame"]}
+GAME_TYPES = {"tictactoe": ["games.TicTacToe", "TicTacToeGame"]}
 
 MU = 1000
-GAME_TRUESKILL = {"tictactoe": {"sigma": 1/6,
-                                  "beta": 1/12,
-                                  "tau": 1/100,
-                                  "draw": 9/10},
-                  "tictactoev2": {"sigma": 1 / 6,
+GAME_TRUESKILL = {"tictactoe": {"sigma": 1 / 6,
                                 "beta": 1 / 12,
                                 "tau": 1 / 100,
-                                "draw": 9 / 10}
-                  }
-
+                                "draw": 9 / 10}}
 
 TEXTIFY_CURRENT_GAME_TURN = {
     "It's {player}'s turn to play.": 0.529,
@@ -69,7 +61,6 @@ TEXTIFY_CURRENT_GAME_TURN = {
 
 }
 
-
 SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD = 0.20
 
 # Current ongoing games
@@ -78,10 +69,8 @@ SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD = 0.20
 CURRENT_GAMES = {}
 CURRENT_MATCHMAKING = {}
 
-
-IN_GAME = {} # user id: gameinterface
+IN_GAME = {}  # user id: gameinterface
 IN_MATCHMAKING = {}  # user id: matchmakinginterface
-
 
 AUTOCOMPLETE_CACHE = {}
 

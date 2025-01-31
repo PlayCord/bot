@@ -1,7 +1,8 @@
 from api import Player
-from api.Command import Command
-from api.MessageComponents import DataTable, Button
 from api.Arguments import String
+from api.Command import Command
+from api.MessageComponents import Button, DataTable
+
 
 class TicTacToeGame:
     begin_command_description = "The classic game of Xs and Os, brought to discord"
@@ -18,7 +19,6 @@ class TicTacToeGame:
     source_link = "https://github.com/PlayCord/bot/blob/main/games/TicTacToeV2.py"
     time = "2min"
     difficulty = "Literally Braindead"
-
 
     def __init__(self, players):
 
@@ -47,7 +47,6 @@ class TicTacToeGame:
                 elif self.board[row][col].id == self.o.id:
                     emoji = "⭕"
 
-
                 if emoji == "❌":
                     color = 4
                 elif emoji == "⭕":
@@ -55,7 +54,8 @@ class TicTacToeGame:
                 else:
                     color = 2
 
-                button = Button(name=name, emoji=emoji, callback=self.move, row=row, style=color, arguments={"move": str(col) + str(row)})
+                button = Button(name=name, emoji=emoji, callback=self.move, row=row, style=color,
+                                arguments={"move": str(col) + str(row)})
                 buttons.append(button)
         return_this = [DataTable({self.x: {"Team:": ":x:"}, self.o: {"Team:": ":o:"}})]
         return_this.extend(buttons)
@@ -65,7 +65,6 @@ class TicTacToeGame:
     def current_turn(self):
         return self.players[self.turn]
 
-
     def ac_move(self, player):
         moves = []
         all_moves = {'00': 'Top Left', '01': 'Top Mid', '02': 'Top Right', '10': 'Mid Left', '11': 'Mid Mid',
@@ -73,7 +72,7 @@ class TicTacToeGame:
         for row in range(self.size):
             for column in range(self.size):
                 if self.board[row][column].id is None:
-                    move_id = str(row)+str(column)
+                    move_id = str(row) + str(column)
                     moves.append({all_moves[move_id]: move_id})
         return moves
 
@@ -82,7 +81,6 @@ class TicTacToeGame:
         self.turn += 1
         if self.turn == len(self.players):
             self.turn = 0
-
 
     def outcome(self) -> Player:
         # Check rows
