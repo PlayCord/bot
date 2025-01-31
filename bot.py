@@ -16,6 +16,7 @@ import configuration.constants as constants
 from api.Command import Command
 from configuration.constants import *
 from utils import database
+from utils.analytics import Timer
 from utils.conversion import contextify
 from utils.embeds import CustomEmbed, ErrorEmbed
 from utils.formatter import Formatter
@@ -764,6 +765,7 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
     :param private: is the game private?
     :return: Nothing
     """
+    matchmaking_timer = Timer().start()
     f_log = log.getChild("command.matchmaking")  # Get logger
     f_log.debug(f"matchmaking called for game {game_type!r}: {contextify(ctx)}")  # Send context
 
@@ -794,6 +796,8 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
         return
 
     await interface.update_embed()  # Update embeds (first paint)
+    f_log.debug(f"Finished matchmaking initialization in {matchmaking_timer.stop()}ms. game_type={game_type!r}"
+                f" ctx={contextify(ctx)}")
 
 
 async def handle_move(ctx: discord.Interaction, name, arguments) -> None:

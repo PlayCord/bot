@@ -4,10 +4,10 @@ import discord
 from discord import User
 
 from configuration.constants import LOGGING_ROOT, LONG_SPACE_EMBED
-from api.Player import Player
+from utils.database import InternalPlayer
 
 
-def column_names(players: list[Player] | set[Player]) -> str:
+def column_names(players: list[InternalPlayer] | set[InternalPlayer]) -> str:
     """
     Convert a list of players into a string representing the list of players
 
@@ -16,7 +16,8 @@ def column_names(players: list[Player] | set[Player]) -> str:
     """
     return "\n".join([u.mention for u in players])
 
-def column_elo(players: list[Player] | set[Player]) -> str:
+
+def column_elo(players: list[InternalPlayer] | set[InternalPlayer]) -> str:
     """
     Convert a list of players into a string representing the list of players
 
@@ -25,7 +26,8 @@ def column_elo(players: list[Player] | set[Player]) -> str:
     """
     return "\n".join([u.get_formatted_elo() for u in players])
 
-def column_creator(players: list[Player] | set[Player], creator: Player | User) -> str:
+
+def column_creator(players: list[InternalPlayer] | set[InternalPlayer], creator: InternalPlayer | User) -> str:
     """
     Convert a list of players into a string representing the list of players's creator status
 
@@ -35,7 +37,7 @@ def column_creator(players: list[Player] | set[Player], creator: Player | User) 
     return "\n".join(["✅" if u.id == creator.id else LONG_SPACE_EMBED for u in players])
 
 
-def column_turn(players: list[Player] | set[Player], turn: Player | User) -> str:
+def column_turn(players: list[InternalPlayer] | set[InternalPlayer], turn: InternalPlayer | User) -> str:
     """
     Convert a list of players into a string representing the list of players and whose turn it is
 
@@ -45,8 +47,7 @@ def column_turn(players: list[Player] | set[Player], turn: Player | User) -> str
     return "\n".join(["✅" if ((turn is not None) and (u.id == turn.id)) else LONG_SPACE_EMBED for u in players])
 
 
-
-def textify(basis: dict[str,float], replacements: dict[str,str]) -> str:
+def textify(basis: dict[str, float], replacements: dict[str, str]) -> str:
     """de
     Randomly pick a message and fill variables
     :param basis: A list of messages
@@ -81,9 +82,10 @@ def textify(basis: dict[str,float], replacements: dict[str,str]) -> str:
 
     # Replace the strings with their replacements (great english)
     for replacement in replacements.keys():
-        actually_picked_message = actually_picked_message.replace("{"+replacement+"}", replacements[replacement])
+        actually_picked_message = actually_picked_message.replace("{" + replacement + "}", replacements[replacement])
 
     return actually_picked_message
+
 
 def player_representative(possible_players: list[int]):
     """
@@ -110,6 +112,7 @@ def player_representative(possible_players: list[int]):
                 start = nums[i]
 
     return ", ".join(result)
+
 
 def player_verification_function(possible_players: list[int] | int):
     """

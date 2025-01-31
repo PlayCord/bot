@@ -1,19 +1,74 @@
-import trueskill
+import logging
+
 import mysql.connector
+import trueskill
 from mysql.connector import Error
 from mysql.connector.pooling import PooledMySQLConnection
 
 import configuration.constants
 from configuration.constants import *
-from configuration.constants import LOGGING_ROOT, GAME_TYPES, GAME_TRUESKILL, MU
-from api.Player import Player
-import logging
+from configuration.constants import GAME_TRUESKILL, GAME_TYPES, LOGGING_ROOT, MU
 
 # Database logger
 logger = logging.getLogger(f"{LOGGING_ROOT}.database")
 
-
 connections_made = 1  # Keep track of how many connections were made for logging purposes
+
+
+class InternalPlayer:
+    def __init__(self, mu: float = None, sigma: float = None, user: discord.User | discord.Object = None,
+                 ranking: int = None,
+                 allow_passive_elo_gathering: str = None):
+        self.user = user
+        self.mu = mu
+        self.sigma = sigma
+        if isinstance(user, discord.User):
+            self.name = user.name
+        else:
+            self.name = None
+        self.id = user.id
+        self.player_data = {}
+        self.moves_made = 0
+        self.ranking = ranking
+        self.allow_passive_elo_gathering = allow_passive_elo_gathering
+
+    @property
+    def mention(self):
+        return f"<@{self.id}>"  # Don't use the potential self.user.mention because it could be an Object
+
+    def move(self, new_player_data: dict):
+        self.moves_made += 1
+        self.player_data.update(new_player_data)
+
+    def get_formatted_elo(self):
+        if self.mu is None and self.allow_passive_elo_gathering:
+            update_elo_data = get_player(self.allow_passive_elo_gathering, self)
+            self.mu = update_elo_data.mu
+            self.sigma = update_elo_data.sigma
+            self.ranking = update_elo_data.ranking
+        if self.ranking is None:
+            ranking_addend = ""
+        else:
+            ranking_addend = f" (#{self.ranking})"
+        if self.sigma > SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD * self.mu:  # TODO: this IS wrong
+            return str(int(self.mu)) + "?" + ranking_addend
+        else:
+            return str(int(self.mu)) + ranking_addend
+
+    def __eq__(self, other):
+        if other is None:
+            return False
+        return self.id == other.id
+
+    def __hash__(self):
+        return hash(self.id)
+
+    def __str__(self):
+        return f"{self.id} ({self.name}) bot={self.user.bot}"
+
+    def __repr__(self):
+        return f"InternalPlayer(id={self.id}, mu={self.mu}, sigma={self.sigma})"
+
 
 def create_connection() -> PooledMySQLConnection | None:
     """
@@ -50,7 +105,7 @@ def startup() -> bool:
         return False  # Return False if failure to start up
     cursor = db.cursor()
     for game_type in GAME_TYPES.keys():
-        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {game_type}") # Make sure all databases exist
+        cursor.execute(f"CREATE DATABASE IF NOT EXISTS {game_type}")  # Make sure all databases exist
         cursor.execute(f"USE {game_type}")
 
         # Create the leaderboard table within the game's database
@@ -67,12 +122,12 @@ def startup() -> bool:
     return True
 
 
-def get_player(game_type: str, user: discord.User) -> Player | None:
+def get_player(game_type: str, user: discord.User | InternalPlayer) -> InternalPlayer | None:
     """
-    Get a utils.Player object from the database.
-    :param game_type: The game_type the Player is playing
-    :param user: the discord.User object to base the player off
-    :return: the Player or None if failed (database connection error)
+    Get a utils.Player.py object from the database.
+    :param game_type: The game_type the Player.py is playing
+    :param user: the discord.User or Player.py object to base the player off
+    :return: the Player.py or None if failed (database connection error)
     """
     db = create_connection()  # Get the connection
     if db is None:
@@ -84,7 +139,7 @@ def get_player(game_type: str, user: discord.User) -> Player | None:
 
     results = cursor.fetchall()  # Get the results of the query
 
-    if not len(results):  # Player is not in DB, return default values of mu and sigma
+    if not len(results):  # Player.py is not in DB, return default values of mu and sigma
         id, mu, sigma, ranking = user.id, MU, GAME_TRUESKILL[game_type]["sigma"] * MU, None
     else:
         id, mu, sigma, ranking = results[0]
@@ -93,17 +148,22 @@ def get_player(game_type: str, user: discord.User) -> Player | None:
         mu = float(mu)
         sigma = float(sigma)
 
-    player = Player(mu, sigma, user, ranking)  # Create player object from data
+    player = InternalPlayer(mu, sigma, user, ranking)  # Create player object from data
     # Close connection
     cursor.close()
     db.close()
 
     return player  # Return the created object
 
-def delete_player(player: Player) -> bool:
+
+def get_shallow_player(game_type: str, user: discord.User) -> InternalPlayer:
+    return InternalPlayer(mu=None, sigma=None, user=user, ranking=None, allow_passive_elo_gathering=game_type)
+
+
+def delete_player(player: InternalPlayer) -> bool:
     """
     Delete a player from the database.
-    :param player: The Player object to delete from the database
+    :param player: The Player.py object to delete from the database
     :return: True if success, False otherwise (database connection failure).
     """
     db = create_connection()
@@ -122,11 +182,11 @@ def delete_player(player: Player) -> bool:
     return True
 
 
-def update_player(game_type: str, player: Player) -> bool:
+def update_player(game_type: str, player: InternalPlayer) -> bool:
     """
     Update a player's mu/sigma values in the database.
-    :param game_type: the game_type the Player is playing
-    :param player: the Player object to use when updating the database
+    :param game_type: the game_type the Player.py is playing
+    :param player: the Player.py object to use when updating the database
     :return: True if success, False otherwise (database connection failure).
     """
     db = create_connection()
@@ -146,14 +206,14 @@ def update_player(game_type: str, player: Player) -> bool:
     return True
 
 
-def update_rankings(game_type: str, teams: list[list[Player]]) -> bool:
+def update_rankings(game_type: str, teams: list[list[InternalPlayer]]) -> bool:
     """
     Update the ELO of the players in the database after a rated match has finished.
     :param teams: an ordered list of the rankings of the teams (TrueSkill format)
     :param game_type: the game type being playing
     :return: True if success, False otherwise (database connection failure).
 
-    TODO: finish, use ID from Player objects
+    TODO: finish, use ID from Player.py objects
     """
     game_type_data = GAME_TRUESKILL[game_type]  # TrueSkill environment constants for this game
 
@@ -165,7 +225,7 @@ def update_rankings(game_type: str, teams: list[list[Player]]) -> bool:
 
     environment = trueskill.TrueSkill(MU, sigma, beta, tau, draw_probability)  # Create game environment
 
-    # Convert Player to TrueSkill.Rating
+    # Convert Player.py to TrueSkill.Rating
     outcome = []
     for team in teams:
         team_ratings = []
@@ -173,17 +233,16 @@ def update_rankings(game_type: str, teams: list[list[Player]]) -> bool:
             team_ratings.append(environment.create_rating(player.mu, player.sigma))
         outcome.append(team_ratings)
 
-
     updated_rating_groups = environment.rate(outcome)  # Rerate the players based on outcome
 
-    # Update the Player objects and send that data to update_player to propagate to the DB
+    # Update the Player.py objects and send that data to update_player to propagate to the DB
     for team_index, team in enumerate(updated_rating_groups):
         for player_index, player in enumerate(team):
             teams[team_index][player_index].mu = player.mu
             teams[team_index][player_index].sigma = player.sigma
             update_player(game_type, teams[team_index][player_index].id, player.mu, player.sigma)
 
-            
+
 def update_db_rankings(game_type):
     """
     Update the global ranking of the players in the database after a rated match has finished.

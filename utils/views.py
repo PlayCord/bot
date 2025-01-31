@@ -2,8 +2,8 @@ import typing
 
 import discord
 
-class DynamicButtonDict(typing.TypedDict, total=False):
 
+class DynamicButtonDict(typing.TypedDict, total=False):
     label: str
     style: discord.ButtonStyle
     id: str
@@ -12,11 +12,13 @@ class DynamicButtonDict(typing.TypedDict, total=False):
     callback: typing.Callable | str
     link: str
 
+
 class DynamicButtonView(discord.ui.View):
     """
-
+    Dynamic button view: this is PAIN
     """
-    def __init__(self, buttons: list[DynamicButtonDict]):
+
+    def __init__(self, buttons: list[DynamicButtonDict]) -> None:
         """
         Create a dynamic button view
         :param buttons: list of buttons as dictionaries
@@ -24,6 +26,7 @@ class DynamicButtonView(discord.ui.View):
         """
         super().__init__(timeout=None)  # timeout=None required for persistent views, per discord docs
 
+        # Register buttons to view
         for button in buttons:
             for argument in ["label", "style", "id", "emoji", "disabled", "callback", "link"]:
                 if argument not in button.keys():
@@ -42,26 +45,24 @@ class DynamicButtonView(discord.ui.View):
             else:
                 item.callback = button["callback"]
 
-
-
             self.add_item(item)
 
-    async def _null_callback(self, interaction: discord.Interaction):
+    async def _null_callback(self, interaction: discord.Interaction) -> None:
         """
-        TODO: add logging here. This is a NULL callback
+        Null callback
         :param interaction: discord context
-        :return:
+        :return: Nothing
         """
         pass
 
-    async def _fail_callback(self, interaction: discord.Interaction):
+    async def _fail_callback(self, interaction: discord.Interaction) -> None:
         """
         If a "dead" view is interacted, simply disable each component and update the message
         also send an ephemeral message to the interacter
         :param interaction: discord context
         :return: nothing
         """
-        embed = interaction.message.embeds[0] # There can only be one... embed :O
+        embed = interaction.message.embeds[0]  # There can only be one... embed :O
 
         for child in self.children:  # Disable all children via drop kicking
             child.disabled = True
@@ -69,7 +70,7 @@ class DynamicButtonView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)  # Update message, because you can't autoupdate
 
         msg = await interaction.followup.send(content="That interaction is no longer active due to a bot restart!"
-                                                " Please create a new interaction :)", ephemeral=True)
+                                                      " Please create a new interaction :)", ephemeral=True)
 
         await msg.delete(delay=10)  # autodelete message
 
@@ -78,8 +79,9 @@ class MatchmakingView(DynamicButtonView):
     """
     View for matchmaking message
     """
+
     def __init__(self, join_button_callback=None, leave_button_callback=None,
-                 start_button_callback=None, can_start=True):
+                 start_button_callback=None, can_start=True) -> None:
         """
         Create a matchmaking view
         :param join_button_callback: function that will be called when the join button is clicked
@@ -99,7 +101,8 @@ class InviteView(DynamicButtonView):
     """
     View for invitation DM
     """
-    def __init__(self, join_button_id=None, game_link=None):
+
+    def __init__(self, join_button_id=None, game_link=None) -> None:
         """
         Create a invite view
         :param join_button_id: the custom ID of the join button
@@ -115,7 +118,8 @@ class SpectateView(DynamicButtonView):
     """
     View for status message
     """
-    def __init__(self, spectate_button_id=None, peek_button_id=None, game_link=None):
+
+    def __init__(self, spectate_button_id=None, peek_button_id=None, game_link=None) -> None:
         """
         Create a spectate view
         :param spectate_button_id: custom ID of the spectate button

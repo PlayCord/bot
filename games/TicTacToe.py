@@ -1,7 +1,6 @@
-from api import Player
 from api.Arguments import String
 from api.Command import Command
-from api.MessageComponents import Button, DataTable
+from api.MessageComponents import Button, ButtonStyle, DataTable
 
 
 class TicTacToeGame:
@@ -9,7 +8,7 @@ class TicTacToeGame:
     move_command_group_description = "Commands for TicTacToe"
     description = ("Tic-Tac-Toe on Discord! The game is pretty self-explanatory,"
                    " just take turns placing Xs and Os until one player gets three in a row!")
-    name = "Tic-Tac-Toe V2"
+    name = "Tic-Tac-Toe"
     players = 2
     moves = [Command(name="move", description="Place a piece down.",
                      options=[String(argument_name="move", description="description", autocomplete="ac_move")])]
@@ -48,11 +47,11 @@ class TicTacToeGame:
                     emoji = "⭕"
 
                 if emoji == "❌":
-                    color = 4
+                    color = ButtonStyle.blurple
                 elif emoji == "⭕":
-                    color = 3
+                    color = ButtonStyle.green
                 else:
-                    color = 2
+                    color = ButtonStyle.gray
 
                 button = Button(name=name, emoji=emoji, callback=self.move, row=row, style=color,
                                 arguments={"move": str(col) + str(row)})
@@ -82,7 +81,7 @@ class TicTacToeGame:
         if self.turn == len(self.players):
             self.turn = 0
 
-    def outcome(self) -> Player:
+    def outcome(self):
         # Check rows
         for row in self.board:
             if row[0].id is not None and all(cell.id == row[0].id for cell in row):

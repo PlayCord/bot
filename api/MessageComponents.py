@@ -1,16 +1,18 @@
 import io
+from enum import Enum
 from typing import Callable
-from emoji import is_emoji
-import discord
-from discord import ButtonStyle
 
-from api.Player import Player
+import discord
+from emoji import is_emoji
+
+from utils.database import InternalPlayer
 
 
 class MessageComponent:
     """
     MessageComponent: something used to represent game state
     """
+
     def __init__(self):
         """
         Create a new MessageComponent. As this is a non-usable class, it doesn't do anything.
@@ -38,6 +40,7 @@ class Field(MessageComponent):
     """
     FieldType: something used to represent just a basic field
     """
+
     def __init__(self, name: str, value: str, inline: bool = False):
         """
         Create a new FieldType
@@ -71,11 +74,12 @@ class DataTable(MessageComponent):
     Tyler       Thing   ...
     Julian      Thing2  ...
     """
+
     def __init__(self, data: dict) -> None:
         """
         Create a new data table
         :param data: data formatted like this:
-        {Player: {"Column name": "Column Value"}, Player2: {"Column name": "Different Column Value"}, ...}
+        {Player.py: {"Column name": "Column Value"}, Player2: {"Column name": "Different Column Value"}, ...}
 
         Empty parameters are automatically filled in.
         """
@@ -109,19 +113,20 @@ class DataTable(MessageComponent):
 
         # Add fields
         number_names = 0  # Number of Name: fields that have occurred
-        for index in range((len(column)+(len(column)+1)//2)):
+        for index in range((len(column) + (len(column) + 1) // 2)):
             if index % 3 == 0:  # Every third column should be a name column because discord
                 embed.add_field(name="Name:", value="\n".join([str(p) for p in self.data.keys()]))
                 number_names += 1
             else:  # Subtract number of names for formatting purposes
-                embed.add_field(name=list(column.keys())[index - number_names], value="\n".join(column[list(column.keys())[index - number_names]].values()))
-
+                embed.add_field(name=list(column.keys())[index - number_names],
+                                value="\n".join(column[list(column.keys())[index - number_names]].values()))
 
 
 class Image(MessageComponent):
     """
     Image field in embed
     """
+
     def __init__(self, bytestring: bytes) -> None:
         """
         Represents the image as a byte string
@@ -154,6 +159,7 @@ class Footer(MessageComponent):
     """
     Footer field in embed
     """
+
     def __init__(self, text: str) -> None:
         """
         Create a new Footer. This just sets the footer
@@ -175,12 +181,33 @@ class Footer(MessageComponent):
         embed.set_footer(text=self.text)
 
 
+class ButtonStyle(Enum):
+    primary = 1
+    secondary = 2
+    success = 3
+    danger = 4
+    link = 5
+    premium = 6
+
+    # Aliases
+    blurple = 1
+    grey = 2
+    gray = 2
+    green = 3
+    red = 4
+    url = 5
+
+    def __int__(self) -> int:
+        return self.value
+
+
 class Button(MessageComponent):
     """
     Represents a button for callbacks into the Game class
     """
-    def __init__(self, name: str | None, callback: Callable[[Player, dict], None], emoji: str = None,
-                 row: int | None = None, style: ButtonStyle = discord.ButtonStyle.gray, arguments: dict = None,
+
+    def __init__(self, name: str | None, callback: Callable[[InternalPlayer, dict], None], emoji: str = None,
+                 row: int | None = None, style: ButtonStyle = ButtonStyle.gray, arguments: dict = None,
                  require_current_turn: bool = True) -> None:
         """
         Create a new Button. This represents a button for callbacks into the Game class
@@ -193,31 +220,30 @@ class Button(MessageComponent):
         :param require_current_turn: whether the button can only be used by the player whose turn it is
         """
         super().__init__()
-        
+
         # Instantiate class options
         self.type = "button"
         self.limit = 25
-        
+
         if not name:  # Empty string or None
             self.name = "​"  # Zero width space for no label
         else:
             self.name = name  # Just pass label as given
-            
-        
+
         self.style = style
         self.callback = callback
         self.arguments = arguments
         self.row = row
-        
+
         if emoji is None:  # If no emoji, pass None
             self.emoji = None
         elif is_emoji(emoji):  # Default emoji, not custom emoji
             self.emoji = emoji
         else:  # Custom emoji
-            
+
             # either [a, name, id] (animated), or [name, id] (static)
             emoji_formatted = emoji.replace("<", "").replace(">", "").split(":")
-            
+
             emoji_animated = emoji_formatted[0] == "a"
             if emoji_animated:  # Animated
                 emoji_name = emoji_formatted[1]
@@ -227,8 +253,7 @@ class Button(MessageComponent):
                 emoji_id = int(emoji_formatted[1])
 
             # Create PartialEmoji with data
-            self.emoji = discord.PartialEmoji(name=emoji_name, id=emoji_id, animated=emoji_animated) 
-
+            self.emoji = discord.PartialEmoji(name=emoji_name, id=emoji_id, animated=emoji_animated)
 
         self.require_current_turn = require_current_turn
         if self.arguments is not None:  # create arguments like key=value,key2=value2
@@ -245,7 +270,7 @@ class Button(MessageComponent):
         """
 
         # Note: c/ means current turn IS required, n/ means NO
-        view.add_item(discord.ui.Button(style=discord.ButtonStyle.blurple,
+        view.add_item(discord.ui.Button(style=self.style,
                                         label=self.name,
                                         emoji=self.emoji,
                                         row=self.row,

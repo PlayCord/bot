@@ -53,4 +53,3 @@ class Game:
         :return: string representing an error
         """
         pass
-

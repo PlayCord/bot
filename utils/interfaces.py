@@ -11,9 +11,10 @@ import trueskill
 from api.Player import Player
 from api.Response import Response
 from configuration.constants import *
+from utils.analytics import Timer
 from utils.conversion import column_creator, column_elo, column_names, column_turn, contextify, player_representative, \
     player_verification_function, textify
-from utils.database import get_player, update_db_rankings, update_player
+from utils.database import InternalPlayer, get_player, get_shallow_player, update_db_rankings, update_player
 from utils.embeds import CustomEmbed, ErrorEmbed, GameOverEmbed, GameOverviewEmbed
 from utils.views import MatchmakingView, SpectateView
 
@@ -26,13 +27,13 @@ class GameInterface:
     """
 
     def __init__(self, game_type: str, status_message: discord.WebhookMessage, creator: discord.User,
-                 players: list[Player], rated: bool) -> None:
+                 players: list[InternalPlayer], rated: bool) -> None:
         """
         Create the GameInterface
         :param game_type: The game type as defined in constants.py
         :param status_message: The message already created by the bot outside the not-yet-existent thread
-        :param creator: the User (discord) who created the lobby TODO: change to Player
-        :param players: A list of Player objects representing the players
+        :param creator: the User (discord) who created the lobby TODO: change to Player.py
+        :param players: A list of Player.py objects representing the players
         :param rated: Whether the game is rated (ratings change based on outcome)
         """
         # The message created by the bot outside the not-yet-existent thread
@@ -53,7 +54,8 @@ class GameInterface:
         # also made by self.setup()
         self.module = importlib.import_module(GAME_TYPES[game_type][0])  # Game module
         # Game class instantiated with the players
-        self.game = getattr(self.module, GAME_TYPES[game_type][1])(self.players)
+        self.game = (getattr(self.module, GAME_TYPES[game_type][1])
+                     ([Player(mu=p.mu, sigma=p.sigma, ranking=p.ranking, id=p.id) for p in players]))
 
         self.current_turn = None
         self.logger = logging.getLogger(f"GameInterface[{game_type}]")
@@ -75,6 +77,7 @@ class GameInterface:
         :return: Nothing
         """
         log = self.logger.getChild("setup")
+        setup_timer = Timer().start()
         log.debug(f"Setting up game interface for a new game. matchmaker ID: {self.status_message.id}")
         rated_prefix = "Rated "  # Add "Rated" to the name of the thread if the game
         if not self.rated:
@@ -96,7 +99,8 @@ class GameInterface:
         self.info_message = await self.thread.send(embed=game_info_embed)
         self.game_message = await self.thread.send(embed=getting_ready_embed)
         log.debug(
-            f"Finished game setup for a new game. matchmaker ID: {self.status_message.id} game ID: {self.thread.id}")
+            f"Finished game setup for a new game in {setup_timer.stop()}ms."
+            f" matchmaker ID: {self.status_message.id} game ID: {self.thread.id}")
 
     async def move_by_command(self, ctx: discord.Interaction, name, arguments: dict[str, typing.Any],
                               current_turn_required: bool = True) -> None:
@@ -222,14 +226,16 @@ class GameInterface:
                                                                             enable_view_components=False)
                 sent_message = await send_move
                 await set_delete_hook(sent_message)
-            else:
-                await ctx.delete_original_response()
+
+            # NOTE: move_by_button does not need the delete_original_response call because it doesn't show
+            # Thinking...   This means we can effectively ignore a null response value
 
             # Update display painting
             await self.display_game_state()
 
             if (outcome := self.game.outcome()) is not None:  # Game is over
-
+                log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
+                          f" context: {contextify(ctx)}")
                 message = await ctx.followup.send(content="Game over!", ephemeral=True)
                 await message.delete(delay=5)
                 await game_over(self, outcome)
@@ -240,7 +246,8 @@ class GameInterface:
         Use the Game class (self.game) to get an updated version of the game state.
         :return: None
         """
-        log = logging.getLogger("playcord.game.display_game_state")
+        log = self.logger.getChild("display_game_state")
+        update_timer = Timer().start()
         self.current_turn = self.game.current_turn()
         # Embed to send as the updated game state
         info_embed = CustomEmbed(title=f"Playing {self.game.name} with {len(self.players)} players",
@@ -310,6 +317,8 @@ class GameInterface:
         # Edit overview embed with new data
         await self.status_message.edit(
             embed=GameOverviewEmbed(self.game.name, self.rated, self.players, self.current_turn))
+        log.debug(f"Finished game state update task in {update_timer.stop()}ms."
+                  f" game_id={self.thread.id} game_type={self.game_type}")
 
 
 class MatchmakingInterface:
@@ -320,8 +329,6 @@ class MatchmakingInterface:
 
     def __init__(self, creator: discord.User, game_type: str, message: discord.InteractionMessage,
                  rated: bool, private: bool):
-
-        self.logger = logging.getLogger("playcord.matchmaking_interface")
 
         # Whether the startup of the matchmaking interaction failed
         self.failed = None
@@ -370,12 +377,15 @@ class MatchmakingInterface:
         self.allowed_players = player_representative(self.game.players)
 
         self.outcome = None  # Whether the matchmaking was successful (True, None, or False)
+        self.logger = logging.getLogger(f"playcord.matchmaking_interface[{message.id}]")
 
     async def update_embed(self) -> None:
         """
         Update the embed based on the players in self.players
         :return: Nothing
         """
+        log = self.logger.getChild("update_embed")
+        update_timer = Timer().start()
         # Set up the embed
 
         game_rated_text = "Rated" if self.rated else "Not Rated"
@@ -422,6 +432,7 @@ class MatchmakingInterface:
 
         # Update the embed in Discord
         await self.message.edit(embed=embed, view=view)
+        log.debug(f"Finished matchmaking update task in {update_timer.stop()}ms.")
 
     async def accept_invite(self, ctx: discord.Interaction) -> bool:
         """
@@ -430,52 +441,56 @@ class MatchmakingInterface:
         :return: whether the invite succeeded or failed
         """
 
-        player = ctx.user  # We use this a LOT in this function, make it easier to read
+        player = get_shallow_player(self.game_type, ctx.user)
 
         # Get logger
         log = self.logger.getChild("accept_invite")
+        log.debug(f"Attempting to accept invite for player {player} for matchmaker id={self.message.id}"
+                  f" {contextify(ctx)}")
 
         if player.id in [p.id for p in self.queued_players]:  # Can't join if you are already in
             log.debug(
-                f"Player {player.id} ({player.name}) attempted to accept invite, but they are already in the game! "
+                f"Player.py {player} attempted to accept invite, but they are already in the game! "
                 f"{contextify(ctx)}")
             await ctx.followup.send("You are already in the game!", ephemeral=True)
             return False
         else:
-            new_player = get_player(self.game_type, player)
-            if new_player is None:  # Couldn't retrieve information, so don't join them
+            if player is None:  # Couldn't retrieve information, so don't join them
                 log.warning(
-                    f"Player {player.id} ({player.name}) attempted to accept invite, but we couldn't connect to the database!"
+                    f"Player.py {player} attempted to accept invite, but we couldn't connect to the database!"
                     f"{contextify(ctx)}")
                 await ctx.followup.send("Couldn't connect to DB!", ephemeral=True)
                 return False
 
             # Add to whitelist or remove from blacklist, depending on private/public status
             if self.private:
-                self.whitelist.add(new_player)
+                self.whitelist.add(player)
             else:
                 try:
-                    self.blacklist.remove(new_player)
+                    self.blacklist.remove(player)
                 except KeyError:
                     pass
 
-            self.queued_players.add(new_player)  # Add the player to queued_players
-            IN_MATCHMAKING.update({new_player: self})
+            self.queued_players.add(player)  # Add the player to queued_players
+            IN_MATCHMAKING.update({player: self})
             log.debug(
                 f"Successfully accepted invite for {player.id} ({player.name})!"
                 f"{contextify(ctx)}")
             await self.update_embed()  # Update embed on discord side
         return True
 
-    async def ban(self, player: Player, reason: str) -> str | None:
+    async def ban(self, player: discord.User, reason: str) -> str | None:
         """
         Ban a player from the game with reason
         :param player: the player to ban
         :param reason: the reason the player was banned
         :return: Error code or None if no error
         """
+        log = self.logger.getChild("ban")
         new_player = get_player(self.game_type, player)
+        log.debug(f"Attempting to ban player {new_player} for reason {reason!r}...")
         if new_player is None:  # Couldn't retrieve information, so don't join them
+            log.error(f"Error banning {new_player}: couldn't connect to the database!")
             return "Couldn't connect to DB!"
 
         # Kick if already in and update embed
@@ -489,6 +504,7 @@ class MatchmakingInterface:
         if not len(self.queued_players):
             await self.message.delete()  # Remove matchmaking message
             self.outcome = False
+            log.info(f"Self ban of player {new_player} caused the lobby to end.")
             return "idk why you banned yourself when you are the only one in the lobby, lol"
 
         if player.id == self.creator.id:  # Update creator if the person leaving was the creator.
@@ -500,24 +516,33 @@ class MatchmakingInterface:
             try:
                 self.whitelist.remove(new_player)
             except KeyError:
+                log.info(f"Ban of player {new_player} in private lobby failed: not on whitelist anyway.")
                 return "Can't ban someone who isn't on the whitelist anyway!"
         else:
             self.blacklist.add(new_player)
 
         await self.update_embed()  # Update embed now that we have done all operations
 
-        if kicked: return f"Successfully kicked and banned {player.mention} from the game for reason {reason!r}"
+        if kicked:
+            log.info(f"Successfully kicked and banned {new_player}"
+                     f" from the game for reason {reason!r}")
+            return f"Successfully kicked and banned {player.mention} from the game for reason {reason!r}"
+        log.info(f"Successfully banned {new_player}"
+                 f" from the game for reason {reason!r}")
         return f"Successfully banned {player.mention} from the game for reason {reason!r}"
 
-    async def kick(self, player: Player, reason: str) -> str | None:
+    async def kick(self, player: discord.User, reason: str) -> str | None:
         """
         Kick a player from the game with reason
         :param player: the player to kick
         :param reason: reason the player was kicked
         :return: error or None if no error
         """
-        new_player = get_player(self.game_type, player)
+        log = self.logger.getChild("kick")
+        new_player = get_shallow_player(self.game_type, player)
+        log.debug(f"Attempting to kick player {new_player} for reason {reason!r}...")
         if new_player is None:  # Couldn't retrieve information, so don't join them
+            log.error(f"Error kicking {new_player}: couldn't connect to the database!")
             return "Couldn't connect to DB!"
 
         kicked = False
@@ -531,13 +556,19 @@ class MatchmakingInterface:
         if not len(self.queued_players):
             await self.message.delete()  # Remove matchmaking message
             self.outcome = False
+            log.info(f"Self kick of player {new_player} caused the lobby to end.")
             return ("idk why you thought kicking yourself was a smart idea "
                     "when you are the only one in the lobby, lol")
 
         if player.id == self.creator.id:  # Update creator if the person leaving was the creator.
             self.creator = next(iter(self.queued_players)).user
 
-        if kicked: return f"Successfully kicked {player.mention} from the game for reason {reason!r}"
+        if kicked:
+            log.info(f"Successfully kicked {new_player} ({player.name})"
+                     f" from the game for reason {reason!r}")
+            return f"Successfully kicked {player.mention} from the game for reason {reason!r}"
+        log.info(f"Couldn't kick {new_player}"
+                 f" from the game: they weren't in the lobby!")
         return f"Didn't kick anyone: {player.mention} isn't in this lobby!"
 
     async def callback_ready_game(self, ctx: discord.Interaction) -> None:
@@ -546,16 +577,19 @@ class MatchmakingInterface:
         :param ctx: discord context
         :return: Nothing
         """
+        log = self.logger.getChild("ready_game")
+        new_player = get_shallow_player(self.game_type, ctx.user)
         await ctx.response.defer()  # Prevent button from failing
+        log.debug(f"Attempting to join the game... {contextify(ctx)}")
         if ctx.user.id in [p.id for p in self.queued_players]:  # Can't join if you are already in
+            log.info(f"Attempted to join player {new_player} but failed because they were already in the queue."
+                     f" {contextify(ctx)}")
             await ctx.followup.send("You are already in the game!", ephemeral=True)
         else:
-            new_player = get_player(self.game_type, ctx.user)
-            if new_player is None:  # Couldn't retrieve information, so don't join them
-                await ctx.followup.send("Couldn't connect to DB!", ephemeral=True)
-                return
             if not self.private:
                 if new_player in self.blacklist:
+                    log.info(f"Attempted to join player {new_player} but failed because they were already in the queue."
+                             f" {contextify(ctx)}")
                     await ctx.followup.send(f"You are banned from this game!"
                                             f" Ask the owner of the game {self.creator.mention}"
                                             f" to unban you!", ephemeral=True)
@@ -565,6 +599,9 @@ class MatchmakingInterface:
                 await self.update_embed()  # Update embed on discord side
             else:
                 if new_player not in self.whitelist:
+                    log.info(f"Attempted to join player {new_player} to private game but failed because"
+                             f" they were not on the whitelist."
+                             f" {contextify(ctx)}")
                     await ctx.followup.send("You are not on the whitelist for this private game!", ephemeral=True)
                     return
                 self.queued_players.add(new_player)  # Add the player to queued_players
@@ -577,28 +614,37 @@ class MatchmakingInterface:
         :param ctx: discord context
         :return: None
         """
-
+        log = self.logger.getChild("leave_game")
         await ctx.response.defer()  # Prevent button interaction from failing
+        log.debug(f"Attempting to leave the game... {contextify(ctx)}")
+        player = get_shallow_player(self.game_type, ctx.user)
 
-        if ctx.user.id not in [p.id for p in self.queued_players]:  # Can't leave if you weren't even there
+        if player.id not in [p.id for p in self.queued_players]:  # Can't leave if you weren't even there
+            log.info(f"Attempted to remove player {player} but failed because they weren't in the queue to begin with."
+                     f" {contextify(ctx)}")
             await ctx.followup.send("You aren't in the game!", ephemeral=True)
         else:
             # Remove player from queue
-            for player in self.queued_players:
-                if player.id == ctx.user.id:
+            for p in self.queued_players:
+                if p.id == player.id:
                     self.queued_players.remove(player)
                     IN_MATCHMAKING.pop(player)
                     break
             # Nobody is left lol
             if not len(self.queued_players):
+                log.info(f"Call to leave_game left no players in lobby, so ending game. {contextify(ctx)}")
                 await ctx.followup.send("You were the last person in the lobby, so the game was cancelled!",
                                         ephemeral=True)
                 await self.message.delete()  # Remove matchmaking message
                 self.outcome = False
                 return
 
-            if ctx.user.id == self.creator.id:  # Update creator if the person leaving was the creator.
-                self.creator = next(iter(self.queued_players)).user
+            if player.id == self.creator.id:  # Update creator if the person leaving was the creator.
+                new_creator = next(iter(self.queued_players))
+                self.creator = new_creator.user
+                log.debug(f"Successful leave_game call did not end the game,"
+                          f" but we are removing the creator {player} from the game."
+                          f" Selecting new creator {new_creator}. {contextify(ctx)}")
 
             await self.update_embed()  # Update embed again
         return
@@ -610,19 +656,20 @@ class MatchmakingInterface:
         :return: Nothing
         """
         log = self.logger.getChild("start_game")
+        player = get_shallow_player(self.game_type, ctx.user)
         log.debug(f"Attempting to start the game... {contextify(ctx)}")
         await ctx.response.defer()  # Prevent button interaction from failing
 
         if ctx.user.id != self.creator.id:  # Don't have permissions to start the game
             await ctx.followup.send("You can't start the game (not the creator).", ephemeral=True)
-            log.debug(f"Game failed to start because player {ctx.user.id} ({ctx.user.name}) was not the creator. "
+            log.debug(f"Game failed to start because player {player} was not the creator. "
                       f"{contextify(ctx)}")
             return
 
         # The matchmaking was successful!
         self.outcome = True
 
-        log.debug(f"Game successfully started by {ctx.user.id} ({ctx.user.name})!"
+        log.debug(f"Game successfully started by {player}!"
                   f"{contextify(ctx)}")
         # Start the GameInterface
 
@@ -673,12 +720,12 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
     await game.display_game_state()  # Send the game display state
 
 
-async def rating_groups_to_string(rankings: list[int], groups: list[dict[Player, trueskill.Rating]]) \
+async def rating_groups_to_string(rankings: list[int], groups: list[dict[InternalPlayer, trueskill.Rating]]) \
         -> tuple[str, dict[str, typing.Any]]:
     """
     Converts the rankings and groups from a rated game into a string representing the outcome of the game.
     :param rankings: Rankings (format: list of places such as [1, 1, 2, 3] to correlate with groups)
-    :param groups: groups (format: [{player: player_rating}] where player is a Player object and player_rating
+    :param groups: groups (format: [{player: player_rating}] where player is a Player.py object and player_rating
      is an trueskill.Rating object
     :return: String representing the outcome of the game (format:
     1. PlayerInFirst
@@ -742,7 +789,7 @@ async def rating_groups_to_string(rankings: list[int], groups: list[dict[Player,
     return player_string, player_ratings
 
 
-async def non_rated_groups_to_string(rankings: list[int], groups: list[Player]) -> str:
+async def non_rated_groups_to_string(rankings: list[int], groups: list[InternalPlayer]) -> str:
     """
     Create the string representing the groups for the game over screen
     :param rankings: Rankings: format [0, 1, 1, 2] for first place, two tied for 2nd, and 3rd. Corresponds to groups
@@ -779,7 +826,7 @@ async def non_rated_groups_to_string(rankings: list[int], groups: list[Player]) 
     return "\n".join(player_ratings)  # concatenate and return
 
 
-async def game_over(interface: GameInterface, outcome: str | Player | list[list[Player]]) -> None:
+async def game_over(interface: GameInterface, outcome: str | InternalPlayer | list[list[InternalPlayer]]) -> None:
     """
     Callback called by GameInterface when the game is over. Easily the most technically complicated function
     in the entire API
@@ -809,7 +856,7 @@ async def game_over(interface: GameInterface, outcome: str | Player | list[list[
     environment = trueskill.TrueSkill(mu=MU, sigma=sigma, beta=beta, tau=tau, draw_probability=draw,
                                       backend="mpmath")
 
-    # There are three cases: str (error) Player (one person won) list[list[Player]] (detailed ranking)
+    # There are three cases: str (error) Player.py (one person won) list[list[Player.py]] (detailed ranking)
     if isinstance(outcome, str):  # Error
         game_over_embed = ErrorEmbed(what_failed="Error during a move!", reason=outcome)
         # Send the embed
@@ -888,8 +935,8 @@ async def game_over(interface: GameInterface, outcome: str | Player | list[list[
     if rated:
         for player_id in player_ratings:  # Every rated player, post new ratings in the database
             player_data = player_ratings[player_id]
-            update_player(game_type, Player(mu=player_data["new_rating"],
-                                            sigma=player_data["new_sigma"],
-                                            user=discord.Object(id=player_id)))
+            update_player(game_type, InternalPlayer(mu=player_data["new_rating"],
+                                                    sigma=player_data["new_sigma"],
+                                                    user=discord.Object(id=player_id)))
 
         update_db_rankings(game_type)  # Update ranking db variable
