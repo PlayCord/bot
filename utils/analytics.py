@@ -27,6 +27,6 @@ class Timer:
         elapsed_time = time.perf_counter() - self._start_time
         self._start_time = None
         if use_ms:
-            return round(elapsed_time / 1000, round_digits)
+            return round(elapsed_time * 1000, round_digits)
         else:
             return round(elapsed_time, round_digits)

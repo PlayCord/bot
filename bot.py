@@ -8,8 +8,9 @@ import traceback
 import typing
 from typing import Any
 
-from discord import app_commands
+from discord import AppCommandOptionType, app_commands
 from discord.app_commands import Choice, Group
+from discord.app_commands.transformers import RangeTransformer
 from ruamel.yaml import YAML
 
 import configuration.constants as constants
@@ -21,7 +22,7 @@ from utils.conversion import contextify
 from utils.embeds import CustomEmbed, ErrorEmbed
 from utils.formatter import Formatter
 from utils.interfaces import GameInterface, MatchmakingInterface
-from utils.views import InviteView, MatchmakingView
+from utils.views import InviteView
 
 logging.getLogger("discord").setLevel(logging.INFO)  # Discord.py logging level - INFO (don't want DEBUG)
 
@@ -141,6 +142,7 @@ async def command_error(ctx: discord.Interaction, error_message):
 command_root.error(command_error)
 command_root.interaction_check = interaction_check  # Set the interaction check
 play.interaction_check = interaction_check
+play.error(command_error)
 
 
 @client.event
@@ -157,6 +159,12 @@ async def on_interaction(ctx: discord.Interaction) -> None:
     custom_id = ctx.data.get("custom_id")  # Get custom ID
     if custom_id is None:  # Not button
         return
+    if custom_id.startswith("join/") or custom_id.startswith("leave/") or custom_id.startswith("start/"):
+        await matchmaking_button_callback(ctx)
+    if custom_id.startswith("select_c/"):
+        await game_select_callback(ctx, current_turn_required=True)
+    if custom_id.startswith("select_n/"):
+        await game_select_callback(ctx, current_turn_required=False)
     if custom_id.startswith("c/"):  # Game view button: turn required
         await game_button_callback(ctx, current_turn_required=True)
     if custom_id.startswith("n/"):  # Game view button: turn not required
@@ -182,8 +190,6 @@ async def on_ready() -> None:
         startup_logger.info(f"Client connected after {round((time.time() - startup_initial_time) * 100, 4)}ms.")
         startup_initial_time = 0  # To prevent reconnects showing this message
 
-    # Register views to the bot
-    client.add_view(MatchmakingView())
     client.loop.create_task(presence())  # Register presence
 
 
@@ -218,6 +224,9 @@ async def on_message(msg: discord.Message) -> None:
         except discord.Forbidden or discord.NotFound:
             pass
         return
+
+    if msg.content.startswith(f"{LOGGING_ROOT}/") and msg.author.id in OWNERS:
+        f_log.info(f"Received potential authorized message command {msg.content!r}.")
 
     if msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_SYNC}") and msg.author.id in OWNERS:  # Perform sync
         split = msg.content.split()
@@ -285,7 +294,7 @@ async def on_message(msg: discord.Message) -> None:
         return
 
     # Clear command tree
-    elif msg.content == f"{LOGGING_ROOT}/{MESSAGE_COMMAND_CLEAR}" and msg.author.id in OWNERS:
+    elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_CLEAR}") and msg.author.id in OWNERS:
         split = msg.content.split()
         if len(split) == 1:
             tree.clear_commands(guild=None)
@@ -297,8 +306,9 @@ async def on_message(msg: discord.Message) -> None:
                 g = msg.guild
             else:
                 g = discord.Object(id=int(split[1]))
+            print(g)
             tree.clear_commands(guild=g)
-            tree.copy_global_to(guild=g)
+            # tree.copy_global_to(guild=g)
             await tree.sync(guild=g)
             f_log.info(f"Performed authorized command tree clear from user {msg.author.id} "
                        f"to guild {g.name!r} (id={g.id!r})")
@@ -349,7 +359,7 @@ async def presence() -> None:
     Rotates through presets and game names
     :return: None
     """
-
+    presence_logger = logging.getLogger("playcord.presence")
     # Build presence options
     options = []
     for game in GAME_TYPES:
@@ -363,9 +373,60 @@ async def presence() -> None:
                                     name=random.choice(options) + " on Discord",
                                     state=f"Servicing {len(client.guilds)} servers and {len(client.users)} users")
         # Change presence
-        await client.change_presence(activity=activity, status=discord.Status.online)
+        try:
+            await client.change_presence(activity=activity, status=discord.Status.online)
+        except Exception as e:
+            log.error(f"Failed to change presence status: {e!r} quitting presence until online again.")
+            return
         # 15 seconds is the cooldown
         await asyncio.sleep(15)
+
+
+async def matchmaking_button_callback(ctx: discord.Interaction) -> None:
+    """
+    Callback function for matchmaking.
+    :param ctx: the interaction context
+    :return: nothing
+    """
+    await ctx.response.defer()  # prevent interaction from failing
+
+    f_log = log.getChild("callback.matchmaking_buttons")  # Get logger
+
+    f_log.info(f"Matchmaking button for matchmaker {ctx.message.id} pressed! ID: {ctx.data['custom_id']}"
+               f" context: {contextify(ctx)}")  # Log button press
+
+    data = ctx.data['custom_id'].split("/")
+    # Get a list of custom ID: <join/leave/start>/matchmaking_id
+
+    # Extract data from data
+    interaction_type: str = data[0]
+
+    matchmaking_id: int = int(data[1])
+
+    # Check if the game still exists
+    if matchmaking_id in CURRENT_MATCHMAKING:
+        matchmaker: MatchmakingInterface = CURRENT_MATCHMAKING[matchmaking_id]
+    else:
+        f_log.debug(f"Matchmaker expired when trying to press button (mode={interaction_type!r}): {contextify(ctx)}")
+        await ctx.followup.send("This matchmaker has expired. Sorry about that :(", ephemeral=True)
+
+        # Disable the buttons
+        view = discord.ui.View.from_message(ctx.message)
+        for button in view.children:
+            button.disabled = True
+        try:
+            await ctx.message.edit(view=view, embed=ctx.message.embeds[0])
+        except discord.HTTPException as http_exception:
+            f_log.warning(f"Failed to disable matchmaker! This is likely fine: exc={str(http_exception)}"
+                          f" {contextify(ctx)}")
+        return
+
+    if interaction_type == "join":
+        await matchmaker.callback_ready_game(ctx=ctx)
+    elif interaction_type == "leave":
+        await matchmaker.callback_leave_game(ctx=ctx)
+    elif interaction_type == "start":
+        await matchmaker.callback_start_game(ctx=ctx)
 
 
 async def game_button_callback(ctx: discord.Interaction, current_turn_required: bool = True) -> None:
@@ -410,11 +471,56 @@ async def game_button_callback(ctx: discord.Interaction, current_turn_required: 
         try:
             await ctx.message.edit(view=view, embed=ctx.message.embeds[0])
         except discord.HTTPException as e:
-            f_log.warning(f"Failed to disable game! This is likely fine: exc={str(e)}")
+            f_log.warning(f"Failed to disable game! This is likely fine: exc={str(e)} {contextify(ctx)}")
         return
 
     # Call move_by_button callback
     await game_interface.move_by_button(ctx=ctx, name=function_id, arguments=arguments,
+                                        current_turn_required=current_turn_required)
+
+
+async def game_select_callback(ctx: discord.Interaction, current_turn_required: bool = True) -> None:
+    """
+    Game select menu callback.
+    :param ctx: discord select interaction
+    :param current_turn_required: whether select menu can only be interacted with if it is the player's turn
+    :return: Nothing
+    """
+    await ctx.response.defer()  # Prevent interaction from failing
+    f_log = log.getChild("callback.game_select")  # Get logger
+
+    f_log.info(f"Game select menu for game {ctx.channel.id} pressed! ID: {ctx.data['custom_id']}"
+               f" context: {contextify(ctx)}")  # Log button press
+
+    leading_str = "select_c/" if current_turn_required else "select_n/"  # Leading ID of custom ID string
+
+    data: list[str] = ctx.data['custom_id'].replace(leading_str, "").split("/")
+    # Get a list of custom ID: select_[c/n]/game_id/function_id
+
+    # Extract data from data
+    game_id: int = int(data[0])
+
+    function_id: str = data[1]
+
+    # Check if the game still exists
+    if game_id in CURRENT_GAMES:
+        game_interface: GameInterface = CURRENT_GAMES[int(game_id)]
+    else:
+        f_log.debug(f"Game expired when trying to handle select menu: {contextify(ctx)}")
+        await ctx.followup.send("This game is over. Sorry about that :(", ephemeral=True)
+
+        # Disable the buttons
+        view = discord.ui.View.from_message(ctx.message)
+        for button in view.children:
+            button.disabled = True
+        try:
+            await ctx.message.edit(view=view, embed=ctx.message.embeds[0])
+        except discord.HTTPException as e:
+            f_log.warning(f"Failed to disable game! This is likely fine: exc={str(e)} {contextify(ctx)}")
+        return
+
+    # Call move_by_select callback
+    await game_interface.move_by_select(ctx=ctx, name=function_id,
                                         current_turn_required=current_turn_required)
 
 
@@ -521,7 +627,10 @@ async def peek_callback(ctx: discord.Interaction) -> None:
         for button in message_view.children:  # don't want those buttons clickable lol
             button.disabled = True
 
-        await ctx.followup.send(embed=msg.embeds[0], view=message_view, ephemeral=True)
+        if len(msg.embeds):
+            await ctx.followup.send(embed=msg.embeds[0], view=message_view, ephemeral=True)
+        else:
+            await ctx.followup.send(view=message_view, ephemeral=True)
     except discord.errors.NotFound:  # API takes the L
         await ctx.followup.send("That game no longer exists!", ephemeral=True)
         return
@@ -814,13 +923,13 @@ async def handle_move(ctx: discord.Interaction, name, arguments) -> None:
     if ctx.channel.type != discord.ChannelType.private_thread:
         f_log.info(f"invalid channel type triggered on handling move {contextify(ctx)}")
         await send_simple_embed(ctx, "Move commands can only be run in their respective threads",
-                                "Please use a bot-created thread to move. :)", responded=True)
+                                "Please use a bot-created thread to move. :) ", responded=True)
         return
     # Must be in current game
     if ctx.channel.id not in CURRENT_GAMES.keys():
         f_log.info(f"invalid channel (not a game channel) triggered on handling move {contextify(ctx)}")
-        await send_simple_embed(ctx, "Move commands can only be run in their respective threads",
-                                "Please use a bot-created thread to move. :)", responded=True)
+        await send_simple_embed(ctx, "Move commands can only be run in a channel where there is a game.",
+                                "Please start a game to use this command :)", responded=True)
         return
 
     # Don't pass ctx to internals
@@ -955,8 +1064,21 @@ def encode_argument(argument_name, argument_information) -> str:
     :param argument_information: Information about the argument (type and whether it is option)
     :return: the encoded argument
     """
-    argument_type = argument_information["type"].__name__  # Get string of type ("str")
+    if argument_information["type"].__class__ is RangeTransformer:  # Special case
+        # Extract the type and min/max values
+        option_type = argument_information["type"]._type
+        if option_type == AppCommandOptionType.integer:
+            range_type = int
+        elif option_type == AppCommandOptionType.string:
+            range_type = str
 
+        # Extract min/max
+        min_value, max_value = argument_information["type"]._min, argument_information["type"]._max
+
+        # Format as string
+        argument_type = f"app_commands.Range[{range_type.__name__}, {min_value}, {max_value}]"
+    else:
+        argument_type = argument_information["type"].__name__  # Get string of type ("str")
     # Make the argument optional if required
     optional_addendum = ''
     if argument_information["optional"]:
@@ -1018,7 +1140,11 @@ def build_function_definitions() -> dict[Group, list[Any]]:
             # Decorators and arguments for just the move
             temp_decorators = {}
             temp_arguments = {}
-
+            if move.options is None:  # No options
+                # Save empty dicts to the values so nothing is saved
+                decorators[move.name] = temp_decorators
+                arguments[move.name] = temp_arguments
+                continue
             for option in move.options:
                 # Obtain the decorators and arguments that the option uses
                 option_decorators = option.decorators()

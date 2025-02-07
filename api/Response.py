@@ -85,6 +85,12 @@ class Response:
         if enable_view_components and should_view_be_sent:
             message_data.update({"view": view})
 
+        async def dummy():
+            return False  # Returning false allows the response handler to call delete_original_response
+
+        if not should_view_be_sent and not should_embed_be_sent and self.content is None:  # Empty message
+            return dummy(), lambda x: None  # Return dummy functions that don't actually send anything
+
         # Return the coroutine to send the message and a lambda to add the delete after set by the Game object
         return (message_send_function(**message_data),
-                lambda x: x.delete(delay=self.delete_after))
+                lambda x: x.delete(delay=self.delete_after) if self.delete_after is not None else None)

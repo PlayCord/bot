@@ -1,11 +1,13 @@
 import io
+import typing
 from enum import Enum
 from typing import Callable
 
 import discord
+from discord import SelectOption
 from emoji import is_emoji
 
-from utils.database import InternalPlayer
+from api.Player import Player
 
 
 class MessageComponent:
@@ -19,21 +21,49 @@ class MessageComponent:
         """
         pass
 
+    # This code causes hasattr(_embed_transform) to return True even when it is not defined for that subclass
+
+    # def _embed_transform(self, embed: discord.Embed) -> None:
+    #     """
+    #     Transform the embed to add whatever parameter to it
+    #     :param embed: the embed to transform
+    #     :return: Nothing
+    #     """
+    #     pass
+    #
+    # def _view_transform(self, view: discord.ui.View, game_id: int) -> None:
+    #     """
+    #     Transform the view to add whatever parameter to it
+    #     :param view: the view to transform
+    #     :return: Nothing
+    #     """
+    #     pass
+
+
+class Description(MessageComponent):
+    """
+        Description: something used to represent the description of an embed
+        """
+
+    def __init__(self, value: str):
+        """
+        Create a new Description
+        :param value: value of the field
+        """
+
+        # Instantiate the class
+        super().__init__()
+        self.description = value
+        self.type = "description"  # API type
+        self.limit = 1  # Discord api limitation
+
     def _embed_transform(self, embed: discord.Embed) -> None:
         """
-        Transform the embed to add whatever parameter to it
-        :param embed: the embed to transform
+        Transform the embed to set the description to it
+        :param embed: the embed to add a field to
         :return: Nothing
         """
-        pass
-
-    def _view_transform(self, view: discord.ui.View, game_id: int) -> None:
-        """
-        Transform the view to add whatever parameter to it
-        :param view: the view to transform
-        :return: Nothing
-        """
-        pass
+        embed.description = self.description
 
 
 class Field(MessageComponent):
@@ -48,9 +78,9 @@ class Field(MessageComponent):
         :param value: value of the field
         :param inline: whether the field is inline or not.
         """
-        super().__init__()
 
         # Instantiate the class
+        super().__init__()
         self.name = name
         self.value = value
         self.inline = inline
@@ -83,9 +113,9 @@ class DataTable(MessageComponent):
 
         Empty parameters are automatically filled in.
         """
-        super().__init__()
 
         # Instantiate class data
+        super().__init__()
         self.data = data
         self.type = "info_rows"
         self.limit = 1  # Only one dtaa table per embed
@@ -132,9 +162,9 @@ class Image(MessageComponent):
         Represents the image as a byte string
         :param bytestring: bytes of the image
         """
-        super().__init__()
 
         # Instantiate class variables
+        super().__init__()
         self.limit = 1
         self.bytes = bytestring
         self.type = "image"
@@ -165,9 +195,9 @@ class Footer(MessageComponent):
         Create a new Footer. This just sets the footer
         :param text: the text of the footer to set
         """
-        super().__init__()
 
         # Instantiate class variables
+        super().__init__()
         self.type = "footer"
         self.text = text
         self.limit = 1
@@ -187,7 +217,8 @@ class ButtonStyle(Enum):
     success = 3
     danger = 4
     link = 5
-    premium = 6
+    # Disable premium buttons for obvious reasons
+    # premium = 6
 
     # Aliases
     blurple = 1
@@ -206,9 +237,10 @@ class Button(MessageComponent):
     Represents a button for callbacks into the Game class
     """
 
-    def __init__(self, name: str | None, callback: Callable[[InternalPlayer, dict], None], emoji: str = None,
+    def __init__(self, name: str | None,
+                 callback: Callable[[Player, dict], typing.Any] | Callable[[Player], typing.Any], emoji: str = None,
                  row: int | None = None, style: ButtonStyle = ButtonStyle.gray, arguments: dict = None,
-                 require_current_turn: bool = True) -> None:
+                 require_current_turn: bool = True, disabled: bool = False) -> None:
         """
         Create a new Button. This represents a button for callbacks into the Game class
         :param name: label of button
@@ -219,12 +251,12 @@ class Button(MessageComponent):
         :param arguments: arguments to pass to the callback function
         :param require_current_turn: whether the button can only be used by the player whose turn it is
         """
-        super().__init__()
 
         # Instantiate class options
+        super().__init__()
         self.type = "button"
         self.limit = 25
-
+        self.disabled = disabled
         if not name:  # Empty string or None
             self.name = "​"  # Zero width space for no label
         else:
@@ -275,4 +307,85 @@ class Button(MessageComponent):
                                         emoji=self.emoji,
                                         row=self.row,
                                         custom_id=f"{'c' if self.require_current_turn else 'n'}/{game_id}/"
-                                                  f"{self.callback.__name__}/{self.parsed_arguments}"))
+                                                  f"{self.callback.__name__}/{self.parsed_arguments}",
+                                        disabled=self.disabled))
+
+
+class Dropdown(MessageComponent):
+    """
+    Represents a dropdown for callbacks into the Game class
+    """
+
+    def __init__(self, data: list[dict],
+                 callback: Callable[[Player, dict], typing.Any] | Callable[[Player], typing.Any],
+                 row: int | None = None,
+                 require_current_turn: bool = True, min_values: int = None, max_values: int = None,
+                 placeholder: str = None, disabled: bool = False) -> None:
+        """
+        Create a new Dropdown. This represents a dropdown for callbacks into the Game class
+        :param callback: callback function
+        :param row: which row the button is in (0-4, integer)
+        :param require_current_turn: whether the button can only be used by the player whose turn it is
+        """
+
+        # Instantiate class options
+        super().__init__()
+        self.type = "button"
+        self.limit = 25
+
+        self.callback = callback
+        self.min_values = min_values
+        self.max_values = max_values
+        self.placeholder = placeholder
+        self.row = row
+        self.disabled = disabled
+
+        self.components = []
+        for component in data:
+            if "emoji" in component:
+                emoji = component["emoji"]
+                if emoji is None:  # If no emoji, pass None
+                    emoji = None
+                elif not is_emoji(emoji):  # Custom emoji
+
+                    # either [a, name, id] (animated), or [name, id] (static)
+                    emoji_formatted = emoji.replace("<", "").replace(">", "").split(":")
+
+                    emoji_animated = emoji_formatted[0] == "a"
+                    if emoji_animated:  # Animated
+                        emoji_name = emoji_formatted[1]
+                        emoji_id = int(emoji_formatted[2])
+                    else:  # static
+                        emoji_name = emoji_formatted[0]
+                        emoji_id = int(emoji_formatted[1])
+
+                    # Create PartialEmoji with data
+                    emoji = discord.PartialEmoji(name=emoji_name, id=emoji_id, animated=emoji_animated)
+            else:
+                emoji = None
+            if "default" not in component:
+                default = False
+            else:
+                default = component["default"]
+            if "description" not in component:
+                description = False
+            else:
+                description = component["description"]
+            self.components.append(SelectOption(label=component["label"], value=component["value"],
+                                                emoji=emoji, default=default, description=description))
+
+        self.require_current_turn = require_current_turn
+
+    def _view_transform(self, view: discord.ui.View, game_id: int) -> None:
+        """
+        Add the dropdown to the view.
+        :param view: View to add the button to.
+        :param game_id: game ID for callback
+        :return: Nothing (view object is passed as memory location)
+        """
+
+        menu = discord.ui.Select(options=self.components, min_values=self.min_values,
+                                 max_values=self.max_values, placeholder=self.placeholder, disabled=self.disabled,
+                                 custom_id=f"{'select_c' if self.require_current_turn else 'select_n'}/{game_id}/"
+                                           f"{self.callback.__name__}")
+        view.add_item(menu)

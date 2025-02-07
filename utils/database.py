@@ -6,6 +6,7 @@ from mysql.connector import Error
 from mysql.connector.pooling import PooledMySQLConnection
 
 import configuration.constants
+from api.Player import Player
 from configuration.constants import *
 from configuration.constants import GAME_TRUESKILL, GAME_TYPES, LOGGING_ROOT, MU
 
@@ -122,11 +123,16 @@ def startup() -> bool:
     return True
 
 
+def internal_player_to_player(internal_player: InternalPlayer) -> Player:
+    return Player(mu=internal_player.mu, sigma=internal_player.sigma, ranking=internal_player.ranking,
+                  id=internal_player.user.id, name=internal_player.user.name)
+
+
 def get_player(game_type: str, user: discord.User | InternalPlayer) -> InternalPlayer | None:
     """
-    Get a utils.Player.py object from the database.
-    :param game_type: The game_type the Player.py is playing
-    :param user: the discord.User or Player.py object to base the player off
+    Get a utils.Player object from the database.
+    :param game_type: The game_type the Player is playing
+    :param user: the discord.User or Player object to base the player off
     :return: the Player.py or None if failed (database connection error)
     """
     db = create_connection()  # Get the connection
@@ -139,7 +145,7 @@ def get_player(game_type: str, user: discord.User | InternalPlayer) -> InternalP
 
     results = cursor.fetchall()  # Get the results of the query
 
-    if not len(results):  # Player.py is not in DB, return default values of mu and sigma
+    if not len(results):  # Player is not in DB, return default values of mu and sigma
         id, mu, sigma, ranking = user.id, MU, GAME_TRUESKILL[game_type]["sigma"] * MU, None
     else:
         id, mu, sigma, ranking = results[0]

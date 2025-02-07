@@ -14,7 +14,8 @@ from configuration.constants import *
 from utils.analytics import Timer
 from utils.conversion import column_creator, column_elo, column_names, column_turn, contextify, player_representative, \
     player_verification_function, textify
-from utils.database import InternalPlayer, get_player, get_shallow_player, update_db_rankings, update_player
+from utils.database import InternalPlayer, get_player, get_shallow_player, internal_player_to_player, \
+    update_db_rankings, update_player
 from utils.embeds import CustomEmbed, ErrorEmbed, GameOverEmbed, GameOverviewEmbed
 from utils.views import MatchmakingView, SpectateView
 
@@ -87,8 +88,11 @@ class GameInterface:
             name=f"{rated_prefix}{self.game.name} game ({NAME})",
             type=discord.ChannelType.private_thread, invitable=False)  # Don't allow people to add themselves
 
-        for player in self.players:  # Add users to the thread
-            await game_thread.add_user(player.user)
+        async def add_new_members_to_thread():
+            for player in self.players:  # Add users to the thread
+                await game_thread.add_user(player.user)
+
+        asyncio.create_task(add_new_members_to_thread())  # Nonblocking
 
         game_info_embed = CustomEmbed(description="<a:loading:1318216218116620348>").remove_footer()
         # Temporary embed TODO: remove this and make it cleaner while still guaranteeing the bot gets the first message
@@ -96,13 +100,17 @@ class GameInterface:
 
         # Set the thread and game message in the class
         self.thread = game_thread
-        self.info_message = await self.thread.send(embed=game_info_embed)
-        self.game_message = await self.thread.send(embed=getting_ready_embed)
+
+        async def send_game_messages():
+            self.info_message = await self.thread.send(embed=game_info_embed)
+            self.game_message = await self.thread.send(embed=getting_ready_embed)
+
+        asyncio.create_task(send_game_messages())  # Nonblocking
         log.debug(
             f"Finished game setup for a new game in {setup_timer.stop()}ms."
             f" matchmaker ID: {self.status_message.id} game ID: {self.thread.id}")
 
-    async def move_by_command(self, ctx: discord.Interaction, name, arguments: dict[str, typing.Any],
+    async def move_by_command(self, ctx: discord.Interaction, name: str, arguments: dict[str, typing.Any],
                               current_turn_required: bool = True) -> None:
         """
         Make a move by command. This function is called dynamically by handle_move in the main program.
@@ -133,7 +141,24 @@ class GameInterface:
                 return
             try:
                 # Call the move function with arguments (player, <expanded arguments>
-                move_response: Response = getattr(self.game, name)(get_player(self.game_type, ctx.user), **arguments)
+                callback = None
+                all_move_commands = self.game.moves
+
+                # Get the callback from the command
+                for command in all_move_commands:
+                    if command.name == name:
+                        callback = command.callback
+                        break
+
+                # If it is None, attempt to call the command's name as an attribute
+                if callback is None:
+                    function_to_call = name
+                else:  # Otherwise, use the callback value
+                    function_to_call = callback
+
+                move_response: Response = getattr(self.game, function_to_call)(
+                    internal_player_to_player(get_player(self.game_type, ctx.user)),
+                    **arguments)
             except Exception as e:
                 log.error(f"Error {e!r} with command {name!r} with arguments {arguments!r}"
                           f" context: {contextify(ctx)}.")
@@ -146,7 +171,11 @@ class GameInterface:
                 send_move, set_delete_hook = move_response.generate_message(ctx.followup.send, self.thread.id,
                                                                             enable_view_components=False)
                 sent_message = await send_move
-                await set_delete_hook(sent_message)
+                if sent_message is False:  # This means there was a null Response, so delete
+                    await ctx.delete_original_response()
+                hook = set_delete_hook(sent_message)
+                if hook:
+                    await hook
             else:
                 await ctx.delete_original_response()
 
@@ -211,8 +240,9 @@ class GameInterface:
             # Call button's callback with player and converted arguments
             try:
                 # Call the move function with arguments (player, <expanded arguments>)
-                move_response: Response = callback_function(get_player(self.game_type, ctx.user),
-                                                            **type_converted_arguments)
+                move_response: Response = callback_function(
+                    internal_player_to_player(get_player(self.game_type, ctx.user)),
+                    **type_converted_arguments)
             except Exception as e:
                 log.error(f"Error {e!r} with command {name!r} with arguments {arguments!r}"
                           f" context: {contextify(ctx)}.")
@@ -225,9 +255,70 @@ class GameInterface:
                 send_move, set_delete_hook = move_response.generate_message(ctx.followup.send, self.thread.id,
                                                                             enable_view_components=False)
                 sent_message = await send_move
-                await set_delete_hook(sent_message)
+                hook = set_delete_hook(sent_message)
+                if hook:
+                    await hook
 
             # NOTE: move_by_button does not need the delete_original_response call because it doesn't show
+            # Thinking...   This means we can effectively ignore a null response value
+
+            # Update display painting
+            await self.display_game_state()
+
+            if (outcome := self.game.outcome()) is not None:  # Game is over
+                log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
+                          f" context: {contextify(ctx)}")
+                message = await ctx.followup.send(content="Game over!", ephemeral=True)
+                await message.delete(delay=5)
+                await game_over(self, outcome)
+                return
+
+    async def move_by_select(self, ctx: discord.Interaction, name: str, current_turn_required: bool = True):
+        log = self.logger.getChild("move[select]")
+        if self.ending_game:  # Don't move if the game is ending
+            log.warning(f"Denied interaction to command {name!r}"
+                        f" because the game is ending!"
+                        f" context: {contextify(ctx)}")
+            return
+
+        async with self.processing_move:  # Get move processing lock
+            log.debug(f"Now processing move command {name!r} context: {contextify(ctx)}")
+            # Update current turn
+            self.current_turn = self.game.current_turn()
+
+            # Check to make sure that it is current turn (if required)
+            if ctx.user.id != self.current_turn.id and current_turn_required:
+                log.debug(f"current_turn_required command failed because it isn't this player's turn"
+                          f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
+                message = await ctx.followup.send(content="It isn't your turn right now!", ephemeral=True)
+                await message.delete(delay=5)
+                return
+
+            # Get callback
+            callback_function = getattr(self.game, name)
+
+            # Call button's callback with player and converted arguments
+            try:
+                # Call the move function with arguments (player, values)
+                move_response: Response = callback_function(
+                    internal_player_to_player(get_player(self.game_type, ctx.user)), ctx.data["values"])
+            except Exception as e:
+                log.error(f"Error {e!r} with command {name!r}"
+                          f" context: {contextify(ctx)}.")
+                error_embed = ErrorEmbed(ctx, what_failed=f"Error occurred while making a move! ({type(e)})",
+                                         reason=traceback.format_exc())
+                await ctx.followup.send(embed=error_embed, ephemeral=True)
+                return
+
+            if move_response is not None:
+                send_move, set_delete_hook = move_response.generate_message(ctx.followup.send, self.thread.id,
+                                                                            enable_view_components=False)
+                sent_message = await send_move
+                hook = set_delete_hook(sent_message)
+                if hook:
+                    await hook
+
+            # NOTE: move_by_select does not need the delete_original_response call because it doesn't show
             # Thinking...   This means we can effectively ignore a null response value
 
             # Update display painting
@@ -257,6 +348,8 @@ class GameInterface:
         # Game state embed and view
         state_embed = CustomEmbed().remove_footer()
         state_view = discord.ui.View()
+        should_use_embed = False
+        should_use_view = False
 
         game_state = self.game.state()  # Get the game state from the game
 
@@ -265,28 +358,37 @@ class GameInterface:
         picture = None
 
         removed_fields = 0
-        for state_type in game_state:
 
-            # Call transformation functions if they exist
-            if hasattr(state_type, "_embed_transform"):
-                state_type._embed_transform(state_embed)
-                if len(state_embed.fields) >= 25:
-                    for remove_index in range(25, len(state_embed.fields)):
-                        state_embed.remove_field(remove_index)
-                removed_fields += len(state_embed.fields) - 25
-            if hasattr(state_type, "_view_transform"):
-                state_type._view_transform(state_view, self.thread.id)
+        if game_state is not None:
+            for state_type in game_state:
 
-            limits[state_type.type] = state_type.limit  # Add limit for the state type, regardless of if it exists
+                # Call transformation functions if they exist
+                if hasattr(state_type, "_embed_transform"):
+                    state_type._embed_transform(state_embed)
+                    if len(state_embed.fields) >= 25:
+                        for remove_index in range(25, len(state_embed.fields)):
+                            state_embed.remove_field(remove_index)
+                    should_use_embed = True
+                    removed_fields += len(state_embed.fields) - 25
+                if hasattr(state_type, "_view_transform"):
+                    state_type._view_transform(state_view, self.thread.id)
+                    should_use_view = True
 
-            # Keep track of the amount of each state type
-            if state_type.type in state_types:
-                state_types[state_type.type] += 1
-            else:
-                state_types[state_type.type] = 1
+                limits[state_type.type] = state_type.limit  # Add limit for the state type, regardless of if it exists
 
-            if state_type.type == "image":  # Special flag to extract discord.File object from the image type
-                picture = state_type.game_picture
+                # Keep track of the amount of each state type
+                if state_type.type in state_types:
+                    state_types[state_type.type] += 1
+                else:
+                    state_types[state_type.type] = 1
+
+                if state_type.type == "image":  # Special flag to extract discord.File object from the image type
+                    picture = state_type.game_picture
+        else:
+            state_embed.add_field(name=":cobweb: There's nothing here!", value="The game didn't return a value "
+                                                                               "for the game state, so nothing is displayed.",
+                                  inline=False)
+            should_use_embed = True  # Force the embed to be sent
 
         # Detect if over limit
         if removed_fields > 0:
@@ -305,18 +407,45 @@ class GameInterface:
         info_embed.add_field(name="Turn:", value=column_turn(self.players, self.current_turn))
 
         # Edit the game and info messages with the new embeds
-        await self.info_message.edit(embed=info_embed)
+        async def edit_info_message():
+            while self.info_message is None:
+                await asyncio.sleep(1)
+            await self.info_message.edit(embed=info_embed)
+
+        asyncio.create_task(edit_info_message())
 
         if picture is not None:  # For some reason, [None] is not accepted by discord.py, so send it None if no image.
             attachments = [picture]
         else:
             attachments = []
 
-        await self.game_message.edit(embed=state_embed, view=state_view, attachments=attachments)
+        pass_data = {"attachments": attachments}
+
+        if should_use_embed:
+            pass_data["embed"] = state_embed
+        else:
+            pass_data["embed"] = None
+        if should_use_view:
+            pass_data["view"] = state_view
+        else:
+            pass_data["view"] = None
+
+        async def edit_game_message():
+            while self.game_message is None:
+                await asyncio.sleep(1)
+            await self.game_message.edit(**pass_data)
+
+        asyncio.create_task(edit_game_message())
 
         # Edit overview embed with new data
-        await self.status_message.edit(
-            embed=GameOverviewEmbed(self.game.name, self.rated, self.players, self.current_turn))
+        async def edit_status_message():
+            while self.status_message is None:
+                await asyncio.sleep(1)
+            await self.status_message.edit(
+                embed=GameOverviewEmbed(self.game.name, self.rated, self.players, self.current_turn))
+
+        asyncio.create_task(edit_status_message())
+
         log.debug(f"Finished game state update task in {update_timer.stop()}ms."
                   f" game_id={self.thread.id} game_type={self.game_type}")
 
@@ -373,8 +502,13 @@ class MatchmakingInterface:
         self.game = getattr(self.module, GAME_TYPES[game_type][1])
 
         # Required and maximum players for game TODO: more complex requirements for start/stop
-        self.player_verification_function = player_verification_function(self.game.players)
-        self.allowed_players = player_representative(self.game.players)
+
+        if not hasattr(self.game, "players"):  # If no players defined, any value is "fine"
+            self.player_verification_function = lambda x: True
+            self.allowed_players = "Any"
+        else:
+            self.player_verification_function = player_verification_function(self.game.players)
+            self.allowed_players = player_representative(self.game.players)
 
         self.outcome = None  # Whether the matchmaking was successful (True, None, or False)
         self.logger = logging.getLogger(f"playcord.matchmaking_interface[{message.id}]")
@@ -398,10 +532,18 @@ class MatchmakingInterface:
         # Rated/Unrated
         # Public/Private
 
+        game_metadata = {}
+
+        for param in ["time", "difficulty", "author", "author_link", "source_link"]:
+            if hasattr(self.game, param):
+                game_metadata[param] = getattr(self.game, param)
+            else:
+                game_metadata[param] = "Unknown"
+
         embed = CustomEmbed(title=f"Queueing for {self.game.name}...",
-                            description=f"⏰{self.game.time}{LONG_SPACE_EMBED * 2}"
+                            description=f"⏰{game_metadata['time']}{LONG_SPACE_EMBED * 2}"
                                         f"👤{self.allowed_players}{LONG_SPACE_EMBED * 2}"
-                                        f"📈{self.game.difficulty}{LONG_SPACE_EMBED * 2}"
+                                        f"📈{game_metadata['difficulty']}{LONG_SPACE_EMBED * 2}"
                                         f"📊{game_rated_text}{LONG_SPACE_EMBED * 2}"
                                         f"{private_text}")
 
@@ -419,15 +561,15 @@ class MatchmakingInterface:
         # Credits for game
         embed.add_field(name="Game Info:", value=self.game.description, inline=False)
         embed.add_field(name="Game by:",
-                        value=f"[{self.game.author}]({self.game.author_link})\n[Source]({self.game.source_link})")
+                        value=f"[{game_metadata['author']}]({game_metadata['author_link']})\n[Source]({game_metadata['source_link']})")
 
         # Can the start button be pressed?
         start_enabled = self.player_verification_function(len(self.queued_players))
 
         # Create matchmaking button view (with callbacks and can_start)
-        view = MatchmakingView(join_button_callback=self.callback_ready_game,
-                               leave_button_callback=self.callback_leave_game,
-                               start_button_callback=self.callback_start_game,
+        view = MatchmakingView(join_button_id=f"join/{self.message.id}",
+                               leave_button_id=f"leave/{self.message.id}",
+                               start_button_id=f"start/{self.message.id}",
                                can_start=start_enabled)
 
         # Update the embed in Discord
@@ -579,7 +721,6 @@ class MatchmakingInterface:
         """
         log = self.logger.getChild("ready_game")
         new_player = get_shallow_player(self.game_type, ctx.user)
-        await ctx.response.defer()  # Prevent button from failing
         log.debug(f"Attempting to join the game... {contextify(ctx)}")
         if ctx.user.id in [p.id for p in self.queued_players]:  # Can't join if you are already in
             log.info(f"Attempted to join player {new_player} but failed because they were already in the queue."
@@ -615,7 +756,6 @@ class MatchmakingInterface:
         :return: None
         """
         log = self.logger.getChild("leave_game")
-        await ctx.response.defer()  # Prevent button interaction from failing
         log.debug(f"Attempting to leave the game... {contextify(ctx)}")
         player = get_shallow_player(self.game_type, ctx.user)
 
@@ -658,7 +798,6 @@ class MatchmakingInterface:
         log = self.logger.getChild("start_game")
         player = get_shallow_player(self.game_type, ctx.user)
         log.debug(f"Attempting to start the game... {contextify(ctx)}")
-        await ctx.response.defer()  # Prevent button interaction from failing
 
         if ctx.user.id != self.creator.id:  # Don't have permissions to start the game
             await ctx.followup.send("You can't start the game (not the creator).", ephemeral=True)
@@ -694,11 +833,6 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
     game_type = interface.game_type
     creator = interface.creator
 
-    join_thread_embed = GameOverviewEmbed(game_name=game_class.name,
-                                          rated=rated,
-                                          players=players,
-                                          turn=None)
-
     # Remove players in this matchmaking from IN_MATCHMAKING
     for p in players:
         IN_MATCHMAKING.pop(p)
@@ -713,10 +847,14 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
     CURRENT_GAMES.update({game.thread.id: game})
 
     # Edit the status message with the SpectateView
-    await message.edit(embed=join_thread_embed, view=SpectateView(spectate_button_id=f"spectate/{game.thread.id}",
-                                                                  peek_button_id=f"peek/{game.thread.id}/{game.game_message.id}",
-                                                                  game_link=game.info_message.jump_url))
+    async def create_spectate_view():
+        while game.game_message is None:
+            await asyncio.sleep(1)
+        await message.edit(view=SpectateView(spectate_button_id=f"spectate/{game.thread.id}",
+                                             peek_button_id=f"peek/{game.thread.id}/{game.game_message.id}",
+                                             game_link=game.info_message.jump_url))
 
+    asyncio.create_task(create_spectate_view())
     await game.display_game_state()  # Send the game display state
 
 
