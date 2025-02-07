@@ -49,23 +49,24 @@ class LiarsDiceGame(Game):
         self.message = f"Player {self.players[self.turn - 1]} raises the bid to {self.current_bid}!"
         self.round_state = "after_first_raise"
 
-    def end_round_message(self, who_called, who_was_called, did_succeed):
+    def end_round_message(self, who_called, who_was_called, did_succeed, total_count, bid_count, required_number):
         if did_succeed:
             succeed_verb = "and succeeded!"
             lost_die = who_was_called
         else:
             succeed_verb = "and failed!"
             lost_die = who_called
-        self.message = (f"Player {who_called} called {who_was_called} {succeed_verb}. {lost_die} lost a die. "
-                        f"They now have {len(self.hands[who_called])} dice.")
+        self.message = (
+            f"Player {who_called} called {who_was_called} {succeed_verb}. There were a total of {total_count} {required_number}, and the bid was {bid_count} {required_number}. {lost_die} lost a die. "
+            f"They now have {len(self.hands[lost_die])} dice.")
         self.round_state = "end_round"
 
     def state(self):
 
-        if self.round_state != "new_round":
-            peek_button = Button(name="Peek", callback=self.callback_peek, row=0, style=ButtonStyle.gray,
+        if self.round_state != "end_round":
+            peek_button = Button(label="Peek", callback=self.callback_peek, row=0, style=ButtonStyle.gray,
                                  require_current_turn=False)
-            call_button = Button(name="Call", callback=self.callback_call, row=0, style=ButtonStyle.red)
+            call_button = Button(label="Call", callback=self.callback_call, row=0, style=ButtonStyle.red)
             view_components = [peek_button, call_button] if self.current_bid != (0, 0) else [peek_button]
             dice_data = {p: {"Dice:": len(self.hands[p])} for p in self.players}
             embed_components = [Description(self.message),
@@ -73,15 +74,21 @@ class LiarsDiceGame(Game):
 
             return [*view_components, *embed_components]
         else:
-            new_round_button = Button(name="New Round", callback=self.callback_new_round,
+            new_round_button = Button(label="New Round", callback=self.callback_new_round,
                                       row=0, style=ButtonStyle.green)
-            return [new_round_button]
+            dice_data = {p: {"Dice:": len(self.hands[p])} for p in self.players}
+            embed_components = [Description(self.message),
+                                DataTable(dice_data)]
+            return [new_round_button, *embed_components]
 
     def current_turn(self):
         return self.players[self.turn]
 
     def callback_new_round(self, player):
         self.new_round_message()
+        self.turn += 1
+        if self.turn == len(self.players):
+            self.turn = 0
 
     def callback_peek(self, player):
         return Response(content=stringify_hand(self.hands[player]), ephemeral=True)
@@ -97,7 +104,8 @@ class LiarsDiceGame(Game):
             response = Response(content=f"Your call failed! (There were {total_counts_of_dice} of {die_number_to_count}"
                                         f" on a bid of {self.current_bid[1]})", ephemeral=True)
             self.hands[player].pop(0)  # Remove a die from the player who made the call
-            self.end_round_message(player, self.players[self.turn - 1], False)
+            self.end_round_message(player, self.players[self.turn - 1], False, total_counts_of_dice,
+                                   self.current_bid[1], die_number_to_count)
             processed_player = player
 
         else:
@@ -105,7 +113,8 @@ class LiarsDiceGame(Game):
                 content=f"Your call succeeded! (There were {total_counts_of_dice} of {die_number_to_count}"
                         f" on a bid of {self.current_bid[1]})", ephemeral=True)
             self.hands[self.players[self.turn - 1]].pop(0)
-            self.end_round_message(player, self.players[self.turn - 1], True)
+            self.end_round_message(player, self.players[self.turn - 1], True, total_counts_of_dice, self.current_bid[1],
+                                   die_number_to_count)
             processed_player = self.players[self.turn - 1]
 
         if len(self.hands[processed_player]) == 0:  # This player is now out of the game

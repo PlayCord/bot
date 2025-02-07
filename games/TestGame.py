@@ -1,5 +1,7 @@
+import random
+
 from api.Command import Command
-from api.MessageComponents import Dropdown, MessageComponent
+from api.MessageComponents import Button, ButtonStyle, DataTable, Dropdown, Field, Footer, MessageComponent
 from api.Player import Player
 from api.Response import Response
 
@@ -38,15 +40,27 @@ class TestGame:
         Return the current state of the game using MessageComponents.
         :return: a list of MessageComponents representing the game state.
         """
-        return [
-            Dropdown(data=[{"label": "1", "value": "test1", "description": "option 1"},
-                           {"label": "2", "value": "test2", "description": "option 2"},
-                           {"label": "3", "value": "test3", "description": "option 3"},
-                           {"label": "4", "value": "test4", "description": "option 4"},
-                           {"label": "5", "value": "test5", "description": "option 5"},
-                           {"label": "6", "value": "test6", "description": "option 6"},
-                           {"label": "7", "value": "test7", "description": "option 7"}, ],
-                     callback=self.test_callback, placeholder="Input 1-6 options:", min_values=0, max_values=6)]
+        data_table = {}
+        for player in self.players:
+            data_table[player] = {"RNG 1-10:": random.randint(1, 10), "Another column with int value": 2,
+                                  "How about a float": 5, "What about a string": "test"}
+        return [DataTable(data_table),
+                Dropdown(data=[{"label": "1", "value": "test1", "description": "option 1"},
+                               {"label": "2", "value": "test2", "description": "option 2"},
+                               {"label": "3", "value": "test3", "description": "option 3"},
+                               {"label": "4", "value": "test4", "description": "option 4"},
+                               {"label": "5", "value": "test5", "description": "option 5"},
+                               {"label": "6", "value": "test6", "description": "option 6"},
+                               {"label": "7", "value": "test7", "description": "option 7"}],
+                         callback=self.test_callback, placeholder="Input 1-6 options:", min_values=0, max_values=6),
+                Field(name="Name (field example)", value="value (field example)"),
+                Footer("Example Footer text"),
+                Button(label="Example Button (green)", style=ButtonStyle.green, emoji="🗿",
+                       disabled=True, callback=self.button_callback),
+                ]
+
+    def button_callback(self, player):
+        print(f"Button callback called by {player.name}")
 
     def current_turn(self) -> Player:
         """

@@ -53,7 +53,7 @@ class TicTacToeGame:
                 else:
                     color = ButtonStyle.gray
 
-                button = Button(name=name, emoji=emoji, callback=self.move, row=row, style=color,
+                button = Button(label=name, emoji=emoji, callback=self.move, row=row, style=color,
                                 arguments={"move": str(col) + str(row)})
                 buttons.append(button)
         return_this = [DataTable({self.x: {"Team:": ":x:"}, self.o: {"Team:": ":o:"}})]

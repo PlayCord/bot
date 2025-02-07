@@ -109,7 +109,7 @@ class DataTable(MessageComponent):
         """
         Create a new data table
         :param data: data formatted like this:
-        {Player.py: {"Column name": "Column Value"}, Player2: {"Column name": "Different Column Value"}, ...}
+        {Player: {"Column name": "Column Value"}, Player2: {"Column name": "Different Column Value"}, ...}
 
         Empty parameters are automatically filled in.
         """
@@ -237,13 +237,13 @@ class Button(MessageComponent):
     Represents a button for callbacks into the Game class
     """
 
-    def __init__(self, name: str | None,
+    def __init__(self, label: str | None,
                  callback: Callable[[Player, dict], typing.Any] | Callable[[Player], typing.Any], emoji: str = None,
                  row: int | None = None, style: ButtonStyle = ButtonStyle.gray, arguments: dict = None,
                  require_current_turn: bool = True, disabled: bool = False) -> None:
         """
         Create a new Button. This represents a button for callbacks into the Game class
-        :param name: label of button
+        :param label: label of button
         :param callback: callback function
         :param emoji: Emoji to use for the button
         :param row: which row the button is in (0-4, integer)
@@ -257,10 +257,10 @@ class Button(MessageComponent):
         self.type = "button"
         self.limit = 25
         self.disabled = disabled
-        if not name:  # Empty string or None
+        if not label:  # Empty string or None
             self.name = "​"  # Zero width space for no label
         else:
-            self.name = name  # Just pass label as given
+            self.name = label  # Just pass label as given
 
         self.style = style
         self.callback = callback
