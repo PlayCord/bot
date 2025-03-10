@@ -218,12 +218,12 @@ async def on_message(msg: discord.Message) -> None:
     if msg.author.bot:
         return
 
-    if msg.channel.id in CURRENT_GAMES:
-        try:
-            await msg.delete()
-        except discord.Forbidden or discord.NotFound:
-            pass
-        return
+    # if msg.channel.id in CURRENT_GAMES:
+    #     try:
+    #         await msg.delete()
+    #     except discord.Forbidden or discord.NotFound:
+    #         pass
+    #     return
 
     if msg.content.startswith(f"{LOGGING_ROOT}/") and msg.author.id in OWNERS:
         f_log.info(f"Received potential authorized message command {msg.content!r}.")

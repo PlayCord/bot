@@ -446,8 +446,18 @@ class GameInterface:
 
         asyncio.create_task(edit_status_message())
 
+        # async def purge_phantom():
+        #     while self.game_message is None:
+        #         await asyncio.sleep(1)
+        #     await self.game_message.channel.purge(limit=100, check=lambda msg: not (msg.guild.me == msg.author))
+        #
+        # asyncio.create_task(purge_phantom())
+
         log.debug(f"Finished game state update task in {update_timer.stop()}ms."
                   f" game_id={self.thread.id} game_type={self.game_type}")
+
+    async def bump(self):
+        self.game_message = self.game_message.channel.send()
 
 
 class MatchmakingInterface:
