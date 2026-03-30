@@ -1,9 +1,8 @@
+import hashlib
 import importlib
 import logging
-import hashlib
 from datetime import datetime
 
-import discord
 from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
@@ -75,9 +74,7 @@ async def autocomplete_game_id(ctx: discord.Interaction, current: str) -> list[C
             rank = 1
         else:
             rank = 2
-
-        choice_name = f"{display_name} ({game_id})" if display_name.lower() != game_id.lower() else game_id
-        matches.append((rank, choice_name.lower(), choice_name, game_id))
+        matches.append((rank, game_id.lower(), game_id, game_id))
 
     matches.sort(key=lambda item: (item[0], item[1]))
     return [Choice(name=name[:100], value=value) for _, _, name, value in matches[:25]]
@@ -333,14 +330,16 @@ class GeneralCog(commands.Cog):
             page = 1
 
         limit = 10
-        
-        embed, has_data, is_last_page = self._build_leaderboard_embed(game, game_name, game_db.game_id, scope, ctx.guild, page, limit)
-        
+
+        embed, has_data, is_last_page = self._build_leaderboard_embed(game, game_name, game_db.game_id, scope,
+                                                                      ctx.guild, page, limit)
+
         # If no data on this page and page > 1, go back to page 1
         if not has_data and page > 1:
             page = 1
-            embed, has_data, is_last_page = self._build_leaderboard_embed(game, game_name, game_db.game_id, scope, ctx.guild, page, limit)
-        
+            embed, has_data, is_last_page = self._build_leaderboard_embed(game, game_name, game_db.game_id, scope,
+                                                                          ctx.guild, page, limit)
+
         max_pages = page if is_last_page else page + 1
         embed.set_footer(text=f"Page {page}/{max_pages}")
 
@@ -357,8 +356,8 @@ class GeneralCog(commands.Cog):
             )
         )
         await ctx.response.send_message(embed=embed, view=view)
-    
-    def _build_leaderboard_embed(self, game: str, game_name: str, game_id: int, scope: str, 
+
+    def _build_leaderboard_embed(self, game: str, game_name: str, game_id: int, scope: str,
                                  guild, page: int, limit: int):
         """Build the leaderboard embed for a specific page. Returns (embed, has_data, is_last_page)."""
         offset = (page - 1) * limit
@@ -388,12 +387,14 @@ class GeneralCog(commands.Cog):
         has_data = bool(leaderboard_data)
         # If we got more than limit items, there are more pages
         is_last_page = len(leaderboard_data) <= limit
-        
+
         # Only use the first 'limit' items for display
         display_data = leaderboard_data[:limit]
-        
+
         if not display_data:
-            embed.add_field(name="No Data", value="No players have played this game yet!" if page == 1 else "No more players to display.", inline=False)
+            embed.add_field(name="No Data",
+                            value="No players have played this game yet!" if page == 1 else "No more players to display.",
+                            inline=False)
         else:
             rankings = []
             for i, entry in enumerate(display_data, start=offset + 1):
@@ -409,13 +410,14 @@ class GeneralCog(commands.Cog):
             embed.add_field(name="Rankings", value="\n".join(rankings), inline=False)
 
         return embed, has_data, is_last_page
-    
+
     async def _leaderboard_page_callback(self, interaction: discord.Interaction, game: str, game_name: str,
-                                        game_id: int, scope: str, new_page: int, 
-                                        limit: int, params_hash: str):
+                                         game_id: int, scope: str, new_page: int,
+                                         limit: int, params_hash: str):
         """Callback for leaderboard pagination buttons."""
-        embed, has_data, is_last_page = self._build_leaderboard_embed(game, game_name, game_id, scope, interaction.guild, 
-                                                                       new_page, limit)
+        embed, has_data, is_last_page = self._build_leaderboard_embed(game, game_name, game_id, scope,
+                                                                      interaction.guild,
+                                                                      new_page, limit)
         max_pages = new_page if is_last_page else new_page + 1
         embed.set_footer(text=f"Page {new_page}/{max_pages}")
         view = PaginationView(
@@ -441,11 +443,11 @@ class GeneralCog(commands.Cog):
         all_games = list(GAME_TYPES.keys())
         total_pages = (len(all_games) + games_per_page - 1) // games_per_page
 
-        if page < 1 or page > total_pages: 
+        if page < 1 or page > total_pages:
             page = 1
-        
+
         embed = self._build_catalog_embed(page, total_pages, all_games, games_per_page)
-        
+
         params_hash = hashlib.md5(f"catalog".encode()).hexdigest()[:8]
         view = PaginationView(
             command="catalog",
@@ -459,7 +461,7 @@ class GeneralCog(commands.Cog):
             )
         )
         await ctx.response.send_message(embed=embed, view=view)
-    
+
     def _build_catalog_embed(self, page: int, total_pages: int, all_games: list, games_per_page: int) -> CustomEmbed:
         """Build the catalog embed for a specific page."""
         start_idx = (page - 1) * games_per_page
@@ -485,8 +487,8 @@ class GeneralCog(commands.Cog):
 
         embed.set_footer(text=f"Page {page}/{total_pages}")
         return embed
-    
-    async def _catalog_page_callback(self, interaction: discord.Interaction, new_page: int, 
+
+    async def _catalog_page_callback(self, interaction: discord.Interaction, new_page: int,
                                      total_pages: int, all_games: list, games_per_page: int, params_hash: str):
         """Callback for catalog pagination buttons."""
         embed = self._build_catalog_embed(new_page, total_pages, all_games, games_per_page)
@@ -502,7 +504,6 @@ class GeneralCog(commands.Cog):
             )
         )
         await interaction.response.edit_message(embed=embed, view=view)
-
 
     @command_root.command(name="profile", description="View a player's profile and stats")
     @app_commands.describe(user="The user to view (defaults to yourself)")
@@ -606,11 +607,11 @@ class GeneralCog(commands.Cog):
 
         game_class = getattr(importlib.import_module(GAME_TYPES[game][0]), GAME_TYPES[game][1])
         game_name = getattr(game_class, 'name', game)
-        
+
         embed, chart_file, has_data, is_last_page = self._build_history_embed(
             user, game_name, game_db.game_id, ctx.guild.id, page, days, f_log
         )
-        
+
         max_pages = page if is_last_page else page + 1
         embed.set_footer(text=f"Page {page}/{max_pages}")
         params_hash = hashlib.md5(f"{game}:{user.id}:{days}".encode()).hexdigest()[:8]
@@ -629,9 +630,9 @@ class GeneralCog(commands.Cog):
             await ctx.response.send_message(embed=embed, file=chart_file, view=view)
         else:
             await ctx.response.send_message(embed=embed, view=view)
-    
-    def _build_history_embed(self, user, game_name: str, game_id: int, guild_id: int, 
-                            page: int, days: int, f_log):
+
+    def _build_history_embed(self, user, game_name: str, game_id: int, guild_id: int,
+                             page: int, days: int, f_log):
         """Build history embed for a specific page. Returns (embed, chart_file, has_data, is_last_page)."""
         limit = 8
         offset = (page - 1) * limit
@@ -652,10 +653,10 @@ class GeneralCog(commands.Cog):
         has_data = bool(match_history)
         # If we got more than limit items, there are more pages
         is_last_page = len(match_history) <= limit
-        
+
         # Only use the first 'limit' items for display
         display_history = match_history[:limit]
-        
+
         if display_history:
             lines = []
             for row in display_history:
@@ -668,9 +669,9 @@ class GeneralCog(commands.Cog):
                 )
             embed.add_field(name="Recent matches", value="\n".join(lines), inline=False)
         else:
-            embed.add_field(name="Recent matches", 
-                          value="No completed matches found." if page == 1 else "No more matches to display.", 
-                          inline=False)
+            embed.add_field(name="Recent matches",
+                            value="No completed matches found." if page == 1 else "No more matches to display.",
+                            inline=False)
 
         # Generate matplotlib chart if rating history exists (only on first page for performance)
         chart_file = None
@@ -678,10 +679,10 @@ class GeneralCog(commands.Cog):
             ascending = list(reversed(rating_history))
             points = [ascending[0].get('mu_before', MU)] + [row.get('mu_after', MU) for row in ascending]
             timestamps = [datetime.fromisoformat(str(ascending[0].get('timestamp')))] + \
-                        [datetime.fromisoformat(str(row.get('timestamp'))) for row in ascending]
-            
+                         [datetime.fromisoformat(str(row.get('timestamp'))) for row in ascending]
+
             rating_data = list(zip(timestamps, points))
-            
+
             try:
                 chart_buffer = generate_elo_chart(
                     rating_data,
@@ -691,7 +692,7 @@ class GeneralCog(commands.Cog):
                 )
                 chart_file = discord.File(chart_buffer, filename="rating_chart.png")
                 embed.set_image(url="attachment://rating_chart.png")
-                
+
                 delta_total = points[-1] - points[0]
                 embed.add_field(
                     name=f"Rating trend ({days}d)",
@@ -716,9 +717,9 @@ class GeneralCog(commands.Cog):
             embed.add_field(name=f"Rating trend ({days}d)", value="No rating history for this period.", inline=False)
 
         return embed, chart_file, has_data, is_last_page
-    
+
     async def _history_page_callback(self, interaction: discord.Interaction, user, game_name: str,
-                                    game_id: int, new_page: int, days: int, params_hash: str, f_log):
+                                     game_id: int, new_page: int, days: int, params_hash: str, f_log):
         """Callback for history pagination buttons."""
         embed, chart_file, has_data, is_last_page = self._build_history_embed(
             user, game_name, game_id, interaction.guild.id, new_page, days, f_log
@@ -738,7 +739,6 @@ class GeneralCog(commands.Cog):
         )
         # Chart file only on page 1, so we won't have it on other pages
         await interaction.response.edit_message(embed=embed, view=view)
-
 
     @command_root.command(name="settings", description="Change settings for your current game lobby")
     @app_commands.describe(rated="Whether the game should be rated", private="Whether the game should be private")
