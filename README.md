@@ -7,7 +7,7 @@
   <p><em>A Discord bot for turn-based & paper/pencil games</em></p>
   <p>
     <a href="#"><img src="https://img.shields.io/badge/python-3.12-blue?logo=python" alt="python" /></a>
-    <a href="#"><img src="https://img.shields.io/badge/license-MIT-green?logo=opensourceinitiative" alt="license" /></a>
+    <a href="#"><img src="https://img.shields.io/badge/license-GPLv3-green?logo=opensourceinitiative" alt="license" /></a>
     <a href="https://github.com/quantumbagel/playcord"><img src="https://img.shields.io/github/stars/quantumbagel/playcord?style=social" alt="GitHub stars" /></a>
   </p>
 
@@ -92,14 +92,13 @@ PostgreSQL-backed leaderboard with TrueSkill-style ratings.
 
 ### Prerequisites
 
-- Python 3.12+
-- Docker & Docker Compose (recommended and default setup)
+- Docker & Docker Compose
 - Discord bot token
 
-> **Note:** Docker Compose is the default and officially supported setup method. Non-Docker Compose setups are not
-> actively supported.
+> **Note:** Docker Compose is the only officially supported setup method. Everything runs in containers - you do not
+> need Python installed locally.
 
-### Installation (Docker Compose)
+### Installation
 
 1. **Clone the repository:**
 
@@ -108,44 +107,25 @@ git clone https://github.com/quantumbagel/playcord.git
 cd playcord
 ```
 
-2. **Install dependencies:**
-
-```bash
-pip install -e .
-# or with poetry
-poetry install
-```
-
-3. **Configure the bot:**
+2. **Configure the bot:**
 
 ```bash
 cp configuration/config.yaml.example configuration/config.yaml
-# Edit config.yaml with your Discord token and database credentials
+# Edit config.yaml with your Discord bot token
 ```
 
-4. **Start the database with Docker Compose:**
+Open `configuration/config.yaml` and add your Discord bot token and any other settings you want to customize.
+
+3. **Start everything with Docker Compose:**
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
-This will start a PostgreSQL container with all necessary configuration.
+This will start both the PostgreSQL database and the bot in containers. The database will be automatically initialized
+with the schema on first run.
 
-5. **Run the bot:**
-
-```bash
-python bot.py
-```
-
-### Manual Database Setup (Unsupported)
-
-If you prefer to set up PostgreSQL manually without Docker Compose, you'll need to:
-
-- Install PostgreSQL 13+ manually
-- Create the database schema using `database/schema.sql`
-- Configure your connection string in `config.yaml`
-
-> This setup method is not actively supported and may have compatibility issues. Docker Compose is strongly recommended.
+That's it! Your bot is now running. Use `docker compose logs -f bot` to view the bot logs.
 
 ## API Usage
 
@@ -220,32 +200,6 @@ playcord/
 
 ## Current Status
 
-### Completed ✅
-
-- PostgreSQL database with comprehensive schema
-- Emoji API (`register_emoji()`, `get_emoji()`)
-- Leaderboards with pagination
-- Profile and stats commands
-- Analytics event system
-- Cross-server matchmaking infrastructure
-- Game settings configuration
-- Permission hardening for game interactions
-- Thread message policy for non-participants
-- Button emoji support
-
-### In Progress 🚧
-
-- Poker (Texas Hold'em)
-- Chess
-
-## Contributing
-
-Contributions are welcome! Please check the issues for tasks or open a new one.
-
 ## License
 
-MIT License - see LICENSE for details.
-
----
-
-If you find this project cool, please ⭐ star the repository!
+GPLv3 License - see LICENSE for details.
