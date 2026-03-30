@@ -1,19 +1,16 @@
-<!-- Logo (small icon to the left of main logo) -->
-<!-- Header: icon and title on one line -->
-<div style="text-align:center;">
-  <img src="docs/playcord_logo.jpg" alt="PlayCord icon" width="80" style="vertical-align:middle; margin-right:12px; height:auto;" />
-  <h1 style="display:inline; vertical-align:middle; margin:0; font-size:48px;">PlayCord</h1>
-  <div style="margin-top:6px;">
-    <em>A Discord bot for turn-based & paper/pencil games</em>
-  </div>
-  <div>by <a href="https://github.com/quantumbagel">@quantumbagel</a></div>
-</div>
+<div align="center">
 
-<!-- Badges (centered) -->
-<div style="text-align:center; margin:8px 0 16px 0;">
-  <a href="#"><img src="https://img.shields.io/badge/python-3.12-blue?logo=python" alt="python" style="vertical-align:middle; margin-right:8px;"/></a>
-  <a href="#"><img src="https://img.shields.io/badge/license-MIT-green?logo=opensourceinitiative" alt="license" style="vertical-align:middle; margin-right:8px;"/></a>
-  <a href="https://github.com/quantumbagel/playcord"><img src="https://img.shields.io/github/stars/quantumbagel/playcord?style=social" alt="GitHub stars" style="vertical-align:middle;"/></a>
+  <h1>
+    <img src="docs/playcord_logo.jpg" alt="PlayCord icon" width="80" /> PlayCord
+  </h1>
+
+  <p><em>A Discord bot for turn-based & paper/pencil games</em></p>
+  <p>
+    <a href="#"><img src="https://img.shields.io/badge/python-3.12-blue?logo=python" alt="python" /></a>
+    <a href="#"><img src="https://img.shields.io/badge/license-MIT-green?logo=opensourceinitiative" alt="license" /></a>
+    <a href="https://github.com/quantumbagel/playcord"><img src="https://img.shields.io/github/stars/quantumbagel/playcord?style=social" alt="GitHub stars" /></a>
+  </p>
+
 </div>
 
 ## About
@@ -29,38 +26,41 @@ PostgreSQL-backed leaderboard with TrueSkill-style ratings.
 
 ## Features
 
-- **🎮 Multiple Games** - Tic-Tac-Toe, Connect Four, Reversi, Battleship, Liar's Dice, and more
-- **📊 Rating System** - TrueSkill-based rankings with global and server leaderboards
-- **🔧 Extensible API** - Create new games with a simple Python API
-- **🗄️ PostgreSQL Backend** - Persistent leaderboards, match history, and analytics
-- **🌐 Cross-Server Play** - Match with players across different Discord servers
-- **🎨 Rich UI** - Button-based gameplay with emoji support
+- Many games supported: Tic-Tac-Toe, Connect Four, Reversi, Battleship, Liar's Dice, and more
+- TrueSkill-based rankings (the same ELO used by Rocket League and Halo) with global and server leaderboards
+- Create new games with a simple Python API
+- Persistent leaderboards, match history, and analytics
+- Match with players across different Discord servers
+- Button-based gameplay with emoji support
 
 ## Games
 
-### Implemented ✅
-| Game | Players | Description |
-|------|---------|-------------|
-| Tic-Tac-Toe | 2 | Classic Xs and Os |
-| Connect Four | 2 | Drop discs to connect four |
-| Reversi | 2 | Flip opponent's pieces |
-| Battleship | 2 | Sink the enemy fleet |
-| Liar's Dice | 2-6 | Bluffing dice game |
-| Nim | 2-4 | Take stones strategically |
-| Mastermind Duel | 2 | Code-breaking game |
-| No Thanks! | 3-7 | Card avoidance game |
-| Blackjack Table | 2-7 | Multiplayer blackjack |
-| Codenames Lite | 4-8 | Word association team game |
+### Implemented
 
-### Planned 🚧
-| Game | Status |
-|------|--------|
+| Game            | Players | Description                |
+|-----------------|---------|----------------------------|
+| Tic-Tac-Toe     | 2       | Classic Xs and Os          |
+| Connect Four    | 2       | Drop discs to connect four |
+| Reversi         | 2       | Flip opponent's pieces     |
+| Battleship      | 2       | Sink the enemy fleet       |
+| Liar's Dice     | 2-6     | Bluffing dice game         |
+| Nim             | 2-4     | Take stones strategically  |
+| Mastermind Duel | 2       | Code-breaking game         |
+| No Thanks!      | 3-7     | Card avoidance game        |
+| Blackjack Table | 2-7     | Multiplayer blackjack      |
+| Codenames Lite  | 4-8     | Word association team game |
+
+### Planned
+
+| Game                  | Status         |
+|-----------------------|----------------|
 | Poker (Texas Hold'em) | In Development |
-| Chess | In Development |
+| Chess                 | In Development |
 
 ## Bot Usage
 
 ### Starting a Game
+
 ```
 /play <game>              Start a new game
 /play tictactoe           Start Tic-Tac-Toe
@@ -68,11 +68,13 @@ PostgreSQL-backed leaderboard with TrueSkill-style ratings.
 ```
 
 ### During Games
+
 - Click buttons to make moves (game-specific)
 - Use `/move` commands for complex actions
 - Games run in private threads for clean organization
 
 ### Profile & Stats
+
 ```
 /playcord profile [@user]   View player profile and ratings
 /playcord history <game>    View match history and rating trend
@@ -81,6 +83,7 @@ PostgreSQL-backed leaderboard with TrueSkill-style ratings.
 ```
 
 ### Settings
+
 ```
 /playcord settings          Configure game preferences
 ```
@@ -88,69 +91,92 @@ PostgreSQL-backed leaderboard with TrueSkill-style ratings.
 ## Quick Start
 
 ### Prerequisites
+
 - Python 3.12+
-- PostgreSQL database
+- Docker & Docker Compose (recommended and default setup)
 - Discord bot token
 
-### Installation
+> **Note:** Docker Compose is the default and officially supported setup method. Non-Docker Compose setups are not
+> actively supported.
+
+### Installation (Docker Compose)
 
 1. **Clone the repository:**
+
 ```bash
 git clone https://github.com/quantumbagel/playcord.git
 cd playcord
 ```
 
 2. **Install dependencies:**
+
 ```bash
 pip install -e .
 # or with poetry
 poetry install
 ```
 
-3. **Start the database:**
-```bash
-docker-compose up -d
-```
+3. **Configure the bot:**
 
-4. **Configure the bot:**
 ```bash
 cp configuration/config.yaml.example configuration/config.yaml
 # Edit config.yaml with your Discord token and database credentials
 ```
 
+4. **Start the database with Docker Compose:**
+
+```bash
+docker-compose up -d
+```
+
+This will start a PostgreSQL container with all necessary configuration.
+
 5. **Run the bot:**
+
 ```bash
 python bot.py
 ```
+
+### Manual Database Setup (Unsupported)
+
+If you prefer to set up PostgreSQL manually without Docker Compose, you'll need to:
+
+- Install PostgreSQL 13+ manually
+- Create the database schema using `database/schema.sql`
+- Configure your connection string in `config.yaml`
+
+> This setup method is not actively supported and may have compatibility issues. Docker Compose is strongly recommended.
 
 ## API Usage
 
 PlayCord provides a simple API for creating new games. See [docs/API.md](docs/API.md) for full documentation.
 
 ### Quick Example
+
 ```python
 from api.Game import Game
 from api.Command import Command
 from api.MessageComponents import Description, Button
 
+
 class MyGame(Game):
     name = "My Game"
     players = 2
     moves = [Command(name="move", description="Make a move", callback="do_move")]
-    
+
     def __init__(self, players):
         self.players = players
         self.turn = 0
-    
+
     def state(self):
         return [Description(f"Turn: {self.current_turn().mention}")]
-    
+
     def current_turn(self):
         return self.players[self.turn]
-    
+
     def do_move(self, player):
         self.turn = (self.turn + 1) % len(self.players)
-    
+
     def outcome(self):
         return None  # Game ongoing
 ```
@@ -158,12 +184,14 @@ class MyGame(Game):
 ## Dependencies
 
 ### Core
+
 - `discord.py` - Discord API wrapper
 - `psycopg` / `psycopg_pool` - PostgreSQL driver
 - `trueskill` - Rating system
 - `ruamel.yaml` - Configuration parsing
 
 ### Optional
+
 - `cairosvg` - SVG rendering for game boards
 - `pillow` - Image manipulation
 
@@ -193,6 +221,7 @@ playcord/
 ## Current Status
 
 ### Completed ✅
+
 - PostgreSQL database with comprehensive schema
 - Emoji API (`register_emoji()`, `get_emoji()`)
 - Leaderboards with pagination
@@ -205,6 +234,7 @@ playcord/
 - Button emoji support
 
 ### In Progress 🚧
+
 - Poker (Texas Hold'em)
 - Chess
 
