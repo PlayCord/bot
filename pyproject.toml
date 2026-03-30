@@ -1,28 +1,30 @@
 [project]
 name = "playcord"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
-  "ruamel.yaml",
-  "discord",
-  "cairosvg",
-  "svg.py",
-  "trueskill",
-  "mpmath",
-  "emoji"
+    "ruamel.yaml",
+    "discord",
+    "cairosvg",
+    "svg.py",
+    "trueskill",
+    "mpmath",
+    "emoji",
+    "psycopg[binary,pool]",
+    "psutil"
 ]
 requires-python = ">=3.10"
 authors = [
-  {name = "Julian Reder"},
+    { name = "Julian Reder" },
 ]
 maintainers = [
-  {name = "Julian Reder"}
+    { name = "Julian Reder" }
 ]
 description = "PlayCord is a discord bot for playing minigames."
 readme = "README.md"
 keywords = ["discord-bot"]
 classifiers = [
-  "Development Status :: 2 - Pre-Alpha",
-  "Programming Language :: Python",
+    "Development Status :: 2 - Pre-Alpha",
+    "Programming Language :: Python",
     "Private :: Do Not Upload"
 ]
 

@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 
 from discord import app_commands
@@ -42,9 +43,45 @@ def load_configuration() -> dict | None:
     return loaded_config_file
 
 
+def apply_environment_overrides(config: dict) -> dict:
+    """Override config values from environment for containerized deployments."""
+    db_config = config.setdefault("db", {})
+
+    direct_overrides = {
+        "PLAYCORD_DB_TYPE": "type",
+        "PLAYCORD_DB_HOST": "host",
+        "PLAYCORD_DB_USER": "user",
+        "PLAYCORD_DB_PASSWORD": "password",
+        "PLAYCORD_DB_NAME": "database",
+    }
+    for env_key, config_key in direct_overrides.items():
+        value = os.getenv(env_key)
+        if value:
+            db_config[config_key] = value
+
+    int_overrides = {
+        "PLAYCORD_DB_PORT": "port",
+        "PLAYCORD_DB_POOL_SIZE": "pool_size",
+        "PLAYCORD_DB_MAX_OVERFLOW": "max_overflow",
+        "PLAYCORD_DB_POOL_TIMEOUT": "pool_timeout",
+    }
+    for env_key, config_key in int_overrides.items():
+        value = os.getenv(env_key)
+        if value:
+            try:
+                db_config[config_key] = int(value)
+            except ValueError:
+                startup_logger.warning(
+                    f"Ignoring invalid integer for {env_key}: {value!r}"
+                )
+
+    return config
+
+
 config = load_configuration()
 if config is None:
     sys.exit(1)
+config = apply_environment_overrides(config)
 constants.CONFIGURATION = config
 
 database_startup_time = Timer().start()

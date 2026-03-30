@@ -148,7 +148,26 @@ class LiarsDiceGame(Game):
                 ephemeral=True, delete_after=3)
 
     def outcome(self):
-        pass
+        """
+        Return the game outcome when only one player remains.
+        
+        :return: List of rank groups [[winner], [2nd place], ...] ordered by elimination
+                 (last eliminated = 2nd place, first eliminated = last place)
+        """
+        # Game is over when only one player remains
+        if len(self.players) != 1:
+            return None
+        
+        # Winner is the last player standing
+        winner = self.players[0]
+        
+        # Build ranking: winner first, then eliminated players in reverse order
+        # (last eliminated = 2nd place, first eliminated = last place)
+        rankings = [[winner]]
+        for eliminated_player in reversed(self.eliminated):
+            rankings.append([eliminated_player])
+        
+        return rankings
 
 
 def stringify_hand(hand):

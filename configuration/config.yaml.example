@@ -1,7 +1,12 @@
 secret: your-secret-here
 db:
-  host: localhost
-  port: 3306
-  user: root
+  type: postgresql  # Database type: postgresql (recommended)
+  host: db  # Use "db" when running via docker-compose, "localhost" for local runs
+  port: 5432  # PostgreSQL default port (was 3306 for MySQL)
+  user: playcord  # Database user
   password: password
   database: playcord
+  # Connection pooling settings (optional, defaults shown)
+  pool_size: 10  # Number of connections in the pool
+  max_overflow: 20  # Max connections beyond pool_size
+  pool_timeout: 30  # Seconds to wait for connection from pool

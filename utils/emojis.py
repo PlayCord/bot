@@ -5,6 +5,7 @@ Provides functionality for:
 - Loading emojis from configuration
 - Registering custom emojis at runtime
 - Getting emoji strings for use in Discord messages
+- Getting button emojis for UI elements
 """
 import logging
 from typing import Optional
@@ -18,6 +19,9 @@ logger = logging.getLogger("playcord.emojis")
 # Loaded emojis from configuration
 emojis: dict[str, dict] = {}
 
+# Button emojis (simple unicode emojis for buttons)
+button_emojis: dict[str, str] = {}
+
 # Runtime-registered emojis (not persisted)
 runtime_emojis: dict[str, dict] = {}
 
@@ -30,11 +34,13 @@ def initialize_emojis() -> bool:
 
     :return: True if successful, False otherwise
     """
-    global emojis, initialized
+    global emojis, button_emojis, initialized
     initialized = True
     try:
-        emojis = ruamel.yaml.YAML().load(open(EMOJI_CONFIGURATION_FILE))["emojis"]
-        logger.info(f"Loaded {len(emojis)} emojis from configuration.")
+        config = ruamel.yaml.YAML().load(open(EMOJI_CONFIGURATION_FILE))
+        emojis = config.get("emojis", {})
+        button_emojis = config.get("button_emojis", {})
+        logger.info(f"Loaded {len(emojis)} emojis and {len(button_emojis)} button emojis from configuration.")
         return True
     except FileNotFoundError:
         logger.critical(f"Emoji configuration file not found: {EMOJI_CONFIGURATION_FILE}")
@@ -144,3 +150,19 @@ def get_emoji_count() -> tuple[int, int]:
     :return: Tuple of (config emoji count, runtime emoji count)
     """
     return len(emojis), len(runtime_emojis)
+
+
+def get_button_emoji(name: str) -> Optional[str]:
+    """
+    Get a button emoji by name.
+    
+    Button emojis are simple unicode emojis used for UI elements like
+    join/leave/start buttons. They fall back gracefully if not configured.
+
+    :param name: The button emoji name (e.g., 'join', 'leave', 'start')
+    :return: The emoji string or None if not found
+    """
+    if not initialized:
+        initialize_emojis()
+    
+    return button_emojis.get(name)

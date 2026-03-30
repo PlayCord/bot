@@ -23,3 +23,11 @@ emojis:
   hmm:
     id: 1328480770846621757
     animated: false
+
+# Button emojis - these will fall back gracefully if not configured
+button_emojis:
+  join: "➕"      # Plus sign for join
+  leave: "🚪"    # Door for leave
+  start: "▶️"    # Play button for start
+  spectate: "👁️"  # Eye for spectate
+  peek: "🔍"     # Magnifying glass for peek

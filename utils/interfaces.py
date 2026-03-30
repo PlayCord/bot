@@ -882,11 +882,21 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
     CURRENT_MATCHMAKING.pop(message.id)  # Remove the MatchmakingInterface from the CURRENT_MATCHMAKING tracker
 
     # Set up a new GameInterface
-    new_game_id = db.database.create_game(game_name=game_type, guild_id=message.guild.id,
-                                          participants=[player.id for player in players],
-                                          is_rated=rated)
+    new_game_id = db.database.create_game(
+        game_name=game_type,
+        guild_id=message.guild.id,
+        participants=[player.id for player in players],
+        is_rated=rated,
+        channel_id=message.channel.id
+    )
     game = GameInterface(game_type, message, creator, list(players), rated, new_game_id)
     await game.setup()  # Setup thread and other stuff
+
+    db.database.update_match_context(
+        match_id=new_game_id,
+        channel_id=message.channel.id,
+        thread_id=game.thread.id
+    )
 
     # Register the game to the channel it's in
     CURRENT_GAMES.update({game.thread.id: game})
@@ -1094,7 +1104,8 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
                                      "new_mu": new_mu,
                                      "new_sigma": new_sigma,
                                      "mu_delta": new_mu - data["old_mu"],
-                                     "sigma_delta": new_sigma - data["old_sigma"], "ranking": 3}})
+                                     "sigma_delta": new_sigma - data["old_sigma"],
+                                     "ranking": data.get("ranking", rankings[list(player_ratings.keys()).index(player)] + 1)}})
 
         db.database.end_game(match_id=game_id, game_name=game_type, rating_updates=ratings, final_scores=None)
 

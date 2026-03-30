@@ -1,6 +1,6 @@
 import discord
 
-VERSION = "dev14"
+VERSION = "0.1.0//"
 IS_ACTIVE = True
 NAME = "PlayCord"
 MANAGED_BY = "quantumbagel"
@@ -45,19 +45,38 @@ ERROR_INCORRECT_SETUP = ("This is likely due to:\n"
                          "2. Incorrect discord token\n"
                          "3. Incorrectly set up discord bot")
 
-GAME_TYPES = {"tictactoe": ["games.TicTacToe", "TicTacToeGame"], "liars": ["games.LiarsDice", "LiarsDiceGame"],
-              "test": ["games.TestGame", "TestGame"]}
+GAME_TYPES = {
+    "tictactoe": ["games.TicTacToe", "TicTacToeGame"],
+    "liars": ["games.LiarsDice", "LiarsDiceGame"],
+    "test": ["games.TestGame", "TestGame"],
+    "connectfour": ["games.ConnectFour", "ConnectFourGame"],
+    "reversi": ["games.Reversi", "ReversiGame"],
+    "nim": ["games.Nim", "NimGame"],
+    "mastermind": ["games.MastermindDuel", "MastermindDuelGame"],
+    "battleship": ["games.Battleship", "BattleshipGame"],
+    "nothanks": ["games.NoThanks", "NoThanksGame"],
+    "blackjack": ["games.BlackjackTable", "BlackjackTableGame"],
+    "codenames": ["games.CodenamesLite", "CodenamesLiteGame"],
+    "poker": ["games.Poker", "PokerGame"],
+    "chess": ["games.Chess", "ChessGame"],
+}
 
 MU = 1000
-GAME_TRUESKILL = {"tictactoe": {"sigma": 1 / 6,
-                                "beta": 1 / 12,
-                                "tau": 1 / 100,
-                                "draw": 9 / 10},
-                  "liars": {"sigma": 1 / 2.5,
-                            "beta": 1 / 5,
-                            "tau": 1 / 250,
-                            "draw": 0},
-                  "test": {"sigma": 1 / 3, "beta": 1 / 5, "tau": 1 / 250, "draw": 0}}
+GAME_TRUESKILL = {
+    "tictactoe": {"sigma": 1 / 6, "beta": 1 / 12, "tau": 1 / 100, "draw": 9 / 10},
+    "liars": {"sigma": 1 / 2.5, "beta": 1 / 5, "tau": 1 / 250, "draw": 0},
+    "test": {"sigma": 1 / 3, "beta": 1 / 5, "tau": 1 / 250, "draw": 0},
+    "connectfour": {"sigma": 1 / 6, "beta": 1 / 12, "tau": 1 / 120, "draw": 1 / 10},
+    "reversi": {"sigma": 1 / 5, "beta": 1 / 10, "tau": 1 / 150, "draw": 1 / 20},
+    "nim": {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 150, "draw": 0},
+    "mastermind": {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 180, "draw": 0},
+    "battleship": {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 180, "draw": 0},
+    "nothanks": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 0},
+    "blackjack": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 1 / 5},
+    "codenames": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 220, "draw": 0},
+    "poker": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 0},
+    "chess": {"sigma": 1 / 5, "beta": 1 / 10, "tau": 1 / 150, "draw": 1 / 10},
+}
 
 TEXTIFY_CURRENT_GAME_TURN = {
     "It's {player}'s turn to play.": 0.529,
@@ -164,3 +183,15 @@ PRESENCE_PRESETS = [
     "games with friends!",
     "/play catalog"
 ]
+
+# Permission and policy messages
+PERMISSION_MSG_NOT_PARTICIPANT = "You are not a participant in this game."
+PERMISSION_MSG_SPECTATE_DISABLED = "Spectating is disabled for this game."
+PERMISSION_MSG_WRONG_CHANNEL = "This command can only be used in a game thread."
+PERMISSION_MSG_NO_GAME_HERE = "There is no active game in this channel."
+PERMISSION_MSG_NOT_YOUR_TURN = "It isn't your turn right now!"
+
+# Thread policy settings
+THREAD_POLICY_WARN_NON_PARTICIPANTS = True  # Warn users who message in game threads without being participants
+THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES = False  # Delete messages from non-participants (more aggressive)
+THREAD_POLICY_WARNING_MESSAGE = "⚠️ This is an active game thread. Only game participants can send messages here."

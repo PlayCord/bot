@@ -1,29 +1,67 @@
+"""
+PlayCord PostgreSQL Database Interface
+Comprehensive database operations with transaction support and connection pooling.
+"""
+
 import json
 import logging
-from datetime import datetime
+from contextlib import contextmanager
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any, List, Tuple
 
 import discord
-import mysql.connector
-from mysql.connector import Error
+try:
+    import psycopg  # psycopg3
+    from psycopg.rows import dict_row
+    from psycopg_pool import ConnectionPool
+except ImportError:
+    # Fallback error message
+    raise ImportError(
+        "psycopg3 is required. Install with: pip install 'psycopg[binary,pool]'"
+    )
 
 from api.Player import Player
 from configuration import constants
-from configuration.constants import GAME_TRUESKILL, MU, SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD
+from configuration.constants import GAME_TRUESKILL, MU
+from utils.models import (
+    User, Guild, Game, Rating, Match, Participant, Move,
+    AnalyticsEvent, RatingHistory, GlobalRating, Season,
+    MatchStatus, EventType,
+    row_to_user, row_to_guild, row_to_game, row_to_rating,
+    row_to_match, row_to_participant, row_to_move
+)
 
 logger = logging.getLogger("playcord.database")
 
+
+# ============================================================================
+# EXCEPTIONS
+# ============================================================================
 
 class DatabaseConnectionError(Exception):
     """Exception raised when failed to connect to the database."""
     pass
 
 
+class DatabaseError(Exception):
+    """Generic database operation error."""
+    pass
+
+
+# ============================================================================
+# INTERNAL PLAYER CLASSES (for compatibility)
+# ============================================================================
+
 class InternalPlayerRatingStatistic:
-    def __init__(self, name, mu, sigma):
+    """Rating statistic for a specific game"""
+    def __init__(self, name: str, mu: Optional[float], sigma: Optional[float]):
         self.name = name
         if mu is None:
             self.mu = MU
-            self.sigma = GAME_TRUESKILL[name]["sigma"] * MU
+            if name in GAME_TRUESKILL:
+                self.sigma = GAME_TRUESKILL[name]["sigma"] * MU
+            else:
+                self.sigma = MU / 3.0  # Default sigma
             self.stored = False
         else:
             self.mu = mu
@@ -32,9 +70,15 @@ class InternalPlayerRatingStatistic:
 
 
 class InternalPlayer:
-    def __init__(self, ratings: dict[str, dict[str, float]], user: discord.User | discord.Object = None, metadata=None,
-                 id: int = None):
-        # Null checks
+    """Internal player representation with ratings"""
+    def __init__(
+        self,
+        ratings: Dict[str, Dict[str, float]],
+        user: Optional[discord.User | discord.Object] = None,
+        metadata: Optional[Dict] = None,
+        id: Optional[int] = None
+    ):
+        # User info
         if isinstance(user, discord.User):
             self.name = user.name
         else:
@@ -61,25 +105,62 @@ class InternalPlayer:
 
         self._update_ratings(self.ratings)
 
-    def _update_ratings(self, ratings):
+    def _update_ratings(self, ratings: Dict[str, Dict[str, float]]):
+        """Update rating attributes from ratings dict"""
         for key in GAME_TRUESKILL:
             if key not in ratings:
-                ratings[key] = {"mu": MU, "sigma": GAME_TRUESKILL[key]["sigma"] * MU}
-            setattr(self, key, InternalPlayerRatingStatistic(key,
-                                                             ratings[key]["mu"],
-                                                             ratings[key]["sigma"]))
+                ratings[key] = {
+                    "mu": MU,
+                    "sigma": GAME_TRUESKILL[key]["sigma"] * MU
+                }
+            setattr(
+                self,
+                key,
+                InternalPlayerRatingStatistic(
+                    key,
+                    ratings[key]["mu"],
+                    ratings[key]["sigma"]
+                )
+            )
 
     @property
-    def mention(self):
-        return f"<@{self.id}>"  # Don't use self.user.mention because it could be an Object
+    def mention(self) -> str:
+        """Discord mention string"""
+        return f"<@{self.id}>"
 
-    def get_formatted_elo(self, game_type):
-        rating = getattr(self, game_type)
-        if rating.mu is None:  # No rating information
+    def get_formatted_elo(self, game_type: str, include_global_rank: bool = False, game_id: int = None) -> str:
+        """
+        Get formatted rating string with uncertainty indicator.
+        
+        :param game_type: The game type key (e.g., 'tictactoe')
+        :param include_global_rank: If True, include global rank suffix for top players
+        :param game_id: Required if include_global_rank is True
+        :return: Formatted rating string like "1000", "1000?", or "1000 (Top 5 globally)"
+        """
+        rating = getattr(self, game_type, None)
+        if rating is None or rating.mu is None:
             return "No Rating"
-        if rating.sigma > SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD * rating.mu:
-            return str(round(rating.mu)) + "?"
-        return str(round(rating.mu))
+        
+        # Use 20% threshold (from constants.SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD)
+        if rating.sigma > 0.20 * rating.mu:
+            base_rating = str(round(rating.mu)) + "?"
+        else:
+            base_rating = str(round(rating.mu))
+        
+        # Add global rank suffix for top players
+        if include_global_rank and game_id is not None:
+            global_rank = database.get_user_global_rank(self.id, game_id)
+            if global_rank is not None and global_rank <= 100:  # Top 100 players
+                if global_rank == 1:
+                    base_rating += " 🏆 #1 Globally"
+                elif global_rank <= 3:
+                    base_rating += f" 🥇 Top {global_rank} Globally"
+                elif global_rank <= 10:
+                    base_rating += f" ⭐ Top {global_rank} Globally"
+                elif global_rank <= 100:
+                    base_rating += f" (Top {global_rank} Globally)"
+        
+        return base_rating
 
     def __eq__(self, other):
         if other is None:
@@ -103,368 +184,1111 @@ class InternalPlayer:
 
 
 def get_shallow_player(user: discord.User) -> InternalPlayer:
+    """Create a shallow player with no ratings"""
     return InternalPlayer(ratings={}, user=user)
 
 
 def internal_player_to_player(internal_player: InternalPlayer, game_type: str) -> Player:
+    """Convert InternalPlayer to API Player object"""
     rating = getattr(internal_player, game_type)
-    return Player(mu=rating.mu, sigma=rating.sigma, ranking=None,
-                  id=internal_player.user.id, name=internal_player.user.name)
+    return Player(
+        mu=rating.mu,
+        sigma=rating.sigma,
+        ranking=None,
+        id=internal_player.user.id,
+        name=internal_player.user.name
+    )
 
+
+# ============================================================================
+# DATABASE CLASS
+# ============================================================================
 
 class Database:
-    def __init__(self, host, port, user, password, database):
+    """
+    PostgreSQL database interface for PlayCord.
+    Supports transactions, connection pooling, and comprehensive CRUD operations.
+    """
+
+    def __init__(self, host: str, port: int, user: str, password: str, database: str,
+                 pool_size: int = 10, max_overflow: int = 20, pool_timeout: int = 30):
+        """
+        Initialize database connection pool.
+
+        Args:
+            host: Database host
+            port: Database port
+            user: Database user
+            password: Database password
+            database: Database name
+            pool_size: Number of connections in pool
+            max_overflow: Max connections beyond pool_size
+            pool_timeout: Seconds to wait for connection from pool
+        """
         self.host = host
         self.port = port
         self.user = user
         self.password = password
         self.database = database
-        self.connection = None
+        self.pool_size = pool_size
+        self.max_overflow = max_overflow
+        self.pool_timeout = pool_timeout
+
+        # Connection string
+        self.conninfo = (
+            f"host={host} port={port} dbname={database} "
+            f"user={user} password={password}"
+        )
+
+        # Connection pool
+        self.pool: Optional[ConnectionPool] = None
         self.connect()
 
     def connect(self):
+        """Initialize connection pool"""
         try:
-            self.connection = mysql.connector.connect(
-                host=self.host,
-                user=self.user,
-                port=self.port,
-                password=self.password,
-                database=self.database
+            self.pool = ConnectionPool(
+                conninfo=self.conninfo,
+                min_size=2,
+                max_size=self.pool_size,
+                timeout=self.pool_timeout,
+                kwargs={"row_factory": dict_row}
             )
-            logger.info("Connected to database.")
-        except Error as e:
-            logger.error(f"Error connecting to MySQL: {e}")
-            self.connection = None
+            logger.info(f"Connected to PostgreSQL database: {self.database}")
+        except Exception as e:
+            logger.error(f"Error connecting to PostgreSQL: {e}")
+            self.pool = None
             raise DatabaseConnectionError(f"Could not connect to database: {e}")
 
-    def _execute_query(self, query, params=None, fetchone=False, fetchall=False):
-        if not self.connection or not self.connection.is_connected():
+    def disconnect(self):
+        """Close connection pool"""
+        if self.pool:
+            self.pool.close()
+            logger.info("Database connection pool closed.")
+
+    def get_connection(self):
+        """Get a connection from the pool"""
+        if not self.pool:
+            raise DatabaseConnectionError("Connection pool not initialized")
+        return self.pool.connection()
+
+    @contextmanager
+    def transaction(self):
+        """
+        Transaction context manager.
+        
+        Usage:
+            with db.transaction() as conn:
+                cur = conn.cursor()
+                cur.execute("INSERT ...")
+                # Auto-commits on success, rolls back on exception
+        """
+        with self.get_connection() as conn:
             try:
-                self.connect()
-            except DatabaseConnectionError:
-                raise DatabaseConnectionError("Failed to connect to database.")
+                with conn.cursor() as cur:
+                    yield cur
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                logger.error(f"Transaction failed, rolled back: {e}")
+                raise
 
-        cursor = self.connection.cursor(dictionary=True)
-        try:
-            if params:
-                cursor.execute(query, params)
-            else:
-                cursor.execute(query)
+    def _execute_query(
+        self,
+        query: str,
+        params: Optional[Tuple] = None,
+        fetchone: bool = False,
+        fetchall: bool = False
+    ):
+        """
+        Execute a query with automatic connection management.
 
-            if fetchone:
-                return cursor.fetchone()
-            elif fetchall:
-                return cursor.fetchall()
-            else:
-                self.connection.commit()
-                return cursor.lastrowid if cursor.lastrowid else None
-        except Error as e:
-            logger.warning(
-                f"Error executing query {query} (params={params}, fetchone={fetchone}, fetchall={fetchall}): {e}")
-            raise
-        finally:
-            cursor.close()
+        Args:
+            query: SQL query string
+            params: Query parameters tuple
+            fetchone: Return single row
+            fetchall: Return all rows
 
-    def create_user(self, user_id):
-        query = "INSERT IGNORE INTO users (user_id) VALUES (%s);"
-        self._execute_query(query, (user_id,))
+        Returns:
+            Query result or None
+        """
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                try:
+                    cur.execute(query, params or ())
 
-    def create_guild(self, guild_id):
-        query = "INSERT IGNORE INTO guilds (guild_id) VALUES (%s);"
-        self._execute_query(query, (guild_id,))
+                    if fetchone:
+                        return cur.fetchone()
+                    elif fetchall:
+                        return cur.fetchall()
+                    else:
+                        conn.commit()
+                        return None
 
-    def update_user_preferences(self, user_id, preferences):
+                except Exception as e:
+                    conn.rollback()
+                    logger.warning(
+                        f"Error executing query {query[:100]}... "
+                        f"(params={params}, fetchone={fetchone}, fetchall={fetchall}): {e}"
+                    )
+                    raise
+
+    # ========================================================================
+    # USER OPERATIONS
+    # ========================================================================
+
+    def create_user(self, user_id: int, username: str = "Unknown", is_bot: bool = False):
+        """Create a user record"""
+        query = """
+            INSERT INTO users (user_id, username, is_bot)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET
+                username = EXCLUDED.username,
+                is_bot = EXCLUDED.is_bot,
+                updated_at = NOW();
+        """
+        self._execute_query(query, (user_id, username, is_bot))
+
+    def get_user(self, user_id: int) -> Optional[User]:
+        """Get user by ID"""
+        query = "SELECT * FROM users WHERE user_id = %s;"
+        result = self._execute_query(query, (user_id,), fetchone=True)
+        return row_to_user(result) if result else None
+
+    def update_user_preferences(self, user_id: int, preferences: Dict[str, Any]):
+        """Update user preferences"""
         preferences_json = json.dumps(preferences)
         query = """
-                INSERT INTO users (user_id, preferences)
-                VALUES (%s, %s)
-                ON DUPLICATE KEY UPDATE preferences = VALUES(preferences);
-                """
+            INSERT INTO users (user_id, username, preferences)
+            VALUES (%s, 'Unknown', %s::jsonb)
+            ON CONFLICT (user_id) DO UPDATE SET
+                preferences = EXCLUDED.preferences,
+                updated_at = NOW();
+        """
         self._execute_query(query, (user_id, preferences_json))
 
-    def get_user_preferences(self, user_id):
+    def get_user_preferences(self, user_id: int) -> Optional[Dict]:
+        """Get user preferences"""
         query = "SELECT joined_at, preferences FROM users WHERE user_id = %s;"
         result = self._execute_query(query, (user_id,), fetchone=True)
         if result and result['preferences']:
-            result['preferences'] = json.loads(result['preferences'])
+            # Already a dict from dict_row
+            return result
         return result
 
-    def update_guild_preferences(self, guild_id, preferences):
-        preferences_json = json.dumps(preferences)
-        query = """
-                INSERT INTO guilds (guild_id, preferences)
-                VALUES (%s, %s)
-                ON DUPLICATE KEY UPDATE preferences = VALUES(preferences);
-                """
-        self._execute_query(query, (guild_id, preferences_json))
-
-    def get_guild_preferences(self, guild_id):
-        query = "SELECT joined_at, preferences FROM guilds WHERE guild_id = %s;"
-        result = self._execute_query(query, (guild_id,), fetchone=True)
-        if result and result['preferences']:
-            result['preferences'] = json.loads(result['preferences'])
-        return result
-
-    def delete_user(self, user_id):
+    def delete_user(self, user_id: int):
+        """Delete a user (cascades to ratings, etc.)"""
         query = "DELETE FROM users WHERE user_id = %s;"
         self._execute_query(query, (user_id,))
 
-    def delete_guild(self, guild_id):
+    def search_users(self, query_text: str, limit: int = 10) -> List[User]:
+        """Search users by username pattern"""
+        query = """
+            SELECT * FROM users
+            WHERE username ILIKE %s AND is_active = TRUE
+            LIMIT %s;
+        """
+        pattern = f"%{query_text}%"
+        results = self._execute_query(query, (pattern, limit), fetchall=True)
+        return [row_to_user(row) for row in results] if results else []
+
+    # ========================================================================
+    # GUILD OPERATIONS
+    # ========================================================================
+
+    def create_guild(self, guild_id: int, settings: Optional[Dict[str, Any]] = None):
+        """Create a guild record"""
+        settings_json = json.dumps(settings or {})
+        query = """
+            INSERT INTO guilds (guild_id, settings)
+            VALUES (%s, %s::jsonb)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                settings = EXCLUDED.settings,
+                updated_at = NOW();
+        """
+        self._execute_query(query, (guild_id, settings_json))
+
+    def get_guild(self, guild_id: int) -> Optional[Guild]:
+        """Get guild by ID"""
+        query = "SELECT * FROM guilds WHERE guild_id = %s;"
+        result = self._execute_query(query, (guild_id,), fetchone=True)
+        return row_to_guild(result) if result else None
+
+    def update_guild_settings(self, guild_id: int, settings: Dict[str, Any]):
+        """Update guild settings"""
+        settings_json = json.dumps(settings)
+        query = """
+            INSERT INTO guilds (guild_id, settings)
+            VALUES (%s, %s::jsonb)
+            ON CONFLICT (guild_id) DO UPDATE SET
+                settings = EXCLUDED.settings,
+                updated_at = NOW();
+        """
+        self._execute_query(query, (guild_id, settings_json))
+
+    def get_guild_settings(self, guild_id: int) -> Optional[Dict]:
+        """Get guild settings"""
+        query = "SELECT settings FROM guilds WHERE guild_id = %s;"
+        result = self._execute_query(query, (guild_id,), fetchone=True)
+        return result['settings'] if result else None
+
+    def delete_guild(self, guild_id: int):
+        """Delete a guild (cascades to matches, ratings, etc.)"""
         query = "DELETE FROM guilds WHERE guild_id = %s;"
         self._execute_query(query, (guild_id,))
 
-    def initialize_user_game_ratings(self, user_id, guild_id, game_name):
-        self.create_user(user_id)
-        self.create_guild(guild_id)
-        mu = MU
-        sigma = GAME_TRUESKILL[game_name]["sigma"] * mu
-        query = "INSERT IGNORE INTO user_game_ratings (user_id, guild_id, game_name, mu, sigma) VALUES (%s, %s, %s, %s, %s);"
-        self._execute_query(query, (user_id, guild_id, game_name, mu, sigma))
+    def get_active_guilds(self) -> List[Guild]:
+        """Get all active guilds"""
+        query = "SELECT * FROM guilds WHERE is_active = TRUE ORDER BY joined_at DESC;"
+        results = self._execute_query(query, fetchall=True)
+        return [row_to_guild(row) for row in results] if results else []
 
-    def update_ratings_after_match(self, user_id, guild_id, game_name, mu, sigma,
-                                   matches_played_increment=1):
-        self.create_user(user_id)
-        self.create_guild(guild_id)
+    # ========================================================================
+    # GAME REGISTRY OPERATIONS
+    # ========================================================================
+
+    def register_game(
+        self,
+        game_name: str,
+        display_name: str,
+        min_players: int,
+        max_players: int,
+        rating_config: Dict[str, float],
+        game_metadata: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """Register a new game type"""
+        config_json = json.dumps(rating_config)
+        metadata_json = json.dumps(game_metadata or {})
         query = """
-                INSERT INTO user_game_ratings (user_id, guild_id, game_name, mu, sigma, matches_played, last_played)
-                VALUES (%s, %s, %s, 25.0 + %s, 8.333 + %s, %s, CURRENT_TIMESTAMP)
-                ON DUPLICATE KEY UPDATE mu             = %s,
-                                        sigma          = %s,
-                                        matches_played = matches_played + %s,
-                                        last_played    = CURRENT_TIMESTAMP;
-                """
-        self._execute_query(query,
-                            (user_id, guild_id, game_name, mu, sigma, matches_played_increment, mu,
-                             sigma,
-                             matches_played_increment))
-
-    def get_user_game_ratings(self, user_id, guild_id, game_name):
-        query = "SELECT mu, sigma, matches_played, last_played FROM user_game_ratings WHERE user_id = %s AND guild_id = %s AND game_name = %s;"
-        return self._execute_query(query, (user_id, guild_id, game_name), fetchone=True)
-
-    def get_game_leaderboard(self, guild_id, game_name, limit=10):
-        query = """
-                SELECT user_id, mu, sigma, conservative_rating AS rating, matches_played
-                FROM user_game_ratings
-                WHERE guild_id = %s
-                  AND game_name = %s
-                ORDER BY conservative_rating DESC
-                LIMIT %s;
-                """
-        return self._execute_query(query, (guild_id, game_name, limit), fetchall=True)
-
-    def reset_user_game_ratings(self, user_id, guild_id, game_name):
-        query = """
-                UPDATE user_game_ratings
-                SET mu             = 25.0,
-                    sigma          = 8.333,
-                    matches_played = 0,
-                    last_played    = NULL
-                WHERE user_id = %s
-                  AND guild_id = %s
-                  AND game_name = %s;
-                """
-        self._execute_query(query, (user_id, guild_id, game_name))
-
-    def delete_user_game_ratings(self, user_id, guild_id, game_name):
-        query = "DELETE FROM user_game_ratings WHERE user_id = %s AND guild_id = %s AND game_name = %s;"
-        self._execute_query(query, (user_id, guild_id, game_name))
-
-    def record_new_game(self, game_name, guild_id, started_at, is_rated, game_data):
-        self.create_guild(guild_id)
-        ended_at = datetime.now()
-        game_data_json = json.dumps(game_data)
-        query = """
-                INSERT INTO matches (game_name, guild_id, started, ended, rated, game_data)
-                VALUES (%s, %s, %s, %s, %s, %s);
-                """
-        params = (game_name, guild_id, started_at, ended_at, is_rated, game_data_json)
-        return self._execute_query(query, params)
-
-    def get_match_details(self, match_id):
-        query = "SELECT * FROM matches WHERE match_id = %s;"
-        result = self._execute_query(query, (match_id,), fetchone=True)
-        if result and result['game_data']:
-            result['game_data'] = json.loads(result['game_data'])
-        return result
-
-    def get_recent_matches_for_game(self, guild_id, game_name, limit=10):
-        query = """
-                SELECT match_id, started, ended, rated
-                FROM matches
-                WHERE guild_id = %s
-                  AND game_name = %s
-                ORDER BY ended DESC
-                LIMIT %s;
-                """
-        return self._execute_query(query, (guild_id, game_name, limit), fetchall=True)
-
-    def update_match_game_data(self, match_id, new_final_scores):
-        new_final_scores_json = json.dumps(new_final_scores)
-        query = """
-                UPDATE matches
-                SET game_data = JSON_SET(game_data, '$.final_scores', %s)
-                WHERE match_id = %s;
-                """
-        self._execute_query(query, (new_final_scores_json, match_id))
-
-    def delete_match(self, match_id):
-        query = "DELETE FROM matches WHERE match_id = %s;"
-        self._execute_query(query, (match_id,))
-
-    def add_match_participants(self, match_id, participants):
-        query = """
-                INSERT INTO match_participants (match_id, user_id, ranking, mu_delta, sigma_delta)
-                VALUES (%s, %s, %s, %s, %s);
-                """
-        for participant_key in participants:
-            p = participants[participant_key]
-            self.create_user(p['uid'])
-            self._execute_query(query, (match_id, p['uid'], p['ranking'], p['mu_delta'], p['sigma_delta']))
-
-    def get_match_participants(self, match_id):
-        query = """
-                SELECT user_id, ranking, mu_delta, sigma_delta
-                FROM match_participants
-                WHERE match_id = %s
-                ORDER BY ranking ASC;
-                """
-        return self._execute_query(query, (match_id,), fetchall=True)
-
-    def get_user_match_history(self, user_id, guild_id, limit=10):
-        query = """
-                SELECT m.match_id, m.game_name, m.ended, mp.ranking, mp.mu_delta, mp.sigma_delta
-                FROM match_participants mp
-                         JOIN matches m ON mp.match_id = m.match_id
-                WHERE mp.user_id = %s
-                  AND m.guild_id = %s
-                ORDER BY m.ended DESC
-                LIMIT %s;
-                """
-        return self._execute_query(query, (user_id, guild_id, limit), fetchall=True)
-
-    def get_inactive_users(self, guild_id=None):
-        query = """
-                SELECT guild_id, user_id, game_name, last_played
-                FROM user_game_ratings
-                WHERE last_played < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 DAY)
-                """
-        params = []
-        if guild_id is not None:
-            query += " AND guild_id = %s"
-            params.append(guild_id)
-        return self._execute_query(query, tuple(params) if params else None, fetchall=True)
-
-    def get_full_match_details(self, match_id):
-        query = """
-                SELECT m.*, mp.user_id, mp.ranking, mp.mu_delta, mp.sigma_delta, ugr.mu, ugr.sigma
-                FROM matches m
-                         JOIN match_participants mp ON m.match_id = mp.match_id
-                         LEFT JOIN user_game_ratings ugr
-                                   ON mp.user_id = ugr.user_id AND m.game_name = ugr.game_name AND
-                                      m.guild_id = ugr.guild_id
-                WHERE m.match_id = %s;
-                """
-        results = self._execute_query(query, (match_id,), fetchall=True)
-        for result in results:
-            if result['game_data']:
-                result['game_data'] = json.loads(result['game_data'])
-        return results
-
-    def count_matches_for_game(self, guild_id, game_name, is_rated=None):
-        query = """
-                SELECT COUNT(*) AS match_count
-                FROM matches
-                WHERE guild_id = %s
-                  AND game_name = %s
-                """
-        params = [guild_id, game_name]
-        if is_rated is not None:
-            query += " AND rated = %s"
-            params.append(is_rated)
-        query += ";"
-        result = self._execute_query(query, tuple(params), fetchone=True)
-        return result['match_count'] if result else 0
-
-    def count_matches_for_user(self, user_id, guild_id, is_rated=None):
-        query = """
-                SELECT COUNT(DISTINCT m.match_id) AS total_matches
-                FROM match_participants mp
-                         JOIN matches m ON mp.match_id = m.match_id
-                WHERE mp.user_id = %s
-                  AND m.guild_id = %s
-                """
-        params = [user_id, guild_id]
-        if is_rated is not None:
-            query += " AND m.rated = %s"
-            params.append(is_rated)
-        query += ";"
-        result = self._execute_query(query, tuple(params), fetchone=True)
-        return result['total_matches'] if result else 0
-
-    def get_player(self, user: discord.User | discord.Member, guild_id: int) -> InternalPlayer | None:
+            INSERT INTO games (game_name, display_name, min_players, max_players,
+                              rating_config, game_metadata)
+            VALUES (%s, %s, %s, %s, %s::jsonb, %s::jsonb)
+            ON CONFLICT (game_name) DO UPDATE SET
+                display_name = EXCLUDED.display_name,
+                min_players = EXCLUDED.min_players,
+                max_players = EXCLUDED.max_players,
+                rating_config = EXCLUDED.rating_config,
+                game_metadata = EXCLUDED.game_metadata,
+                updated_at = NOW()
+            RETURNING game_id;
         """
-        Get an InternalPlayer object from the database (per-guild ratings now).
-        """
-        user_id = user.id if isinstance(user, (discord.User, discord.Member, InternalPlayer)) else user
-        preferences = self.get_user_preferences(user_id)
-        metadata = preferences['preferences'] if preferences and preferences['preferences'] else {}
-
-        query = "SELECT game_name, mu, sigma FROM user_game_ratings WHERE user_id = %s AND guild_id = %s;"
-        ratings_data = self._execute_query(query, (user_id, guild_id), fetchall=True)
-        ratings = {row['game_name']: {'mu': row['mu'], 'sigma': row['sigma']} for row in
-                   ratings_data} if ratings_data else {}
-
-        ip = InternalPlayer(
-            ratings=ratings,
-            user=user if isinstance(user, (discord.User, discord.Member)) else None,
-            metadata=metadata,
-            id=user_id
+        result = self._execute_query(
+            query,
+            (game_name, display_name, min_players, max_players, config_json, metadata_json),
+            fetchone=True
         )
-        return ip
+        return result['game_id'] if result else None
 
-    def create_game(self, game_name: str, guild_id: int, participants: list,
-                    is_rated: bool = True) -> int:
+    def get_game(self, game_name: str) -> Optional[Game]:
+        """Get game by name"""
+        query = "SELECT * FROM games WHERE game_name = %s;"
+        result = self._execute_query(query, (game_name,), fetchone=True)
+        return row_to_game(result) if result else None
+
+    def get_game_by_id(self, game_id: int) -> Optional[Game]:
+        """Get game by ID"""
+        query = "SELECT * FROM games WHERE game_id = %s;"
+        result = self._execute_query(query, (game_id,), fetchone=True)
+        return row_to_game(result) if result else None
+
+    def get_all_games(self, active_only: bool = True) -> List[Game]:
+        """Get all games"""
+        if active_only:
+            query = "SELECT * FROM games WHERE is_active = TRUE ORDER BY game_name;"
+        else:
+            query = "SELECT * FROM games ORDER BY game_name;"
+        results = self._execute_query(query, fetchall=True)
+        return [row_to_game(row) for row in results] if results else []
+
+    def update_game_config(self, game_id: int, config: Dict[str, Any]):
+        """Update game rating configuration"""
+        config_json = json.dumps(config)
+        query = """
+            UPDATE games SET rating_config = %s::jsonb, updated_at = NOW()
+            WHERE game_id = %s;
+        """
+        self._execute_query(query, (config_json, game_id))
+
+    def deactivate_game(self, game_id: int):
+        """Deactivate a game"""
+        query = "UPDATE games SET is_active = FALSE, updated_at = NOW() WHERE game_id = %s;"
+        self._execute_query(query, (game_id,))
+
+    # ========================================================================
+    # RATING OPERATIONS
+    # ========================================================================
+
+    def initialize_user_rating(self, user_id: int, guild_id: int, game_id: int):
+        """Initialize user rating for a game in a guild"""
+        # Get game config for default values
+        game = self.get_game_by_id(game_id)
+        if not game:
+            raise ValueError(f"Game {game_id} not found")
+
+        mu = game.default_mu
+        sigma = game.default_sigma
+
+        query = """
+            INSERT INTO user_game_ratings (user_id, guild_id, game_id, mu, sigma)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (user_id, guild_id, game_id) DO NOTHING;
+        """
+        self._execute_query(query, (user_id, guild_id, game_id, mu, sigma))
+
+    def get_user_rating(self, user_id: int, guild_id: int, game_id: int) -> Optional[Rating]:
+        """Get user rating for a specific game in a guild"""
+        query = """
+            SELECT * FROM user_game_ratings
+            WHERE user_id = %s AND guild_id = %s AND game_id = %s;
+        """
+        result = self._execute_query(query, (user_id, guild_id, game_id), fetchone=True)
+        return row_to_rating(result) if result else None
+
+    def get_user_all_ratings(self, user_id: int, guild_id: int) -> List[Rating]:
+        """Get all ratings for a user in a guild"""
+        query = """
+            SELECT * FROM user_game_ratings
+            WHERE user_id = %s AND guild_id = %s
+            ORDER BY game_id;
+        """
+        results = self._execute_query(query, (user_id, guild_id), fetchall=True)
+        return [row_to_rating(row) for row in results] if results else []
+
+    def update_rating(
+        self,
+        user_id: int,
+        guild_id: int,
+        game_id: int,
+        mu: float,
+        sigma: float,
+        matches_increment: int = 1,
+        win: bool = False,
+        loss: bool = False,
+        draw: bool = False
+    ):
+        """Update user rating"""
+        query = """
+            UPDATE user_game_ratings
+            SET mu = %s,
+                sigma = %s,
+                matches_played = matches_played + %s,
+                wins = wins + %s,
+                losses = losses + %s,
+                draws = draws + %s,
+                last_played = NOW(),
+                updated_at = NOW()
+            WHERE user_id = %s AND guild_id = %s AND game_id = %s;
+        """
+        self._execute_query(
+            query,
+            (mu, sigma, matches_increment,
+             1 if win else 0, 1 if loss else 0, 1 if draw else 0,
+             user_id, guild_id, game_id)
+        )
+
+    def bulk_update_ratings(self, updates: List[Dict[str, Any]]):
+        """Bulk update multiple ratings in a transaction"""
+        with self.transaction() as cur:
+            for update in updates:
+                query = """
+                    UPDATE user_game_ratings
+                    SET mu = %s, sigma = %s, matches_played = matches_played + 1,
+                        last_played = NOW(), updated_at = NOW()
+                    WHERE user_id = %s AND guild_id = %s AND game_id = %s;
+                """
+                cur.execute(
+                    query,
+                    (update['mu'], update['sigma'], update['user_id'],
+                     update['guild_id'], update['game_id'])
+                )
+
+    def reset_user_rating(self, user_id: int, guild_id: int, game_id: int):
+        """Reset user rating to defaults"""
+        game = self.get_game_by_id(game_id)
+        if not game:
+            raise ValueError(f"Game {game_id} not found")
+
+        query = """
+            UPDATE user_game_ratings
+            SET mu = %s,
+                sigma = %s,
+                matches_played = 0,
+                wins = 0,
+                losses = 0,
+                draws = 0,
+                last_played = NULL,
+                last_sigma_increase = NULL,
+                updated_at = NOW()
+            WHERE user_id = %s AND guild_id = %s AND game_id = %s;
+        """
+        self._execute_query(
+            query,
+            (game.default_mu, game.default_sigma, user_id, guild_id, game_id)
+        )
+
+    def delete_user_rating(self, user_id: int, guild_id: int, game_id: int):
+        """Delete user rating"""
+        query = """
+            DELETE FROM user_game_ratings
+            WHERE user_id = %s AND guild_id = %s AND game_id = %s;
+        """
+        self._execute_query(query, (user_id, guild_id, game_id))
+
+    # ========================================================================
+    # LEADERBOARD OPERATIONS
+    # ========================================================================
+
+    def get_leaderboard(
+        self,
+        guild_id: int,
+        game_id: int,
+        limit: int = 10,
+        offset: int = 0,
+        min_matches: int = 5
+    ) -> List[Dict[str, Any]]:
+        """Get leaderboard for a game in a guild"""
+        query = """
+            SELECT 
+                ugr.user_id,
+                u.username,
+                ugr.mu,
+                ugr.sigma,
+                (ugr.mu - 3 * ugr.sigma) as conservative_rating,
+                ugr.matches_played,
+                ugr.wins,
+                ugr.losses,
+                ugr.draws,
+                CASE
+                    WHEN (ugr.matches_played - ugr.draws) > 0
+                    THEN ROUND(100.0 * ugr.wins / (ugr.matches_played - ugr.draws), 2)
+                    ELSE 0.0
+                END as win_rate
+            FROM user_game_ratings ugr
+            JOIN users u ON ugr.user_id = u.user_id
+            WHERE ugr.guild_id = %s
+              AND ugr.game_id = %s
+              AND ugr.matches_played >= %s
+            ORDER BY conservative_rating DESC
+            LIMIT %s OFFSET %s;
+        """
+        results = self._execute_query(
+            query,
+            (guild_id, game_id, min_matches, limit, offset),
+            fetchall=True
+        )
+        return results if results else []
+
+    def get_global_leaderboard(
+        self,
+        game_id: int,
+        limit: int = 10,
+        offset: int = 0,
+        min_matches: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Get global leaderboard across all guilds"""
+        query = """
+            SELECT 
+                gr.user_id,
+                u.username,
+                gr.global_mu as mu,
+                gr.global_sigma as sigma,
+                (gr.global_mu - 3 * gr.global_sigma) as conservative_rating,
+                gr.total_matches as matches_played,
+                ARRAY_LENGTH(gr.guilds_played_in, 1) as guild_count
+            FROM global_ratings gr
+            JOIN users u ON gr.user_id = u.user_id
+            WHERE gr.game_id = %s
+              AND gr.total_matches >= %s
+            ORDER BY conservative_rating DESC
+            LIMIT %s OFFSET %s;
+        """
+        results = self._execute_query(query, (game_id, min_matches, limit, offset), fetchall=True)
+        return results if results else []
+
+    def get_user_rank(self, user_id: int, guild_id: int, game_id: int) -> int:
+        """Get user rank in guild/game leaderboard"""
+        query = """
+            WITH ranked AS (
+                SELECT 
+                    user_id,
+                    ROW_NUMBER() OVER (ORDER BY (mu - 3 * sigma) DESC) as rank
+                FROM user_game_ratings
+                WHERE guild_id = %s
+                  AND game_id = %s
+                  AND matches_played >= 5
+            )
+            SELECT rank FROM ranked WHERE user_id = %s;
+        """
+        result = self._execute_query(query, (guild_id, game_id, user_id), fetchone=True)
+        return result['rank'] if result else -1
+
+    def get_user_global_rank(self, user_id: int, game_id: int, min_matches: int = 5) -> Optional[int]:
+        """
+        Get user's global rank across all servers for a specific game.
+        
+        :param user_id: Discord user ID
+        :param game_id: Game ID
+        :param min_matches: Minimum matches required to be ranked
+        :return: Global rank position (1-indexed) or None if not ranked
+        """
+        query = """
+            WITH ranked AS (
+                SELECT 
+                    user_id,
+                    ROW_NUMBER() OVER (ORDER BY (global_mu - 3 * global_sigma) DESC) as rank
+                FROM global_ratings
+                WHERE game_id = %s
+                  AND total_matches >= %s
+            )
+            SELECT rank FROM ranked WHERE user_id = %s;
+        """
+        result = self._execute_query(query, (game_id, min_matches, user_id), fetchone=True)
+        return result['rank'] if result else None
+
+    def get_global_player_count(self, game_id: int, min_matches: int = 5) -> int:
+        """
+        Get total number of ranked players globally for a game.
+        
+        :param game_id: Game ID
+        :param min_matches: Minimum matches required to be ranked
+        :return: Total ranked player count
+        """
+        query = """
+            SELECT COUNT(*) as count
+            FROM global_ratings
+            WHERE game_id = %s
+              AND total_matches >= %s;
+        """
+        result = self._execute_query(query, (game_id, min_matches), fetchone=True)
+        return result['count'] if result else 0
+
+    # ========================================================================
+    # MATCH OPERATIONS
+    # ========================================================================
+
+    def create_match(
+        self,
+        game_id: int,
+        guild_id: int,
+        channel_id: int,
+        thread_id: Optional[int],
+        participants: List[int],  # List of user IDs
+        is_rated: bool = True,
+        game_config: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """
+        Create a new match and initialize participants.
+        Returns match_id.
+        """
         self.create_guild(guild_id)
-        user_ids = [p.id if hasattr(p, 'id') else p for p in participants]
-        for user_id in user_ids:
+        
+        # Ensure all users exist and have ratings
+        for user_id in participants:
             self.create_user(user_id)
-            self.initialize_user_game_ratings(user_id, guild_id, game_name)
+            self.initialize_user_rating(user_id, guild_id, game_id)
 
-        started_at = datetime.now()
+        config_json = json.dumps(game_config or {})
 
-        match_id = self.record_new_game(
-            game_name=game_name,
-            guild_id=guild_id,
-            started_at=started_at,
-            is_rated=is_rated,
-            game_data={"status": "in_progress"}
-        )
+        with self.transaction() as cur:
+            # Insert match
+            cur.execute(
+                """
+                INSERT INTO matches (game_id, guild_id, channel_id, thread_id,
+                                   is_rated, game_config, status)
+                VALUES (%s, %s, %s, %s, %s, %s::jsonb, 'in_progress')
+                RETURNING match_id;
+                """,
+                (game_id, guild_id, channel_id, thread_id, is_rated, config_json)
+            )
+            result = cur.fetchone()
+            match_id = result['match_id']
+
+            # Add participants
+            for idx, user_id in enumerate(participants, start=1):
+                # Get current rating for history
+                rating = self.get_user_rating(user_id, guild_id, game_id)
+                mu_before = rating.mu if rating else MU
+                sigma_before = rating.sigma if rating else (MU / 3)
+
+                cur.execute(
+                    """
+                    INSERT INTO match_participants 
+                        (match_id, user_id, player_number, mu_before, sigma_before)
+                    VALUES (%s, %s, %s, %s, %s);
+                    """,
+                    (match_id, user_id, idx, mu_before, sigma_before)
+                )
 
         return match_id
 
-    def end_game(self, match_id: int, game_name: str, final_scores: dict[int, float],
-                 rating_updates: dict):
-        match = self.get_match_details(match_id)
+    def get_match(self, match_id: int) -> Optional[Match]:
+        """Get match by ID"""
+        query = "SELECT * FROM matches WHERE match_id = %s;"
+        result = self._execute_query(query, (match_id,), fetchone=True)
+        return row_to_match(result) if result else None
+
+    def update_match_status(self, match_id: int, status: str):
+        """Update match status"""
+        query = "UPDATE matches SET status = %s WHERE match_id = %s;"
+        self._execute_query(query, (status, match_id))
+
+    def update_match_context(
+        self,
+        match_id: int,
+        channel_id: Optional[int] = None,
+        thread_id: Optional[int] = None
+    ):
+        """Update channel/thread identifiers for an existing match."""
+        updates = []
+        params = []
+        if channel_id is not None:
+            updates.append("channel_id = %s")
+            params.append(channel_id)
+        if thread_id is not None:
+            updates.append("thread_id = %s")
+            params.append(thread_id)
+
+        if not updates:
+            return
+
+        params.append(match_id)
+        query = f"UPDATE matches SET {', '.join(updates)} WHERE match_id = %s;"
+        self._execute_query(query, tuple(params))
+
+    def end_match(
+        self,
+        match_id: int,
+        final_state: Dict[str, Any],
+        results: Dict[int, Dict[str, Any]]  # user_id -> {ranking, mu_delta, sigma_delta, ...}
+    ):
+        """
+        End a match with final results and update ratings.
+        This is a transactional operation.
+        
+        Args:
+            match_id: Match ID
+            final_state: Final game state
+            results: Dict mapping user_id to result data:
+                     {ranking, mu_delta, sigma_delta, new_mu, new_sigma}
+        """
+        match = self.get_match(match_id)
         if not match:
-            raise ValueError(f"Match {match_id} not found.")
-        guild_id = match['guild_id']
+            raise ValueError(f"Match {match_id} not found")
 
-        self.update_match_game_data(match_id, final_scores)
+        final_state_json = json.dumps(final_state)
 
-        self.add_match_participants(match_id, rating_updates)
-
-        for update_key, actual_update in rating_updates.items():
-            self.update_ratings_after_match(
-                user_id=actual_update["uid"],
-                guild_id=guild_id,
-                game_name=game_name,
-                mu=actual_update["new_mu"],
-                sigma=actual_update["new_sigma"],
-                matches_played_increment=1
+        with self.transaction() as cur:
+            # Update match
+            cur.execute(
+                """
+                UPDATE matches
+                SET status = 'completed',
+                    ended_at = NOW(),
+                    final_state = %s::jsonb
+                WHERE match_id = %s;
+                """,
+                (final_state_json, match_id)
             )
 
-    def record_analytics_event(self, event_type, user_id=None, guild_id=None, game_type=None, metadata=None):
+            # Update participants and ratings
+            for user_id, result in results.items():
+                # Update participant
+                cur.execute(
+                    """
+                    UPDATE match_participants
+                    SET final_ranking = %s,
+                        score = %s,
+                        mu_delta = %s,
+                        sigma_delta = %s
+                    WHERE match_id = %s AND user_id = %s;
+                    """,
+                    (
+                        result['ranking'],
+                        result.get('score'),
+                        result['mu_delta'],
+                        result['sigma_delta'],
+                        match_id,
+                        user_id
+                    )
+                )
+
+                # Determine win/loss/draw
+                is_win = result['ranking'] == 1
+                is_draw = result.get('is_draw', False)
+                is_loss = not is_win and not is_draw
+
+                # Update rating
+                cur.execute(
+                    """
+                    UPDATE user_game_ratings
+                    SET mu = %s,
+                        sigma = %s,
+                        matches_played = matches_played + 1,
+                        wins = wins + %s,
+                        losses = losses + %s,
+                        draws = draws + %s,
+                        last_played = NOW(),
+                        updated_at = NOW()
+                    WHERE user_id = %s AND guild_id = %s AND game_id = %s;
+                    """,
+                    (
+                        result['new_mu'],
+                        result['new_sigma'],
+                        1 if is_win else 0,
+                        1 if is_loss else 0,
+                        1 if is_draw else 0,
+                        user_id,
+                        match.guild_id,
+                        match.game_id
+                    )
+                )
+
+                # Record rating history
+                cur.execute(
+                    """
+                    INSERT INTO rating_history
+                        (user_id, guild_id, game_id, match_id,
+                         mu_before, sigma_before, mu_after, sigma_after)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+                    """,
+                    (
+                        user_id,
+                        match.guild_id,
+                        match.game_id,
+                        match_id,
+                        result.get('mu_before', result['new_mu'] - result['mu_delta']),
+                        result.get('sigma_before', result['new_sigma'] - result['sigma_delta']),
+                        result['new_mu'],
+                        result['new_sigma']
+                    )
+                )
+
+    def delete_match(self, match_id: int):
+        """Delete a match (cascades to participants and moves)"""
+        query = "DELETE FROM matches WHERE match_id = %s;"
+        self._execute_query(query, (match_id,))
+
+    def get_active_matches(self, guild_id: Optional[int] = None) -> List[Match]:
+        """Get active (in-progress) matches"""
+        if guild_id is not None:
+            query = """
+                SELECT * FROM matches
+                WHERE status = 'in_progress' AND guild_id = %s
+                ORDER BY started_at DESC;
+            """
+            results = self._execute_query(query, (guild_id,), fetchall=True)
+        else:
+            query = """
+                SELECT * FROM matches
+                WHERE status = 'in_progress'
+                ORDER BY started_at DESC;
+            """
+            results = self._execute_query(query, fetchall=True)
+
+        return [row_to_match(row) for row in results] if results else []
+
+    def get_recent_matches(
+        self,
+        guild_id: int,
+        game_id: int,
+        limit: int = 10
+    ) -> List[Match]:
+        """Get recent completed matches"""
+        query = """
+            SELECT * FROM matches
+            WHERE guild_id = %s AND game_id = %s AND status = 'completed'
+            ORDER BY ended_at DESC
+            LIMIT %s;
+        """
+        results = self._execute_query(query, (guild_id, game_id, limit), fetchall=True)
+        return [row_to_match(row) for row in results] if results else []
+
+    def abandon_match(self, match_id: int, reason: str):
+        """Mark a match as abandoned"""
+        metadata = json.dumps({"abandon_reason": reason})
+        query = """
+            UPDATE matches
+            SET status = 'abandoned',
+                ended_at = NOW(),
+                metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{abandon_reason}', %s::jsonb)
+            WHERE match_id = %s;
+        """
+        self._execute_query(query, (f'"{reason}"', match_id))
+
+    # ========================================================================
+    # PARTICIPANT OPERATIONS
+    # ========================================================================
+
+    def add_participant(
+        self,
+        match_id: int,
+        user_id: int,
+        player_number: int,
+        mu_before: Optional[float] = None,
+        sigma_before: Optional[float] = None
+    ):
+        """Add a participant to a match"""
+        query = """
+            INSERT INTO match_participants
+                (match_id, user_id, player_number, mu_before, sigma_before)
+            VALUES (%s, %s, %s, %s, %s);
+        """
+        self._execute_query(query, (match_id, user_id, player_number, mu_before, sigma_before))
+
+    def get_participants(self, match_id: int) -> List[Participant]:
+        """Get all participants for a match"""
+        query = """
+            SELECT * FROM match_participants
+            WHERE match_id = %s
+            ORDER BY player_number;
+        """
+        results = self._execute_query(query, (match_id,), fetchall=True)
+        return [row_to_participant(row) for row in results] if results else []
+
+    def update_participant_result(
+        self,
+        participant_id: int,
+        ranking: int,
+        score: Optional[float],
+        mu_delta: float,
+        sigma_delta: float
+    ):
+        """Update participant result"""
+        query = """
+            UPDATE match_participants
+            SET final_ranking = %s,
+                score = %s,
+                mu_delta = %s,
+                sigma_delta = %s
+            WHERE participant_id = %s;
+        """
+        self._execute_query(query, (ranking, score, mu_delta, sigma_delta, participant_id))
+
+    def remove_participant(self, match_id: int, user_id: int):
+        """Remove a participant from a match"""
+        query = "DELETE FROM match_participants WHERE match_id = %s AND user_id = %s;"
+        self._execute_query(query, (match_id, user_id))
+
+    # ========================================================================
+    # MOVE HISTORY OPERATIONS
+    # ========================================================================
+
+    def record_move(
+        self,
+        match_id: int,
+        user_id: Optional[int],
+        move_number: int,
+        move_data: Dict[str, Any],
+        game_state_after: Optional[Dict[str, Any]] = None,
+        time_taken_ms: Optional[int] = None
+    ):
+        """Record a move in a match"""
+        move_json = json.dumps(move_data)
+        state_json = json.dumps(game_state_after) if game_state_after else None
+
+        query = """
+            INSERT INTO moves
+                (match_id, user_id, move_number, move_data, game_state_after, time_taken_ms)
+            VALUES (%s, %s, %s, %s::jsonb, %s::jsonb, %s);
+        """
+        self._execute_query(
+            query,
+            (match_id, user_id, move_number, move_json, state_json, time_taken_ms)
+        )
+
+    def get_match_moves(self, match_id: int) -> List[Move]:
+        """Get all moves for a match in order"""
+        query = """
+            SELECT * FROM moves
+            WHERE match_id = %s
+            ORDER BY move_number ASC;
+        """
+        results = self._execute_query(query, (match_id,), fetchall=True)
+        return [row_to_move(row) for row in results] if results else []
+
+    def get_move_count(self, match_id: int) -> int:
+        """Get number of moves in a match"""
+        query = "SELECT COUNT(*) as count FROM moves WHERE match_id = %s;"
+        result = self._execute_query(query, (match_id,), fetchone=True)
+        return result['count'] if result else 0
+
+    def validate_move_sequence(self, match_id: int) -> bool:
+        """Check if move sequence is valid (no gaps)"""
+        query = """
+            SELECT 
+                COUNT(*) as move_count,
+                MAX(move_number) as max_move
+            FROM moves
+            WHERE match_id = %s;
+        """
+        result = self._execute_query(query, (match_id,), fetchone=True)
+        if not result:
+            return True
+        return result['move_count'] == result['max_move'] or result['move_count'] == 0
+
+    # ========================================================================
+    # USER HISTORY & STATS
+    # ========================================================================
+
+    def get_user_match_history(
+        self,
+        user_id: int,
+        guild_id: int,
+        game_id: Optional[int] = None,
+        limit: int = 10,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Get user's match history"""
+        query = """
+            SELECT 
+                m.match_id,
+                m.game_id,
+                g.display_name as game_name,
+                m.ended_at,
+                m.is_rated,
+                mp.final_ranking as final_ranking,
+                mp.player_number,
+                COUNT(*) OVER (PARTITION BY m.match_id) as player_count,
+                mp.mu_delta,
+                mp.sigma_delta
+            FROM match_participants mp
+            JOIN matches m ON mp.match_id = m.match_id
+            JOIN games g ON m.game_id = g.game_id
+            WHERE mp.user_id = %s
+              AND m.guild_id = %s
+              AND m.status = 'completed'
+        """
+        params: List[Any] = [user_id, guild_id]
+        if game_id is not None:
+            query += " AND m.game_id = %s"
+            params.append(game_id)
+
+        query += """
+            ORDER BY m.ended_at DESC
+            LIMIT %s OFFSET %s;
+        """
+        params.extend([limit, offset])
+        results = self._execute_query(query, tuple(params), fetchall=True)
+        return results if results else []
+
+    def get_head_to_head(
+        self,
+        user1_id: int,
+        user2_id: int,
+        game_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Get head-to-head stats between two players"""
+        if game_id is not None:
+            query = """
+                SELECT 
+                    m.game_id,
+                    g.display_name as game_name,
+                    COUNT(*) as total_matches,
+                    SUM(CASE WHEN mp1.final_ranking < mp2.final_ranking THEN 1 ELSE 0 END) as user1_wins,
+                    SUM(CASE WHEN mp2.final_ranking < mp1.final_ranking THEN 1 ELSE 0 END) as user2_wins,
+                    SUM(CASE WHEN mp1.final_ranking = mp2.final_ranking THEN 1 ELSE 0 END) as draws,
+                    MAX(m.ended_at) as last_match_date
+                FROM matches m
+                JOIN games g ON m.game_id = g.game_id
+                JOIN match_participants mp1 ON m.match_id = mp1.match_id AND mp1.user_id = %s
+                JOIN match_participants mp2 ON m.match_id = mp2.match_id AND mp2.user_id = %s
+                WHERE m.status = 'completed' AND m.game_id = %s
+                GROUP BY m.game_id, g.display_name;
+            """
+            results = self._execute_query(query, (user1_id, user2_id, game_id), fetchall=True)
+        else:
+            query = """
+                SELECT 
+                    m.game_id,
+                    g.display_name as game_name,
+                    COUNT(*) as total_matches,
+                    SUM(CASE WHEN mp1.final_ranking < mp2.final_ranking THEN 1 ELSE 0 END) as user1_wins,
+                    SUM(CASE WHEN mp2.final_ranking < mp1.final_ranking THEN 1 ELSE 0 END) as user2_wins,
+                    SUM(CASE WHEN mp1.final_ranking = mp2.final_ranking THEN 1 ELSE 0 END) as draws,
+                    MAX(m.ended_at) as last_match_date
+                FROM matches m
+                JOIN games g ON m.game_id = g.game_id
+                JOIN match_participants mp1 ON m.match_id = mp1.match_id AND mp1.user_id = %s
+                JOIN match_participants mp2 ON m.match_id = mp2.match_id AND mp2.user_id = %s
+                WHERE m.status = 'completed'
+                GROUP BY m.game_id, g.display_name
+                ORDER BY total_matches DESC;
+            """
+            results = self._execute_query(query, (user1_id, user2_id), fetchall=True)
+
+        return results if results else []
+
+    def get_user_stats(
+        self,
+        user_id: int,
+        guild_id: int,
+        game_id: int
+    ) -> Optional[Dict[str, Any]]:
+        """Get comprehensive user statistics"""
+        query = """
+            SELECT 
+                ugr.*,
+                u.username,
+                g.display_name as game_name,
+                (ugr.mu - 3 * ugr.sigma) as conservative_rating,
+                CASE
+                    WHEN (ugr.matches_played - ugr.draws) > 0
+                    THEN ROUND(100.0 * ugr.wins / (ugr.matches_played - ugr.draws), 2)
+                    ELSE 0.0
+                END as win_rate
+            FROM user_game_ratings ugr
+            JOIN users u ON ugr.user_id = u.user_id
+            JOIN games g ON ugr.game_id = g.game_id
+            WHERE ugr.user_id = %s
+              AND ugr.guild_id = %s
+              AND ugr.game_id = %s;
+        """
+        result = self._execute_query(query, (user_id, guild_id, game_id), fetchone=True)
+        return result
+
+    def get_rating_history(
+        self,
+        user_id: int,
+        guild_id: int,
+        game_id: int,
+        days: int = 30
+    ) -> List[Dict[str, Any]]:
+        """Get rating history for a user"""
+        query = """
+            SELECT 
+                history_id,
+                match_id,
+                mu_before,
+                sigma_before,
+                mu_after,
+                sigma_after,
+                (mu_after - mu_before) as mu_delta,
+                (sigma_after - sigma_before) as sigma_delta,
+                timestamp
+            FROM rating_history
+            WHERE user_id = %s
+              AND guild_id = %s
+              AND game_id = %s
+              AND timestamp > NOW() - (%s * INTERVAL '1 day')
+            ORDER BY timestamp DESC;
+        """
+        results = self._execute_query(query, (user_id, guild_id, game_id, days), fetchall=True)
+        return results if results else []
+
+    # ========================================================================
+    # ANALYTICS OPERATIONS
+    # ========================================================================
+
+    def record_event(
+        self,
+        event_type: str,
+        user_id: Optional[int] = None,
+        guild_id: Optional[int] = None,
+        game_id: Optional[int] = None,
+        match_id: Optional[int] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        """Record an analytics event"""
         if user_id:
             self.create_user(user_id)
         if guild_id:
@@ -472,29 +1296,700 @@ class Database:
 
         metadata_json = json.dumps(metadata) if metadata else None
         query = """
-                INSERT INTO analytics (event_type, user_id, guild_id, game_type, metadata)
-                VALUES (%s, %s, %s, %s, %s);
-                """
-        params = (event_type, user_id, guild_id, game_type, metadata_json)
-        self._execute_query(query, params)
+            INSERT INTO analytics_events
+                (event_type, user_id, guild_id, game_id, match_id, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s::jsonb);
+        """
+        self._execute_query(
+            query,
+            (event_type, user_id, guild_id, game_id, match_id, metadata_json)
+        )
+
+    def get_events(
+        self,
+        event_type: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """Get analytics events with optional filters"""
+        conditions = []
+        params = []
+
+        if event_type:
+            conditions.append("event_type = %s")
+            params.append(event_type)
+
+        if start_date:
+            conditions.append("timestamp >= %s")
+            params.append(start_date)
+
+        if end_date:
+            conditions.append("timestamp <= %s")
+            params.append(end_date)
+
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        params.append(limit)
+
+        query = f"""
+            SELECT * FROM analytics_events
+            {where_clause}
+            ORDER BY timestamp DESC
+            LIMIT %s;
+        """
+        results = self._execute_query(query, tuple(params), fetchall=True)
+        return results if results else []
+
+    def get_user_events(self, user_id: int, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get events for a specific user"""
+        query = """
+            SELECT * FROM analytics_events
+            WHERE user_id = %s
+            ORDER BY timestamp DESC
+            LIMIT %s;
+        """
+        results = self._execute_query(query, (user_id, limit), fetchall=True)
+        return results if results else []
+
+    def get_guild_analytics(self, guild_id: int, days: int = 30) -> Dict[str, Any]:
+        """Get analytics summary for a guild"""
+        query = """
+            SELECT 
+                COUNT(DISTINCT user_id) as active_users,
+                COUNT(DISTINCT CASE WHEN event_type = 'game_started' THEN event_id END) as games_started,
+                COUNT(DISTINCT CASE WHEN event_type = 'game_completed' THEN event_id END) as games_completed,
+                COUNT(DISTINCT CASE WHEN event_type = 'command_used' THEN event_id END) as commands_used
+            FROM analytics_events
+            WHERE guild_id = %s
+              AND timestamp > NOW() - (%s * INTERVAL '1 day');
+        """
+        result = self._execute_query(query, (guild_id, days), fetchone=True)
+        return result if result else {}
+
+    # ========================================================================
+    # MAINTENANCE OPERATIONS
+    # ========================================================================
+
+    def apply_skill_decay(
+        self,
+        days_inactive: int = 30,
+        sigma_increase: float = 0.1
+    ) -> int:
+        """Apply skill decay to inactive players"""
+        query = """
+            UPDATE user_game_ratings
+            SET sigma = sigma * (1 + %s),
+                last_sigma_increase = NOW(),
+                updated_at = NOW()
+            WHERE last_played < NOW() - (%s * INTERVAL '1 day')
+              AND (last_sigma_increase IS NULL 
+                   OR last_sigma_increase < NOW() - (%s * INTERVAL '1 day'))
+            RETURNING user_id;
+        """
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, (sigma_increase, days_inactive, days_inactive))
+                results = cur.fetchall()
+                conn.commit()
+                return len(results) if results else 0
+
+    def cleanup_old_analytics(self, days: int = 90) -> int:
+        """Delete old analytics events"""
+        query = """
+            DELETE FROM analytics_events
+            WHERE timestamp < NOW() - (%s * INTERVAL '1 day');
+        """
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, (days,))
+                count = cur.rowcount
+                conn.commit()
+                return count
+
+    def get_inactive_users(self, guild_id: int, days: int = 30) -> List[Dict[str, Any]]:
+        """Get inactive users in a guild"""
+        query = """
+            SELECT DISTINCT
+                ugr.user_id,
+                u.username,
+                ugr.game_id,
+                ugr.last_played,
+                EXTRACT(EPOCH FROM (NOW() - ugr.last_played))::INTEGER / 86400 as days_inactive
+            FROM user_game_ratings ugr
+            JOIN users u ON ugr.user_id = u.user_id
+            WHERE ugr.guild_id = %s
+              AND ugr.last_played < NOW() - (%s * INTERVAL '1 day')
+            ORDER BY ugr.last_played ASC;
+        """
+        results = self._execute_query(query, (guild_id, days), fetchall=True)
+        return results if results else []
+
+    def archive_old_matches(self, days: int = 365) -> int:
+        """Archive old matches by marking in metadata"""
+        metadata_update = json.dumps(True)
+        query = """
+            UPDATE matches
+            SET metadata = jsonb_set(
+                COALESCE(metadata, '{}'::jsonb),
+                '{archived}',
+                %s::jsonb
+            )
+            WHERE ended_at < NOW() - (%s * INTERVAL '1 day')
+              AND status = 'completed'
+              AND NOT (metadata ? 'archived' AND (metadata->>'archived')::boolean = true)
+            RETURNING match_id;
+        """
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, (metadata_update, days))
+                results = cur.fetchall()
+                conn.commit()
+                return len(results) if results else 0
+
+    def vacuum_analyze(self):
+        """Run VACUUM ANALYZE for database maintenance"""
+        # Must be run outside a transaction
+        with self.get_connection() as conn:
+            conn.autocommit = True
+            with conn.cursor() as cur:
+                cur.execute("VACUUM ANALYZE;")
+            conn.autocommit = False
+
+    # ========================================================================
+    # GLOBAL RATING OPERATIONS
+    # ========================================================================
+
+    def calculate_global_ratings(self, game_id: int) -> int:
+        """Calculate global ratings for all users in a game"""
+        # Call PostgreSQL function
+        query = "SELECT batch_update_global_ratings(%s) as count;"
+        result = self._execute_query(query, (game_id,), fetchone=True)
+        return result['count'] if result else 0
+
+    # ========================================================================
+    # AGGREGATION & REPORTS
+    # ========================================================================
+
+    def get_match_count_by_game(self, guild_id: int, days: int = 30) -> Dict[str, int]:
+        """Get match counts by game type"""
+        query = """
+            SELECT 
+                g.display_name as game_name,
+                COUNT(*) as match_count
+            FROM matches m
+            JOIN games g ON m.game_id = g.game_id
+            WHERE m.guild_id = %s
+              AND m.ended_at > NOW() - (%s * INTERVAL '1 day')
+              AND m.status = 'completed'
+            GROUP BY g.display_name
+            ORDER BY match_count DESC;
+        """
+        results = self._execute_query(query, (guild_id, days), fetchall=True)
+        return {row['game_name']: row['match_count'] for row in results} if results else {}
+
+    def get_player_retention(self, guild_id: int, days: int = 7) -> float:
+        """Get player retention rate"""
+        query = """
+            WITH active_players AS (
+                SELECT COUNT(DISTINCT user_id) as count
+                FROM user_game_ratings
+                WHERE guild_id = %s
+                  AND last_played > NOW() - (%s * INTERVAL '1 day')
+            ),
+            total_players AS (
+                SELECT COUNT(DISTINCT user_id) as count
+                FROM user_game_ratings
+                WHERE guild_id = %s
+            )
+            SELECT 
+                CASE 
+                    WHEN total_players.count > 0
+                    THEN (active_players.count::FLOAT / total_players.count::FLOAT) * 100.0
+                    ELSE 0.0
+                END as retention_rate
+            FROM active_players, total_players;
+        """
+        result = self._execute_query(query, (guild_id, days, guild_id), fetchone=True)
+        return result['retention_rate'] if result else 0.0
+
+    def get_most_active_players(
+        self,
+        guild_id: int,
+        game_id: int,
+        days: int = 7,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Get most active players"""
+        query = """
+            SELECT 
+                u.user_id,
+                u.username,
+                COUNT(DISTINCT m.match_id) as match_count
+            FROM match_participants mp
+            JOIN matches m ON mp.match_id = m.match_id
+            JOIN users u ON mp.user_id = u.user_id
+            WHERE m.guild_id = %s
+              AND m.game_id = %s
+              AND m.ended_at > NOW() - (%s * INTERVAL '1 day')
+              AND m.status = 'completed'
+            GROUP BY u.user_id, u.username
+            ORDER BY match_count DESC
+            LIMIT %s;
+        """
+        results = self._execute_query(query, (guild_id, game_id, days, limit), fetchall=True)
+        return results if results else []
+
+    # ========================================================================
+    # UTILITY OPERATIONS
+    # ========================================================================
+
+    def count_matches(
+        self,
+        guild_id: int,
+        game_id: int,
+        is_rated: Optional[bool] = None
+    ) -> int:
+        """Count matches for a game in a guild"""
+        if is_rated is not None:
+            query = """
+                SELECT COUNT(*) as count FROM matches
+                WHERE guild_id = %s AND game_id = %s AND is_rated = %s;
+            """
+            result = self._execute_query(query, (guild_id, game_id, is_rated), fetchone=True)
+        else:
+            query = """
+                SELECT COUNT(*) as count FROM matches
+                WHERE guild_id = %s AND game_id = %s;
+            """
+            result = self._execute_query(query, (guild_id, game_id), fetchone=True)
+
+        return result['count'] if result else 0
+
+    def count_users(self, guild_id: Optional[int] = None, is_active: bool = True) -> int:
+        """Count users (optionally filtered by guild)"""
+        if guild_id is not None:
+            query = """
+                SELECT COUNT(DISTINCT user_id) as count
+                FROM user_game_ratings
+                WHERE guild_id = %s;
+            """
+            result = self._execute_query(query, (guild_id,), fetchone=True)
+        else:
+            query = """
+                SELECT COUNT(*) as count FROM users
+                WHERE is_active = %s;
+            """
+            result = self._execute_query(query, (is_active,), fetchone=True)
+
+        return result['count'] if result else 0
+
+    def get_database_stats(self) -> Dict[str, Any]:
+        """Get database statistics"""
+        queries = {
+            'total_users': "SELECT COUNT(*) FROM users WHERE is_active = TRUE",
+            'total_guilds': "SELECT COUNT(*) FROM guilds WHERE is_active = TRUE",
+            'total_games': "SELECT COUNT(*) FROM games WHERE is_active = TRUE",
+            'total_matches': "SELECT COUNT(*) FROM matches",
+            'active_matches': "SELECT COUNT(*) FROM matches WHERE status = 'in_progress'",
+            'total_moves': "SELECT COUNT(*) FROM moves",
+            'total_ratings': "SELECT COUNT(*) FROM user_game_ratings"
+        }
+
+        stats = {}
+        for key, query in queries.items():
+            result = self._execute_query(query, fetchone=True)
+            stats[key] = result['count'] if result else 0
+
+        return stats
+
+    def health_check(self) -> bool:
+        """Health check - verify database connection"""
+        try:
+            result = self._execute_query("SELECT 1 as check;", fetchone=True)
+            return result is not None and result['check'] == 1
+        except Exception as e:
+            logger.error(f"Health check failed: {e}")
+            return False
+
+    # ========================================================================
+    # LEGACY COMPATIBILITY (for existing code)
+    # ========================================================================
+
+    def get_player(
+        self,
+        user: discord.User | discord.Member,
+        guild_id: int
+    ) -> Optional[InternalPlayer]:
+        """
+        Get an InternalPlayer object from the database (per-guild ratings).
+        This maintains compatibility with existing code.
+        """
+        user_id = user.id if isinstance(user, (discord.User, discord.Member, InternalPlayer)) else user
+        preferences = self.get_user_preferences(user_id)
+        metadata = preferences['preferences'] if preferences and preferences.get('preferences') else {}
+
+        # Get all ratings for this user in this guild
+        all_ratings = self.get_user_all_ratings(user_id, guild_id)
+        
+        # Convert to old format {game_name: {mu, sigma}}
+        ratings = {}
+        for rating in all_ratings:
+            game = self.get_game_by_id(rating.game_id)
+            if game:
+                ratings[game.game_name] = {'mu': rating.mu, 'sigma': rating.sigma}
+
+        return InternalPlayer(
+            ratings=ratings,
+            user=user if isinstance(user, (discord.User, discord.Member)) else None,
+            metadata=metadata,
+            id=user_id
+        )
+
+    def record_analytics_event(
+        self,
+        event_type: str,
+        user_id: Optional[int] = None,
+        guild_id: Optional[int] = None,
+        game_type: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Legacy analytics recording (maps game_type to game_id).
+        """
+        game_id = None
+        if game_type:
+            game = self.get_game(game_type)
+            if game:
+                game_id = game.game_id
+
+        self.record_event(event_type, user_id, guild_id, game_id, None, metadata)
+
+    # ========================================================================
+    # COMPATIBILITY METHODS (for old method names)
+    # ========================================================================
+
+    def get_game_leaderboard(
+        self,
+        guild_id: int,
+        game_name: str,
+        limit: int = 10,
+        min_matches: int = 5
+    ) -> List[Dict[str, Any]]:
+        """Legacy method - maps to get_leaderboard"""
+        game = self.get_game(game_name)
+        if not game:
+            return []
+        return self.get_leaderboard(guild_id, game.game_id, limit=limit, min_matches=min_matches)
+
+    def get_user_game_ratings(
+        self,
+        user_id: int,
+        guild_id: int,
+        game_name_or_id: int | str
+    ) -> Optional[Dict[str, Any]]:
+        """Legacy method - get user rating"""
+        if isinstance(game_name_or_id, str):
+            game = self.get_game(game_name_or_id)
+            if not game:
+                return None
+            game_id = game.game_id
+        else:
+            game_id = game_name_or_id
+
+        rating = self.get_user_rating(user_id, guild_id, game_id)
+        if not rating:
+            return None
+
+        # Return in old format
+        return {
+            'mu': rating.mu,
+            'sigma': rating.sigma,
+            'matches_played': rating.matches_played,
+            'last_played': rating.last_played
+        }
+
+    def initialize_user_game_ratings(self, user_id: int, guild_id: int, game_name: str):
+        """Legacy method - initialize rating with game name instead of ID"""
+        game = self.get_game(game_name)
+        if not game:
+            raise ValueError(f"Game {game_name} not found")
+        self.initialize_user_rating(user_id, guild_id, game.game_id)
+
+    def update_ratings_after_match(
+        self,
+        user_id: int,
+        guild_id: int,
+        game_name: str,
+        mu: float,
+        sigma: float,
+        matches_played_increment: int = 1
+    ):
+        """Legacy method - update rating with game name instead of ID"""
+        game = self.get_game(game_name)
+        if not game:
+            raise ValueError(f"Game {game_name} not found")
+        
+        # Update rating
+        self.update_rating(
+            user_id, guild_id, game.game_id,
+            mu, sigma, matches_increment=matches_played_increment
+        )
+
+    def reset_user_game_ratings(self, user_id: int, guild_id: int, game_name: str):
+        """Legacy method - reset rating with game name"""
+        game = self.get_game(game_name)
+        if not game:
+            raise ValueError(f"Game {game_name} not found")
+        self.reset_user_rating(user_id, guild_id, game.game_id)
+
+    def delete_user_game_ratings(self, user_id: int, guild_id: int, game_name: str):
+        """Legacy method - delete rating with game name"""
+        game = self.get_game(game_name)
+        if not game:
+            raise ValueError(f"Game {game_name} not found")
+        self.delete_user_rating(user_id, guild_id, game.game_id)
+
+    def count_matches_for_game(
+        self,
+        guild_id: int,
+        game_name: str,
+        is_rated: Optional[bool] = None
+    ) -> int:
+        """Legacy method - count matches with game name"""
+        game = self.get_game(game_name)
+        if not game:
+            return 0
+        return self.count_matches(guild_id, game.game_id, is_rated)
+
+    def count_matches_for_user(
+        self,
+        user_id: int,
+        guild_id: int,
+        is_rated: Optional[bool] = None
+    ) -> int:
+        """Legacy method - count user matches"""
+        query = """
+            SELECT COUNT(DISTINCT m.match_id) AS total_matches
+            FROM match_participants mp
+            JOIN matches m ON mp.match_id = m.match_id
+            WHERE mp.user_id = %s AND m.guild_id = %s
+        """
+        params = [user_id, guild_id]
+        if is_rated is not None:
+            query += " AND m.is_rated = %s"
+            params.append(is_rated)
+        query += ";"
+        result = self._execute_query(query, tuple(params), fetchone=True)
+        return result['total_matches'] if result else 0
+
+    def get_match_details(self, match_id: int) -> Optional[Dict[str, Any]]:
+        """Legacy method - get match details"""
+        match = self.get_match(match_id)
+        if not match:
+            return None
+        
+        # Return dict format for compatibility
+        return {
+            'match_id': match.match_id,
+            'game_id': match.game_id,
+            'guild_id': match.guild_id,
+            'started': match.started_at,
+            'ended': match.ended_at,
+            'is_rated': match.is_rated,
+            'game_data': match.game_config
+        }
+
+    def record_new_game(
+        self,
+        game_name: str,
+        guild_id: int,
+        started_at: datetime,
+        is_rated: bool,
+        game_data: Dict[str, Any]
+    ) -> int:
+        """Legacy method - record new game with game_name."""
+        game = self.get_game(game_name)
+        if not game:
+            raise ValueError(f"Game {game_name} not found")
+
+        self.create_guild(guild_id)
+        status = game_data.get("status", MatchStatus.IN_PROGRESS.value)
+        valid_statuses = {s.value for s in MatchStatus}
+        if status not in valid_statuses:
+            raise ValueError(f"Invalid match status: {status}")
+
+        game_data_json = json.dumps(game_data or {})
+
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO matches
+                        (game_id, guild_id, channel_id, thread_id, started_at, status, is_rated, game_config, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb)
+                    RETURNING match_id;
+                    """,
+                    (
+                        game.game_id,
+                        guild_id,
+                        0,
+                        None,
+                        started_at,
+                        status,
+                        is_rated,
+                        game_data_json,
+                        game_data_json
+                    )
+                )
+                result = cur.fetchone()
+                conn.commit()
+                return result["match_id"]
+
+    def create_game(
+        self,
+        game_name: str,
+        guild_id: int,
+        participants: List[int],
+        is_rated: bool = True,
+        channel_id: Optional[int] = None,
+        thread_id: Optional[int] = None,
+        game_config: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """
+        Legacy compatibility method - create game with game_name instead of game_id.
+        Maps to new create_match method.
+        """
+        game = self.get_game(game_name)
+        if not game:
+            raise ValueError(f"Game {game_name} not found")
+        
+        resolved_channel_id = channel_id if channel_id is not None else 0
+
+        return self.create_match(
+            game_id=game.game_id,
+            guild_id=guild_id,
+            channel_id=resolved_channel_id,
+            thread_id=thread_id,
+            participants=participants,
+            is_rated=is_rated,
+            game_config=game_config or {}
+        )
+
+    def end_game(
+        self,
+        match_id: int,
+        game_name: str,
+        rating_updates: Dict[int, Dict[str, Any]],
+        final_scores: Optional[Dict[int, float]]
+    ):
+        """
+        Legacy compatibility method - end game with old format.
+        Maps to new end_match method.
+        """
+        # Convert old format to new format
+        # Old: rating_updates = {user_id: {uid, new_mu, new_sigma, mu_delta, sigma_delta, ranking}}
+        # New: results = {user_id: {ranking, mu_delta, sigma_delta, new_mu, new_sigma, mu_before, sigma_before}}
+        
+        results = {}
+        for user_id, data in rating_updates.items():
+            results[user_id] = {
+                'ranking': data.get('ranking', 1),
+                'mu_delta': data['mu_delta'],
+                'sigma_delta': data['sigma_delta'],
+                'new_mu': data['new_mu'],
+                'new_sigma': data['new_sigma'],
+                'mu_before': data['new_mu'] - data['mu_delta'],
+                'sigma_before': data['new_sigma'] - data['sigma_delta'],
+                'score': final_scores.get(user_id) if final_scores else None,
+                'is_draw': data.get('is_draw', False)
+            }
+        
+        final_state = {
+            'final_scores': final_scores,
+            'rating_updates': rating_updates
+        }
+        
+        # Call new end_match method
+        self.end_match(match_id, final_state, results)
+
+    def get_recent_matches_for_game(
+        self,
+        guild_id: int,
+        game_name: str,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Legacy method - get recent matches with game name"""
+        game = self.get_game(game_name)
+        if not game:
+            return []
+        
+        matches = self.get_recent_matches(guild_id, game.game_id, limit)
+        return [
+            {
+                'match_id': m.match_id,
+                'started': m.started_at,
+                'ended': m.ended_at,
+                'rated': m.is_rated
+            }
+            for m in matches
+        ]
+
+    def get_full_match_details(self, match_id: int) -> List[Dict[str, Any]]:
+        """Legacy method - get full match with participants"""
+        match = self.get_match(match_id)
+        if not match:
+            return []
+        
+        participants = self.get_participants(match_id)
+        
+        # Return in old format
+        results = []
+        for p in participants:
+            rating = self.get_user_rating(p.user_id, match.guild_id, match.game_id)
+            results.append({
+                'match_id': match_id,
+                'game_id': match.game_id,
+                'guild_id': match.guild_id,
+                'started': match.started_at,
+                'ended': match.ended_at,
+                'rated': match.is_rated,
+                'game_data': match.game_config,
+                'user_id': p.user_id,
+                'ranking': p.final_ranking,
+                'mu_delta': p.mu_delta,
+                'sigma_delta': p.sigma_delta,
+                'mu': rating.mu if rating else None,
+                'sigma': rating.sigma if rating else None
+            })
+        return results
 
 
-database: Database | None = None
+
+# ============================================================================
+# GLOBAL DATABASE INSTANCE
+# ============================================================================
+
+database: Optional[Database] = None
 
 
 def startup():
+    """Initialize global database instance"""
     global database
-    config_db = constants.CONFIGURATION["db"]
+    config_db = constants.CONFIGURATION.get("db", {})
     try:
         db = Database(
-            host=config_db["host"],
-            port=config_db["port"],
-            user=config_db["user"],
-            password=config_db["password"],
-            database=config_db["database"]
+            host=config_db.get("host", "localhost"),
+            port=config_db.get("port", 5432),
+            user=config_db.get("user", "playcord"),
+            password=config_db.get("password", "password"),
+            database=config_db.get("database", "playcord"),
+            pool_size=config_db.get("pool_size", 10),
+            max_overflow=config_db.get("max_overflow", 20),
+            pool_timeout=config_db.get("pool_timeout", 30)
         )
         database = db
+        logger.info("Database startup successful")
         return True
-    except mysql.connector.Error as err:
+    except Exception as err:
         logger.error(f"Failed to connect to database: {err}")
         return False

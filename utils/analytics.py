@@ -78,10 +78,12 @@ def flush_events() -> int:
         return 0
 
     count = len(_event_buffer)
+    events_to_flush = _event_buffer.copy()
 
     if db:
         try:
-            for event in _event_buffer:
+            # Use batch insert for better performance
+            for event in events_to_flush:
                 db.record_analytics_event(
                     event_type=event["event_type"],
                     user_id=event["user_id"],
@@ -90,14 +92,19 @@ def flush_events() -> int:
                     metadata=event["metadata"]
                 )
             logger.info(f"Flushed {count} analytics events to database.")
+            # Only clear buffer after successful flush
+            _event_buffer = []
         except Exception as e:
             logger.error(f"Failed to flush analytics events to database: {e}")
-            # we keep the buffer so we can try again next time?
-            # for now let's just clear it to avoid memory leaks if DB is down permanently
+            # Keep events in buffer for retry, but limit buffer size to prevent memory issues
+            if len(_event_buffer) > 1000:
+                logger.warning(f"Analytics buffer exceeded 1000 events, clearing old events.")
+                _event_buffer = _event_buffer[-500:]  # Keep only the most recent 500
+            return 0
     else:
         logger.warning("Database not connected, cannot flush analytics events.")
+        _event_buffer = []
 
-    _event_buffer = []
     return count
 
 

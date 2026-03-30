@@ -1,5 +1,7 @@
 import discord
 
+from utils.emojis import get_button_emoji
+
 
 class DynamicButtonView(discord.ui.View):
     """
@@ -77,12 +79,14 @@ class MatchmakingView(DynamicButtonView):
         :param start_button_id: id of the start button
         :param can_start: whether the game can be started
         """
-        super().__init__([{"label": "Join", "style": discord.ButtonStyle.gray, "id": join_button_id,
-                           "callback": "none"},
-                          {"label": "Leave", "style": discord.ButtonStyle.gray, "id": leave_button_id,
-                           "callback": "none"},
-                          {"label": "Start", "style": discord.ButtonStyle.blurple, "id": start_button_id,
-                           "callback": "none", "disabled": not can_start}])
+        super().__init__([
+            {"label": "Join", "style": discord.ButtonStyle.gray, "id": join_button_id,
+             "emoji": get_button_emoji("join"), "callback": "none"},
+            {"label": "Leave", "style": discord.ButtonStyle.gray, "id": leave_button_id,
+             "emoji": get_button_emoji("leave"), "callback": "none"},
+            {"label": "Start", "style": discord.ButtonStyle.blurple, "id": start_button_id,
+             "emoji": get_button_emoji("start"), "callback": "none", "disabled": not can_start}
+        ])
 
 
 class InviteView(DynamicButtonView):
@@ -96,10 +100,12 @@ class InviteView(DynamicButtonView):
         :param join_button_id: the custom ID of the join button
         :param game_link: the link to the game
         """
-        super().__init__([{"label": "Join Game", "style": discord.ButtonStyle.blurple,
-                           "id": join_button_id, "callback": "none"},
-                          {"label": "Go To Game (won't join)",
-                           "style": discord.ButtonStyle.gray, "link": game_link}])
+        super().__init__([
+            {"label": "Join Game", "style": discord.ButtonStyle.blurple,
+             "id": join_button_id, "emoji": get_button_emoji("join"), "callback": "none"},
+            {"label": "Go To Game (won't join)",
+             "style": discord.ButtonStyle.gray, "link": game_link}
+        ])
 
 
 class SpectateView(DynamicButtonView):
@@ -114,9 +120,11 @@ class SpectateView(DynamicButtonView):
         :param peek_button_id: custom ID of the peek button
         :param game_link: the link to the game
         """
-        super().__init__([{"label": "Spectate Game", "style": discord.ButtonStyle.blurple,
-                           "id": spectate_button_id, "callback": "none"},
-                          {"label": "Peek", "style": discord.ButtonStyle.gray, "id": peek_button_id,
-                           "callback": "none"},
-                          {"label": "Go To Game (won't join)", "style": discord.ButtonStyle.gray,
-                           "link": game_link}])
+        super().__init__([
+            {"label": "Spectate Game", "style": discord.ButtonStyle.blurple,
+             "id": spectate_button_id, "emoji": get_button_emoji("spectate"), "callback": "none"},
+            {"label": "Peek", "style": discord.ButtonStyle.gray, "id": peek_button_id,
+             "emoji": get_button_emoji("peek"), "callback": "none"},
+            {"label": "Go To Game (won't join)", "style": discord.ButtonStyle.gray,
+             "link": game_link}
+        ])
