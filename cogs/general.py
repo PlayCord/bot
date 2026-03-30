@@ -1,6 +1,9 @@
 import importlib
 import logging
+import hashlib
+from datetime import datetime
 
+import discord
 from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
@@ -10,8 +13,9 @@ from utils import database as db, ramcheck
 from utils.conversion import contextify
 from utils.embeds import CustomEmbed, InviteEmbed
 from utils.emojis import get_emoji_string
-from utils.interfaces import MatchmakingInterface
-from utils.views import InviteView
+from utils.graphs import generate_elo_chart
+from utils.interfaces import MatchmakingInterface, user_in_active_game
+from utils.views import InviteView, PaginationView
 
 log = logging.getLogger(LOGGING_ROOT)
 
@@ -53,6 +57,32 @@ def _build_ascii_sparkline(values, width: int = 24) -> str:
     return "".join(chars)
 
 
+async def autocomplete_game_id(ctx: discord.Interaction, current: str) -> list[Choice[str]]:
+    query = current.lower().strip()
+    matches = []
+
+    for game_id, (module_name, class_name) in GAME_TYPES.items():
+        game_class = getattr(importlib.import_module(module_name), class_name)
+        display_name = getattr(game_class, "name", game_id)
+
+        searchable = f"{game_id} {display_name}".lower()
+        if query and query not in searchable:
+            continue
+
+        if query and game_id.lower().startswith(query):
+            rank = 0
+        elif query and display_name.lower().startswith(query):
+            rank = 1
+        else:
+            rank = 2
+
+        choice_name = f"{display_name} ({game_id})" if display_name.lower() != game_id.lower() else game_id
+        matches.append((rank, choice_name.lower(), choice_name, game_id))
+
+    matches.sort(key=lambda item: (item[0], item[1]))
+    return [Choice(name=name[:100], value=value) for _, _, name, value in matches[:25]]
+
+
 class GeneralCog(commands.Cog):
     def __init__(self, bot: discord.Client):
         self.bot = bot
@@ -62,6 +92,7 @@ class GeneralCog(commands.Cog):
     @command_root.command(name="invite",
                           description="Invite a player to play a game, or remove them from the blacklist in public games.")
     @app_commands.describe(game="The game to start if you aren't already in one")
+    @app_commands.autocomplete(game=autocomplete_game_id)
     async def command_invite(self, ctx: discord.Interaction,
                              user: discord.User,
                              game: str = None,
@@ -78,6 +109,13 @@ class GeneralCog(commands.Cog):
         id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
 
         if ctx.user.id not in id_matchmaking:
+            if user_in_active_game(ctx.user.id):
+                await ctx.response.send_message(
+                    "You are already in an active game in another server. Finish that game before starting a new one.",
+                    ephemeral=True
+                )
+                return
+
             if game is None:
                 await ctx.response.send_message("You aren't in matchmaking. Please specify a `game` to start one!",
                                                 ephemeral=True)
@@ -116,7 +154,7 @@ class GeneralCog(commands.Cog):
             if invited_user.id in [p.id for p in matchmaker.queued_players]:
                 failed_invites[invited_user] = "Member was already in matchmaking."
                 continue
-            if invited_user in IN_GAME:
+            if user_in_active_game(invited_user.id):
                 failed_invites[invited_user] = "Member was already in a game."
                 continue
             if invited_user.bot:
@@ -274,6 +312,7 @@ class GeneralCog(commands.Cog):
     @app_commands.describe(game="The game to view the leaderboard for",
                            scope="Whether to show server or global leaderboard", page="Page number of the leaderboard")
     @app_commands.choices(scope=[Choice(name="Server", value="server"), Choice(name="Global", value="global")])
+    @app_commands.autocomplete(game=autocomplete_game_id)
     async def command_leaderboard(self, ctx: discord.Interaction, game: str, scope: str = "server", page: int = 1):
         f_log = log.getChild("command.leaderboard")
         f_log.debug(f"/leaderboard called for game={game}, scope={scope}, page={page}: {contextify(ctx)}")
@@ -294,33 +333,70 @@ class GeneralCog(commands.Cog):
             page = 1
 
         limit = 10
+        
+        embed, has_data, is_last_page = self._build_leaderboard_embed(game, game_name, game_db.game_id, scope, ctx.guild, page, limit)
+        
+        # If no data on this page and page > 1, go back to page 1
+        if not has_data and page > 1:
+            page = 1
+            embed, has_data, is_last_page = self._build_leaderboard_embed(game, game_name, game_db.game_id, scope, ctx.guild, page, limit)
+        
+        max_pages = page if is_last_page else page + 1
+        embed.set_footer(text=f"Page {page}/{max_pages}")
+
+        params_hash = hashlib.md5(f"{game}:{scope}".encode()).hexdigest()[:8]
+        view = PaginationView(
+            command="leaderboard",
+            guild_id=ctx.guild.id if ctx.guild else 0,
+            user_id=ctx.user.id,
+            current_page=page,
+            max_pages=max_pages,
+            params_hash=params_hash,
+            callback_handler=lambda interaction, new_page: self._leaderboard_page_callback(
+                interaction, game, game_name, game_db.game_id, scope, new_page, limit, params_hash
+            )
+        )
+        await ctx.response.send_message(embed=embed, view=view)
+    
+    def _build_leaderboard_embed(self, game: str, game_name: str, game_id: int, scope: str, 
+                                 guild, page: int, limit: int):
+        """Build the leaderboard embed for a specific page. Returns (embed, has_data, is_last_page)."""
         offset = (page - 1) * limit
         if scope == "global":
+            # Fetch one extra item to check if there are more pages
             leaderboard_data = db.database.get_global_leaderboard(
-                game_db.game_id,
-                limit=limit,
+                game_id,
+                limit=limit + 1,
                 offset=offset,
                 min_matches=1,
             )
             scope_text = "Global leaderboard"
         else:
+            # Fetch one extra item to check if there are more pages
             leaderboard_data = db.database.get_leaderboard(
-                ctx.guild.id,
-                game_db.game_id,
-                limit=limit,
+                guild.id,
+                game_id,
+                limit=limit + 1,
                 offset=offset,
                 min_matches=1,
             )
-            scope_text = f"Server leaderboard for {ctx.guild.name}"
+            scope_text = f"Server leaderboard for {guild.name}"
 
         embed = CustomEmbed(title=f"🏆 {game_name} Leaderboard", color=INFO_COLOR)
         embed.description = scope_text
 
-        if not leaderboard_data:
-            embed.add_field(name="No Data", value="No players have played this game yet!", inline=False)
+        has_data = bool(leaderboard_data)
+        # If we got more than limit items, there are more pages
+        is_last_page = len(leaderboard_data) <= limit
+        
+        # Only use the first 'limit' items for display
+        display_data = leaderboard_data[:limit]
+        
+        if not display_data:
+            embed.add_field(name="No Data", value="No players have played this game yet!" if page == 1 else "No more players to display.", inline=False)
         else:
             rankings = []
-            for i, entry in enumerate(leaderboard_data, start=offset + 1):
+            for i, entry in enumerate(display_data, start=offset + 1):
                 user_id = entry['user_id']
                 conservative = entry.get('conservative_rating', entry.get('mu', 0))
                 mu = entry.get('mu', 0)
@@ -332,8 +408,28 @@ class GeneralCog(commands.Cog):
                 )
             embed.add_field(name="Rankings", value="\n".join(rankings), inline=False)
 
-        embed.set_footer(text=f"Page {page} | Use /playcord leaderboard {game} page:<number> to see more")
-        await ctx.response.send_message(embed=embed)
+        return embed, has_data, is_last_page
+    
+    async def _leaderboard_page_callback(self, interaction: discord.Interaction, game: str, game_name: str,
+                                        game_id: int, scope: str, new_page: int, 
+                                        limit: int, params_hash: str):
+        """Callback for leaderboard pagination buttons."""
+        embed, has_data, is_last_page = self._build_leaderboard_embed(game, game_name, game_id, scope, interaction.guild, 
+                                                                       new_page, limit)
+        max_pages = new_page if is_last_page else new_page + 1
+        embed.set_footer(text=f"Page {new_page}/{max_pages}")
+        view = PaginationView(
+            command="leaderboard",
+            guild_id=interaction.guild.id if interaction.guild else 0,
+            user_id=interaction.user.id,
+            current_page=new_page,
+            max_pages=max_pages,  # Dynamic max based on data
+            params_hash=params_hash,
+            callback_handler=lambda inter, pg: self._leaderboard_page_callback(
+                inter, game, game_name, game_id, scope, pg, limit, params_hash
+            )
+        )
+        await interaction.response.edit_message(embed=embed, view=view)
 
     @command_root.command(name="catalog", description="View all available games")
     @app_commands.describe(page="Page number of the catalog")
@@ -345,7 +441,27 @@ class GeneralCog(commands.Cog):
         all_games = list(GAME_TYPES.keys())
         total_pages = (len(all_games) + games_per_page - 1) // games_per_page
 
-        if page < 1 or page > total_pages: page = 1
+        if page < 1 or page > total_pages: 
+            page = 1
+        
+        embed = self._build_catalog_embed(page, total_pages, all_games, games_per_page)
+        
+        params_hash = hashlib.md5(f"catalog".encode()).hexdigest()[:8]
+        view = PaginationView(
+            command="catalog",
+            guild_id=ctx.guild.id if ctx.guild else 0,
+            user_id=ctx.user.id,
+            current_page=page,
+            max_pages=total_pages,
+            params_hash=params_hash,
+            callback_handler=lambda interaction, new_page: self._catalog_page_callback(
+                interaction, new_page, total_pages, all_games, games_per_page, params_hash
+            )
+        )
+        await ctx.response.send_message(embed=embed, view=view)
+    
+    def _build_catalog_embed(self, page: int, total_pages: int, all_games: list, games_per_page: int) -> CustomEmbed:
+        """Build the catalog embed for a specific page."""
         start_idx = (page - 1) * games_per_page
         page_games = all_games[start_idx:start_idx + games_per_page]
 
@@ -367,8 +483,26 @@ class GeneralCog(commands.Cog):
                 f"{game_desc[:100]}{'...' if len(game_desc) > 100 else ''}\n⏰ {game_time} | 👤 {player_text} | 📈 {game_difficulty}\n**Command:** `/play {game_id}`"),
                             inline=False)
 
-        embed.set_footer(text=f"Page {page}/{total_pages} | Use /playcord catalog page:<number> to see more")
-        await ctx.response.send_message(embed=embed)
+        embed.set_footer(text=f"Page {page}/{total_pages}")
+        return embed
+    
+    async def _catalog_page_callback(self, interaction: discord.Interaction, new_page: int, 
+                                     total_pages: int, all_games: list, games_per_page: int, params_hash: str):
+        """Callback for catalog pagination buttons."""
+        embed = self._build_catalog_embed(new_page, total_pages, all_games, games_per_page)
+        view = PaginationView(
+            command="catalog",
+            guild_id=interaction.guild.id if interaction.guild else 0,
+            user_id=interaction.user.id,
+            current_page=new_page,
+            max_pages=total_pages,
+            params_hash=params_hash,
+            callback_handler=lambda inter, pg: self._catalog_page_callback(
+                inter, pg, total_pages, all_games, games_per_page, params_hash
+            )
+        )
+        await interaction.response.edit_message(embed=embed, view=view)
+
 
     @command_root.command(name="profile", description="View a player's profile and stats")
     @app_commands.describe(user="The user to view (defaults to yourself)")
@@ -440,6 +574,7 @@ class GeneralCog(commands.Cog):
         page="Page number for match history",
         days="Days included in trend graph (1-365)",
     )
+    @app_commands.autocomplete(game=autocomplete_game_id)
     async def command_history(
             self,
             ctx: discord.Interaction,
@@ -471,24 +606,59 @@ class GeneralCog(commands.Cog):
 
         game_class = getattr(importlib.import_module(GAME_TYPES[game][0]), GAME_TYPES[game][1])
         game_name = getattr(game_class, 'name', game)
+        
+        embed, chart_file, has_data, is_last_page = self._build_history_embed(
+            user, game_name, game_db.game_id, ctx.guild.id, page, days, f_log
+        )
+        
+        max_pages = page if is_last_page else page + 1
+        embed.set_footer(text=f"Page {page}/{max_pages}")
+        params_hash = hashlib.md5(f"{game}:{user.id}:{days}".encode()).hexdigest()[:8]
+        view = PaginationView(
+            command="history",
+            guild_id=ctx.guild.id if ctx.guild else 0,
+            user_id=ctx.user.id,
+            current_page=page,
+            max_pages=max_pages,
+            params_hash=params_hash,
+            callback_handler=lambda interaction, new_page: self._history_page_callback(
+                interaction, user, game_name, game_db.game_id, new_page, days, params_hash, f_log
+            )
+        )
+        if chart_file:
+            await ctx.response.send_message(embed=embed, file=chart_file, view=view)
+        else:
+            await ctx.response.send_message(embed=embed, view=view)
+    
+    def _build_history_embed(self, user, game_name: str, game_id: int, guild_id: int, 
+                            page: int, days: int, f_log):
+        """Build history embed for a specific page. Returns (embed, chart_file, has_data, is_last_page)."""
         limit = 8
         offset = (page - 1) * limit
 
+        # Fetch one extra item to check if there are more pages
         match_history = db.database.get_user_match_history(
             user.id,
-            ctx.guild.id,
-            game_id=game_db.game_id,
-            limit=limit,
+            guild_id,
+            game_id=game_id,
+            limit=limit + 1,
             offset=offset,
         )
-        rating_history = db.database.get_rating_history(user.id, ctx.guild.id, game_db.game_id, days=days)
+        rating_history = db.database.get_rating_history(user.id, guild_id, game_id, days=days)
 
         embed = CustomEmbed(title=f"📈 {user.display_name} - {game_name} history", color=INFO_COLOR)
         embed.set_thumbnail(url=user.display_avatar.url)
 
-        if match_history:
+        has_data = bool(match_history)
+        # If we got more than limit items, there are more pages
+        is_last_page = len(match_history) <= limit
+        
+        # Only use the first 'limit' items for display
+        display_history = match_history[:limit]
+        
+        if display_history:
             lines = []
-            for row in match_history:
+            for row in display_history:
                 rank_text = _ordinal(row.get('final_ranking'))
                 delta = row.get('mu_delta', 0)
                 lines.append(
@@ -498,27 +668,77 @@ class GeneralCog(commands.Cog):
                 )
             embed.add_field(name="Recent matches", value="\n".join(lines), inline=False)
         else:
-            embed.add_field(name="Recent matches", value="No completed matches found.", inline=False)
+            embed.add_field(name="Recent matches", 
+                          value="No completed matches found." if page == 1 else "No more matches to display.", 
+                          inline=False)
 
-        if rating_history:
+        # Generate matplotlib chart if rating history exists (only on first page for performance)
+        chart_file = None
+        if rating_history and page == 1:
             ascending = list(reversed(rating_history))
             points = [ascending[0].get('mu_before', MU)] + [row.get('mu_after', MU) for row in ascending]
-            graph = _build_ascii_sparkline(points)
-            delta_total = points[-1] - points[0]
-            embed.add_field(
-                name=f"Rating trend ({days}d)",
-                value=(
-                    f"`{graph}`\n"
-                    f"Start {round(points[0])} -> End {round(points[-1])} "
-                    f"({'+' if delta_total >= 0 else ''}{round(delta_total)})"
-                ),
-                inline=False,
-            )
-        else:
+            timestamps = [datetime.fromisoformat(str(ascending[0].get('timestamp')))] + \
+                        [datetime.fromisoformat(str(row.get('timestamp'))) for row in ascending]
+            
+            rating_data = list(zip(timestamps, points))
+            
+            try:
+                chart_buffer = generate_elo_chart(
+                    rating_data,
+                    title=f"{user.display_name}'s {game_name} Rating",
+                    figsize=(10, 6),
+                    dpi=100
+                )
+                chart_file = discord.File(chart_buffer, filename="rating_chart.png")
+                embed.set_image(url="attachment://rating_chart.png")
+                
+                delta_total = points[-1] - points[0]
+                embed.add_field(
+                    name=f"Rating trend ({days}d)",
+                    value=(
+                        f"Start: {round(points[0])} → End: {round(points[-1])} "
+                        f"({'+' if delta_total >= 0 else ''}{round(delta_total)})"
+                    ),
+                    inline=False,
+                )
+            except Exception as e:
+                f_log.error(f"Failed to generate chart: {e}")
+                delta_total = points[-1] - points[0]
+                embed.add_field(
+                    name=f"Rating trend ({days}d)",
+                    value=(
+                        f"Start: {round(points[0])} → End: {round(points[-1])} "
+                        f"({'+' if delta_total >= 0 else ''}{round(delta_total)})"
+                    ),
+                    inline=False,
+                )
+        elif page == 1:
             embed.add_field(name=f"Rating trend ({days}d)", value="No rating history for this period.", inline=False)
 
-        embed.set_footer(text=f"Page {page} | Use /playcord history game:{game} page:<number>")
-        await ctx.response.send_message(embed=embed)
+        return embed, chart_file, has_data, is_last_page
+    
+    async def _history_page_callback(self, interaction: discord.Interaction, user, game_name: str,
+                                    game_id: int, new_page: int, days: int, params_hash: str, f_log):
+        """Callback for history pagination buttons."""
+        embed, chart_file, has_data, is_last_page = self._build_history_embed(
+            user, game_name, game_id, interaction.guild.id, new_page, days, f_log
+        )
+        max_pages = new_page if is_last_page else new_page + 1
+        embed.set_footer(text=f"Page {new_page}/{max_pages}")
+        view = PaginationView(
+            command="history",
+            guild_id=interaction.guild.id if interaction.guild else 0,
+            user_id=interaction.user.id,
+            current_page=new_page,
+            max_pages=max_pages,  # Dynamic max based on data
+            params_hash=params_hash,
+            callback_handler=lambda inter, pg: self._history_page_callback(
+                inter, user, game_name, game_id, pg, days, params_hash, f_log
+            )
+        )
+        # Chart file only on page 1, so we won't have it on other pages
+        await interaction.response.edit_message(embed=embed, view=view)
+
 
     @command_root.command(name="settings", description="Change settings for your current game lobby")
     @app_commands.describe(rated="Whether the game should be rated", private="Whether the game should be private")

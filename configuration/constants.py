@@ -1,6 +1,6 @@
 import discord
 
-VERSION = "0.1.0//"
+VERSION = "0.1.1"
 IS_ACTIVE = True
 NAME = "PlayCord"
 MANAGED_BY = "quantumbagel"
@@ -176,6 +176,13 @@ BUTTON_PREFIX_NO_TURN = "n/"
 BUTTON_PREFIX_INVITE = "invite/"
 BUTTON_PREFIX_SPECTATE = "spectate/"
 BUTTON_PREFIX_PEEK = "peek/"
+
+# Pagination button custom_id prefixes
+BUTTON_PREFIX_PAGINATION = "pagination/"
+BUTTON_PREFIX_PAGINATION_FIRST = "pagination_first/"
+BUTTON_PREFIX_PAGINATION_PREV = "pagination_prev/"
+BUTTON_PREFIX_PAGINATION_NEXT = "pagination_next/"
+BUTTON_PREFIX_PAGINATION_LAST = "pagination_last/"
 
 PRESENCE_TIMEOUT = 60
 PRESENCE_PRESETS = [

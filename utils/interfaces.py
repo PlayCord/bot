@@ -23,6 +23,14 @@ from utils.emojis import get_emoji_string
 from utils.views import MatchmakingView, SpectateView
 
 
+def user_in_active_game(user_id: int) -> bool:
+    """Return True when the user is currently in any active game across all servers."""
+    for player in IN_GAME.keys():
+        if getattr(player, "id", None) == user_id:
+            return True
+    return False
+
+
 class GameInterface:
     """
     A class that handles the interface between the game and discord
@@ -638,6 +646,14 @@ class MatchmakingInterface:
                 f"{contextify(ctx)}")
             await ctx.followup.send("You are already in the game!", ephemeral=True)
             return False
+        if user_in_active_game(player.id):
+            log.info(f"Player.py {player} attempted to accept invite while already in another active game."
+                     f" {contextify(ctx)}")
+            await ctx.followup.send(
+                "You are already in an active game in another server. Finish that game before joining this lobby.",
+                ephemeral=True
+            )
+            return False
         else:
             if player is None:  # Couldn't retrieve information, so don't join them
                 log.warning(
@@ -768,6 +784,14 @@ class MatchmakingInterface:
             log.info(f"Attempted to join player {new_player} but failed because they were already in the queue."
                      f" {contextify(ctx)}")
             await ctx.followup.send("You are already in the game!", ephemeral=True)
+        elif user_in_active_game(new_player.id):
+            log.info(f"Attempted to join player {new_player} but failed because they are already in another game."
+                     f" {contextify(ctx)}")
+            await ctx.followup.send(
+                "You are already in an active game in another server. Finish that game before joining this lobby.",
+                ephemeral=True
+            )
+            return
         else:
             if not self.private:
                 if new_player in self.blacklist:
@@ -845,6 +869,18 @@ class MatchmakingInterface:
             await ctx.followup.send("You can't start the game (not the creator).", ephemeral=True)
             log.debug(f"Game failed to start because player {player} was not the creator. "
                       f"{contextify(ctx)}")
+            return
+
+        busy_players = [queued_player for queued_player in self.queued_players if user_in_active_game(queued_player.id)]
+        if busy_players:
+            verb = "is" if len(busy_players) == 1 else "are"
+            mentions = ", ".join(p.mention for p in busy_players)
+            await ctx.followup.send(
+                f"Can't start this game yet. {mentions} {verb} already in an active game in another server.",
+                ephemeral=True
+            )
+            log.info("Game start denied because one or more queued players are already in another active game. "
+                     f"{contextify(ctx)}")
             return
 
         # The matchmaking was successful!
@@ -977,9 +1013,9 @@ async def rating_groups_to_string(rankings: list[int], groups: list[dict[Interna
     # 2. PlayerTwo 30 (+2)
     # 3. PlayerThreeWhoSucks 20 (-20)
     player_string = "\n".join([
-        f"{player_ratings[p]["place"]}{"T" if player_ratings[p]["tied"] else ""}."
-        f"{LONG_SPACE_EMBED}<@{p}>{LONG_SPACE_EMBED}{player_ratings[p]["old_mu"]}"
-        f"{LONG_SPACE_EMBED}({player_ratings[p]["delta"]})"
+        f"{player_ratings[p]['place']}{'T' if player_ratings[p]['tied'] else ''}."
+        f"{LONG_SPACE_EMBED}<@{p}>{LONG_SPACE_EMBED}{player_ratings[p]['old_mu']}"
+        f"{LONG_SPACE_EMBED}({player_ratings[p]['delta']})"
         for p in player_ratings])
 
     # Return both the concatenated string AND the rating dictionary, as it is needed for the game_over function

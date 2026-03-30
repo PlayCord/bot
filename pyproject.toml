@@ -1,6 +1,6 @@
 [project]
 name = "playcord"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
     "ruamel.yaml",
     "discord",
@@ -10,7 +10,8 @@ dependencies = [
     "mpmath",
     "emoji",
     "psycopg[binary,pool]",
-    "psutil"
+    "psutil",
+    "matplotlib"
 ]
 requires-python = ">=3.10"
 authors = [

@@ -10,7 +10,7 @@ from utils.analytics import Timer
 from utils.discord_utils import decode_discord_arguments, send_simple_embed
 from utils.embeds import CustomEmbed
 from utils.emojis import get_emoji_string
-from utils.interfaces import MatchmakingInterface
+from utils.interfaces import MatchmakingInterface, user_in_active_game
 
 log = logging.getLogger(LOGGING_ROOT)
 
@@ -130,6 +130,14 @@ async def setup(bot: commands.Bot):
 async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = True, private: bool = False) -> None:
     matchmaking_timer = Timer().start()
     f_log = log.getChild("command.matchmaking")
+    if user_in_active_game(ctx.user.id):
+        await send_simple_embed(
+            ctx,
+            title="Already In Game",
+            description="You are already in an active game in another server. Finish that game before starting a new one.",
+            ephemeral=True
+        )
+        return
     if not (ctx.channel.permissions_for(ctx.guild.me).create_private_threads and ctx.channel.permissions_for(
             ctx.guild.me).send_messages):
         await send_simple_embed(ctx, title="Insufficient Permissions",

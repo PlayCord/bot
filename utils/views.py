@@ -128,3 +128,168 @@ class SpectateView(DynamicButtonView):
             {"label": "Go To Game (won't join)", "style": discord.ButtonStyle.gray,
              "link": game_link}
         ])
+
+
+class PaginationView(DynamicButtonView):
+    """
+    Persistent pagination view with First/Previous/Next/Last buttons.
+    Uses timeout=None to survive bot restarts.
+    """
+
+    def __init__(self, command: str, guild_id: int, user_id: int, current_page: int,
+                 max_pages: int, params_hash: str, callback_handler):
+        """
+        Initialize pagination view.
+        
+        Args:
+            command: Command name (catalog, leaderboard, history)
+            guild_id: Guild ID for validation
+            user_id: User ID who invoked the command (only they can interact)
+            current_page: Current page number (1-indexed)
+            max_pages: Total number of pages
+            params_hash: Hash of additional parameters (game, user, days, etc.)
+            callback_handler: Async function to regenerate embed for a new page
+        """
+        self.command = command
+        self.guild_id = guild_id
+        self.user_id = user_id
+        self.current_page = current_page
+        self.max_pages = max_pages
+        self.params_hash = params_hash
+        self.callback_handler = callback_handler
+
+        from configuration.constants import (
+            BUTTON_PREFIX_PAGINATION_FIRST,
+            BUTTON_PREFIX_PAGINATION_PREV,
+            BUTTON_PREFIX_PAGINATION_NEXT,
+            BUTTON_PREFIX_PAGINATION_LAST
+        )
+
+        super().__init__([
+            {
+                "label": "First",
+                "emoji": "⏮️",
+                "style": discord.ButtonStyle.gray,
+                "id": f"{BUTTON_PREFIX_PAGINATION_FIRST}{command}/{guild_id}/{user_id}/1/{max_pages}/{params_hash}",
+                "disabled": (current_page == 1),
+                "callback": self._first_callback,
+            },
+            {
+                "label": "Previous",
+                "emoji": "◀️",
+                "style": discord.ButtonStyle.primary,
+                "id": f"{BUTTON_PREFIX_PAGINATION_PREV}{command}/{guild_id}/{user_id}/{current_page}/{max_pages}/{params_hash}",
+                "disabled": (current_page == 1),
+                "callback": self._prev_callback,
+            },
+            {
+                "label": "Next",
+                "emoji": "▶️",
+                "style": discord.ButtonStyle.primary,
+                "id": f"{BUTTON_PREFIX_PAGINATION_NEXT}{command}/{guild_id}/{user_id}/{current_page}/{max_pages}/{params_hash}",
+                "disabled": (current_page >= max_pages),
+                "callback": self._next_callback,
+            },
+            {
+                "label": "Last",
+                "emoji": "⏭️",
+                "style": discord.ButtonStyle.gray,
+                "id": f"{BUTTON_PREFIX_PAGINATION_LAST}{command}/{guild_id}/{user_id}/{max_pages}/{max_pages}/{params_hash}",
+                "disabled": (current_page >= max_pages),
+                "callback": self._last_callback,
+            },
+        ])
+
+    def _validate_interaction(self, interaction: discord.Interaction) -> bool:
+        """Validate that the interaction is from the command invoker."""
+        if interaction.user.id != self.user_id:
+            return False
+        if interaction.guild_id != self.guild_id:
+            return False
+        return True
+
+    async def _first_callback(self, interaction: discord.Interaction):
+        """Navigate to first page."""
+        if not self._validate_interaction(interaction):
+            await interaction.response.send_message(
+                "You cannot interact with another user's pagination buttons.",
+                ephemeral=True
+            )
+            return
+
+        await self.callback_handler(interaction, 1)
+
+    async def _prev_callback(self, interaction: discord.Interaction):
+        """Navigate to previous page."""
+        if not self._validate_interaction(interaction):
+            await interaction.response.send_message(
+                "You cannot interact with another user's pagination buttons.",
+                ephemeral=True
+            )
+            return
+
+        new_page = max(1, self.current_page - 1)
+        await self.callback_handler(interaction, new_page)
+
+    async def _next_callback(self, interaction: discord.Interaction):
+        """Navigate to next page."""
+        if not self._validate_interaction(interaction):
+            await interaction.response.send_message(
+                "You cannot interact with another user's pagination buttons.",
+                ephemeral=True
+            )
+            return
+
+        new_page = min(self.max_pages, self.current_page + 1)
+        await self.callback_handler(interaction, new_page)
+
+    async def _last_callback(self, interaction: discord.Interaction):
+        """Navigate to last page."""
+        if not self._validate_interaction(interaction):
+            await interaction.response.send_message(
+                "You cannot interact with another user's pagination buttons.",
+                ephemeral=True
+            )
+            return
+
+        await self.callback_handler(interaction, self.max_pages)
+
+
+def parse_pagination_custom_id(custom_id: str) -> dict:
+    """
+    Parse pagination button custom_id to extract components.
+    
+    Format: <prefix><command>/<guild_id>/<user_id>/<page>/<max_pages>/<params_hash>
+    
+    Returns:
+        dict with keys: command, guild_id, user_id, page, max_pages, params_hash
+        
+    Raises:
+        ValueError: If custom_id format is invalid
+    """
+    from configuration.constants import (
+        BUTTON_PREFIX_PAGINATION_FIRST,
+        BUTTON_PREFIX_PAGINATION_PREV,
+        BUTTON_PREFIX_PAGINATION_NEXT,
+        BUTTON_PREFIX_PAGINATION_LAST
+    )
+
+    # Remove prefix
+    for prefix in [BUTTON_PREFIX_PAGINATION_FIRST, BUTTON_PREFIX_PAGINATION_PREV,
+                   BUTTON_PREFIX_PAGINATION_NEXT, BUTTON_PREFIX_PAGINATION_LAST]:
+        if custom_id.startswith(prefix):
+            custom_id = custom_id[len(prefix):]
+            break
+
+    parts = custom_id.split('/')
+    if len(parts) != 6:
+        raise ValueError(f"Invalid pagination custom_id format: expected 6 parts, got {len(parts)}")
+
+    return {
+        'command': parts[0],
+        'guild_id': int(parts[1]),
+        'user_id': int(parts[2]),
+        'page': int(parts[3]),
+        'max_pages': int(parts[4]),
+        'params_hash': parts[5]
+    }
