@@ -21,17 +21,31 @@ OWNERS = [897146430664355850, 1085939954758205561]
 CONFIGURATION = {}
 
 WELCOME_MESSAGE = [
-    (f"Hi! I'm {NAME}!", "Thanks for adding me to your server :D\nHere's some tips on how to get started.\n"
-                         "Please note that this introduction (or the bot) doesn't contain details on how to"
-                         " use the bot. For that, please check the README (linked below)."),
-    ("What is this bot?", f"{NAME} is a bot for playing any variety of quick game on Discord."),
-    ("Where's the README?", "Right [here](https://github.com/PlayCord/bot/blob/master/README.md) :D"),
-    ("Who made you?", "[@quantumbagel on Github](https://github.com/quantumbagel)")
+    (f"👋 Welcome to {NAME}!", 
+     f"Thanks for adding me! I'm a Discord bot for playing turn-based games with friends.\n\n"
+     f"**Quick Start:**\n"
+     f"• `/play <game>` - Start a new game\n"
+     f"• `/playcord catalog` - Browse all games\n"
+     f"• `/playcord help` - Interactive help menu"),
+    ("🎮 Available Games", 
+     "I have over 10 games including Tic-Tac-Toe, Connect Four, Chess, Poker, and more! "
+     "Each game tracks your rating so you can compete for the leaderboard."),
+    ("📊 Rating System", 
+     "Every game has a skill-based rating system. Win games to climb the leaderboard "
+     "and show off your skills!"),
+    ("❓ Need Help?", 
+     "Use `/playcord help` for an interactive guide, or check out our "
+     "[GitHub](https://github.com/PlayCord/bot) for documentation.")
 ]
 
-EMBED_COLOR = discord.Color.from_str("#6877ED")
-ERROR_COLOR = discord.Color.from_str("#ED6868")
-INFO_COLOR = discord.Color.from_str("#9A9CB0")
+# Standardized embed colors for consistent UX
+EMBED_COLOR = discord.Color.from_str("#6877ED")      # Primary brand color (purple-blue)
+ERROR_COLOR = discord.Color.from_str("#ED6868")      # Errors and failures (red)
+INFO_COLOR = discord.Color.from_str("#9A9CB0")       # Informational embeds (gray)
+SUCCESS_COLOR = discord.Color.from_str("#68ED7B")    # Success messages (green)
+WARNING_COLOR = discord.Color.from_str("#EDC868")    # Warnings and cautions (yellow/orange)
+GAME_COLOR = discord.Color.from_str("#68D4ED")       # Game-related embeds (cyan)
+MATCHMAKING_COLOR = discord.Color.from_str("#B068ED") # Matchmaking/lobby embeds (purple)
 
 CONFIG_BOT_SECRET = "secret"
 

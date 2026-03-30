@@ -10,11 +10,14 @@ from discord.ext import commands
 from configuration.constants import *
 from utils import database as db, ramcheck
 from utils.conversion import contextify
-from utils.embeds import CustomEmbed, InviteEmbed
-from utils.emojis import get_emoji_string
+from utils.embeds import (
+    CustomEmbed, InviteEmbed, HelpMainEmbed, HelpGettingStartedEmbed,
+    HelpCommandsEmbed, HelpGameInfoEmbed, UserErrorEmbed, LoadingEmbed
+)
+from utils.emojis import get_emoji_string, get_game_emoji
 from utils.graphs import generate_elo_chart
 from utils.interfaces import MatchmakingInterface, user_in_active_game
-from utils.views import InviteView, PaginationView
+from utils.views import InviteView, PaginationView, HelpView
 
 log = logging.getLogger(LOGGING_ROOT)
 
@@ -31,29 +34,6 @@ def _ordinal(value: int) -> str:
     else:
         suffix = {1: "st", 2: "nd", 3: "rd"}.get(value % 10, "th")
     return f"{value}{suffix}"
-
-
-def _build_ascii_sparkline(values, width: int = 24) -> str:
-    if not values:
-        return "no-data"
-    if len(values) > width:
-        step = (len(values) - 1) / (width - 1)
-        sampled = [values[round(i * step)] for i in range(width)]
-    else:
-        sampled = values
-
-    minimum = min(sampled)
-    maximum = max(sampled)
-    if maximum == minimum:
-        return "=" * len(sampled)
-
-    levels = "._-:=+*#%@"
-    span = maximum - minimum
-    chars = []
-    for value in sampled:
-        idx = int((value - minimum) / span * (len(levels) - 1))
-        chars.append(levels[idx])
-    return "".join(chars)
 
 
 async def autocomplete_game_id(ctx: discord.Interaction, current: str) -> list[Choice[str]]:
@@ -87,8 +67,15 @@ class GeneralCog(commands.Cog):
     command_root = app_commands.Group(name=LOGGING_ROOT, description="Everything that isn't a game.", guild_only=False)
 
     @command_root.command(name="invite",
-                          description="Invite a player to play a game, or remove them from the blacklist in public games.")
-    @app_commands.describe(game="The game to start if you aren't already in one")
+                          description="Invite players to your game lobby (can start a new lobby if not in one)")
+    @app_commands.describe(
+        user="First player to invite",
+        game="The game to start (only needed if you're not already in a lobby)",
+        user2="Second player to invite (optional)",
+        user3="Third player to invite (optional)",
+        user4="Fourth player to invite (optional)",
+        user5="Fifth player to invite (optional)"
+    )
     @app_commands.autocomplete(game=autocomplete_game_id)
     async def command_invite(self, ctx: discord.Interaction,
                              user: discord.User,
@@ -107,20 +94,31 @@ class GeneralCog(commands.Cog):
 
         if ctx.user.id not in id_matchmaking:
             if user_in_active_game(ctx.user.id):
-                await ctx.response.send_message(
-                    "You are already in an active game in another server. Finish that game before starting a new one.",
-                    ephemeral=True
+                embed = UserErrorEmbed(
+                    title="Already in a Game",
+                    description="You're already playing a game in another server.",
+                    suggestion="Finish your current game first, or forfeit it to start a new one."
                 )
+                await ctx.response.send_message(embed=embed, ephemeral=True)
                 return
 
             if game is None:
-                await ctx.response.send_message("You aren't in matchmaking. Please specify a `game` to start one!",
-                                                ephemeral=True)
+                embed = UserErrorEmbed(
+                    title="No Active Lobby",
+                    description="You're not in a game lobby right now.",
+                    suggestion="Specify a `game` parameter to create a new lobby and invite players, "
+                               "or use `/play <game>` first."
+                )
+                await ctx.response.send_message(embed=embed, ephemeral=True)
                 return
 
             if game not in GAME_TYPES:
-                await ctx.response.send_message(
-                    f"Unknown game: {game}. Use `/playcord catalog` to see available games.", ephemeral=True)
+                embed = UserErrorEmbed(
+                    title="Game Not Found",
+                    description=f"**{game}** isn't a valid game.",
+                    suggestion="Use `/playcord catalog` to see all available games."
+                )
+                await ctx.response.send_message(embed=embed, ephemeral=True)
                 return
 
             # Start a new matchmaking lobby
@@ -137,8 +135,12 @@ class GeneralCog(commands.Cog):
         matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
 
         if matchmaker.private and matchmaker.creator.id != ctx.user.id:
-            await ctx.response.send_message("You aren't the creator of this game, so you can't invite people to play.",
-                                            ephemeral=True)
+            embed = UserErrorEmbed(
+                title="Permission Denied",
+                description="Only the lobby creator can invite players to a private game.",
+                suggestion="Ask the lobby creator to send invites, or create your own lobby."
+            )
+            await ctx.response.send_message(embed=embed, ephemeral=True)
             f_log.debug(f"/invite rejected: not creator. {contextify(ctx)}")
             return
 
@@ -146,7 +148,7 @@ class GeneralCog(commands.Cog):
         failed_invites = {}
         for invited_user in filter(None, invited_users):
             if invited_user not in matchmaker.message.guild.members:
-                failed_invites[invited_user] = "Member was not in server that the game was"
+                failed_invites[invited_user] = "Not in this server"
                 continue
             if invited_user.id in [p.id for p in matchmaker.queued_players]:
                 failed_invites[invited_user] = "Member was already in matchmaking."
@@ -188,40 +190,62 @@ class GeneralCog(commands.Cog):
         else:
             await ctx.response.send_message(final, ephemeral=True)
 
-    @command_root.command(name="kick", description="Remove a user from your lobby without banning them.")
+    @command_root.command(name="kick", description="Remove a player from your lobby (they can rejoin)")
+    @app_commands.describe(
+        user="The player to kick from the lobby",
+        reason="Optional reason for kicking (shown to the player)"
+    )
     async def command_kick(self, ctx: discord.Interaction, user: discord.User, reason: str = None):
         f_log = log.getChild("command.kick")
         id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
 
         if ctx.user.id not in id_matchmaking:
-            await ctx.response.send_message("You aren't in matchmaking, so you can't kick anyone.",
-                                            ephemeral=True)
+            embed = UserErrorEmbed(
+                title="No Active Lobby",
+                description="You need to be in a game lobby to kick players.",
+                suggestion="Start a new game with `/play <game>` first."
+            )
+            await ctx.response.send_message(embed=embed, ephemeral=True)
             return
         matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
         if matchmaker.creator.id != ctx.user.id:
-            await ctx.response.send_message(
-                "You aren't the creator of this game, so you can't kick people from the game.",
-                ephemeral=True)
+            embed = UserErrorEmbed(
+                title="Permission Denied",
+                description="Only the lobby creator can kick players.",
+                suggestion="Ask the lobby creator, or create your own lobby."
+            )
+            await ctx.response.send_message(embed=embed, ephemeral=True)
             return
 
         return_value = await matchmaker.kick(user, reason)
         await ctx.response.send_message(return_value, ephemeral=True)
 
     @command_root.command(name="ban",
-                          description="Remove a user from whitelist (private games) or blacklist them (public games).")
+                          description="Ban a player from your lobby (they cannot rejoin)")
+    @app_commands.describe(
+        user="The player to ban from the lobby",
+        reason="Optional reason for the ban (shown to the player)"
+    )
     async def command_ban(self, ctx: discord.Interaction, user: discord.User, reason: str = None):
         f_log = log.getChild("command.ban")
         id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
 
         if ctx.user.id not in id_matchmaking:
-            await ctx.response.send_message("You aren't in matchmaking, so you can't ban anyone.",
-                                            ephemeral=True)
+            embed = UserErrorEmbed(
+                title="No Active Lobby",
+                description="You need to be in a game lobby to ban players.",
+                suggestion="Start a new game with `/play <game>` first."
+            )
+            await ctx.response.send_message(embed=embed, ephemeral=True)
             return
         matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
         if matchmaker.creator.id != ctx.user.id:
-            await ctx.response.send_message(
-                "You aren't the creator of this game, so you can't ban people from the game.",
-                ephemeral=True)
+            embed = UserErrorEmbed(
+                title="Permission Denied",
+                description="Only the lobby creator can ban players.",
+                suggestion="Ask the lobby creator, or create your own lobby."
+            )
+            await ctx.response.send_message(embed=embed, ephemeral=True)
             return
 
         return_value = await matchmaker.ban(user, reason)
@@ -278,36 +302,94 @@ class GeneralCog(commands.Cog):
 
         await ctx.response.send_message(embed=embed)
 
-    @command_root.command(name="help", description="Get help on how to use the bot")
-    async def command_help(self, ctx: discord.Interaction):
+    @command_root.command(name="help", description="Interactive help menu - learn how to use PlayCord!")
+    @app_commands.describe(topic="Jump directly to a specific help topic")
+    @app_commands.choices(topic=[
+        Choice(name="Getting Started (New Users)", value="getting_started"),
+        Choice(name="Commands Reference", value="commands"),
+        Choice(name="Available Games", value="games"),
+    ])
+    async def command_help(self, ctx: discord.Interaction, topic: str = None):
         f_log = log.getChild("command.help")
-        f_log.debug(f"/help called: {contextify(ctx)}")
+        f_log.debug(f"/help called with topic={topic}: {contextify(ctx)}")
 
-        embed = CustomEmbed(title=f"{NAME} Help 📚", color=INFO_COLOR)
-        embed.description = f"Welcome to {NAME}! Here's how to get started."
-        embed.add_field(name="🎮 Starting a Game",
-                        value="Use `/play <game>` to start a game. For example: `/play tictactoe`", inline=False)
-        embed.add_field(name="👥 Joining Games",
-                        value="Click the **Join** button on any matchmaking message to join a game.", inline=False)
-        embed.add_field(name="📊 Leaderboards",
-                        value="Use `/playcord leaderboard <game>` to see the top players for a game.", inline=False)
-        embed.add_field(name="📖 Game Catalog", value="Use `/playcord catalog` to see all available games.",
-                        inline=False)
-        embed.add_field(name="👤 Your Profile",
-                        value="Use `/playcord profile` to see your stats, or `/playcord profile @user` to see someone else's.",
-                        inline=False)
-        embed.add_field(name="⚙️ Commands",
-                        value="`/playcord stats` - Bot statistics\n`/playcord about` - About the bot\n`/playcord invite @user` - Invite a user to your game\n`/playcord kick @user` - Kick a user from your lobby\n`/playcord ban @user` - Ban a user from your lobby",
-                        inline=False)
-        embed.add_field(name="🔗 Links",
-                        value="[GitHub](https://github.com/PlayCord/bot) | [README](https://github.com/PlayCord/bot/blob/master/README.md)",
-                        inline=False)
+        # Determine which embed to show based on topic
+        if topic == "getting_started":
+            embed = HelpGettingStartedEmbed()
+            section = "getting_started"
+        elif topic == "commands":
+            embed = HelpCommandsEmbed()
+            section = "commands"
+        elif topic == "games":
+            # Build games overview
+            embed = await self._build_help_games_embed()
+            section = "games"
+        else:
+            embed = HelpMainEmbed()
+            section = "main"
 
+        view = HelpView(user_id=ctx.user.id, current_section=section)
+        await ctx.response.send_message(embed=embed, view=view)
+
+    async def _build_help_games_embed(self):
+        """Build a quick games overview embed for help menu."""
+        embed = CustomEmbed(
+            title="🎮 Available Games",
+            description="Here's a quick overview of what you can play:",
+            color=INFO_COLOR
+        )
+
+        games_text = []
+        for game_id, (module_name, class_name) in list(GAME_TYPES.items())[:8]:
+            game_class = getattr(importlib.import_module(module_name), class_name)
+            game_name = getattr(game_class, 'name', game_id)
+            games_text.append(f"• **{game_name}** (`/play {game_id}`)")
+
+        if len(GAME_TYPES) > 8:
+            games_text.append(f"*...and {len(GAME_TYPES) - 8} more!*")
+
+        embed.add_field(
+            name="Games",
+            value="\n".join(games_text),
+            inline=False
+        )
+
+        embed.add_field(
+            name="💡 Tip",
+            value="Use `/playcord catalog` for detailed info on each game!",
+            inline=False
+        )
+
+        return embed
+
+    @command_root.command(name="howtoplay", description="Learn how to play a specific game")
+    @app_commands.describe(game="The game you want to learn about")
+    @app_commands.autocomplete(game=autocomplete_game_id)
+    async def command_howtoplay(self, ctx: discord.Interaction, game: str):
+        f_log = log.getChild("command.howtoplay")
+        f_log.debug(f"/howtoplay called for game={game}: {contextify(ctx)}")
+
+        if game not in GAME_TYPES:
+            embed = UserErrorEmbed(
+                title="Game Not Found",
+                description=f"I couldn't find a game called **{game}**.",
+                suggestion="Use `/playcord catalog` to see all available games, or try `/playcord help` for general help."
+            )
+            await ctx.response.send_message(embed=embed, ephemeral=True)
+            return
+
+        game_info = GAME_TYPES[game]
+        game_class = getattr(importlib.import_module(game_info[0]), game_info[1])
+        
+        embed = HelpGameInfoEmbed(game, game_class)
         await ctx.response.send_message(embed=embed)
 
-    @command_root.command(name="leaderboard", description="View the leaderboard for a game")
-    @app_commands.describe(game="The game to view the leaderboard for",
-                           scope="Whether to show server or global leaderboard", page="Page number of the leaderboard")
+    @command_root.command(name="leaderboard", description="View the top-ranked players for any game")
+    @app_commands.describe(
+        game="The game to view rankings for",
+        scope="Server leaderboard (local) or Global leaderboard (all servers)", 
+        page="Page number to view"
+    )
     @app_commands.choices(scope=[Choice(name="Server", value="server"), Choice(name="Global", value="global")])
     @app_commands.autocomplete(game=autocomplete_game_id)
     async def command_leaderboard(self, ctx: discord.Interaction, game: str, scope: str = "server", page: int = 1):
@@ -315,15 +397,22 @@ class GeneralCog(commands.Cog):
         f_log.debug(f"/leaderboard called for game={game}, scope={scope}, page={page}: {contextify(ctx)}")
 
         if game not in GAME_TYPES:
-            await ctx.response.send_message(
-                f"Unknown game type: {game}. Use `/playcord catalog` to see available games.", ephemeral=True)
+            embed = UserErrorEmbed(
+                title="Game Not Found",
+                description=f"**{game}** isn't a valid game.",
+                suggestion="Use `/playcord catalog` to see all available games."
+            )
+            await ctx.response.send_message(embed=embed, ephemeral=True)
             return
+
+        # Defer response for database query (shows "thinking...")
+        await ctx.response.defer()
 
         game_class = getattr(importlib.import_module(GAME_TYPES[game][0]), GAME_TYPES[game][1])
         game_name = game_class.name
         game_db = db.database.get_game(game)
         if not game_db:
-            await ctx.response.send_message("This game is not registered in the database yet.", ephemeral=True)
+            await ctx.followup.send("This game is not registered in the database yet.", ephemeral=True)
             return
 
         if page < 1:
@@ -355,7 +444,7 @@ class GeneralCog(commands.Cog):
                 interaction, game, game_name, game_db.game_id, scope, new_page, limit, params_hash
             )
         )
-        await ctx.response.send_message(embed=embed, view=view)
+        await ctx.followup.send(embed=embed, view=view)
 
     def _build_leaderboard_embed(self, game: str, game_name: str, game_id: int, scope: str,
                                  guild, page: int, limit: int):
@@ -433,8 +522,8 @@ class GeneralCog(commands.Cog):
         )
         await interaction.response.edit_message(embed=embed, view=view)
 
-    @command_root.command(name="catalog", description="View all available games")
-    @app_commands.describe(page="Page number of the catalog")
+    @command_root.command(name="catalog", description="Browse all available games with details and difficulty ratings")
+    @app_commands.describe(page="Page number (each page shows 3 games)")
     async def command_catalog(self, ctx: discord.Interaction, page: int = 1):
         f_log = log.getChild("command.catalog")
         f_log.debug(f"/catalog called with page={page}: {contextify(ctx)}")
@@ -468,7 +557,7 @@ class GeneralCog(commands.Cog):
         page_games = all_games[start_idx:start_idx + games_per_page]
 
         embed = CustomEmbed(title=f"🎲 {NAME} Game Catalog", color=INFO_COLOR)
-        embed.description = f"Browse all available games. Use `/play <game>` to start playing!"
+        embed.description = f"Browse all {len(GAME_TYPES)} available games. Use `/play <game>` to start playing!"
 
         for game_id in page_games:
             game_info = GAME_TYPES[game_id]
@@ -478,14 +567,17 @@ class GeneralCog(commands.Cog):
             game_time = getattr(game_class, 'time', 'Unknown')
             game_difficulty = getattr(game_class, 'difficulty', 'Unknown')
             game_players = getattr(game_class, 'players', 'Unknown')
+            game_emoji = get_game_emoji(game_id)
             player_text = f"{min(game_players)}-{max(game_players)} players" if isinstance(game_players,
                                                                                            list) else f"{game_players} players"
 
-            embed.add_field(name=f"🎮 {game_name}", value=(
-                f"{game_desc[:100]}{'...' if len(game_desc) > 100 else ''}\n⏰ {game_time} | 👤 {player_text} | 📈 {game_difficulty}\n**Command:** `/play {game_id}`"),
+            embed.add_field(name=f"{game_emoji} {game_name}", value=(
+                f"{game_desc[:100]}{'...' if len(game_desc) > 100 else ''}\n"
+                f"⏰ {game_time} | 👤 {player_text} | 📈 {game_difficulty}\n"
+                f"**Command:** `/play {game_id}`"),
                             inline=False)
 
-        embed.set_footer(text=f"Page {page}/{total_pages}")
+        embed.set_footer(text=f"Page {page}/{total_pages} • Use /playcord howtoplay <game> for more details")
         return embed
 
     async def _catalog_page_callback(self, interaction: discord.Interaction, new_page: int,
@@ -505,16 +597,24 @@ class GeneralCog(commands.Cog):
         )
         await interaction.response.edit_message(embed=embed, view=view)
 
-    @command_root.command(name="profile", description="View a player's profile and stats")
-    @app_commands.describe(user="The user to view (defaults to yourself)")
+    @command_root.command(name="profile", description="View your stats, ratings, and match history")
+    @app_commands.describe(user="The player to view (leave empty for yourself)")
     async def command_profile(self, ctx: discord.Interaction, user: discord.User = None):
         f_log = log.getChild("command.profile")
         if user is None: user = ctx.user
         f_log.debug(f"/profile called for user={user.id}: {contextify(ctx)}")
 
+        # Defer for database queries
+        await ctx.response.defer()
+
         player = db.database.get_player(user, ctx.guild.id)
         if player is None:
-            await ctx.response.send_message("Couldn't retrieve player data.", ephemeral=True)
+            embed = UserErrorEmbed(
+                title="Player Not Found",
+                description=f"I couldn't find any data for **{user.display_name}**.",
+                suggestion="This player may not have played any games yet."
+            )
+            await ctx.followup.send(embed=embed, ephemeral=True)
             return
 
         embed = CustomEmbed(title=f"👤 {user.display_name}'s Profile", color=INFO_COLOR)
@@ -546,7 +646,7 @@ class GeneralCog(commands.Cog):
         if game_stats:
             embed.add_field(name="📊 Game Ratings", value="\n".join(game_stats), inline=False)
         else:
-            embed.add_field(name="📊 Game Ratings", value="No games played yet!", inline=False)
+            embed.add_field(name="📊 Game Ratings", value="No games played yet! Start with `/play <game>`", inline=False)
 
         match_history = db.database.get_user_match_history(user.id, ctx.guild.id, limit=5)
         if match_history:

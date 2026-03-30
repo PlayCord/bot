@@ -31,3 +31,19 @@ button_emojis:
   start: "▶️"    # Play button for start
   spectate: "👁️"  # Eye for spectate
   peek: "🔍"     # Magnifying glass for peek
+
+# Game emojis - Unicode emojis for each game type
+game_emojis:
+  tictactoe: "❌"
+  liars: "🎲"
+  test: "🧪"
+  connectfour: "🔴"
+  reversi: "⚫"
+  nim: "🎯"
+  mastermind: "🧩"
+  battleship: "🚢"
+  nothanks: "🃏"
+  blackjack: "🂡"
+  codenames: "🕵️"
+  poker: "♠️"
+  chess: "♟️"

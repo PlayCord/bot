@@ -6,6 +6,7 @@ Provides functionality for:
 - Registering custom emojis at runtime
 - Getting emoji strings for use in Discord messages
 - Getting button emojis for UI elements
+- Getting game-specific emojis
 """
 import logging
 from typing import Optional
@@ -22,6 +23,9 @@ emojis: dict[str, dict] = {}
 # Button emojis (simple unicode emojis for buttons)
 button_emojis: dict[str, str] = {}
 
+# Game emojis (unicode emojis for each game type)
+game_emojis: dict[str, str] = {}
+
 # Runtime-registered emojis (not persisted)
 runtime_emojis: dict[str, dict] = {}
 
@@ -34,13 +38,14 @@ def initialize_emojis() -> bool:
 
     :return: True if successful, False otherwise
     """
-    global emojis, button_emojis, initialized
+    global emojis, button_emojis, game_emojis, initialized
     initialized = True
     try:
         config = ruamel.yaml.YAML().load(open(EMOJI_CONFIGURATION_FILE))
         emojis = config.get("emojis", {})
         button_emojis = config.get("button_emojis", {})
-        logger.info(f"Loaded {len(emojis)} emojis and {len(button_emojis)} button emojis from configuration.")
+        game_emojis = config.get("game_emojis", {})
+        logger.info(f"Loaded {len(emojis)} emojis, {len(button_emojis)} button emojis, and {len(game_emojis)} game emojis from configuration.")
         return True
     except FileNotFoundError:
         logger.critical(f"Emoji configuration file not found: {EMOJI_CONFIGURATION_FILE}")
@@ -166,3 +171,18 @@ def get_button_emoji(name: str) -> Optional[str]:
         initialize_emojis()
     
     return button_emojis.get(name)
+
+
+def get_game_emoji(game_id: str) -> str:
+    """
+    Get the emoji for a specific game type.
+    
+    Returns a default game emoji (🎮) if no specific emoji is configured.
+
+    :param game_id: The game ID (e.g., 'tictactoe', 'chess')
+    :return: The emoji string for the game
+    """
+    if not initialized:
+        initialize_emojis()
+    
+    return game_emojis.get(game_id, "🎮")

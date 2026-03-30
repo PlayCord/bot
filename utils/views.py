@@ -255,6 +255,143 @@ class PaginationView(DynamicButtonView):
         await self.callback_handler(interaction, self.max_pages)
 
 
+class HelpView(discord.ui.View):
+    """
+    Interactive help menu with navigation buttons.
+    """
+    
+    def __init__(self, user_id: int, current_section: str = "main"):
+        super().__init__(timeout=300)  # 5 minute timeout
+        self.user_id = user_id
+        self.current_section = current_section
+        self._setup_buttons()
+    
+    def _setup_buttons(self):
+        """Set up navigation buttons based on current section."""
+        from configuration.constants import INFO_COLOR
+        
+        # Main navigation buttons
+        if self.current_section == "main":
+            self.add_item(HelpButton(
+                label="Getting Started",
+                emoji="🚀",
+                section="getting_started",
+                style=discord.ButtonStyle.green,
+                user_id=self.user_id
+            ))
+            self.add_item(HelpButton(
+                label="Game List",
+                emoji="🎮",
+                section="games",
+                style=discord.ButtonStyle.primary,
+                user_id=self.user_id
+            ))
+            self.add_item(HelpButton(
+                label="Commands",
+                emoji="⚙️",
+                section="commands",
+                style=discord.ButtonStyle.primary,
+                user_id=self.user_id
+            ))
+        else:
+            # Back button for sub-sections
+            self.add_item(HelpButton(
+                label="← Back to Help",
+                emoji="🏠",
+                section="main",
+                style=discord.ButtonStyle.gray,
+                user_id=self.user_id
+            ))
+            
+            if self.current_section == "games":
+                self.add_item(HelpButton(
+                    label="View Full Catalog",
+                    emoji="📖",
+                    section="catalog",
+                    style=discord.ButtonStyle.primary,
+                    user_id=self.user_id
+                ))
+
+
+class HelpButton(discord.ui.Button):
+    """Button for help menu navigation."""
+    
+    def __init__(self, label: str, emoji: str, section: str, 
+                 style: discord.ButtonStyle, user_id: int):
+        super().__init__(label=label, emoji=emoji, style=style)
+        self.section = section
+        self.user_id = user_id
+    
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "This help menu belongs to someone else. Use `/playcord help` to open your own!",
+                ephemeral=True
+            )
+            return
+        
+        from utils.embeds import (
+            HelpMainEmbed, HelpGettingStartedEmbed, HelpCommandsEmbed
+        )
+        
+        if self.section == "main":
+            embed = HelpMainEmbed()
+        elif self.section == "getting_started":
+            embed = HelpGettingStartedEmbed()
+        elif self.section == "commands":
+            embed = HelpCommandsEmbed()
+        elif self.section == "games":
+            # Show a brief games overview
+            embed = await self._build_games_embed()
+        elif self.section == "catalog":
+            # Redirect to catalog command
+            await interaction.response.send_message(
+                "Use `/playcord catalog` to browse all games with details!",
+                ephemeral=True
+            )
+            return
+        else:
+            embed = HelpMainEmbed()
+        
+        view = HelpView(user_id=self.user_id, current_section=self.section)
+        await interaction.response.edit_message(embed=embed, view=view)
+    
+    async def _build_games_embed(self):
+        """Build a quick games overview embed."""
+        import importlib
+        from configuration.constants import GAME_TYPES, INFO_COLOR
+        from utils.embeds import CustomEmbed
+        
+        embed = CustomEmbed(
+            title="🎮 Available Games",
+            description="Here's a quick overview of what you can play:",
+            color=INFO_COLOR
+        )
+        
+        games_text = []
+        for game_id, (module_name, class_name) in list(GAME_TYPES.items())[:8]:
+            game_class = getattr(importlib.import_module(module_name), class_name)
+            game_name = getattr(game_class, 'name', game_id)
+            games_text.append(f"• **{game_name}** (`/play {game_id}`)")
+        
+        if len(GAME_TYPES) > 8:
+            games_text.append(f"*...and {len(GAME_TYPES) - 8} more!*")
+        
+        embed.add_field(
+            name="Games",
+            value="\n".join(games_text),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="💡 Tip",
+            value="Click **View Full Catalog** for detailed info on each game!",
+            inline=False
+        )
+        
+        return embed
+
+
 def parse_pagination_custom_id(custom_id: str) -> dict:
     """
     Parse pagination button custom_id to extract components.
@@ -293,3 +430,63 @@ def parse_pagination_custom_id(custom_id: str) -> dict:
         'max_pages': int(parts[4]),
         'params_hash': parts[5]
     }
+
+
+class ContextualHelpView(discord.ui.View):
+    """
+    A view with a contextual help button that can be added to any embed.
+    Shows relevant help information based on the context.
+    """
+    
+    def __init__(self, help_topic: str = "main", timeout: int = 180):
+        """
+        Initialize contextual help view.
+        
+        Args:
+            help_topic: The help topic to show when clicked (main, games, commands, getting_started)
+            timeout: View timeout in seconds
+        """
+        super().__init__(timeout=timeout)
+        self.help_topic = help_topic
+    
+    @discord.ui.button(label="Need Help?", emoji="❓", style=discord.ButtonStyle.secondary)
+    async def help_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Show contextual help based on the topic."""
+        from utils.embeds import (
+            HelpMainEmbed, HelpGettingStartedEmbed, HelpCommandsEmbed
+        )
+        
+        if self.help_topic == "getting_started":
+            embed = HelpGettingStartedEmbed()
+        elif self.help_topic == "commands":
+            embed = HelpCommandsEmbed()
+        else:
+            embed = HelpMainEmbed()
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class QuickActionsView(discord.ui.View):
+    """
+    A view with quick action buttons for common operations.
+    Can be added to profile, leaderboard, and other embeds.
+    """
+    
+    def __init__(self, show_catalog: bool = True, show_help: bool = True, timeout: int = 180):
+        super().__init__(timeout=timeout)
+        
+        if show_catalog:
+            self.add_item(discord.ui.Button(
+                label="View Catalog",
+                emoji="📖",
+                style=discord.ButtonStyle.primary,
+                custom_id="quick_catalog",
+            ))
+        
+        if show_help:
+            self.add_item(discord.ui.Button(
+                label="Get Help",
+                emoji="❓",
+                style=discord.ButtonStyle.secondary,
+                custom_id="quick_help",
+            ))

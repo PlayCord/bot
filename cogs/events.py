@@ -111,10 +111,33 @@ class EventsCog(commands.Cog):
         if not self.presence_lock.locked():
             async with self.presence_lock:
                 while True:
+                    # Dynamic presence showing active games/users
+                    active_games = len(CURRENT_GAMES)
+                    active_users = len(IN_GAME)
+                    
+                    # Build dynamic status options
                     options = []
+                    
+                    # Show active games count when there are games
+                    if active_games > 0:
+                        if active_games == 1:
+                            options.append(f"1 active game")
+                        else:
+                            options.append(f"{active_games} active games")
+                    
+                    if active_users > 0:
+                        if active_users == 1:
+                            options.append(f"with 1 player")
+                        else:
+                            options.append(f"with {active_users} players")
+                    
+                    # Add game-specific statuses
                     for game in GAME_TYPES:
                         options.append(f"Playing {GAME_TYPES[game][1]}...")
+                    
+                    # Add preset statuses
                     options.extend(PRESENCE_PRESETS)
+                    
                     for option in options:
                         activity = discord.Activity(type=discord.ActivityType.playing, name=option)
                         await self.bot.change_presence(activity=activity)

@@ -18,7 +18,7 @@ from utils.analytics import Timer
 from utils.conversion import column_creator, column_elo, column_names, column_turn, contextify, player_representative, \
     player_verification_function, textify
 from utils.database import InternalPlayer, get_shallow_player, internal_player_to_player
-from utils.embeds import CustomEmbed, ErrorEmbed, GameOverEmbed, GameOverviewEmbed
+from utils.embeds import CustomEmbed, ErrorEmbed, GameOverEmbed, GameOverviewEmbed, FirstTimeUserEmbed
 from utils.emojis import get_emoji_string
 from utils.views import MatchmakingView, SpectateView
 
@@ -29,6 +29,30 @@ def user_in_active_game(user_id: int) -> bool:
         if getattr(player, "id", None) == user_id:
             return True
     return False
+
+
+async def check_and_send_first_time_welcome(user: discord.User, guild_id: int, game_name: str = None):
+    """
+    Check if a user is playing for the first time and send them a welcome message.
+    
+    Args:
+        user: The Discord user
+        guild_id: The guild ID
+        game_name: Optional game name for context
+    """
+    try:
+        total_matches = db.database.count_matches_for_user(user.id, guild_id)
+        if total_matches == 0:
+            # First-time player! Send them a welcome DM
+            embed = FirstTimeUserEmbed(game_name)
+            try:
+                await user.send(embed=embed)
+            except discord.Forbidden:
+                # User has DMs disabled, that's okay
+                pass
+    except Exception as e:
+        # Don't let welcome message errors affect gameplay
+        logging.getLogger("playcord.interfaces").debug(f"Failed to send first-time welcome: {e}")
 
 
 class GameInterface:
@@ -936,6 +960,13 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
 
     # Register the game to the channel it's in
     CURRENT_GAMES.update({game.thread.id: game})
+
+    # Send first-time welcome to any new players (non-blocking)
+    game_name = getattr(game_class, 'name', game_type)
+    for player in players:
+        asyncio.create_task(
+            check_and_send_first_time_welcome(player, message.guild.id, game_name)
+        )
 
     # Edit the status message with the SpectateView
     async def create_spectate_view():
