@@ -175,12 +175,6 @@ class MyGame(Game):
 - `cairosvg` - SVG rendering for game boards
 - `pillow` - Image manipulation
 
-## Documentation
-
-- [API Documentation](docs/API.md) - Game development API
-- [Database Schema](DATABASE_SETUP.md) - PostgreSQL schema reference
-- [Code Review](CODE_REVIEW.md) - Architecture notes
-
 ## Project Structure
 
 ```
@@ -198,7 +192,9 @@ playcord/
 └── tests/              # Test suite
 ```
 
-## Current Status
+## Planned features
+
+- []
 
 ## License
 
