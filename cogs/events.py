@@ -6,6 +6,7 @@ from discord.ext import commands
 from configuration.constants import *
 from utils import database as db
 from utils.embeds import CustomEmbed
+from utils.locale import get, fmt
 
 log = logging.getLogger(LOGGING_ROOT)
 
@@ -121,19 +122,19 @@ class EventsCog(commands.Cog):
                     # Show active games count when there are games
                     if active_games > 0:
                         if active_games == 1:
-                            options.append(f"1 active game")
+                            options.append(get("presence.active_games_singular"))
                         else:
-                            options.append(f"{active_games} active games")
+                            options.append(fmt("presence.active_games_plural", count=active_games))
                     
                     if active_users > 0:
                         if active_users == 1:
-                            options.append(f"with 1 player")
+                            options.append(get("presence.with_players_singular"))
                         else:
-                            options.append(f"with {active_users} players")
+                            options.append(fmt("presence.with_players_plural", count=active_users))
                     
                     # Add game-specific statuses
                     for game in GAME_TYPES:
-                        options.append(f"Playing {GAME_TYPES[game][1]}...")
+                        options.append(fmt("presence.playing_game", game=GAME_TYPES[game][1]))
                     
                     # Add preset statuses
                     options.extend(PRESENCE_PRESETS)

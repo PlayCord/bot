@@ -8,9 +8,12 @@ from configuration.constants import *
 from utils import database as db
 from utils.analytics import Timer
 from utils.discord_utils import decode_discord_arguments, send_simple_embed, get_user_error_embed
-from utils.embeds import CustomEmbed, UserErrorEmbed
+from utils import embeds as _embeds
 from utils.emojis import get_emoji_string
 from utils.interfaces import MatchmakingInterface, user_in_active_game
+from utils.locale import get
+
+CustomEmbed = _embeds.CustomEmbed
 
 log = logging.getLogger(LOGGING_ROOT)
 
@@ -48,11 +51,7 @@ class GamesCog(commands.Cog):
         arguments = {arg.split("=")[0]: arg.split("=")[1] for arg in data[2].split(",")} if data[2] else {}
 
         if game_id not in CURRENT_GAMES:
-            embed = UserErrorEmbed(
-                title="Game Ended",
-                description="This game has already finished.",
-                suggestion="Start a new game with `/play <game>`!"
-            )
+            embed = get_user_error_embed("game_ended")
             await ctx.followup.send(embed=embed, ephemeral=True)
             return
         
@@ -61,12 +60,7 @@ class GamesCog(commands.Cog):
         # Validate user is a participant in this game
         participant_ids = {p.id for p in game.players}
         if ctx.user.id not in participant_ids:
-            embed = UserErrorEmbed(
-                title="Not a Participant",
-                description="You're not playing in this game.",
-                suggestion="Click the **Spectate** button on the game status message to watch instead."
-            )
-            await ctx.followup.send(embed=embed, ephemeral=True)
+            await ctx.followup.send(PERMISSION_MSG_NOT_PARTICIPANT, ephemeral=True)
             return
         
         await game.move_by_button(ctx=ctx, name=function_id, arguments=arguments,
@@ -84,11 +78,7 @@ class GamesCog(commands.Cog):
         arguments["values"] = ctx.data.get("values", [])
 
         if game_id not in CURRENT_GAMES:
-            embed = UserErrorEmbed(
-                title="Game Ended",
-                description="This game has already finished.",
-                suggestion="Start a new game with `/play <game>`!"
-            )
+            embed = get_user_error_embed("game_ended")
             await ctx.followup.send(embed=embed, ephemeral=True)
             return
         
@@ -97,12 +87,7 @@ class GamesCog(commands.Cog):
         # Validate user is a participant in this game
         participant_ids = {p.id for p in game.players}
         if ctx.user.id not in participant_ids:
-            embed = UserErrorEmbed(
-                title="Not a Participant",
-                description="You're not playing in this game.",
-                suggestion="Click the **Spectate** button on the game status message to watch instead."
-            )
-            await ctx.followup.send(embed=embed, ephemeral=True)
+            await ctx.followup.send(PERMISSION_MSG_NOT_PARTICIPANT, ephemeral=True)
             return
         
         await game.move_by_button(ctx=ctx, name=function_id, arguments=arguments,
@@ -113,11 +98,7 @@ class GamesCog(commands.Cog):
         f_log = log.getChild("callback.spectate")
         game_id = int(ctx.data['custom_id'].replace(BUTTON_PREFIX_SPECTATE, ""))
         if game_id not in CURRENT_GAMES:
-            embed = UserErrorEmbed(
-                title="Game Ended",
-                description="This game has already finished.",
-                suggestion="Start a new game with `/play <game>`!"
-            )
+            embed = get_user_error_embed("game_ended")
             await ctx.followup.send(embed=embed, ephemeral=True)
             return
         
@@ -126,21 +107,16 @@ class GamesCog(commands.Cog):
         # Check if user is already a participant (they're already in the thread)
         participant_ids = {p.id for p in game.players}
         if ctx.user.id in participant_ids:
-            await ctx.followup.send("✅ You're already playing in this game! Check the game thread.", ephemeral=True)
+            await ctx.followup.send(get("success.already_participant"), ephemeral=True)
             return
         
         # Check if spectating is allowed for this game (games can disable spectating)
         if hasattr(game.game, 'allow_spectating') and not game.game.allow_spectating:
-            embed = UserErrorEmbed(
-                title="Spectating Disabled",
-                description="Spectating has been disabled for this game.",
-                suggestion="This game type doesn't allow spectators to preserve hidden information."
-            )
-            await ctx.followup.send(embed=embed, ephemeral=True)
+            await ctx.followup.send(PERMISSION_MSG_SPECTATE_DISABLED, ephemeral=True)
             return
         
         await game.thread.add_user(ctx.user)
-        await ctx.followup.send("👀 You're now spectating! You've been added to the game thread.", ephemeral=True)
+        await ctx.followup.send(get("success.spectating"), ephemeral=True)
 
     async def peek_callback(self, ctx: discord.Interaction) -> None:
         await ctx.response.defer()
@@ -150,11 +126,7 @@ class GamesCog(commands.Cog):
             # Just resend the latest game state to the user ephemerally
             await CURRENT_GAMES[game_id].display_game_state(ctx)
         else:
-            embed = UserErrorEmbed(
-                title="Game Ended",
-                description="This game has already finished.",
-                suggestion="Start a new game with `/play <game>`!"
-            )
+            embed = get_user_error_embed("game_ended")
             await ctx.followup.send(embed=embed, ephemeral=True)
 
 
@@ -166,28 +138,20 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
     matchmaking_timer = Timer().start()
     f_log = log.getChild("command.matchmaking")
     if user_in_active_game(ctx.user.id):
-        embed = UserErrorEmbed(
-            title="Already Playing",
-            description="You're already in an active game.",
-            suggestion="Finish your current game first, or forfeit it if you want to leave."
+        await send_simple_embed(
+            ctx,
+            title=get("begin_game.already_in_game_title"),
+            description=get("begin_game.already_in_game_description"),
+            ephemeral=True,
         )
-        await ctx.response.send_message(embed=embed, ephemeral=True)
         return
     if not (ctx.channel.permissions_for(ctx.guild.me).create_private_threads and ctx.channel.permissions_for(
             ctx.guild.me).send_messages):
-        embed = UserErrorEmbed(
-            title="Missing Permissions",
-            description="I don't have the required permissions in this channel.",
-            suggestion="Make sure I have permissions to **Create Private Threads** and **Send Messages** in this channel."
-        )
+        embed = get_user_error_embed("missing_permissions")
         await ctx.response.send_message(embed=embed, ephemeral=True)
         return
     if ctx.channel.type in [discord.ChannelType.public_thread, discord.ChannelType.private_thread]:
-        embed = UserErrorEmbed(
-            title="Invalid Channel",
-            description="Games can't be started inside threads.",
-            suggestion="Use this command in a regular text channel instead."
-        )
+        embed = get_user_error_embed("invalid_channel")
         await ctx.response.send_message(embed=embed, ephemeral=True)
         return
 
@@ -202,20 +166,22 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
 
 async def handle_move(ctx: discord.Interaction, name, arguments, current_turn_required: bool = True) -> None:
     if ctx.channel.type != discord.ChannelType.private_thread:
-        embed = UserErrorEmbed(
-            title="Wrong Channel",
-            description="Move commands can only be used during an active game.",
-            suggestion="Start a new game with `/play <game>` first!"
+        await send_simple_embed(
+            ctx,
+            get("move.invalid_context_title"),
+            get("move.invalid_context_description"),
+            ephemeral=True,
+            responded=True
         )
-        await ctx.followup.send(embed=embed, ephemeral=True)
         return
     if ctx.channel.id not in CURRENT_GAMES.keys():
-        embed = UserErrorEmbed(
-            title="No Active Game",
-            description="There's no active game in this channel.",
-            suggestion="This game thread may have ended. Start a new game with `/play <game>`!"
+        await send_simple_embed(
+            ctx,
+            get("move.invalid_context_title"),
+            get("move.no_active_game_description"),
+            ephemeral=True,
+            responded=True
         )
-        await ctx.followup.send(embed=embed, ephemeral=True)
         return
     arguments.pop("ctx")
     arguments = {a: await decode_discord_arguments(arguments[a]) for a in arguments.keys()}
@@ -228,7 +194,7 @@ async def handle_autocomplete(ctx: discord.Interaction, function, current: str, 
     try:
         game_view = CURRENT_GAMES[ctx.channel.id]
     except KeyError:
-        return [app_commands.Choice(name="There is no game in this channel!", value="")]
+        return [app_commands.Choice(name=get("autocomplete.no_game_in_channel"), value="")]
     player = db.database.get_player(ctx.user, ctx.guild.id)
     try:
         player_options = AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][function][argument][current]
@@ -244,7 +210,7 @@ async def handle_autocomplete(ctx: discord.Interaction, function, current: str, 
                     break
             if matched_option is not None: break
         if matched_option is None or ac_callback is None:
-            return [app_commands.Choice(name="Autocomplete function is not defined!", value="")]
+            return [app_commands.Choice(name=get("autocomplete.function_missing"), value="")]
         if not matched_option.force_reload:
             player_options = ac_callback(player)
             if ctx.channel.id not in AUTOCOMPLETE_CACHE: AUTOCOMPLETE_CACHE[ctx.channel.id] = {}

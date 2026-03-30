@@ -1,0 +1,790 @@
+# PlayCord English Localization File
+# All user-facing strings are organized hierarchically for easy localization.
+# Use {variable} syntax for dynamic content that will be formatted at runtime.
+
+[meta]
+language = "English"
+code = "en"
+version = "1.0.0"
+author = "quantumbagel"
+
+# =============================================================================
+# BRANDING & GENERAL
+# =============================================================================
+[brand]
+name = "PlayCord"
+tagline = "Turn-based games for Discord"
+footer = "Made with ❤ by @quantumbagel"
+footer_icon = "https://avatars.githubusercontent.com/u/58365715"
+github_url = "https://github.com/PlayCord/bot"
+readme_url = "https://github.com/PlayCord/bot/blob/master/README.md"
+
+# =============================================================================
+# WELCOME MESSAGE (when bot joins a server)
+# =============================================================================
+[welcome]
+title = "👋 Welcome to {name}!"
+description = """Thanks for adding me! I'm a Discord bot for playing turn-based games with friends.
+
+**Quick Start:**
+• `/play <game>` - Start a new game
+• `/playcord catalog` - Browse all games
+• `/playcord help` - Interactive help menu"""
+
+[welcome.fields.games]
+name = "🎮 Available Games"
+value = "I have over 10 games including Tic-Tac-Toe, Connect Four, Chess, Poker, and more! Each game tracks your rating so you can compete for the leaderboard."
+
+[welcome.fields.rating]
+name = "📊 Rating System"
+value = "Every game has a skill-based rating system. Win games to climb the leaderboard and show off your skills!"
+
+[welcome.fields.help]
+name = "❓ Need Help?"
+value = "Use `/playcord help` for an interactive guide, or check out our [GitHub]({github_url}) for documentation."
+
+# =============================================================================
+# BOT STATUS / PRESENCE
+# =============================================================================
+[presence]
+with_name = "with {name}!"
+games_with_friends = "games with friends!"
+play_catalog = "/play catalog"
+active_games_singular = "1 active game"
+active_games_plural = "{count} active games"
+with_players_singular = "with 1 player"
+with_players_plural = "with {count} players"
+playing_game = "Playing {game}..."
+
+# =============================================================================
+# COMMANDS - DESCRIPTIONS (shown in Discord autocomplete)
+# =============================================================================
+[commands.help]
+description = "Interactive help menu - learn how to use PlayCord!"
+param_topic = "Jump directly to a specific help topic"
+choice_getting_started = "Getting Started (New Users)"
+choice_commands = "Commands Reference"
+choice_games = "Available Games"
+
+[commands.howtoplay]
+description = "Learn how to play a specific game"
+param_game = "The game you want to learn about"
+
+[commands.invite]
+description = "Invite players to your game lobby (can start a new lobby if not in one)"
+param_user = "First player to invite"
+param_game = "The game to start (only needed if you're not already in a lobby)"
+param_user2 = "Second player to invite (optional)"
+param_user3 = "Third player to invite (optional)"
+param_user4 = "Fourth player to invite (optional)"
+param_user5 = "Fifth player to invite (optional)"
+
+[commands.kick]
+description = "Remove a player from your lobby (they can rejoin)"
+param_user = "The player to kick from the lobby"
+param_reason = "Optional reason for kicking (shown to the player)"
+
+[commands.ban]
+description = "Ban a player from your lobby (they cannot rejoin)"
+param_user = "The player to ban from the lobby"
+param_reason = "Optional reason for the ban (shown to the player)"
+
+[commands.stats]
+description = "View bot statistics and server information"
+
+[commands.about]
+description = "Learn about PlayCord and its creators"
+
+[commands.leaderboard]
+description = "View the top-ranked players for any game"
+param_game = "The game to view rankings for"
+param_scope = "Server leaderboard (local) or Global leaderboard (all servers)"
+param_page = "Page number to view"
+choice_server = "Server"
+choice_global = "Global"
+
+[commands.catalog]
+description = "Browse all available games with details and difficulty ratings"
+param_page = "Page number (each page shows 3 games)"
+
+[commands.profile]
+description = "View your stats, ratings, and match history"
+param_user = "The player to view (leave empty for yourself)"
+
+[commands.history]
+description = "View a player's per-game match history and rating trend."
+param_game = "Game to inspect"
+param_user = "The user to view (defaults to yourself)"
+param_page = "Page number for match history"
+param_days = "Days included in trend graph (1-365)"
+
+[commands.settings]
+description = "Change settings for your current game lobby"
+param_rated = "Whether the game should be rated"
+param_private = "Whether the game should be private"
+
+[commands.group]
+description = "Everything that isn't a game."
+
+# =============================================================================
+# HELP EMBEDS
+# =============================================================================
+[help.main]
+title = "📚 {name} Help Center"
+description = """Welcome to **{name}**! I'm your friendly game bot for Discord.
+
+Use the buttons below to explore different topics, or try these quick commands:
+• `/play <game>` - Start a new game
+• `/playcord catalog` - Browse all games
+• `/playcord profile` - View your stats"""
+
+[help.main.fields.getting_started]
+name = "🎮 Getting Started"
+value = "New here? Click **Getting Started** below!"
+
+[help.main.fields.game_list]
+name = "📖 Game List"
+value = "See all available games"
+
+[help.main.fields.commands]
+name = "⚙️ Commands"
+value = "Full command reference"
+
+[help.getting_started]
+title = "🎮 Getting Started with {name}"
+description = "Let's get you playing in under a minute!"
+
+[help.getting_started.fields.step1]
+name = "Step 1: Start a Game"
+value = """Use `/play <game>` to create a new game lobby.
+**Example:** `/play tictactoe`
+
+Not sure which game? Try `/playcord catalog` to browse!"""
+
+[help.getting_started.fields.step2]
+name = "Step 2: Invite Friends (Optional)"
+value = """Your lobby is open to anyone by default.
+• **Public game:** Anyone can click Join
+• **Invite players:** Use `/playcord invite @user`"""
+
+[help.getting_started.fields.step3]
+name = "Step 3: Play!"
+value = """Once enough players join, click **Start** to begin.
+Follow the on-screen instructions to make your moves!"""
+
+[help.getting_started.fields.tips]
+name = "💡 Pro Tips"
+value = """• Games track your rating - compete for the leaderboard!
+• Use `/playcord profile` to see your stats
+• Click buttons instead of typing when available"""
+
+[help.commands]
+title = "⚙️ Command Reference"
+description = "Here are all the commands you can use:"
+
+[help.commands.fields.playing]
+name = "🎮 Playing Games"
+value = """`/play <game>` - Start a new game
+`/playcord catalog` - Browse all games
+`/playcord invite @user` - Invite to your lobby
+`/playcord kick @user` - Remove from lobby
+`/playcord ban @user` - Ban from lobby"""
+
+[help.commands.fields.stats]
+name = "📊 Stats & Rankings"
+value = """`/playcord profile [@user]` - View player stats
+`/playcord leaderboard <game>` - Top players
+`/playcord history` - Your recent matches"""
+
+[help.commands.fields.info]
+name = "ℹ️ Information"
+value = """`/playcord help` - This help menu
+`/playcord about` - About the bot
+`/playcord stats` - Bot statistics"""
+
+[help.game_info]
+title = "🎮 How to Play: {game_name}"
+field_players = "👥 Players"
+field_duration = "⏰ Duration"
+field_difficulty = "📈 Difficulty"
+field_quick_start = "▶️ Quick Start"
+field_quick_start_value = "Type `/play {game_id}` to start a game!"
+field_author = "👤 Created by"
+players_format = "{count} players"
+players_range_format = "{min}-{max} players"
+no_description = "No description available."
+unknown = "Unknown"
+
+[help.games_overview]
+title = "🎮 Available Games"
+description = "Here's a quick overview of what you can play:"
+field_games = "Games"
+field_tip = "💡 Tip"
+tip_value = "Use `/playcord catalog` for detailed info on each game!"
+more_games = "*...and {count} more!*"
+
+# =============================================================================
+# HELP VIEW BUTTONS
+# =============================================================================
+[help.buttons]
+getting_started = "Getting Started"
+game_list = "Game List"
+commands = "Commands"
+back_to_help = "← Back to Help"
+view_catalog = "View Full Catalog"
+catalog_redirect = "Use `/playcord catalog` to browse all games with details!"
+
+# =============================================================================
+# FIRST TIME USER TUTORIAL
+# =============================================================================
+[tutorial]
+title = "🎉 Welcome to {name}!"
+description = "Looks like this is your first time playing! Here's a quick guide to get you started."
+
+[tutorial.fields.how_games_work]
+name = "🎮 How Games Work"
+value = """1. **Join or Create** - Join a lobby or create one with `/play <game>`
+2. **Wait for Players** - Once enough players join, the creator starts the game
+3. **Play!** - Follow the on-screen buttons and instructions to play"""
+
+[tutorial.fields.ratings]
+name = "⭐ Ratings & Leaderboards"
+value = """Every rated game affects your skill rating. Win games to climb the leaderboard!
+Check your stats anytime with `/playcord profile`."""
+
+[tutorial.fields.tips]
+name = "💡 Pro Tips"
+value = """• Use **buttons** instead of typing when available - it's faster!
+• Invite friends with `/playcord invite @user`
+• Need help? Use `/playcord help` anytime"""
+
+[tutorial.fields.ready_to_play]
+name = "▶️ Ready to Play {game_name}?"
+value = "Good luck and have fun! 🍀"
+
+# =============================================================================
+# ERROR MESSAGES
+# =============================================================================
+[errors.generic]
+title = "Something went wrong"
+description = "An unexpected error occurred."
+suggestion = "Please try again. If the problem persists, use `/playcord help` for assistance."
+
+[errors.not_in_matchmaking]
+title = "Not in a Lobby"
+description = "You need to be in a game lobby to use this command."
+suggestion = "Start a new game with `/play <game>` or join an existing lobby first."
+
+[errors.not_creator]
+title = "Permission Denied"
+description = "Only the lobby creator can perform this action."
+suggestion = "Ask the lobby creator to make changes, or create your own game lobby."
+
+[errors.already_in_game]
+title = "Already Playing"
+description = "You're already in an active game."
+suggestion = "Finish your current game first, or forfeit it if you want to leave."
+
+[errors.user_not_found]
+title = "User Not Found"
+description = "I couldn't find that user in this server."
+suggestion = "Make sure you're mentioning a valid user who is in this server."
+
+[errors.game_not_found]
+title = "Game Not Found"
+description = "That game doesn't exist."
+suggestion = "Use `/playcord catalog` to see all available games."
+
+[errors.database_error]
+title = "Connection Issue"
+description = "I'm having trouble connecting to the database right now."
+suggestion = "Please try again in a few moments. If this persists, the bot may be under maintenance."
+
+[errors.invalid_move]
+title = "Invalid Move"
+description = "That move isn't allowed right now."
+suggestion = "Check the game rules or available moves and try again."
+
+[errors.not_your_turn]
+title = "Not Your Turn"
+description = "It's not your turn to play."
+suggestion = "Wait for other players to make their moves."
+
+[errors.game_ended]
+title = "Game Ended"
+description = "This game has already finished."
+suggestion = "Start a new game with `/play <game>`!"
+
+[errors.not_participant]
+title = "Not a Participant"
+description = "You're not playing in this game."
+suggestion = "Click the **Spectate** button on the game status message to watch instead."
+
+[errors.spectating_disabled]
+title = "Spectating Disabled"
+description = "Spectating has been disabled for this game."
+suggestion = "This game type doesn't allow spectators to preserve hidden information."
+
+[errors.wrong_channel]
+title = "Wrong Channel"
+description = "Move commands can only be used during an active game."
+suggestion = "Start a new game with `/play <game>` first!"
+
+[errors.no_active_game]
+title = "No Active Game"
+description = "There's no active game in this channel."
+suggestion = "This game thread may have ended. Start a new game with `/play <game>`!"
+
+[errors.missing_permissions]
+title = "Missing Permissions"
+description = "I don't have the required permissions in this channel."
+suggestion = "Make sure I have permissions to **Create Private Threads** and **Send Messages** in this channel."
+
+[errors.invalid_channel]
+title = "Invalid Channel"
+description = "Games can't be started inside threads."
+suggestion = "Use this command in a regular text channel instead."
+
+[errors.player_not_found]
+title = "Player Not Found"
+description = "I couldn't find any data for **{player_name}**."
+suggestion = "This player may not have played any games yet."
+
+[errors.no_active_lobby]
+title = "No Active Lobby"
+description = "You're not in a game lobby right now."
+suggestion = "Specify a `game` parameter to create a new lobby and invite players, or use `/play <game>` first."
+
+[errors.game_invalid]
+title = "Game Not Found"
+description = "**{game}** isn't a valid game."
+suggestion = "Use `/playcord catalog` to see all available games."
+
+# =============================================================================
+# SUCCESS MESSAGES
+# =============================================================================
+[success]
+default_title = "Success!"
+invites_sent = "Invites sent successfully."
+spectating = "👀 You're now spectating! You've been added to the game thread."
+already_participant = "✅ You're already a participant in this game! Check the game thread."
+
+# =============================================================================
+# WARNING MESSAGES
+# =============================================================================
+[warnings]
+default_title = "Warning"
+
+# =============================================================================
+# LOADING MESSAGES
+# =============================================================================
+[loading]
+default = "Loading..."
+description = "Please wait while we fetch your data..."
+
+# =============================================================================
+# SYSTEM ERROR EMBED
+# =============================================================================
+[system_error]
+title = "Something went wrong!"
+report_field = "Please report the issue on GitHub"
+report_value = "I would really appreciate if you reported this error (and a detailed description of what you did to cause it if possible) on the [GitHub issue tracker]({github_issues_url})"
+context_field = "Context:"
+what_failed_field = "What failed?"
+reason_field = "Reason (part {part} of {total}):"
+footer = "Sorry for the inconvenience! Please report this issue on our GitHub page."
+
+# =============================================================================
+# EMBEDS - USER ERROR
+# =============================================================================
+[embeds.user_error]
+default_title = "Oops!"
+suggestion_field = "💡 Suggestion"
+footer = "Need help? Use /playcord help"
+
+# =============================================================================
+# EMBEDS - GAME OVERVIEW (shown when game starts)
+# =============================================================================
+[embeds.game_overview]
+title_rated = "Rated {game_name} game started!"
+title_unrated = "Unrated {game_name} game started!"
+description = "Click the button if you want to spectate the game, or just view the game's progress."
+field_players = "Players:"
+field_ratings = "Ratings:"
+field_turn = "Turn:"
+
+# =============================================================================
+# EMBEDS - GAME OVER
+# =============================================================================
+[embeds.game_over]
+title = "{game_name} game over!"
+description = "Thanks so much for playing! Here are the rankings:"
+field_rankings = "Rankings:"
+
+# =============================================================================
+# EMBEDS - INVITE
+# =============================================================================
+[embeds.invite]
+title = "👋 You've been invited!"
+description = "{inviter} has invited you to play a game of **{game_type}** in **{guild_name}**."
+field_how_to_join = "How to join?"
+field_how_to_join_value = "Click the 'Join Game' button below to join the lobby."
+field_note = "Note:"
+field_note_value = "If you don't want to play, you can simply ignore this message."
+
+# =============================================================================
+# EMBEDS - MATCHMAKING LOBBY
+# =============================================================================
+[embeds.matchmaking]
+title = "🎮 {game_name} Lobby"
+description = "**{creator}** is looking for players!\nClick **Join** to enter the lobby."
+field_players = "👥 Players ({current}/{max})"
+field_game_info = "📋 Game Info"
+game_info_value = "**Mode:** {status} • {rating_status}\n**Need:** {min}-{max} players"
+field_ready = "✅ Ready to Start!"
+ready_value = "The creator can click **Start** to begin."
+field_waiting = "⏳ Waiting for {needed} more player{s}"
+waiting_value = "Invite friends or wait for others to join!"
+no_players = "*No players yet*"
+status_private = "Private"
+status_public = "Public"
+rated = "Rated"
+unrated = "Unrated"
+
+# =============================================================================
+# EMBEDS - CATALOG
+# =============================================================================
+[embeds.catalog]
+title = "🎲 {name} Game Catalog"
+description = "Browse all {count} available games. Use `/play <game>` to start playing!"
+game_field_format = "{emoji} {game_name}"
+game_value_format = "{description}\n⏰ {time} | 👤 {players} | 📈 {difficulty}\n**Command:** `/play {game_id}`"
+footer = "Page {page}/{total} • Use /playcord howtoplay <game> for more details"
+
+# =============================================================================
+# EMBEDS - PROFILE
+# =============================================================================
+[embeds.profile]
+title = "👤 {username}'s Profile"
+field_ratings = "📊 Game Ratings"
+field_ratings_empty = "No games played yet! Start with `/play <game>`"
+field_recent_matches = "📜 Recent Matches"
+field_recent_matches_empty = "No recent matches."
+field_total_games = "🎮 Total Games Played"
+rating_format = "**{game_name}**: {rating} ({matches} {games_word})"
+rating_format_ranked = "**{game_name}**: {rating} ({matches} {games_word}) {badge} #{rank} Global"
+match_format = "**{game_name}** - {ranking}/{player_count} | seat #{seat} | {rated_status} | ({delta})"
+
+# =============================================================================
+# EMBEDS - LEADERBOARD
+# =============================================================================
+[embeds.leaderboard]
+title_server = "🏆 {game_name} Leaderboard (Server)"
+title_global = "🌍 {game_name} Leaderboard (Global)"
+field_rankings = "Rankings"
+no_players = "No players have played this game yet!"
+no_more_players = "No more players to display."
+ranking_format = "{medal} <@{user_id}> - **{conservative}** CR (mu {mu}, {matches} {games_word})"
+footer = "Page {page}/{max}"
+
+# =============================================================================
+# EMBEDS - STATS
+# =============================================================================
+[embeds.stats]
+title = "PlayCord Stats"
+description = "This instance of PlayCord is managed by **{managed_by}**"
+field_version = "💻 Bot version:"
+field_discordpy = "🐍 discord.py version:"
+field_games_loaded = "👾 Games loaded:"
+field_total_servers = "🏘️ Total servers:"
+field_owners = "💪 Total number of owners:"
+field_ram = "💾 Used RAM (this shard)"
+field_shard_id = "#️⃣ Shard ID:"
+field_shard_ping = "🛜 Shard ping:"
+field_shard_servers = "🏘️️ Shard servers:"
+field_users = "Users:"
+field_in_matchmaking = "⏰ Users in matchmaking:"
+field_in_game = "🎮 Users in game:"
+
+# =============================================================================
+# EMBEDS - ABOUT
+# =============================================================================
+[embeds.about]
+title = "About PlayCord 🎲"
+field_bot_by = "Bot by:"
+field_source = "Source code:"
+field_pfp = "PFP/Banner:"
+field_inspiration = "Inspiration:"
+field_libraries = "Libraries used:"
+field_dev_time = "Development time:"
+footer = "© 2026 Julian Reder. All rights reserved."
+
+# =============================================================================
+# BUTTONS - LABELS
+# =============================================================================
+[buttons]
+join = "Join"
+leave = "Leave"
+start = "Start"
+spectate = "Spectate Game"
+peek = "Peek"
+go_to_game = "Go To Game (won't join)"
+join_game = "Join Game"
+need_help = "Need Help?"
+view_catalog = "View Catalog"
+get_help = "Get Help"
+
+# Pagination
+first = "First"
+previous = "Previous"
+next = "Next"
+last = "Last"
+
+# =============================================================================
+# BUTTON TEXTIFY (random variations)
+# =============================================================================
+[buttons.textify.join]
+"Join" = 0.7
+"Join Game" = 0.2
+"Count me in!" = 0.08
+"I'm in!" = 0.02
+
+[buttons.textify.leave]
+"Leave" = 0.7
+"Leave Game" = 0.2
+"Nah, I'm out" = 0.08
+"Goodbye!" = 0.02
+
+[buttons.textify.start]
+"Start" = 0.7
+"Start Game" = 0.2
+"Let's go!" = 0.08
+"Begin!" = 0.02
+
+# =============================================================================
+# GAME MESSAGES (textify - random variations)
+# =============================================================================
+[game.turn]
+"It's {player}'s turn to play." = 0.529
+"Next up: {player}." = 0.45
+"We checked the books, and it is *somehow* {player}'s turn to play. Not sure how that happened." = 0.01
+"After journeying the Himalayas for many a year, we now know that it's {player}'s turn!" = 0.01
+"Did you know that the chance of this turn message appearing is 0.1%?. alsobythewayit's{player}'sturn" = 0.001
+
+[game.started]
+"The game has begun! Good luck, {players}!" = 0.5
+"Let the games begin! {players}, may the best player win!" = 0.3
+"Game on! {players} are ready to battle it out!" = 0.15
+"Alright {players}, let's see what you've got!" = 0.04
+"In a world where only one can win... {players} enter the arena." = 0.01
+
+[game.over]
+"Game over! {winner} wins!" = 0.4
+"And the winner is... {winner}!" = 0.3
+"Congratulations to {winner} for the victory!" = 0.2
+"{winner} has emerged victorious!" = 0.08
+"Against all odds, {winner} has won! What a game!" = 0.02
+
+[game.draw]
+"It's a draw!" = 0.5
+"The game ends in a tie!" = 0.3
+"No winner this time - it's a draw!" = 0.15
+"Both players are evenly matched! It's a tie!" = 0.05
+
+# =============================================================================
+# PERMISSION / POLICY MESSAGES
+# =============================================================================
+[permissions]
+not_participant = "You are not a participant in this game."
+spectate_disabled = "Spectating is disabled for this game."
+wrong_channel = "This command can only be used in a game thread."
+no_game_here = "There is no active game in this channel."
+not_your_turn = "It isn't your turn right now!"
+cant_start_not_creator = "You can't start the game (not the creator)."
+cant_invite_not_creator = "Only the lobby creator can invite players to a private game."
+cant_kick = "Only the lobby creator can kick players."
+cant_ban = "Only the lobby creator can ban players."
+players_in_other_game = "Can't start this game yet. {mentions} {verb} already in an active game in another server."
+
+# =============================================================================
+# THREAD POLICY
+# =============================================================================
+[thread_policy]
+warning = "⚠️ This is an active game thread. Only game participants can send messages here."
+
+[threads]
+game_crashed = "Game crashed."
+game_over = "Game is over."
+
+# =============================================================================
+# MATCHMAKING MESSAGES
+# =============================================================================
+[matchmaking]
+invites_failed_all = "Failed to send any invites. Errors:"
+invites_failed_partial = "Failed to send invites to the following users:"
+invite_failed_not_in_server = "Not in this server"
+invite_failed_already_queued = "Member was already in matchmaking."
+invite_failed_in_game = "Member was already in a game."
+invite_failed_bot = "Member was a bot :skull:."
+
+[queue]
+thread_rated_prefix = "Rated "
+thread_name = "{prefix}{game} game ({name})"
+db_connect_failed_what = "Couldn't connect to database!"
+db_connect_failed_reason = "The bot failed to connect to the database. This is likely a temporary error, try again later!"
+any_players = "Any"
+rated = "Rated"
+not_rated = "Not Rated"
+private_status = "🔐Private"
+public_status = "🔓Public"
+title = "Queueing for {game}..."
+field_players = "Players:"
+field_rating = "Rating:"
+field_creator = "Creator:"
+field_whitelist = "Whitelist:"
+field_blacklist = "Blacklist:"
+field_game_info = "Game Info:"
+field_game_by = "Game by:"
+source = "Source"
+already_in_game = "You are already in the game!"
+already_in_active_game_other_server = "You are already in an active game in another server. Finish that game before joining this lobby."
+couldnt_connect_db = "Couldn't connect to DB!"
+self_ban_only_player = "idk why you banned yourself when you are the only one in the lobby, lol"
+cant_ban_not_whitelisted = "Can't ban someone who isn't on the whitelist anyway!"
+kicked_and_banned = "Successfully kicked and banned {player} from the game for reason {reason!r}"
+banned = "Successfully banned {player} from the game for reason {reason!r}"
+self_kick_only_player = "idk why you thought kicking yourself was a smart idea when you are the only one in the lobby, lol"
+kicked = "Successfully kicked {player} from the game for reason {reason!r}"
+didnt_kick = "Didn't kick anyone: {player} isn't in this lobby!"
+banned_message = "You are banned from this game! Ask the owner of the game {creator} to unban you!"
+not_on_whitelist = "You are not on the whitelist for this private game!"
+not_in_game = "You aren't in the game!"
+game_cancelled_last_player = "You were the last person in the lobby, so the game was cancelled!"
+
+# =============================================================================
+# INTERACTION MESSAGES
+# =============================================================================
+[interactions]
+pagination_not_yours = "You cannot interact with another user's pagination buttons."
+help_not_yours = "This help menu belongs to someone else. Use `/playcord help` to open your own!"
+dead_view = "That interaction is no longer active due to a bot restart! Please create a new interaction :)"
+
+[autocomplete]
+no_game_in_channel = "There is no game in this channel!"
+function_missing = "Autocomplete function is not defined!"
+
+[errors.game_not_registered]
+value = "This game is not registered in the database yet."
+
+[history]
+unknown_game = "Unknown game type: {game}. Use `/playcord catalog` to see available games."
+embed_title = "📈 {user} - {game} history"
+seat = "seat #{seat}"
+rated = "rated"
+casual = "casual"
+recent_matches = "Recent matches"
+no_completed = "No completed matches found."
+no_more = "No more matches to display."
+chart_title = "{user}'s {game} Rating"
+rating_trend_name = "Rating trend ({days}d)"
+start = "Start"
+end = "End"
+no_rating_period = "No rating history for this period."
+
+[pagination]
+page_footer = "Page {page}/{max}"
+
+[settings]
+not_in_matchmaking = "You aren't in matchmaking. Start a game first with `/play <game>`."
+only_creator = "Only the game creator can change settings."
+changed_rated = "Rated: {value}"
+changed_private = "Private: {value}"
+yes = "Yes"
+no = "No"
+updated = "Settings updated:"
+no_changes = "No settings were changed."
+
+[leaderboard]
+scope_global = "Global leaderboard"
+scope_server = "Server leaderboard for {guild_name}"
+no_data_name = "No Data"
+
+[game]
+over_short = "Game over!"
+state_title = "Playing {game} with {players} players"
+empty_state_name = ":cobweb: There's nothing here!"
+empty_state_value = "The game didn't return a value for the game state, so nothing is displayed."
+error_during_move = "Error during a move!"
+
+[errors.already_in_game_other_server]
+title = "Already in a Game"
+description = "You're already playing a game in another server."
+suggestion = "Finish your current game first, or forfeit it to start a new one."
+
+[errors.invite_not_creator_private]
+title = "Permission Denied"
+description = "Only the lobby creator can invite players to a private game."
+suggestion = "Ask the lobby creator to send invites, or create your own lobby."
+
+[errors.kick_no_lobby]
+title = "No Active Lobby"
+description = "You need to be in a game lobby to kick players."
+suggestion = "Start a new game with `/play <game>` first."
+
+[errors.kick_not_creator]
+title = "Permission Denied"
+description = "Only the lobby creator can kick players."
+suggestion = "Ask the lobby creator, or create your own lobby."
+
+[errors.ban_no_lobby]
+title = "No Active Lobby"
+description = "You need to be in a game lobby to ban players."
+suggestion = "Start a new game with `/play <game>` first."
+
+[errors.ban_not_creator]
+title = "Permission Denied"
+description = "Only the lobby creator can ban players."
+suggestion = "Ask the lobby creator, or create your own lobby."
+
+[errors.howtoplay_game_not_found]
+title = "Game Not Found"
+description = "I couldn't find a game called **{game}**."
+suggestion = "Use `/playcord catalog` to see all available games, or try `/playcord help` for general help."
+
+[begin_game]
+already_in_game_title = "Already In Game"
+already_in_game_description = "You are already in an active game in another server. Finish that game before starting a new one."
+
+[move]
+invalid_context_title = "Move commands can only be run during a game"
+invalid_context_description = "Move commands can only be run during a game in a private thread."
+no_active_game_description = "No active game found in this thread."
+
+# =============================================================================
+# BOT DISABLED MESSAGE
+# =============================================================================
+[bot]
+disabled_title = "Bot has been disabled!"
+disabled_description = "{name} has been temporarily disabled."
+
+# =============================================================================
+# PLURALIZATION
+# =============================================================================
+[plurals]
+game = "game"
+games = "games"
+player = "player"
+players = "players"
+
+# =============================================================================
+# MISC / FORMATTING
+# =============================================================================
+[format]
+rank_medal_1 = "🥇"
+rank_medal_2 = "🥈"
+rank_medal_3 = "🥉"
+rank_number = "#{rank}"
+rank_badge_1 = "🏆"
+rank_badge_top3 = "🥇"
+rank_badge_top10 = "⭐"
+ping_ms = "{ping} ms"

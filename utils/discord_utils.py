@@ -5,73 +5,29 @@ import discord
 from discord import app_commands
 from discord.app_commands import CheckFailure
 
-from configuration.constants import IS_ACTIVE, LOGGING_ROOT, NAME
+from configuration.constants import IS_ACTIVE, LOGGING_ROOT
 from utils.conversion import contextify
 from utils.database import DatabaseConnectionError
-from utils.embeds import CustomEmbed, ErrorEmbed, UserErrorEmbed, WarningEmbed
+from utils.locale import fmt, get, get_error
+from utils import embeds as _embeds
+
+CustomEmbed = _embeds.CustomEmbed
+ErrorEmbed = _embeds.ErrorEmbed
+UserErrorEmbed = getattr(_embeds, "UserErrorEmbed", ErrorEmbed)
 
 log = logging.getLogger(LOGGING_ROOT)
 
 
-# Common error messages with helpful guidance
-ERROR_MESSAGES = {
-    "not_in_matchmaking": {
-        "title": "Not in a Lobby",
-        "description": "You need to be in a game lobby to use this command.",
-        "suggestion": "Start a new game with `/play <game>` or join an existing lobby first."
-    },
-    "not_creator": {
-        "title": "Permission Denied",
-        "description": "Only the lobby creator can perform this action.",
-        "suggestion": "Ask the lobby creator to make changes, or create your own game lobby."
-    },
-    "already_in_game": {
-        "title": "Already Playing",
-        "description": "You're already in an active game.",
-        "suggestion": "Finish your current game first, or forfeit it if you want to leave."
-    },
-    "user_not_found": {
-        "title": "User Not Found",
-        "description": "I couldn't find that user in this server.",
-        "suggestion": "Make sure you're mentioning a valid user who is in this server."
-    },
-    "game_not_found": {
-        "title": "Game Not Found",
-        "description": "That game doesn't exist.",
-        "suggestion": "Use `/playcord catalog` to see all available games."
-    },
-    "database_error": {
-        "title": "Connection Issue",
-        "description": "I'm having trouble connecting to the database right now.",
-        "suggestion": "Please try again in a few moments. If this persists, the bot may be under maintenance."
-    },
-    "invalid_move": {
-        "title": "Invalid Move",
-        "description": "That move isn't allowed right now.",
-        "suggestion": "Check the game rules or available moves and try again."
-    },
-    "not_your_turn": {
-        "title": "Not Your Turn",
-        "description": "It's not your turn to play.",
-        "suggestion": "Wait for other players to make their moves."
-    },
-}
-
-
 def get_user_error_embed(error_key: str, **kwargs) -> UserErrorEmbed:
-    """Get a pre-defined user error embed with optional formatting."""
-    if error_key not in ERROR_MESSAGES:
-        return UserErrorEmbed(
-            title="Something went wrong",
-            description="An unexpected error occurred.",
-            suggestion="Please try again. If the problem persists, use `/playcord help` for assistance."
-        )
-    
-    error_info = ERROR_MESSAGES[error_key]
-    title = error_info["title"].format(**kwargs) if kwargs else error_info["title"]
-    description = error_info["description"].format(**kwargs) if kwargs else error_info["description"]
-    suggestion = error_info["suggestion"].format(**kwargs) if kwargs else error_info["suggestion"]
-    
+    """Get a pre-defined user error embed with optional formatting from locale."""
+    title, description, suggestion = get_error(error_key)
+
+    # Apply any formatting kwargs
+    if kwargs:
+        title = title.format(**kwargs)
+        description = description.format(**kwargs)
+        suggestion = suggestion.format(**kwargs)
+
     return UserErrorEmbed(title=title, description=description, suggestion=suggestion)
 
 
@@ -90,7 +46,9 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
     f_log = log.getChild("is_allowed")
 
     if not IS_ACTIVE:
-        await send_simple_embed(ctx, "Bot has been disabled!", f"{NAME} has been temporarily disabled.")
+        await send_simple_embed(ctx,
+                                fmt("bot.disabled_title"),
+                                fmt("bot.disabled_description", name=get("brand.name")))
         f_log.warning("Interaction attempted when bot was disabled. " + contextify(ctx))
         return False
 

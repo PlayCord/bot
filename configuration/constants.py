@@ -1,9 +1,11 @@
 import discord
 
+from utils.locale import get, fmt, get_dict
+
 VERSION = "0.1.1"
 IS_ACTIVE = True
-NAME = "PlayCord"
-MANAGED_BY = "quantumbagel"
+NAME = get("brand.name")
+MANAGED_BY = get("meta.author")
 LOGGING_ROOT = "playcord"
 SERVER_TIMEOUT = 5000
 
@@ -21,21 +23,16 @@ OWNERS = [897146430664355850, 1085939954758205561]
 CONFIGURATION = {}
 
 WELCOME_MESSAGE = [
-    (f"👋 Welcome to {NAME}!", 
-     f"Thanks for adding me! I'm a Discord bot for playing turn-based games with friends.\n\n"
-     f"**Quick Start:**\n"
-     f"• `/play <game>` - Start a new game\n"
-     f"• `/playcord catalog` - Browse all games\n"
-     f"• `/playcord help` - Interactive help menu"),
-    ("🎮 Available Games", 
-     "I have over 10 games including Tic-Tac-Toe, Connect Four, Chess, Poker, and more! "
-     "Each game tracks your rating so you can compete for the leaderboard."),
-    ("📊 Rating System", 
-     "Every game has a skill-based rating system. Win games to climb the leaderboard "
-     "and show off your skills!"),
-    ("❓ Need Help?", 
-     "Use `/playcord help` for an interactive guide, or check out our "
-     "[GitHub](https://github.com/PlayCord/bot) for documentation.")
+    (
+        fmt("welcome.title", name=NAME),
+        fmt("welcome.description"),
+    ),
+    (get("welcome.fields.games.name"), get("welcome.fields.games.value")),
+    (get("welcome.fields.rating.name"), get("welcome.fields.rating.value")),
+    (
+        get("welcome.fields.help.name"),
+        fmt("welcome.fields.help.value", github_url=get("brand.github_url")),
+    ),
 ]
 
 # Standardized embed colors for consistent UX
@@ -92,64 +89,25 @@ GAME_TRUESKILL = {
     "chess": {"sigma": 1 / 5, "beta": 1 / 10, "tau": 1 / 150, "draw": 1 / 10},
 }
 
-TEXTIFY_CURRENT_GAME_TURN = {
-    "It's {player}'s turn to play.": 0.529,
-    "Next up: {player}.": 0.45,
-    "We checked the books, and it is *somehow* {player}'s turn to play. Not sure how that happened.": 0.01,
-    "After journeying the Himalayas for many a year, we now know that it's {player}'s turn!": 0.01,
-    "Did you know that the chance of this turn message appearing is 0.1%?. alsobythewayit's{player}'sturn": 0.001
-
-}
+TEXTIFY_CURRENT_GAME_TURN = get_dict("game.turn")
 
 # Textify options for game started messages
-TEXTIFY_GAME_STARTED = {
-    "The game has begun! Good luck, {players}!": 0.5,
-    "Let the games begin! {players}, may the best player win!": 0.3,
-    "Game on! {players} are ready to battle it out!": 0.15,
-    "Alright {players}, let's see what you've got!": 0.04,
-    "In a world where only one can win... {players} enter the arena.": 0.01,
-}
+TEXTIFY_GAME_STARTED = get_dict("game.started")
 
 # Textify options for join button text
-TEXTIFY_BUTTON_JOIN = {
-    "Join": 0.7,
-    "Join Game": 0.2,
-    "Count me in!": 0.08,
-    "I'm in!": 0.02,
-}
+TEXTIFY_BUTTON_JOIN = get_dict("buttons.textify.join")
 
 # Textify options for leave button text
-TEXTIFY_BUTTON_LEAVE = {
-    "Leave": 0.7,
-    "Leave Game": 0.2,
-    "Nah, I'm out": 0.08,
-    "Goodbye!": 0.02,
-}
+TEXTIFY_BUTTON_LEAVE = get_dict("buttons.textify.leave")
 
 # Textify options for start button text
-TEXTIFY_BUTTON_START = {
-    "Start": 0.7,
-    "Start Game": 0.2,
-    "Let's go!": 0.08,
-    "Begin!": 0.02,
-}
+TEXTIFY_BUTTON_START = get_dict("buttons.textify.start")
 
 # Textify options for game over messages
-TEXTIFY_GAME_OVER = {
-    "Game over! {winner} wins!": 0.4,
-    "And the winner is... {winner}!": 0.3,
-    "Congratulations to {winner} for the victory!": 0.2,
-    "{winner} has emerged victorious!": 0.08,
-    "Against all odds, {winner} has won! What a game!": 0.02,
-}
+TEXTIFY_GAME_OVER = get_dict("game.over")
 
 # Textify options for draw messages
-TEXTIFY_GAME_DRAW = {
-    "It's a draw!": 0.5,
-    "The game ends in a tie!": 0.3,
-    "No winner this time - it's a draw!": 0.15,
-    "Both players are evenly matched! It's a tie!": 0.05,
-}
+TEXTIFY_GAME_DRAW = get_dict("game.draw")
 
 SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD = 0.20
 
@@ -200,19 +158,19 @@ BUTTON_PREFIX_PAGINATION_LAST = "pagination_last/"
 
 PRESENCE_TIMEOUT = 60
 PRESENCE_PRESETS = [
-    f"with {NAME}!",
-    "games with friends!",
-    "/play catalog"
+    fmt("presence.with_name", name=NAME),
+    get("presence.games_with_friends"),
+    get("presence.play_catalog"),
 ]
 
 # Permission and policy messages
-PERMISSION_MSG_NOT_PARTICIPANT = "You are not a participant in this game."
-PERMISSION_MSG_SPECTATE_DISABLED = "Spectating is disabled for this game."
-PERMISSION_MSG_WRONG_CHANNEL = "This command can only be used in a game thread."
-PERMISSION_MSG_NO_GAME_HERE = "There is no active game in this channel."
-PERMISSION_MSG_NOT_YOUR_TURN = "It isn't your turn right now!"
+PERMISSION_MSG_NOT_PARTICIPANT = get("permissions.not_participant")
+PERMISSION_MSG_SPECTATE_DISABLED = get("permissions.spectate_disabled")
+PERMISSION_MSG_WRONG_CHANNEL = get("permissions.wrong_channel")
+PERMISSION_MSG_NO_GAME_HERE = get("permissions.no_game_here")
+PERMISSION_MSG_NOT_YOUR_TURN = get("permissions.not_your_turn")
 
 # Thread policy settings
 THREAD_POLICY_WARN_NON_PARTICIPANTS = True  # Warn users who message in game threads without being participants
 THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES = False  # Delete messages from non-participants (more aggressive)
-THREAD_POLICY_WARNING_MESSAGE = "⚠️ This is an active game thread. Only game participants can send messages here."
+THREAD_POLICY_WARNING_MESSAGE = get("thread_policy.warning")

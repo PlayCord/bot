@@ -1,6 +1,7 @@
 import discord
 
 from utils.emojis import get_button_emoji
+from utils.locale import get
 
 
 class DynamicButtonView(discord.ui.View):
@@ -59,8 +60,7 @@ class DynamicButtonView(discord.ui.View):
 
         await interaction.response.edit_message(embed=embed, view=self)  # Update message, because you can't autoupdate
 
-        msg = await interaction.followup.send(content="That interaction is no longer active due to a bot restart!"
-                                                      " Please create a new interaction :)", ephemeral=True)
+        msg = await interaction.followup.send(content=get("interactions.dead_view"), ephemeral=True)
 
         await msg.delete(delay=10)  # autodelete message
 
@@ -80,11 +80,11 @@ class MatchmakingView(DynamicButtonView):
         :param can_start: whether the game can be started
         """
         super().__init__([
-            {"label": "Join", "style": discord.ButtonStyle.gray, "id": join_button_id,
+            {"label": get("buttons.join"), "style": discord.ButtonStyle.gray, "id": join_button_id,
              "emoji": get_button_emoji("join"), "callback": "none"},
-            {"label": "Leave", "style": discord.ButtonStyle.gray, "id": leave_button_id,
+            {"label": get("buttons.leave"), "style": discord.ButtonStyle.gray, "id": leave_button_id,
              "emoji": get_button_emoji("leave"), "callback": "none"},
-            {"label": "Start", "style": discord.ButtonStyle.blurple, "id": start_button_id,
+            {"label": get("buttons.start"), "style": discord.ButtonStyle.blurple, "id": start_button_id,
              "emoji": get_button_emoji("start"), "callback": "none", "disabled": not can_start}
         ])
 
@@ -101,9 +101,9 @@ class InviteView(DynamicButtonView):
         :param game_link: the link to the game
         """
         super().__init__([
-            {"label": "Join Game", "style": discord.ButtonStyle.blurple,
+            {"label": get("buttons.join_game"), "style": discord.ButtonStyle.blurple,
              "id": join_button_id, "emoji": get_button_emoji("join"), "callback": "none"},
-            {"label": "Go To Game (won't join)",
+            {"label": get("buttons.go_to_game"),
              "style": discord.ButtonStyle.gray, "link": game_link}
         ])
 
@@ -121,11 +121,11 @@ class SpectateView(DynamicButtonView):
         :param game_link: the link to the game
         """
         super().__init__([
-            {"label": "Spectate Game", "style": discord.ButtonStyle.blurple,
+            {"label": get("buttons.spectate"), "style": discord.ButtonStyle.blurple,
              "id": spectate_button_id, "emoji": get_button_emoji("spectate"), "callback": "none"},
-            {"label": "Peek", "style": discord.ButtonStyle.gray, "id": peek_button_id,
+            {"label": get("buttons.peek"), "style": discord.ButtonStyle.gray, "id": peek_button_id,
              "emoji": get_button_emoji("peek"), "callback": "none"},
-            {"label": "Go To Game (won't join)", "style": discord.ButtonStyle.gray,
+            {"label": get("buttons.go_to_game"), "style": discord.ButtonStyle.gray,
              "link": game_link}
         ])
 
@@ -167,7 +167,7 @@ class PaginationView(DynamicButtonView):
 
         super().__init__([
             {
-                "label": "First",
+                "label": get("buttons.first"),
                 "emoji": "⏮️",
                 "style": discord.ButtonStyle.gray,
                 "id": f"{BUTTON_PREFIX_PAGINATION_FIRST}{command}/{guild_id}/{user_id}/1/{max_pages}/{params_hash}",
@@ -175,7 +175,7 @@ class PaginationView(DynamicButtonView):
                 "callback": self._first_callback,
             },
             {
-                "label": "Previous",
+                "label": get("buttons.previous"),
                 "emoji": "◀️",
                 "style": discord.ButtonStyle.primary,
                 "id": f"{BUTTON_PREFIX_PAGINATION_PREV}{command}/{guild_id}/{user_id}/{current_page}/{max_pages}/{params_hash}",
@@ -183,7 +183,7 @@ class PaginationView(DynamicButtonView):
                 "callback": self._prev_callback,
             },
             {
-                "label": "Next",
+                "label": get("buttons.next"),
                 "emoji": "▶️",
                 "style": discord.ButtonStyle.primary,
                 "id": f"{BUTTON_PREFIX_PAGINATION_NEXT}{command}/{guild_id}/{user_id}/{current_page}/{max_pages}/{params_hash}",
@@ -191,7 +191,7 @@ class PaginationView(DynamicButtonView):
                 "callback": self._next_callback,
             },
             {
-                "label": "Last",
+                "label": get("buttons.last"),
                 "emoji": "⏭️",
                 "style": discord.ButtonStyle.gray,
                 "id": f"{BUTTON_PREFIX_PAGINATION_LAST}{command}/{guild_id}/{user_id}/{max_pages}/{max_pages}/{params_hash}",
@@ -212,7 +212,7 @@ class PaginationView(DynamicButtonView):
         """Navigate to first page."""
         if not self._validate_interaction(interaction):
             await interaction.response.send_message(
-                "You cannot interact with another user's pagination buttons.",
+                get("interactions.pagination_not_yours"),
                 ephemeral=True
             )
             return
@@ -223,7 +223,7 @@ class PaginationView(DynamicButtonView):
         """Navigate to previous page."""
         if not self._validate_interaction(interaction):
             await interaction.response.send_message(
-                "You cannot interact with another user's pagination buttons.",
+                get("interactions.pagination_not_yours"),
                 ephemeral=True
             )
             return
@@ -235,7 +235,7 @@ class PaginationView(DynamicButtonView):
         """Navigate to next page."""
         if not self._validate_interaction(interaction):
             await interaction.response.send_message(
-                "You cannot interact with another user's pagination buttons.",
+                get("interactions.pagination_not_yours"),
                 ephemeral=True
             )
             return
@@ -247,7 +247,7 @@ class PaginationView(DynamicButtonView):
         """Navigate to last page."""
         if not self._validate_interaction(interaction):
             await interaction.response.send_message(
-                "You cannot interact with another user's pagination buttons.",
+                get("interactions.pagination_not_yours"),
                 ephemeral=True
             )
             return
@@ -273,21 +273,21 @@ class HelpView(discord.ui.View):
         # Main navigation buttons
         if self.current_section == "main":
             self.add_item(HelpButton(
-                label="Getting Started",
+                label=get("help.buttons.getting_started"),
                 emoji="🚀",
                 section="getting_started",
                 style=discord.ButtonStyle.green,
                 user_id=self.user_id
             ))
             self.add_item(HelpButton(
-                label="Game List",
+                label=get("help.buttons.game_list"),
                 emoji="🎮",
                 section="games",
                 style=discord.ButtonStyle.primary,
                 user_id=self.user_id
             ))
             self.add_item(HelpButton(
-                label="Commands",
+                label=get("help.buttons.commands"),
                 emoji="⚙️",
                 section="commands",
                 style=discord.ButtonStyle.primary,
@@ -296,7 +296,7 @@ class HelpView(discord.ui.View):
         else:
             # Back button for sub-sections
             self.add_item(HelpButton(
-                label="← Back to Help",
+                label=get("help.buttons.back_to_help"),
                 emoji="🏠",
                 section="main",
                 style=discord.ButtonStyle.gray,
@@ -305,7 +305,7 @@ class HelpView(discord.ui.View):
             
             if self.current_section == "games":
                 self.add_item(HelpButton(
-                    label="View Full Catalog",
+                    label=get("help.buttons.view_catalog"),
                     emoji="📖",
                     section="catalog",
                     style=discord.ButtonStyle.primary,
@@ -325,7 +325,7 @@ class HelpButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message(
-                "This help menu belongs to someone else. Use `/playcord help` to open your own!",
+                get("interactions.help_not_yours"),
                 ephemeral=True
             )
             return
@@ -346,7 +346,7 @@ class HelpButton(discord.ui.Button):
         elif self.section == "catalog":
             # Redirect to catalog command
             await interaction.response.send_message(
-                "Use `/playcord catalog` to browse all games with details!",
+                get("help.buttons.catalog_redirect"),
                 ephemeral=True
             )
             return
@@ -363,8 +363,8 @@ class HelpButton(discord.ui.Button):
         from utils.embeds import CustomEmbed
         
         embed = CustomEmbed(
-            title="🎮 Available Games",
-            description="Here's a quick overview of what you can play:",
+            title=get("help.games_overview.title"),
+            description=get("help.games_overview.description"),
             color=INFO_COLOR
         )
         
@@ -375,17 +375,17 @@ class HelpButton(discord.ui.Button):
             games_text.append(f"• **{game_name}** (`/play {game_id}`)")
         
         if len(GAME_TYPES) > 8:
-            games_text.append(f"*...and {len(GAME_TYPES) - 8} more!*")
+            games_text.append(get("help.games_overview.more_games").format(count=len(GAME_TYPES) - 8))
         
         embed.add_field(
-            name="Games",
+            name=get("help.games_overview.field_games"),
             value="\n".join(games_text),
             inline=False
         )
         
         embed.add_field(
-            name="💡 Tip",
-            value="Click **View Full Catalog** for detailed info on each game!",
+            name=get("help.games_overview.field_tip"),
+            value=get("help.games_overview.tip_value"),
             inline=False
         )
         
@@ -449,7 +449,7 @@ class ContextualHelpView(discord.ui.View):
         super().__init__(timeout=timeout)
         self.help_topic = help_topic
     
-    @discord.ui.button(label="Need Help?", emoji="❓", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label=get("buttons.need_help"), emoji="❓", style=discord.ButtonStyle.secondary)
     async def help_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Show contextual help based on the topic."""
         from utils.embeds import (
@@ -477,7 +477,7 @@ class QuickActionsView(discord.ui.View):
         
         if show_catalog:
             self.add_item(discord.ui.Button(
-                label="View Catalog",
+                label=get("buttons.view_catalog"),
                 emoji="📖",
                 style=discord.ButtonStyle.primary,
                 custom_id="quick_catalog",
@@ -485,7 +485,7 @@ class QuickActionsView(discord.ui.View):
         
         if show_help:
             self.add_item(discord.ui.Button(
-                label="Get Help",
+                label=get("buttons.get_help"),
                 emoji="❓",
                 style=discord.ButtonStyle.secondary,
                 custom_id="quick_help",

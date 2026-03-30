@@ -18,9 +18,16 @@ from utils.analytics import Timer
 from utils.conversion import column_creator, column_elo, column_names, column_turn, contextify, player_representative, \
     player_verification_function, textify
 from utils.database import InternalPlayer, get_shallow_player, internal_player_to_player
-from utils.embeds import CustomEmbed, ErrorEmbed, GameOverEmbed, GameOverviewEmbed, FirstTimeUserEmbed
+from utils import embeds as _embeds
 from utils.emojis import get_emoji_string
+from utils.locale import get, fmt
 from utils.views import MatchmakingView, SpectateView
+
+CustomEmbed = _embeds.CustomEmbed
+ErrorEmbed = _embeds.ErrorEmbed
+GameOverEmbed = _embeds.GameOverEmbed
+GameOverviewEmbed = _embeds.GameOverviewEmbed
+FirstTimeUserEmbed = getattr(_embeds, "FirstTimeUserEmbed", CustomEmbed)
 
 
 def user_in_active_game(user_id: int) -> bool:
@@ -143,12 +150,10 @@ class GameInterface:
         log = self.logger.getChild("setup")
         setup_timer = Timer().start()
         log.debug(f"Setting up game interface for a new game. matchmaker ID: {self.status_message.id}")
-        rated_prefix = "Rated "  # Add "Rated" to the name of the thread if the game
-        if not self.rated:
-            rated_prefix = ""
+        rated_prefix = get("queue.thread_rated_prefix") if self.rated else ""
 
         game_thread = await self.status_message.channel.create_thread(  # Create the private thread.
-            name=f"{rated_prefix}{self.game.name} game ({NAME})",
+            name=fmt("queue.thread_name", prefix=rated_prefix, game=self.game.name, name=NAME),
             type=discord.ChannelType.private_thread, invitable=False)  # Don't allow people to add themselves
 
         async def add_new_members_to_thread():
@@ -199,7 +204,7 @@ class GameInterface:
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn}) context: {contextify(ctx)}")
-                message = await ctx.followup.send(content="It isn't your turn right now!", ephemeral=True)
+                message = await ctx.followup.send(content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=5)
                 return
             try:
@@ -247,7 +252,7 @@ class GameInterface:
             if (outcome := self.game.outcome()) is not None:  # Game is over
                 log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
                           f" context: {contextify(ctx)}")
-                message = await ctx.followup.send(content="Game over!", ephemeral=True)
+                message = await ctx.followup.send(content=get("game.over_short"), ephemeral=True)
                 await message.delete(delay=5)
                 await game_over(self, outcome)
                 return
@@ -279,7 +284,7 @@ class GameInterface:
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
-                message = await ctx.followup.send(content="It isn't your turn right now!", ephemeral=True)
+                message = await ctx.followup.send(content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=5)
                 return
 
@@ -331,7 +336,7 @@ class GameInterface:
             if (outcome := self.game.outcome()) is not None:  # Game is over
                 log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
                           f" context: {contextify(ctx)}")
-                message = await ctx.followup.send(content="Game over!", ephemeral=True)
+                message = await ctx.followup.send(content=get("game.over_short"), ephemeral=True)
                 await message.delete(delay=5)
                 await game_over(self, outcome)
                 return
@@ -353,7 +358,7 @@ class GameInterface:
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
-                message = await ctx.followup.send(content="It isn't your turn right now!", ephemeral=True)
+                message = await ctx.followup.send(content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=5)
                 return
 
@@ -391,7 +396,7 @@ class GameInterface:
             if (outcome := self.game.outcome()) is not None:  # Game is over
                 log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
                           f" context: {contextify(ctx)}")
-                message = await ctx.followup.send(content="Game over!", ephemeral=True)
+                message = await ctx.followup.send(content=get("game.over_short"), ephemeral=True)
                 await message.delete(delay=5)
                 await game_over(self, outcome)
                 return
@@ -405,7 +410,7 @@ class GameInterface:
         update_timer = Timer().start()
         self.current_turn = self.game.current_turn()
         # Embed to send as the updated game state
-        info_embed = CustomEmbed(title=f"Playing {self.game.name} with {len(self.players)} players",
+        info_embed = CustomEmbed(title=fmt("game.state_title", game=self.game.name, players=len(self.players)),
                                  description=textify(TEXTIFY_CURRENT_GAME_TURN,
                                                      {"player": self.current_turn.mention})).remove_footer()
 
@@ -449,8 +454,8 @@ class GameInterface:
                 if state_type.type == "image":  # Special flag to extract discord.File object from the image type
                     picture = state_type.game_picture
         else:
-            state_embed.add_field(name=":cobweb: There's nothing here!", value="The game didn't return a value "
-                                                                               "for the game state, so nothing is displayed.",
+            state_embed.add_field(name=get("game.empty_state_name"),
+                                  value=get("game.empty_state_value"),
                                   inline=False)
             should_use_embed = True  # Force the embed to be sent
 
@@ -466,9 +471,9 @@ class GameInterface:
                             f" game_id={self.thread.id} game_type={self.game_type}")
 
         # Add info embed data
-        info_embed.add_field(name="Players:", value=column_names(self.players))
-        info_embed.add_field(name="Ratings:", value=column_elo(self.players, self.game_type))
-        info_embed.add_field(name="Turn:", value=column_turn(self.players, self.current_turn))
+        info_embed.add_field(name=get("embeds.game_overview.field_players"), value=column_names(self.players))
+        info_embed.add_field(name=get("embeds.game_overview.field_ratings"), value=column_elo(self.players, self.game_type))
+        info_embed.add_field(name=get("embeds.game_overview.field_turn"), value=column_turn(self.players, self.current_turn))
 
         # Edit the game and info messages with the new embeds
         async def edit_info_message():
@@ -564,9 +569,8 @@ class MatchmakingInterface:
         self.message = message
 
         if self.queued_players == {None}:  # Couldn't get information on the creator, so fail now
-            fail_embed = ErrorEmbed(what_failed="Couldn't connect to database!",
-                                    reason="The bot failed to connect to the database."
-                                           " This is likely a temporary error, try again later!")
+            fail_embed = ErrorEmbed(what_failed=get("queue.db_connect_failed_what"),
+                                    reason=get("queue.db_connect_failed_reason"))
             self.failed = fail_embed
             return
         CURRENT_MATCHMAKING.update({self.message.id: self})
@@ -579,7 +583,7 @@ class MatchmakingInterface:
 
         if not hasattr(self.game, "players"):  # If no players defined, any value is "fine"
             self.player_verification_function = lambda x: True
-            self.allowed_players = "Any"
+            self.allowed_players = get("queue.any_players")
         else:
             self.player_verification_function = player_verification_function(self.game.players)
             self.allowed_players = player_representative(self.game.players)
@@ -596,8 +600,8 @@ class MatchmakingInterface:
         update_timer = Timer().start()
         # Set up the embed
 
-        game_rated_text = "Rated" if self.rated else "Not Rated"
-        private_text = "🔐Private" if self.private else "🔓Public"
+        game_rated_text = get("queue.rated") if self.rated else get("queue.not_rated")
+        private_text = get("queue.private_status") if self.private else get("queue.public_status")
 
         # Parameters in embed title:
         # Time
@@ -612,9 +616,9 @@ class MatchmakingInterface:
             if hasattr(self.game, param):
                 game_metadata[param] = getattr(self.game, param)
             else:
-                game_metadata[param] = "Unknown"
+                game_metadata[param] = get("help.game_info.unknown")
 
-        embed = CustomEmbed(title=f"Queueing for {self.game.name}...",
+        embed = CustomEmbed(title=fmt("queue.title", game=self.game.name),
                             description=f"⏰{game_metadata['time']}{LONG_SPACE_EMBED * 2}"
                                         f"👤{self.allowed_players}{LONG_SPACE_EMBED * 2}"
                                         f"📈{game_metadata['difficulty']}{LONG_SPACE_EMBED * 2}"
@@ -622,20 +626,20 @@ class MatchmakingInterface:
                                         f"{private_text}")
 
         # Add columns for names, elo, and creator status
-        embed.add_field(name="Players:", value=column_names(self.queued_players), inline=True)
-        embed.add_field(name="Rating:", value=column_elo(self.queued_players, self.game_type), inline=True)
-        embed.add_field(name="Creator:", value=column_creator(self.queued_players, self.creator), inline=True)
+        embed.add_field(name=get("queue.field_players"), value=column_names(self.queued_players), inline=True)
+        embed.add_field(name=get("queue.field_rating"), value=column_elo(self.queued_players, self.game_type), inline=True)
+        embed.add_field(name=get("queue.field_creator"), value=column_creator(self.queued_players, self.creator), inline=True)
 
         # Add whitelist or blacklist depending on private status
         if self.private:
-            embed.add_field(name="Whitelist:", value=column_names(self.whitelist), inline=True)
+            embed.add_field(name=get("queue.field_whitelist"), value=column_names(self.whitelist), inline=True)
         elif len(self.blacklist):
-            embed.add_field(name="Blacklist:", value=column_names(self.blacklist), inline=True)
+            embed.add_field(name=get("queue.field_blacklist"), value=column_names(self.blacklist), inline=True)
 
         # Credits for game
-        embed.add_field(name="Game Info:", value=self.game.description, inline=False)
-        embed.add_field(name="Game by:",
-                        value=f"[{game_metadata['author']}]({game_metadata['author_link']})\n[Source]({game_metadata['source_link']})")
+        embed.add_field(name=get("queue.field_game_info"), value=self.game.description, inline=False)
+        embed.add_field(name=get("queue.field_game_by"),
+                        value=f"[{game_metadata['author']}]({game_metadata['author_link']})\n[{get('queue.source')}]({game_metadata['source_link']})")
 
         # Can the start button be pressed?
         start_enabled = self.player_verification_function(len(self.queued_players))
@@ -668,13 +672,13 @@ class MatchmakingInterface:
             log.debug(
                 f"Player.py {player} attempted to accept invite, but they are already in the game! "
                 f"{contextify(ctx)}")
-            await ctx.followup.send("You are already in the game!", ephemeral=True)
+            await ctx.followup.send(get("queue.already_in_game"), ephemeral=True)
             return False
         if user_in_active_game(player.id):
             log.info(f"Player.py {player} attempted to accept invite while already in another active game."
                      f" {contextify(ctx)}")
             await ctx.followup.send(
-                "You are already in an active game in another server. Finish that game before joining this lobby.",
+                get("queue.already_in_active_game_other_server"),
                 ephemeral=True
             )
             return False
@@ -683,7 +687,7 @@ class MatchmakingInterface:
                 log.warning(
                     f"Player.py {player} attempted to accept invite, but we couldn't connect to the database!"
                     f"{contextify(ctx)}")
-                await ctx.followup.send("Couldn't connect to DB!", ephemeral=True)
+                await ctx.followup.send(get("queue.couldnt_connect_db"), ephemeral=True)
                 return False
 
             # Add to whitelist or remove from blacklist, depending on private/public status
@@ -715,7 +719,7 @@ class MatchmakingInterface:
         log.debug(f"Attempting to ban player {new_player} for reason {reason!r}...")
         if new_player is None:  # Couldn't retrieve information, so don't join them
             log.error(f"Error banning {new_player}: couldn't connect to the database!")
-            return "Couldn't connect to DB!"
+            return get("queue.couldnt_connect_db")
 
         # Kick if already in and update embed
         kicked = False
@@ -729,7 +733,7 @@ class MatchmakingInterface:
             await self.message.delete()  # Remove matchmaking message
             self.outcome = False
             log.info(f"Self ban of player {new_player} caused the lobby to end.")
-            return "idk why you banned yourself when you are the only one in the lobby, lol"
+            return get("queue.self_ban_only_player")
 
         if player.id == self.creator.id:  # Update creator if the person leaving was the creator.
             self.creator = next(iter(self.queued_players)).user
@@ -741,7 +745,7 @@ class MatchmakingInterface:
                 self.whitelist.remove(new_player)
             except KeyError:
                 log.info(f"Ban of player {new_player} in private lobby failed: not on whitelist anyway.")
-                return "Can't ban someone who isn't on the whitelist anyway!"
+                return get("queue.cant_ban_not_whitelisted")
         else:
             self.blacklist.add(new_player)
 
@@ -750,10 +754,10 @@ class MatchmakingInterface:
         if kicked:
             log.info(f"Successfully kicked and banned {new_player}"
                      f" from the game for reason {reason!r}")
-            return f"Successfully kicked and banned {player.mention} from the game for reason {reason!r}"
+            return fmt("queue.kicked_and_banned", player=player.mention, reason=reason)
         log.info(f"Successfully banned {new_player}"
                  f" from the game for reason {reason!r}")
-        return f"Successfully banned {player.mention} from the game for reason {reason!r}"
+        return fmt("queue.banned", player=player.mention, reason=reason)
 
     async def kick(self, player: discord.User, reason: str) -> str | None:
         """
@@ -767,7 +771,7 @@ class MatchmakingInterface:
         log.debug(f"Attempting to kick player {new_player} for reason {reason!r}...")
         if new_player is None:  # Couldn't retrieve information, so don't join them
             log.error(f"Error kicking {new_player}: couldn't connect to the database!")
-            return "Couldn't connect to DB!"
+            return get("queue.couldnt_connect_db")
 
         kicked = False
         if new_player.id in [p.id for p in self.queued_players]:  # Kick if already in
@@ -781,8 +785,7 @@ class MatchmakingInterface:
             await self.message.delete()  # Remove matchmaking message
             self.outcome = False
             log.info(f"Self kick of player {new_player} caused the lobby to end.")
-            return ("idk why you thought kicking yourself was a smart idea "
-                    "when you are the only one in the lobby, lol")
+            return get("queue.self_kick_only_player")
 
         if player.id == self.creator.id:  # Update creator if the person leaving was the creator.
             self.creator = next(iter(self.queued_players)).user
@@ -790,10 +793,10 @@ class MatchmakingInterface:
         if kicked:
             log.info(f"Successfully kicked {new_player} ({player.name})"
                      f" from the game for reason {reason!r}")
-            return f"Successfully kicked {player.mention} from the game for reason {reason!r}"
+            return fmt("queue.kicked", player=player.mention, reason=reason)
         log.info(f"Couldn't kick {new_player}"
                  f" from the game: they weren't in the lobby!")
-        return f"Didn't kick anyone: {player.mention} isn't in this lobby!"
+        return fmt("queue.didnt_kick", player=player.mention)
 
     async def callback_ready_game(self, ctx: discord.Interaction) -> None:
         """
@@ -807,12 +810,12 @@ class MatchmakingInterface:
         if ctx.user.id in [p.id for p in self.queued_players]:  # Can't join if you are already in
             log.info(f"Attempted to join player {new_player} but failed because they were already in the queue."
                      f" {contextify(ctx)}")
-            await ctx.followup.send("You are already in the game!", ephemeral=True)
+            await ctx.followup.send(get("queue.already_in_game"), ephemeral=True)
         elif user_in_active_game(new_player.id):
             log.info(f"Attempted to join player {new_player} but failed because they are already in another game."
                      f" {contextify(ctx)}")
             await ctx.followup.send(
-                "You are already in an active game in another server. Finish that game before joining this lobby.",
+                get("queue.already_in_active_game_other_server"),
                 ephemeral=True
             )
             return
@@ -821,9 +824,10 @@ class MatchmakingInterface:
                 if new_player in self.blacklist:
                     log.info(f"Attempted to join player {new_player} but failed because they were already in the queue."
                              f" {contextify(ctx)}")
-                    await ctx.followup.send(f"You are banned from this game!"
-                                            f" Ask the owner of the game {self.creator.mention}"
-                                            f" to unban you!", ephemeral=True)
+                    await ctx.followup.send(
+                        fmt("queue.banned_message", creator=self.creator.mention),
+                        ephemeral=True
+                    )
                     return
                 self.queued_players.add(new_player)  # Add the player to queued_players
                 IN_MATCHMAKING.update({new_player: self})
@@ -833,7 +837,7 @@ class MatchmakingInterface:
                     log.info(f"Attempted to join player {new_player} to private game but failed because"
                              f" they were not on the whitelist."
                              f" {contextify(ctx)}")
-                    await ctx.followup.send("You are not on the whitelist for this private game!", ephemeral=True)
+                    await ctx.followup.send(get("queue.not_on_whitelist"), ephemeral=True)
                     return
                 self.queued_players.add(new_player)  # Add the player to queued_players
                 IN_MATCHMAKING.update({new_player: self})
@@ -852,7 +856,7 @@ class MatchmakingInterface:
         if player.id not in [p.id for p in self.queued_players]:  # Can't leave if you weren't even there
             log.info(f"Attempted to remove player {player} but failed because they weren't in the queue to begin with."
                      f" {contextify(ctx)}")
-            await ctx.followup.send("You aren't in the game!", ephemeral=True)
+            await ctx.followup.send(get("queue.not_in_game"), ephemeral=True)
         else:
             # Remove player from queue
             for p in self.queued_players:
@@ -863,7 +867,7 @@ class MatchmakingInterface:
             # Nobody is left lol
             if not len(self.queued_players):
                 log.info(f"Call to leave_game left no players in lobby, so ending game. {contextify(ctx)}")
-                await ctx.followup.send("You were the last person in the lobby, so the game was cancelled!",
+                await ctx.followup.send(get("queue.game_cancelled_last_player"),
                                         ephemeral=True)
                 await self.message.delete()  # Remove matchmaking message
                 self.outcome = False
@@ -890,7 +894,7 @@ class MatchmakingInterface:
         log.debug(f"Attempting to start the game... {contextify(ctx)}")
 
         if ctx.user.id != self.creator.id:  # Don't have permissions to start the game
-            await ctx.followup.send("You can't start the game (not the creator).", ephemeral=True)
+            await ctx.followup.send(get("permissions.cant_start_not_creator"), ephemeral=True)
             log.debug(f"Game failed to start because player {player} was not the creator. "
                       f"{contextify(ctx)}")
             return
@@ -900,7 +904,7 @@ class MatchmakingInterface:
             verb = "is" if len(busy_players) == 1 else "are"
             mentions = ", ".join(p.mention for p in busy_players)
             await ctx.followup.send(
-                f"Can't start this game yet. {mentions} {verb} already in an active game in another server.",
+                fmt("permissions.players_in_other_game", mentions=mentions, verb=verb),
                 ephemeral=True
             )
             log.info("Game start denied because one or more queued players are already in another active game. "
@@ -1123,10 +1127,10 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
 
     # There are three cases: str (error) Player (one person won) list[list[Player]] (detailed ranking)
     if isinstance(outcome, str):  # Error
-        game_over_embed = ErrorEmbed(what_failed="Error during a move!", reason=outcome)
+        game_over_embed = ErrorEmbed(what_failed=get("game.error_during_move"), reason=outcome)
         # Send the embed
         await outbound_message.edit(embed=game_over_embed)
-        await thread.edit(locked=True, archived=True, reason="Game crashed.")
+        await thread.edit(locked=True, archived=True, reason=get("threads.game_crashed"))
         await thread.send(embed=game_over_embed)
         return
 
@@ -1212,7 +1216,7 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
     await outbound_message.edit(embed=game_over_embed, view=None)
 
     # Close the game thread
-    await thread.edit(locked=True, archived=True, reason="Game is over.")
+    await thread.edit(locked=True, archived=True, reason=get("threads.game_over"))
 
     # # If the game is rated, perform the relatively intensive task of updating the DB rankings
     # if rated:
