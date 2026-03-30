@@ -315,7 +315,7 @@ class ChessGame(Game):
     moves = [
         Command(name="move", description="Make a move (e.g., e2e4 or e2-e4).",
                 callback="make_move",
-                arguments=[String(argument_name="notation", description="Move in coordinate notation (e.g., e2e4)")]),
+                options=[String(argument_name="notation", description="Move in coordinate notation (e.g., e2e4)")]),
         Command(name="resign", description="Resign the game.",
                 callback="resign", require_current_turn=False),
         Command(name="offer_draw", description="Offer a draw.",
