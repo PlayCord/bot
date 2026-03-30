@@ -18,9 +18,9 @@ class BlackjackTableGame(Game):
         Command(name="stand", description="End your turn for this round.", callback="stand"),
         Command(name="peek", description="Show your hand privately.", callback="peek", require_current_turn=False),
     ]
-    author = "@copilot"
+    author = "@quantumbagel"
     version = "1.0"
-    author_link = "https://github.com/github"
+    author_link = "https://github.com/quantumbagel"
     source_link = "https://github.com/PlayCord/bot/blob/main/games/BlackjackTable.py"
     time = "7min"
     difficulty = "Medium"

@@ -17,9 +17,9 @@ class NoThanksGame(Game):
         Command(name="take", description="Take the current card.", callback="take"),
         Command(name="pass", description="Pay one chip to pass.", callback="pass_turn"),
     ]
-    author = "@copilot"
+    author = "@quantumbagel"
     version = "1.0"
-    author_link = "https://github.com/github"
+    author_link = "https://github.com/quantumbagel"
     source_link = "https://github.com/PlayCord/bot/blob/main/games/NoThanks.py"
     time = "8min"
     difficulty = "Medium"
@@ -43,7 +43,8 @@ class NoThanksGame(Game):
     def state(self):
         status = "🏁 Game over." if self.finished else f"➡️ Turn: {self.current_turn().mention}"
         table = DataTable(
-            {p: {"Chips:": self.chips[p], "Cards:": len(self.cards[p]), "Score:": self._score_player(p)} for p in self.players}
+            {p: {"Chips:": self.chips[p], "Cards:": len(self.cards[p]), "Score:": self._score_player(p)} for p in
+             self.players}
         )
         description = (
             f"{status}\nCurrent card: **{self.current_card}**\nChips on card: **{self.pot}**\n\n{self.last_action}"

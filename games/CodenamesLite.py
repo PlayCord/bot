@@ -29,9 +29,9 @@ class CodenamesLiteGame(Game):
             callback="guess",
         ),
     ]
-    author = "@copilot"
+    author = "@quantumbagel"
     version = "1.0"
-    author_link = "https://github.com/github"
+    author_link = "https://github.com/quantumbagel"
     source_link = "https://github.com/PlayCord/bot/blob/main/games/CodenamesLite.py"
     time = "12min"
     difficulty = "Hard"

@@ -17,13 +17,14 @@ class MastermindDuelGame(Game):
         Command(
             name="code",
             description="Set or guess the 4-digit code (digits 1-6).",
-            options=[Integer(argument_name="code", description="4-digit code like 1234", min_value=1111, max_value=6666)],
+            options=[
+                Integer(argument_name="code", description="4-digit code like 1234", min_value=1111, max_value=6666)],
             callback="submit_code",
         )
     ]
-    author = "@copilot"
+    author = "@quantumbagel"
     version = "1.0"
-    author_link = "https://github.com/github"
+    author_link = "https://github.com/quantumbagel"
     source_link = "https://github.com/PlayCord/bot/blob/main/games/MastermindDuel.py"
     time = "6min"
     difficulty = "Medium"
@@ -49,7 +50,8 @@ class MastermindDuelGame(Game):
         else:
             status = f"➡️ Turn: {self.breaker.mention} ({self.attempts}/{self.max_attempts} guesses used)"
 
-        rendered_history = "\n".join([f"{g} → {f}" for g, f in self.history[-8:]]) if self.history else "No guesses yet."
+        rendered_history = "\n".join(
+            [f"{g} → {f}" for g, f in self.history[-8:]]) if self.history else "No guesses yet."
         description = f"{status}\n\n{self.last_action}\n\n**History**\n{rendered_history}"
         table = DataTable(
             {
@@ -75,7 +77,8 @@ class MastermindDuelGame(Game):
 
         digits = self._parse_code(code)
         if digits is None:
-            return Response(content="Code must be exactly 4 digits, each between 1 and 6.", ephemeral=True, delete_after=8)
+            return Response(content="Code must be exactly 4 digits, each between 1 and 6.", ephemeral=True,
+                            delete_after=8)
 
         self.secret = digits
         self.phase = "guessing"
@@ -89,7 +92,8 @@ class MastermindDuelGame(Game):
 
         digits = self._parse_code(code)
         if digits is None:
-            return Response(content="Guess must be exactly 4 digits, each between 1 and 6.", ephemeral=True, delete_after=8)
+            return Response(content="Guess must be exactly 4 digits, each between 1 and 6.", ephemeral=True,
+                            delete_after=8)
 
         self.attempts += 1
         exact, partial = self._score_guess(digits, self.secret)

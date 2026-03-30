@@ -54,25 +54,25 @@ class EventsCog(commands.Cog):
         # Ignore messages from bots (including ourselves)
         if message.author.bot:
             return
-        
+
         # Only apply to private threads (game threads)
         if message.channel.type != discord.ChannelType.private_thread:
             return
-        
+
         # Check if this thread has an active game
         if message.channel.id not in CURRENT_GAMES:
             return
-        
+
         game = CURRENT_GAMES[message.channel.id]
         participant_ids = {p.id for p in game.players}
-        
+
         # If user is a participant, allow the message
         if message.author.id in participant_ids:
             return
-        
+
         f_log = log.getChild("event.thread_policy")
         f_log.debug(f"Non-participant {message.author.id} sent message in game thread {message.channel.id}")
-        
+
         # Delete message if configured to do so
         if THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES:
             try:
@@ -82,18 +82,18 @@ class EventsCog(commands.Cog):
                 f_log.warning(f"Cannot delete message - missing permissions in thread {message.channel.id}")
             except discord.NotFound:
                 pass  # Message already deleted
-        
+
         # Warn the user (with rate limiting to avoid spam)
         if THREAD_POLICY_WARN_NON_PARTICIPANTS:
             import time
             current_time = time.time()
             thread_id = message.channel.id
             user_id = message.author.id
-            
+
             # Initialize tracking for this thread if needed
             if thread_id not in self._warned_users:
                 self._warned_users[thread_id] = {}
-            
+
             # Only warn once per 60 seconds per user per thread
             last_warned = self._warned_users[thread_id].get(user_id, 0)
             if current_time - last_warned > 60:
@@ -115,7 +115,6 @@ class EventsCog(commands.Cog):
                     for game in GAME_TYPES:
                         options.append(f"Playing {GAME_TYPES[game][1]}...")
                     options.extend(PRESENCE_PRESETS)
-
                     for option in options:
                         activity = discord.Activity(type=discord.ActivityType.playing, name=option)
                         await self.bot.change_presence(activity=activity)

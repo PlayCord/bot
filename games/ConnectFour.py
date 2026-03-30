@@ -27,9 +27,9 @@ class ConnectFourGame(Game):
             callback="drop",
         )
     ]
-    author = "@copilot"
+    author = "@quantumbagel"
     version = "1.0"
-    author_link = "https://github.com/github"
+    author_link = "https://github.com/quantumbagel"
     source_link = "https://github.com/PlayCord/bot/blob/main/games/ConnectFour.py"
     time = "4min"
     difficulty = "Easy"

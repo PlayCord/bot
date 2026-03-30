@@ -23,9 +23,9 @@ class ReversiGame(Game):
             callback="place",
         )
     ]
-    author = "@copilot"
+    author = "@quantumbagel"
     version = "1.0"
-    author_link = "https://github.com/github"
+    author_link = "https://github.com/quantumbagel"
     source_link = "https://github.com/PlayCord/bot/blob/main/games/Reversi.py"
     time = "8min"
     difficulty = "Medium"
@@ -76,7 +76,8 @@ class ReversiGame(Game):
             if self._valid_moves(opponent):
                 self.turn = opponent_index
                 self.last_action = f"{player.mention} had no legal moves. Turn passed to {opponent.mention}."
-                return Response(content="No legal moves available. Your turn was passed.", ephemeral=True, delete_after=7)
+                return Response(content="No legal moves available. Your turn was passed.", ephemeral=True,
+                                delete_after=7)
             self.finished = True
             self.last_action = "Both players are out of legal moves."
             return None
@@ -111,7 +112,7 @@ class ReversiGame(Game):
     def outcome(self):
         if not self.finished:
             if self._board_full() or (
-                not self._valid_moves(self.players[0]) and not self._valid_moves(self.players[1])
+                    not self._valid_moves(self.players[0]) and not self._valid_moves(self.players[1])
             ):
                 self.finished = True
             else:
@@ -153,8 +154,8 @@ class ReversiGame(Game):
         flips = []
         directions = [
             (-1, -1), (-1, 0), (-1, 1),
-            (0, -1),           (0, 1),
-            (1, -1),  (1, 0),  (1, 1),
+            (0, -1), (0, 1),
+            (1, -1), (1, 0), (1, 1),
         ]
         for dr, dc in directions:
             path = []
