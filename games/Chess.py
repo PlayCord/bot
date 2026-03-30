@@ -7,8 +7,8 @@ A standard chess implementation for 2 players with full move validation.
 from typing import Optional
 from enum import Enum
 
+from api.Arguments import String
 from api.Command import Command
-from api.Arguments import StringArg
 from api.Game import Game
 from api.MessageComponents import Description, CodeBlock, Button, ButtonStyle
 from api.Player import Player
@@ -315,7 +315,7 @@ class ChessGame(Game):
     moves = [
         Command(name="move", description="Make a move (e.g., e2e4 or e2-e4).",
                 callback="make_move",
-                arguments=[StringArg(name="notation", description="Move in coordinate notation (e.g., e2e4)")]),
+                arguments=[String(argument_name="notation", description="Move in coordinate notation (e.g., e2e4)")]),
         Command(name="resign", description="Resign the game.",
                 callback="resign", require_current_turn=False),
         Command(name="offer_draw", description="Offer a draw.",

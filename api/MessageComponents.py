@@ -66,6 +66,37 @@ class Description(MessageComponent):
         embed.description = self.description
 
 
+class CodeBlock(MessageComponent):
+    """
+    CodeBlock: something used to represent a code block in an embed field
+    """
+
+    def __init__(self, content: str, language: str = ""):
+        """
+        Create a new CodeBlock
+        :param content: the code content to display
+        :param language: the language for syntax highlighting (e.g., 'python', 'javascript', '')
+        """
+        super().__init__()
+        self.content = content
+        self.language = language
+        self.type = "codeblock"
+        self.limit = 1
+
+    def _embed_transform(self, embed: discord.Embed) -> None:
+        """
+        Transform the embed to add a code block field
+        :param embed: the embed to add the code block to
+        :return: Nothing
+        """
+        # Format as a code block with backticks
+        formatted_content = f"```{self.language}\n{self.content}\n```"
+        # Truncate if too long (Discord field value limit is 1024 chars)
+        if len(formatted_content) > 1024:
+            formatted_content = formatted_content[:1021] + "```"
+        embed.add_field(name="\u200b", value=formatted_content, inline=False)
+
+
 class Field(MessageComponent):
     """
     FieldType: something used to represent just a basic field
