@@ -1,9 +1,75 @@
+from typing import Any
+
+try:
+    import cairosvg
+except ImportError:
+    cairosvg = None
+
 from api.Arguments import Integer
 from api.Command import Command
 from api.Game import Game
-from api.MessageComponents import Button, ButtonStyle, DataTable, Description
+from api.MessageComponents import Button, ButtonStyle, DataTable, Description, Image, CodeBlock
 from api.Player import Player
 from api.Response import Response
+
+
+def _svg_to_png(svg_markup: str) -> bytes | None:
+    if cairosvg is None:
+        return None
+    return cairosvg.svg2png(bytestring=svg_markup.encode("utf-8"))
+
+
+def render_connect_four_board_png(
+        board: list[list[Any | None]],
+        player_one: Any,
+        player_two: Any
+) -> bytes | None:
+    rows = len(board)
+    cols = len(board[0]) if rows else 0
+    if rows == 0 or cols == 0:
+        return None
+
+    cell = 74
+    margin = 18
+    number_height = 26
+    board_width = cols * cell
+    board_height = rows * cell
+    width = board_width + (margin * 2)
+    height = board_height + (margin * 2) + number_height
+
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}">',
+        f'<rect width="{width}" height="{height}" fill="#0f172a"/>',
+        f'<rect x="{margin}" y="{margin}" width="{board_width}" height="{board_height}" '
+        f'rx="16" ry="16" fill="#1d4ed8"/>',
+    ]
+
+    for row in range(rows):
+        for col in range(cols):
+            x = margin + (col * cell) + (cell / 2)
+            y = margin + (row * cell) + (cell / 2)
+            slot_color = "#f8fafc"
+            cell_value = board[row][col]
+            if cell_value == player_one:
+                slot_color = "#ef4444"
+            elif cell_value == player_two:
+                slot_color = "#facc15"
+
+            parts.append(
+                f'<circle cx="{x}" cy="{y}" r="{cell * 0.36}" fill="{slot_color}" '
+                f'stroke="#0f172a" stroke-width="2"/>'
+            )
+
+    for col in range(cols):
+        x = margin + (col * cell) + (cell / 2)
+        parts.append(
+            f'<text x="{x}" y="{height - 8}" text-anchor="middle" '
+            f'font-size="16" fill="#e2e8f0">{col + 1}</text>'
+        )
+
+    parts.append("</svg>")
+    return _svg_to_png("".join(parts))
 
 
 class ConnectFourGame(Game):
@@ -52,7 +118,7 @@ class ConnectFourGame(Game):
         else:
             status = f"➡️ Turn: {self.current_turn().mention}"
 
-        description = f"{status}\n\n{self._render_board()}\n\n{self.last_action}"
+        description = f"{status}\n\n{self.last_action}"
         buttons = []
         for col in range(self.columns):
             disabled = self.board[0][col] is not None or self.winner is not None
@@ -73,7 +139,15 @@ class ConnectFourGame(Game):
                 self.players[1]: {"Disc:": "🟡"},
             }
         )
-        return [Description(description), table, *buttons]
+        components = [Description(description), table]
+        board_png = render_connect_four_board_png(self.board, self.players[0], self.players[1])
+        if board_png is not None:
+            components.append(Image(board_png))
+        else:
+            components.append(CodeBlock(self._render_board(), language=""))
+
+        components.extend(buttons)
+        return components
 
     def current_turn(self) -> Player:
         return self.players[self.turn]

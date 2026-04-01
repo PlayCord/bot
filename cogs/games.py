@@ -5,10 +5,9 @@ from discord.app_commands import Choice
 from discord.ext import commands
 
 from configuration.constants import *
-from utils import database as db
+from utils import database as db, embeds as _embeds
 from utils.analytics import Timer
-from utils.discord_utils import decode_discord_arguments, send_simple_embed, get_user_error_embed
-from utils import embeds as _embeds
+from utils.discord_utils import decode_discord_arguments, get_user_error_embed, send_simple_embed
 from utils.emojis import get_emoji_string
 from utils.interfaces import MatchmakingInterface, user_in_active_game
 from utils.locale import get
@@ -54,15 +53,15 @@ class GamesCog(commands.Cog):
             embed = get_user_error_embed("game_ended")
             await ctx.followup.send(embed=embed, ephemeral=True)
             return
-        
+
         game = CURRENT_GAMES[game_id]
-        
+
         # Validate user is a participant in this game
         participant_ids = {p.id for p in game.players}
         if ctx.user.id not in participant_ids:
             await ctx.followup.send(PERMISSION_MSG_NOT_PARTICIPANT, ephemeral=True)
             return
-        
+
         await game.move_by_button(ctx=ctx, name=function_id, arguments=arguments,
                                   current_turn_required=current_turn_required)
 
@@ -81,15 +80,15 @@ class GamesCog(commands.Cog):
             embed = get_user_error_embed("game_ended")
             await ctx.followup.send(embed=embed, ephemeral=True)
             return
-        
+
         game = CURRENT_GAMES[game_id]
-        
+
         # Validate user is a participant in this game
         participant_ids = {p.id for p in game.players}
         if ctx.user.id not in participant_ids:
             await ctx.followup.send(PERMISSION_MSG_NOT_PARTICIPANT, ephemeral=True)
             return
-        
+
         await game.move_by_button(ctx=ctx, name=function_id, arguments=arguments,
                                   current_turn_required=current_turn_required)
 
@@ -101,20 +100,20 @@ class GamesCog(commands.Cog):
             embed = get_user_error_embed("game_ended")
             await ctx.followup.send(embed=embed, ephemeral=True)
             return
-        
+
         game = CURRENT_GAMES[game_id]
-        
+
         # Check if user is already a participant (they're already in the thread)
         participant_ids = {p.id for p in game.players}
         if ctx.user.id in participant_ids:
             await ctx.followup.send(get("success.already_participant"), ephemeral=True)
             return
-        
+
         # Check if spectating is allowed for this game (games can disable spectating)
         if hasattr(game.game, 'allow_spectating') and not game.game.allow_spectating:
             await ctx.followup.send(PERMISSION_MSG_SPECTATE_DISABLED, ephemeral=True)
             return
-        
+
         await game.thread.add_user(ctx.user)
         await ctx.followup.send(get("success.spectating"), ephemeral=True)
 
@@ -134,7 +133,8 @@ async def setup(bot: commands.Bot):
     await bot.add_cog(GamesCog(bot))
 
 
-async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = True, private: bool = False) -> None:
+async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = True,
+                     private: bool = False) -> MatchmakingInterface | None:
     matchmaking_timer = Timer().start()
     f_log = log.getChild("command.matchmaking")
     if user_in_active_game(ctx.user.id):
@@ -144,24 +144,54 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
             description=get("begin_game.already_in_game_description"),
             ephemeral=True,
         )
-        return
+        return None
     if not (ctx.channel.permissions_for(ctx.guild.me).create_private_threads and ctx.channel.permissions_for(
             ctx.guild.me).send_messages):
         embed = get_user_error_embed("missing_permissions")
         await ctx.response.send_message(embed=embed, ephemeral=True)
-        return
+        return None
     if ctx.channel.type in [discord.ChannelType.public_thread, discord.ChannelType.private_thread]:
         embed = get_user_error_embed("invalid_channel")
         await ctx.response.send_message(embed=embed, ephemeral=True)
-        return
+        return None
 
     await ctx.response.send_message(embed=CustomEmbed(description=get_emoji_string("loading")).remove_footer())
     game_overview_message = await ctx.original_response()
     interface = MatchmakingInterface(ctx.user, game_type, game_overview_message, rated=rated, private=private)
     if interface.failed is not None:
         await game_overview_message.edit(embed=interface.failed)
-        return
+        return None
     await interface.update_embed()
+    return interface
+
+
+async def add_matchmaking_bot(ctx: discord.Interaction, difficulty: str) -> bool:
+    async def _send(message: str) -> None:
+        if ctx.response.is_done():
+            await ctx.followup.send(message, ephemeral=True)
+        else:
+            await ctx.response.send_message(message, ephemeral=True)
+
+    id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
+    if ctx.user.id not in id_matchmaking:
+        await _send(get("settings.not_in_matchmaking"))
+        return False
+
+    matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
+    if matchmaker.creator.id != ctx.user.id:
+        await _send(get("settings.only_creator"))
+        return False
+
+    is_matchmaker_rated = matchmaker.rated
+    result = matchmaker.add_bot(difficulty)
+    if result is not None:
+        await _send(result)
+        return False
+
+    await matchmaker.update_embed()
+    if is_matchmaker_rated:  # Only send warning if it actually changed something
+        await _send(get("queue.bot_rated_forced"))
+    return True
 
 
 async def handle_move(ctx: discord.Interaction, name, arguments, current_turn_required: bool = True) -> None:

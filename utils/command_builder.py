@@ -38,10 +38,13 @@ def build_function_definitions(play_group: Group) -> dict[Group, list[Any]]:
     context = {play_group: []}
     for game in GAME_TYPES:
         game_class = getattr(importlib.import_module(GAME_TYPES[game][0]), GAME_TYPES[game][1])
+        game_command_lines = [
+            f"@group.command(name={game!r}, description={game_class.begin_command_description!r})",
+            f"async def begin_{game}(ctx: discord.Interaction, rated: bool = True, private: bool = False):",
+        ]
+        game_command_lines.append(f"  interface = await begin_game(ctx, {game!r}, rated=rated, private=private)")
 
-        game_command = (f"@group.command(name={game!r}, description={game_class.begin_command_description!r})\n"
-                        f"async def begin_{game}(ctx: discord.Interaction, rated: bool = True, private: bool = False):\n"
-                        f"  await begin_game(ctx, {game!r}, rated=rated, private=private)")
+        game_command = "\n".join(game_command_lines)
         context[play_group].append(game_command)
 
         moves = game_class.moves

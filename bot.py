@@ -8,6 +8,7 @@ from ruamel.yaml import YAML
 
 import configuration.constants as constants
 from cogs.games import begin_game, handle_autocomplete, handle_move  # For exec context
+from utils.locale import get
 from configuration.constants import *
 from utils import database as db
 from utils.analytics import Timer
@@ -130,7 +131,8 @@ class PlayCordBot(commands.Bot):
                 'group': group,
                 'handle_move': handle_move,
                 'handle_autocomplete': handle_autocomplete,
-                'begin_game': begin_game
+                'begin_game': begin_game,
+                'get': get,
             }
 
             for command_str in dynamic_commands[group]:

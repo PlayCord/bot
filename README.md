@@ -65,6 +65,7 @@ PostgreSQL-backed leaderboard with TrueSkill-style ratings.
 /play <game>              Start a new game
 /play tictactoe           Start Tic-Tac-Toe
 /play connectfour rated:false   Start an unrated game
+/play tictactoe bot:hard  Start Tic-Tac-Toe with a hard bot opponent
 ```
 
 ### During Games
@@ -174,6 +175,8 @@ class MyGame(Game):
 
 - `cairosvg` - SVG rendering for game boards
 - `pillow` - Image manipulation
+
+PlayCord now uses SVG-based board renders (converted to PNG for Discord attachments) for visual-heavy games like Chess, Connect Four, and Battleship peek views when `cairosvg` is available.
 
 ## Project Structure
 

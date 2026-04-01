@@ -42,7 +42,8 @@ services:
     volumes:
       - ./:/app
     command: >
-      sh -c "pip install --no-cache-dir ruamel.yaml discord cairosvg svg.py trueskill mpmath emoji psutil 'psycopg[binary,pool]' matplotlib &&
+      sh -c "apt-get update && apt-get install -y libcairo2 &&
+             pip install --no-cache-dir ruamel.yaml discord cairosvg svg.py trueskill mpmath emoji psutil 'psycopg[binary,pool]' matplotlib &&
              python bot.py"
     networks:
       - playcord_network

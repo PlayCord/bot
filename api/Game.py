@@ -1,5 +1,6 @@
 from enum import Enum
 
+from api.Bot import Bot
 from api.Command import Command
 from api.MessageComponents import MessageComponent
 from api.Player import Player
@@ -26,6 +27,7 @@ class Game:
         name (str): Human-readable name of the game
         players (int | list[int]): Number of players allowed
         moves (list[Command]): List of move commands
+        bots (dict[str, Bot]): Available bot difficulties for this game
         author (str): Game author
         version (str): Game version
         author_link (str): Link to author's page
@@ -40,6 +42,7 @@ class Game:
     name: str
     players: int | list[int]
     moves: list[Command] = []
+    bots: dict[str, Bot] = {}
     author: str
     version: str
     author_link: str
@@ -81,3 +84,8 @@ class Game:
         :return: string representing an error
         """
         pass
+
+    @classmethod
+    def supports_bots(cls) -> bool:
+        """Return True when the game defines at least one bot difficulty."""
+        return bool(getattr(cls, "bots", {}))

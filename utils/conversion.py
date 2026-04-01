@@ -5,6 +5,7 @@ from discord import User
 
 from configuration.constants import LOGGING_ROOT, LONG_SPACE_EMBED
 from utils.database import InternalPlayer
+from utils.locale import get
 
 
 def column_names(players: list[InternalPlayer] | set[InternalPlayer]) -> str:
@@ -14,7 +15,13 @@ def column_names(players: list[InternalPlayer] | set[InternalPlayer]) -> str:
     @player
     @player2
     """
-    return "\n".join([u.mention for u in players])
+    rendered_names = []
+    for user in players:
+        if getattr(user, "is_bot", False):
+            rendered_names.append(getattr(user, "name", "Bot"))
+        else:
+            rendered_names.append(user.mention)
+    return "\n".join(rendered_names)
 
 
 def column_elo(players: list[InternalPlayer] | set[InternalPlayer], game_type: str) -> str:
@@ -24,7 +31,13 @@ def column_elo(players: list[InternalPlayer] | set[InternalPlayer], game_type: s
     238
     237?
     """
-    return "\n".join([u.get_formatted_elo(game_type) for u in players])
+    ratings = []
+    for user in players:
+        if getattr(user, "is_bot", False):
+            ratings.append(get("queue.bot_display_rating"))
+        else:
+            ratings.append(user.get_formatted_elo(game_type))
+    return "\n".join(ratings)
 
 
 def column_creator(players: list[InternalPlayer] | set[InternalPlayer], creator: InternalPlayer | User) -> str:
@@ -34,7 +47,10 @@ def column_creator(players: list[InternalPlayer] | set[InternalPlayer], creator:
     Creator
     <blank>
     """
-    return "\n".join(["✅" if u.id == creator.id else LONG_SPACE_EMBED for u in players])
+    return "\n".join([
+        "✅" if (not getattr(u, "is_bot", False) and u.id == creator.id) else LONG_SPACE_EMBED
+        for u in players
+    ])
 
 
 def column_turn(players: list[InternalPlayer] | set[InternalPlayer], turn: InternalPlayer | User) -> str:

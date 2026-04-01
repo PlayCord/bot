@@ -59,6 +59,7 @@ The base class for all games. Inherit from this and implement required methods.
 | `begin_command_description`      | `str`              | Short description for `/play` command          |
 | `move_command_group_description` | `str`              | Description for move commands                  |
 | `moves`                          | `list[Command]`    | Available player commands                      |
+| `bots`                           | `dict[str, Bot]`   | Optional bot difficulties (for AI opponents)   |
 | `author`, `version`              | `str`              | Game metadata                                  |
 | `time`, `difficulty`             | `str`              | Estimated duration and difficulty              |
 | `player_order`                   | `PlayerOrder`      | How to order players (default: `RANDOM`)       |
@@ -140,6 +141,29 @@ Command(
 ```
 
 ---
+
+### Bot (api/Bot.py)
+
+Defines one AI difficulty option for a game.
+
+```python
+from api.Bot import Bot
+
+class MyGame(Game):
+    bots = {
+        "easy": Bot(description="Random legal move", callback="bot_easy"),
+        "hard": Bot(description="Strong tactical play", callback="bot_hard"),
+    }
+
+    def bot_easy(self, bot_player):
+        return {"name": "move", "arguments": {"pos": "1,1"}}
+```
+
+Bot callbacks can return:
+
+- `{"name": "<move_command>", "arguments": {...}}`
+- `("<move_command>", {...})`
+- A direct move callback result (`Response` or `None`)
 
 ### Arguments (api/Arguments.py)
 

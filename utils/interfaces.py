@@ -19,6 +19,7 @@ from utils.conversion import column_creator, column_elo, column_names, column_tu
     player_verification_function, textify
 from utils.database import InternalPlayer, get_shallow_player, internal_player_to_player
 from utils import embeds as _embeds
+from utils.bot_names import generate_bot_name
 from utils.emojis import get_emoji_string
 from utils.locale import get, fmt
 from utils.views import MatchmakingView, SpectateView
@@ -36,6 +37,10 @@ def user_in_active_game(user_id: int) -> bool:
         if getattr(player, "id", None) == user_id:
             return True
     return False
+
+
+def synthetic_bot_name_from_id(user_id: int) -> str:
+    return f"Bot {str(user_id)[-4:]} (Bot)"
 
 
 async def check_and_send_first_time_welcome(user: discord.User, guild_id: int, game_name: str = None):
@@ -70,7 +75,7 @@ class GameInterface:
     """
 
     def __init__(self, game_type: str, status_message: discord.InteractionMessage, creator: discord.User,
-                 players: list[InternalPlayer], rated: bool, game_id: int) -> None:
+                 players: list[InternalPlayer | Player], rated: bool, game_id: int) -> None:
         """
         Create the GameInterface
         :param game_type: The game type as defined in constants.py
@@ -124,17 +129,50 @@ class GameInterface:
         self.info_message = None  # The message showing game info, whose turn, and what players.
         # also made by self.setup()
         # Game class instantiated with the players
-        self.game = (game_class
-                     ([Player(mu=getattr(p, self.game_type).mu, sigma=getattr(p, self.game_type).sigma, ranking=None,
-                              id=p.id) for p in players]))
+        game_players: list[Player] = []
+        for participant in players:
+            if isinstance(participant, Player):
+                game_players.append(participant)
+                continue
+
+            if getattr(participant, "is_bot", False):
+                game_players.append(
+                    Player(
+                        mu=MU,
+                        sigma=MU * GAME_TRUESKILL[self.game_type]["sigma"],
+                        ranking=None,
+                        id=participant.id,
+                        name=getattr(participant, "name", synthetic_bot_name_from_id(participant.id)),
+                        is_bot=True,
+                        bot_difficulty=getattr(participant, "bot_difficulty", None),
+                    )
+                )
+                continue
+
+            rating = getattr(participant, self.game_type)
+            game_players.append(
+                Player(
+                    mu=rating.mu,
+                    sigma=rating.sigma,
+                    ranking=None,
+                    id=participant.id,
+                    name=getattr(participant, "name", None),
+                    is_bot=getattr(participant, "is_bot", False),
+                    bot_difficulty=getattr(participant, "bot_difficulty", None),
+                )
+            )
+
+        self.game = game_class(game_players)
 
         self.current_turn = None
         self.logger = logging.getLogger(f"GameInterface[{game_type}]")
 
         for p in players:
-            IN_GAME.update({p: self})
+            if not getattr(p, "is_bot", False):
+                IN_GAME.update({p: self})
 
         self.processing_move = asyncio.Lock()
+        self.processing_bot_turn = False
         self.ending_game = False
 
     async def setup(self) -> None:
@@ -158,7 +196,8 @@ class GameInterface:
 
         async def add_new_members_to_thread():
             for player in self.players:  # Add users to the thread
-                await game_thread.add_user(player.user)
+                if hasattr(player, "user") and player.user is not None:
+                    await game_thread.add_user(player.user)
 
         asyncio.create_task(add_new_members_to_thread())  # Nonblocking
 
@@ -201,6 +240,10 @@ class GameInterface:
         async with self.processing_move:  # Get move processing lock
             log.debug(f"Now processing move command {name!r} with arguments {arguments!r} context: {contextify(ctx)}")
             self.current_turn = self.game.current_turn()
+            if getattr(self.current_turn, "is_bot", False):
+                message = await ctx.followup.send(content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                await message.delete(delay=5)
+                return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn}) context: {contextify(ctx)}")
@@ -209,20 +252,7 @@ class GameInterface:
                 return
             try:
                 # Call the move function with arguments (player, <expanded arguments>
-                callback = None
-                all_move_commands = self.game.moves
-
-                # Get the callback from the command
-                for command in all_move_commands:
-                    if command.name == name:
-                        callback = command.callback
-                        break
-
-                # If it is None, attempt to call the command's name as an attribute
-                if callback is None:
-                    function_to_call = name
-                else:  # Otherwise, use the callback value
-                    function_to_call = callback
+                function_to_call = self._resolve_move_callable(name)
 
                 move_response: Response = getattr(self.game, function_to_call)(
                     internal_player_to_player(db.database.get_player(ctx.user, ctx.guild.id), self.game_type),
@@ -257,6 +287,99 @@ class GameInterface:
                 await game_over(self, outcome)
                 return
 
+    def _resolve_move_callable(self, command_name: str) -> str:
+        callback = None
+        for command in self.game.moves:
+            if command.name == command_name:
+                callback = command.callback
+                break
+        return command_name if callback is None else callback
+
+    async def _send_bot_response(self, move_response: Response) -> None:
+        async def send_to_thread(**kwargs):
+            kwargs.pop("ephemeral", None)
+            return await self.thread.send(**kwargs)
+
+        send_move, set_delete_hook = move_response.generate_message(
+            send_to_thread,
+            self.thread.id,
+            enable_view_components=False,
+        )
+        sent_message = await send_move
+        if sent_message is not False:
+            hook = set_delete_hook(sent_message)
+            if hook:
+                await hook
+
+    async def execute_bot_turn(self) -> None:
+        log = self.logger.getChild("move[bot]")
+        if self.ending_game or self.processing_bot_turn:
+            return
+
+        self.processing_bot_turn = True
+        try:
+            await asyncio.sleep(1.0)
+            async with self.processing_move:
+                self.current_turn = self.game.current_turn()
+                if not getattr(self.current_turn, "is_bot", False):
+                    return
+
+                bot_difficulty = getattr(self.current_turn, "bot_difficulty", None)
+                available_bots = getattr(self.game, "bots", {})
+                bot_definition = available_bots.get(bot_difficulty)
+                if bot_definition is None:
+                    await self.thread.send(fmt("game.bot_failed_move", player=self.current_turn.mention))
+                    return
+
+                callback_name = bot_definition.callback if bot_definition.callback is not None else bot_difficulty
+                callback = getattr(self.game, callback_name, None)
+                if callback is None:
+                    await self.thread.send(fmt("game.bot_failed_move", player=self.current_turn.mention))
+                    return
+
+                await self.display_game_state()
+
+                bot_result = callback(self.current_turn)
+                if inspect.isawaitable(bot_result):
+                    bot_result = await bot_result
+
+                move_response = None
+                if isinstance(bot_result, dict):
+                    command_name = bot_result.get("name") or bot_result.get("command")
+                    command_arguments = bot_result.get("arguments", {})
+                    if command_name is None:
+                        await self.thread.send(fmt("game.bot_failed_move", player=self.current_turn.mention))
+                        return
+                    function_name = self._resolve_move_callable(command_name)
+                    move_response = getattr(self.game, function_name)(self.current_turn, **command_arguments)
+                elif isinstance(bot_result, tuple) and len(bot_result) == 2:
+                    command_name, command_arguments = bot_result
+                    function_name = self._resolve_move_callable(command_name)
+                    move_response = getattr(self.game, function_name)(self.current_turn, **command_arguments)
+                elif isinstance(bot_result, str):
+                    function_name = self._resolve_move_callable(bot_result)
+                    move_response = getattr(self.game, function_name)(self.current_turn)
+                else:
+                    move_response = bot_result
+
+            if inspect.isawaitable(move_response):
+                move_response = await move_response
+
+            if isinstance(move_response, Response):
+                await self._send_bot_response(move_response)
+
+            await self.display_game_state()
+
+            if (outcome := self.game.outcome()) is not None:
+                await game_over(self, outcome)
+                return
+        except Exception as err:
+            log.error(f"Bot turn failed with error {err!r}", exc_info=True)
+            if self.thread is not None:
+                await self.thread.send(fmt("game.bot_failed_move", player=getattr(self.current_turn, "mention", "Bot")))
+        finally:
+            self.processing_bot_turn = False
+
     async def move_by_button(self, ctx: discord.Interaction, name, arguments: dict[str, typing.Any],
                              current_turn_required: bool = True) -> None:
         """
@@ -281,6 +404,10 @@ class GameInterface:
             self.current_turn = self.game.current_turn()
 
             # Check to make sure that it is current turn (if required)
+            if getattr(self.current_turn, "is_bot", False):
+                message = await ctx.followup.send(content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                await message.delete(delay=5)
+                return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
@@ -355,6 +482,10 @@ class GameInterface:
             self.current_turn = self.game.current_turn()
 
             # Check to make sure that it is current turn (if required)
+            if getattr(self.current_turn, "is_bot", False):
+                message = await ctx.followup.send(content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                await message.delete(delay=5)
+                return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
@@ -409,10 +540,14 @@ class GameInterface:
         log = self.logger.getChild("display_game_state")
         update_timer = Timer().start()
         self.current_turn = self.game.current_turn()
+        if getattr(self.current_turn, "is_bot", False):
+            turn_description = fmt("game.bot_turn_computing", player=self.current_turn.mention)
+        else:
+            turn_description = textify(TEXTIFY_CURRENT_GAME_TURN, {"player": self.current_turn.mention})
+
         # Embed to send as the updated game state
         info_embed = CustomEmbed(title=fmt("game.state_title", game=self.game.name, players=len(self.players)),
-                                 description=textify(TEXTIFY_CURRENT_GAME_TURN,
-                                                     {"player": self.current_turn.mention})).remove_footer()
+                                 description=turn_description).remove_footer()
 
         # Game state embed and view
         state_embed = CustomEmbed().remove_footer()
@@ -525,6 +660,9 @@ class GameInterface:
         log.debug(f"Finished game state update task in {update_timer.stop()}ms."
                   f" game_id={self.thread.id} game_type={self.game_type}")
 
+        if getattr(self.current_turn, "is_bot", False) and not self.ending_game and not self.processing_bot_turn:
+            asyncio.create_task(self.execute_bot_turn())
+
     async def bump(self):
         self.game_message = self.game_message.channel.send()
 
@@ -564,6 +702,7 @@ class MatchmakingInterface:
 
         # Start the list of queued players with just the creator
         self.queued_players = set(self.whitelist)
+        self.bots: list[Player] = []
 
         # The message context to edit when making updates
         self.message = message
@@ -590,6 +729,40 @@ class MatchmakingInterface:
 
         self.outcome = None  # Whether the matchmaking was successful (True, None, or False)
         self.logger = logging.getLogger(f"playcord.matchmaking_interface[{message.id}]")
+
+    @property
+    def has_bots(self) -> bool:
+        return len(self.bots) > 0
+
+    def all_players(self) -> list[InternalPlayer | Player]:
+        return [*sorted(self.queued_players, key=lambda p: p.id), *self.bots]
+
+    def add_bot(self, difficulty: str) -> str | None:
+        available_bots = getattr(self.game, "bots", {})
+        if not available_bots:
+            return get("queue.bot_not_supported")
+        if difficulty not in available_bots:
+            return fmt("queue.bot_invalid_difficulty", difficulty=difficulty)
+        if any(bot.bot_difficulty == difficulty for bot in self.bots):
+            return fmt("queue.bot_already_added", difficulty=difficulty)
+
+        current_count = len(self.queued_players) + len(self.bots)
+        if isinstance(self.game.players, list):
+            if (current_count + 1) not in self.game.players:
+                return get("queue.bot_too_many_for_game")
+        elif (current_count + 1) != self.game.players:
+            return get("queue.bot_too_many_for_game")
+
+        used_names = {getattr(p, "name", None) for p in self.bots if getattr(p, "name", None)}
+        bot_name = generate_bot_name(used_names)
+        bot_player = Player.create_bot(
+            name=bot_name,
+            difficulty=difficulty,
+            bot_index=len(self.bots),
+        )
+        self.bots.append(bot_player)
+        self.rated = False
+        return None
 
     async def update_embed(self) -> None:
         """
@@ -626,9 +799,10 @@ class MatchmakingInterface:
                                         f"{private_text}")
 
         # Add columns for names, elo, and creator status
-        embed.add_field(name=get("queue.field_players"), value=column_names(self.queued_players), inline=True)
-        embed.add_field(name=get("queue.field_rating"), value=column_elo(self.queued_players, self.game_type), inline=True)
-        embed.add_field(name=get("queue.field_creator"), value=column_creator(self.queued_players, self.creator), inline=True)
+        all_players = self.all_players()
+        embed.add_field(name=get("queue.field_players"), value=column_names(all_players), inline=True)
+        embed.add_field(name=get("queue.field_rating"), value=column_elo(all_players, self.game_type), inline=True)
+        embed.add_field(name=get("queue.field_creator"), value=column_creator(all_players, self.creator), inline=True)
 
         # Add whitelist or blacklist depending on private status
         if self.private:
@@ -643,6 +817,10 @@ class MatchmakingInterface:
 
         # Can the start button be pressed?
         start_enabled = self.player_verification_function(len(self.queued_players))
+        if isinstance(self.game.players, list):
+            start_enabled = len(self.all_players()) in self.game.players
+        else:
+            start_enabled = len(self.all_players()) == self.game.players
 
         # Create matchmaking button view (with callbacks and can_start)
         view = MatchmakingView(join_button_id=f"join/{self.message.id}",
@@ -911,6 +1089,15 @@ class MatchmakingInterface:
                      f"{contextify(ctx)}")
             return
 
+        total_players = len(self.all_players())
+        if isinstance(self.game.players, list):
+            if total_players not in self.game.players:
+                await ctx.followup.send(get("queue.bot_too_many_for_game"), ephemeral=True)
+                return
+        elif total_players != self.game.players:
+            await ctx.followup.send(get("queue.bot_too_many_for_game"), ephemeral=True)
+            return
+
         # The matchmaking was successful!
         self.outcome = True
 
@@ -935,25 +1122,36 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
     game_class = interface.game
     rated = interface.rated
     players = interface.queued_players
+    all_players_candidate = None
+    try:
+        if hasattr(interface, "all_players") and callable(interface.all_players):
+            all_players_candidate = interface.all_players()
+    except Exception:
+        all_players_candidate = None
+    if isinstance(all_players_candidate, (list, tuple, set)):
+        all_players = list(all_players_candidate)
+    else:
+        all_players = list(players)
     message = interface.message
     game_type = interface.game_type
     creator = interface.creator
+    has_bots = any(getattr(p, "is_bot", False) for p in all_players)
 
-    # Remove players in this matchmaking from IN_MATCHMAKING
-    for p in players:
-        IN_MATCHMAKING.pop(p)
+    # Remove human players in this matchmaking from IN_MATCHMAKING
+    for p in list(players):
+        IN_MATCHMAKING.pop(p, None)
 
-    CURRENT_MATCHMAKING.pop(message.id)  # Remove the MatchmakingInterface from the CURRENT_MATCHMAKING tracker
+    CURRENT_MATCHMAKING.pop(message.id, None)  # Remove the MatchmakingInterface from the CURRENT_MATCHMAKING tracker
 
     # Set up a new GameInterface
     new_game_id = db.database.create_game(
         game_name=game_type,
         guild_id=message.guild.id,
-        participants=[player.id for player in players],
-        is_rated=rated,
+        participants=[player.id for player in all_players],
+        is_rated=(rated and not has_bots),
         channel_id=message.channel.id
     )
-    game = GameInterface(game_type, message, creator, list(players), rated, new_game_id)
+    game = GameInterface(game_type, message, creator, list(all_players), rated and not has_bots, new_game_id)
     await game.setup()  # Setup thread and other stuff
 
     db.database.update_match_context(
@@ -968,9 +1166,8 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
     # Send first-time welcome to any new players (non-blocking)
     game_name = getattr(game_class, 'name', game_type)
     for player in players:
-        asyncio.create_task(
-            check_and_send_first_time_welcome(player, message.guild.id, game_name)
-        )
+        if hasattr(player, "user") and player.user is not None:
+            asyncio.create_task(check_and_send_first_time_welcome(player, message.guild.id, game_name))
 
     # Edit the status message with the SpectateView
     async def create_spectate_view():
@@ -1204,7 +1401,7 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
         player_string = await non_rated_groups_to_string(rankings, groups)
 
     for p in players:  # Players playing this game are no longer in the game... it's over lol
-        IN_GAME.pop(p)
+        IN_GAME.pop(p, None)
 
     CURRENT_GAMES.pop(thread.id)  # Remove this game from the CURRENT_GAMES tracker
 

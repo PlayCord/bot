@@ -278,6 +278,11 @@ class HelpGameInfoEmbed(CustomEmbed):
             inline=False
         )
         self.add_field(name=get("help.game_info.field_author"), value=author, inline=True)
+        self.add_field(
+            name=get("help.game_info.field_learn_more"),
+            value=fmt("help.game_info.field_learn_more_value", game_id=game_id),
+            inline=False,
+        )
 
 
 class MatchmakingEmbed(CustomEmbed):
@@ -296,7 +301,10 @@ class MatchmakingEmbed(CustomEmbed):
         
         # Player list
         if players:
-            player_list = "\n".join([f"• {p.display_name}" for p in players])
+            player_list = "\n".join([
+                f"• {getattr(p, 'display_name', None) or getattr(p, 'name', str(p))}"
+                for p in players
+            ])
         else:
             player_list = get("embeds.matchmaking.no_players")
         

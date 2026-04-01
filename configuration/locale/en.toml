@@ -66,18 +66,23 @@ choice_getting_started = "Getting Started (New Users)"
 choice_commands = "Commands Reference"
 choice_games = "Available Games"
 
-[commands.howtoplay]
+[commands.learn]
 description = "Learn how to play a specific game"
 param_game = "The game you want to learn about"
 
 [commands.invite]
 description = "Invite players to your game lobby (can start a new lobby if not in one)"
-param_user = "First player to invite"
+param_user = "First player to invite (optional)"
 param_game = "The game to start (only needed if you're not already in a lobby)"
 param_user2 = "Second player to invite (optional)"
 param_user3 = "Third player to invite (optional)"
 param_user4 = "Fourth player to invite (optional)"
 param_user5 = "Fifth player to invite (optional)"
+param_bot1 = "First bot difficulty to add (optional)"
+param_bot2 = "Second bot difficulty to add (optional)"
+param_bot3 = "Third bot difficulty to add (optional)"
+param_bot4 = "Fourth bot difficulty to add (optional)"
+param_bot5 = "Fifth bot difficulty to add (optional)"
 
 [commands.kick]
 description = "Remove a player from your lobby (they can rejoin)"
@@ -210,6 +215,8 @@ field_difficulty = "📈 Difficulty"
 field_quick_start = "▶️ Quick Start"
 field_quick_start_value = "Type `/play {game_id}` to start a game!"
 field_author = "👤 Created by"
+field_learn_more = "📚 Learn More"
+field_learn_more_value = "[Open full guide](https://playcord.github.io/learn/{game_id})"
 players_format = "{count} players"
 players_range_format = "{min}-{max} players"
 no_description = "No description available."
@@ -459,7 +466,7 @@ title = "🎲 {name} Game Catalog"
 description = "Browse all {count} available games. Use `/play <game>` to start playing!"
 game_field_format = "{emoji} {game_name}"
 game_value_format = "{description}\n⏰ {time} | 👤 {players} | 📈 {difficulty}\n**Command:** `/play {game_id}`"
-footer = "Page {page}/{total} • Use /playcord howtoplay <game> for more details"
+footer = "Page {page}/{total} • Use /playcord learn <game> for more details"
 
 # =============================================================================
 # EMBEDS - PROFILE
@@ -622,6 +629,7 @@ game_over = "Game is over."
 [matchmaking]
 invites_failed_all = "Failed to send any invites. Errors:"
 invites_failed_partial = "Failed to send invites to the following users:"
+invite_no_targets = "Please provide at least one user or one bot difficulty."
 invite_failed_not_in_server = "Not in this server"
 invite_failed_already_queued = "Member was already in matchmaking."
 invite_failed_in_game = "Member was already in a game."
@@ -660,6 +668,12 @@ banned_message = "You are banned from this game! Ask the owner of the game {crea
 not_on_whitelist = "You are not on the whitelist for this private game!"
 not_in_game = "You aren't in the game!"
 game_cancelled_last_player = "You were the last person in the lobby, so the game was cancelled!"
+bot_rated_forced = "Rated was disabled because this lobby includes bot players."
+bot_already_added = "A bot with difficulty '{difficulty}' is already in this lobby."
+bot_not_supported = "This game does not support bots."
+bot_invalid_difficulty = "Invalid bot difficulty '{difficulty}'."
+bot_too_many_for_game = "Cannot add bot: this game does not allow that many players."
+bot_display_rating = "Bot"
 
 # =============================================================================
 # INTERACTION MESSAGES
@@ -703,6 +717,7 @@ yes = "Yes"
 no = "No"
 updated = "Settings updated:"
 no_changes = "No settings were changed."
+rated_blocked_bots = "Cannot enable rated mode while bots are in this lobby."
 
 [leaderboard]
 scope_global = "Global leaderboard"
@@ -715,6 +730,8 @@ state_title = "Playing {game} with {players} players"
 empty_state_name = ":cobweb: There's nothing here!"
 empty_state_value = "The game didn't return a value for the game state, so nothing is displayed."
 error_during_move = "Error during a move!"
+bot_turn_computing = "It is {player}'s turn (bot is computing a move...)"
+bot_failed_move = "Bot {player} failed to make a move."
 
 [errors.already_in_game_other_server]
 title = "Already in a Game"
@@ -746,7 +763,7 @@ title = "Permission Denied"
 description = "Only the lobby creator can ban players."
 suggestion = "Ask the lobby creator, or create your own lobby."
 
-[errors.howtoplay_game_not_found]
+[errors.learn_game_not_found]
 title = "Game Not Found"
 description = "I couldn't find a game called **{game}**."
 suggestion = "Use `/playcord catalog` to see all available games, or try `/playcord help` for general help."

@@ -8,15 +8,14 @@ from discord.app_commands import Choice
 from discord.ext import commands
 
 from configuration.constants import *
-from utils import database as db, ramcheck
+from utils import database as db, embeds as _embeds, ramcheck
 from utils.conversion import contextify
 from utils.discord_utils import get_user_error_embed
-from utils import embeds as _embeds
 from utils.emojis import get_emoji_string, get_game_emoji
 from utils.graphs import generate_elo_chart
 from utils.interfaces import MatchmakingInterface, user_in_active_game
-from utils.locale import get, fmt, plural
-from utils.views import InviteView, PaginationView, HelpView
+from utils.locale import fmt, get, plural
+from utils.views import HelpView, InviteView, PaginationView
 
 CustomEmbed = _embeds.CustomEmbed
 InviteEmbed = _embeds.InviteEmbed
@@ -62,6 +61,36 @@ async def autocomplete_game_id(ctx: discord.Interaction, current: str) -> list[C
     return [Choice(name=name[:100], value=value) for _, _, name, value in matches[:25]]
 
 
+async def autocomplete_invite_bot(ctx: discord.Interaction, current: str) -> list[Choice[str]]:
+    if user_in_active_game(ctx.user.id):
+        return []
+
+    id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
+    if ctx.user.id not in id_matchmaking:
+        return []
+
+    matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
+    available_bots = getattr(matchmaker.game, "bots", {})
+    if not available_bots:
+        return []
+
+    query = current.lower().strip()
+    matches = []
+    for difficulty, bot in available_bots.items():
+        description = getattr(bot, "description", "")
+        label = f"{difficulty.title()} ({description})" if description else difficulty.title()
+        searchable = f"{difficulty} {description}".lower()
+
+        if query and query not in searchable and query not in label.lower():
+            continue
+
+        rank = 0 if query and difficulty.lower().startswith(query) else 1
+        matches.append((rank, difficulty.lower(), label, difficulty))
+
+    matches.sort(key=lambda item: (item[0], item[1]))
+    return [Choice(name=name[:100], value=value) for _, _, name, value in matches[:25]]
+
+
 class GeneralCog(commands.Cog):
     def __init__(self, bot: discord.Client):
         self.bot = bot
@@ -80,20 +109,43 @@ class GeneralCog(commands.Cog):
         user3=get("commands.invite.param_user3"),
         user4=get("commands.invite.param_user4"),
         user5=get("commands.invite.param_user5"),
+        bot1=get("commands.invite.param_bot1"),
+        bot2=get("commands.invite.param_bot2"),
+        bot3=get("commands.invite.param_bot3"),
+        bot4=get("commands.invite.param_bot4"),
+        bot5=get("commands.invite.param_bot5"),
     )
-    @app_commands.autocomplete(game=autocomplete_game_id)
+    @app_commands.autocomplete(
+        game=autocomplete_game_id,
+        bot1=autocomplete_invite_bot,
+        bot2=autocomplete_invite_bot,
+        bot3=autocomplete_invite_bot,
+        bot4=autocomplete_invite_bot,
+        bot5=autocomplete_invite_bot,
+    )
     async def command_invite(self, ctx: discord.Interaction,
-                             user: discord.User,
+                             user: discord.User = None,
                              game: str = None,
                              user2: discord.User = None,
                              user3: discord.User = None,
                              user4: discord.User = None,
-                             user5: discord.User = None) -> None:
+                             user5: discord.User = None,
+                             bot1: str = None,
+                             bot2: str = None,
+                             bot3: str = None,
+                             bot4: str = None,
+                             bot5: str = None) -> None:
         f_log = log.getChild("command.invite")
         f_log.debug(f"/invite called: {contextify(ctx)}")
-        invited_users = {user, user2, user3, user4, user5}
-        if None in invited_users:
-            invited_users.remove(None)
+        invited_users = [candidate for candidate in [user, user2, user3, user4, user5] if candidate is not None]
+        requested_bots = [candidate for candidate in [bot1, bot2, bot3, bot4, bot5] if candidate is not None]
+
+        if not invited_users and not requested_bots:
+            if ctx.response.is_done():
+                await ctx.followup.send(get("matchmaking.invite_no_targets"), ephemeral=True)
+            else:
+                await ctx.response.send_message(get("matchmaking.invite_no_targets"), ephemeral=True)
+            return
 
         id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
 
@@ -125,6 +177,7 @@ class GeneralCog(commands.Cog):
                 return
 
         matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
+        from cogs.games import add_matchmaking_bot
 
         if matchmaker.private and matchmaker.creator.id != ctx.user.id:
             embed = get_user_error_embed("invite_not_creator_private")
@@ -132,9 +185,12 @@ class GeneralCog(commands.Cog):
             f_log.debug(f"/invite rejected: not creator. {contextify(ctx)}")
             return
 
+        for difficulty in requested_bots:
+            await add_matchmaking_bot(ctx, difficulty)
+
         game_type = matchmaker.game.name
         failed_invites = {}
-        for invited_user in filter(None, invited_users):
+        for invited_user in invited_users:
             if invited_user not in matchmaker.message.guild.members:
                 failed_invites[invited_user] = get("matchmaking.invite_failed_not_in_server")
                 continue
@@ -155,6 +211,9 @@ class GeneralCog(commands.Cog):
                                     view=InviteView(join_button_id=BUTTON_PREFIX_INVITE + str(matchmaker.message.id),
                                                     game_link=matchmaker.message.jump_url))
             continue
+
+        if not invited_users:
+            return
 
         if not len(failed_invites):
             f_log.debug(f"/invite success: {len(invited_users)} succeeded, 0 failed. {contextify(ctx)}")
@@ -247,7 +306,8 @@ class GeneralCog(commands.Cog):
         embed.add_field(name=get("embeds.stats.field_owners"), value=len(OWNERS))
         embed.add_field(name=get("embeds.stats.field_ram"), value=ramcheck.get_ram_usage_mb())
         embed.add_field(name=get("embeds.stats.field_shard_id"), value=shard_id)
-        embed.add_field(name=get("embeds.stats.field_shard_ping"), value=fmt("format.ping_ms", ping=round(shard_ping * 100, 2)))
+        embed.add_field(name=get("embeds.stats.field_shard_ping"),
+                        value=fmt("format.ping_ms", ping=round(shard_ping * 100, 2)))
         embed.add_field(name=get("embeds.stats.field_shard_servers"), value=shard_servers)
         embed.add_field(name=f'{get_emoji_string("user")} {get("embeds.stats.field_users")}', value=member_count)
         embed.add_field(name=get("embeds.stats.field_in_matchmaking"), value=len(IN_MATCHMAKING))
@@ -271,7 +331,8 @@ class GeneralCog(commands.Cog):
         embed.add_field(name=get("embeds.about.field_libraries"),
                         value="\n".join([f"[{lib}](https://pypi.org/project/{lib})" for lib in libraries]),
                         inline=False)
-        embed.add_field(name=get("embeds.about.field_dev_time"), value="October 2024 - March 2025\nMarch 2026 - Present")
+        embed.add_field(name=get("embeds.about.field_dev_time"),
+                        value="October 2024 - March 2025\nMarch 2026 - Present")
         embed.set_footer(text=get("embeds.about.footer"))
 
         await ctx.response.send_message(embed=embed)
@@ -336,21 +397,21 @@ class GeneralCog(commands.Cog):
 
         return embed
 
-    @command_root.command(name="howtoplay", description=get("commands.howtoplay.description"))
-    @app_commands.describe(game=get("commands.howtoplay.param_game"))
+    @command_root.command(name="learn", description=get("commands.learn.description"))
+    @app_commands.describe(game=get("commands.learn.param_game"))
     @app_commands.autocomplete(game=autocomplete_game_id)
-    async def command_howtoplay(self, ctx: discord.Interaction, game: str):
-        f_log = log.getChild("command.howtoplay")
-        f_log.debug(f"/howtoplay called for game={game}: {contextify(ctx)}")
+    async def command_learn(self, ctx: discord.Interaction, game: str):
+        f_log = log.getChild("command.learn")
+        f_log.debug(f"/learn called for game={game}: {contextify(ctx)}")
 
         if game not in GAME_TYPES:
-            embed = get_user_error_embed("howtoplay_game_not_found", game=game)
+            embed = get_user_error_embed("learn_game_not_found", game=game)
             await ctx.response.send_message(embed=embed, ephemeral=True)
             return
 
         game_info = GAME_TYPES[game]
         game_class = getattr(importlib.import_module(game_info[0]), game_info[1])
-        
+
         embed = HelpGameInfoEmbed(game, game_class)
         await ctx.response.send_message(embed=embed)
 
@@ -450,7 +511,8 @@ class GeneralCog(commands.Cog):
 
         if not display_data:
             embed.add_field(name=get("leaderboard.no_data_name"),
-                            value=get("embeds.leaderboard.no_players") if page == 1 else get("embeds.leaderboard.no_more_players"),
+                            value=get("embeds.leaderboard.no_players") if page == 1 else get(
+                                "embeds.leaderboard.no_more_players"),
                             inline=False)
         else:
             rankings = []
@@ -461,8 +523,8 @@ class GeneralCog(commands.Cog):
                 matches = entry.get('matches_played', 0)
                 medal = get("format.rank_medal_1") if i == 1 else \
                     get("format.rank_medal_2") if i == 2 else \
-                    get("format.rank_medal_3") if i == 3 else \
-                    fmt("format.rank_number", rank=i)
+                        get("format.rank_medal_3") if i == 3 else \
+                            fmt("format.rank_number", rank=i)
                 rankings.append(
                     fmt("embeds.leaderboard.ranking_format",
                         medal=medal,
@@ -617,7 +679,7 @@ class GeneralCog(commands.Cog):
                     if global_rank is not None and global_rank <= 100:
                         rank_badge = get("format.rank_badge_1") if global_rank == 1 else \
                             get("format.rank_badge_top3") if global_rank <= 3 else \
-                            get("format.rank_badge_top10") if global_rank <= 10 else ""
+                                get("format.rank_badge_top10") if global_rank <= 10 else ""
                         game_stats.append(
                             fmt("embeds.profile.rating_format_ranked",
                                 game_name=game_name,
@@ -647,7 +709,8 @@ class GeneralCog(commands.Cog):
         if game_stats:
             embed.add_field(name=get("embeds.profile.field_ratings"), value="\n".join(game_stats), inline=False)
         else:
-            embed.add_field(name=get("embeds.profile.field_ratings"), value=get("embeds.profile.field_ratings_empty"), inline=False)
+            embed.add_field(name=get("embeds.profile.field_ratings"), value=get("embeds.profile.field_ratings_empty"),
+                            inline=False)
 
         match_history = db.database.get_user_match_history(user.id, ctx.guild.id, limit=5)
         if match_history:
@@ -660,9 +723,11 @@ class GeneralCog(commands.Cog):
                     rated_status=get("history.rated") if m.get('is_rated', True) else get("history.casual"),
                     delta=f"{'+' if m.get('mu_delta', 0) >= 0 else ''}{round(m.get('mu_delta', 0))}")
                 for m in match_history]
-            embed.add_field(name=get("embeds.profile.field_recent_matches"), value="\n".join(history_lines), inline=False)
+            embed.add_field(name=get("embeds.profile.field_recent_matches"), value="\n".join(history_lines),
+                            inline=False)
         else:
-            embed.add_field(name=get("embeds.profile.field_recent_matches"), value=get("embeds.profile.field_recent_matches_empty"), inline=False)
+            embed.add_field(name=get("embeds.profile.field_recent_matches"),
+                            value=get("embeds.profile.field_recent_matches_empty"), inline=False)
 
         total_matches = db.database.count_matches_for_user(user.id, ctx.guild.id)
         embed.add_field(
@@ -818,7 +883,8 @@ class GeneralCog(commands.Cog):
                     inline=False,
                 )
         elif page == 1:
-            embed.add_field(name=fmt("history.rating_trend_name", days=days), value=get("history.no_rating_period"), inline=False)
+            embed.add_field(name=fmt("history.rating_trend_name", days=days), value=get("history.no_rating_period"),
+                            inline=False)
 
         return embed, chart_file, has_data, is_last_page
 
@@ -863,11 +929,15 @@ class GeneralCog(commands.Cog):
 
         changes = []
         if rated is not None and rated != matchmaker.rated:
+            if rated and getattr(matchmaker, "has_bots", False):
+                await ctx.response.send_message(get("settings.rated_blocked_bots"), ephemeral=True)
+                return
             matchmaker.rated = rated
             changes.append(fmt("settings.changed_rated", value=get("settings.yes") if rated else get("settings.no")))
         if private is not None and private != matchmaker.private:
             matchmaker.private = private
-            changes.append(fmt("settings.changed_private", value=get("settings.yes") if private else get("settings.no")))
+            changes.append(
+                fmt("settings.changed_private", value=get("settings.yes") if private else get("settings.no")))
 
         if changes:
             await matchmaker.update_embed()
