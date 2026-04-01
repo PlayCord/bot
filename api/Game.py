@@ -21,7 +21,7 @@ class Game:
     Games should inherit from this class and implement the required methods.
 
     Class Attributes:
-        begin_command_description (str): Description shown in /play command
+        summary (str): Description shown in /play command
         move_command_group_description (str): Description for move commands group
         description (str): Full description of the game
         name (str): Human-readable name of the game
@@ -36,7 +36,7 @@ class Game:
         difficulty (str): Game difficulty level
         player_order (PlayerOrder): How to order players (default: RANDOM)
     """
-    begin_command_description: str
+    summary: str
     move_command_group_description: str
     description: str
     name: str

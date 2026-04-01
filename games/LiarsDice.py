@@ -8,7 +8,7 @@ from api.Response import Response
 
 
 class LiarsDiceGame(Game):
-    begin_command_description = "Wanna bluff?"
+    summary = "Wanna bluff?"
     move_command_group_description = "Commands for Liar's Dice"
     description = ("Liar's Dice is a game of deception, with nearly infinite possibilities."
                    " This version uses the \'reset\' variant.")
@@ -157,16 +157,16 @@ class LiarsDiceGame(Game):
         # Game is over when only one player remains
         if len(self.players) != 1:
             return None
-        
+
         # Winner is the last player standing
         winner = self.players[0]
-        
+
         # Build ranking: winner first, then eliminated players in reverse order
         # (last eliminated = 2nd place, first eliminated = last place)
         rankings = [[winner]]
         for eliminated_player in reversed(self.eliminated):
             rankings.append([eliminated_player])
-        
+
         return rankings
 
 

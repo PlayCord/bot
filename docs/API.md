@@ -56,7 +56,7 @@ The base class for all games. Inherit from this and implement required methods.
 | `name`                           | `str`              | Human-readable game name                       |
 | `players`                        | `int \| list[int]` | Allowed player counts (e.g., `2` or `[2,3,4]`) |
 | `description`                    | `str`              | Full game description                          |
-| `begin_command_description`      | `str`              | Short description for `/play` command          |
+| `summary`                        | `str`              | Short description for `/play` command          |
 | `move_command_group_description` | `str`              | Description for move commands                  |
 | `moves`                          | `list[Command]`    | Available player commands                      |
 | `bots`                           | `dict[str, Bot]`   | Optional bot difficulties (for AI opponents)   |

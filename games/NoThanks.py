@@ -8,7 +8,7 @@ from api.Response import Response
 
 
 class NoThanksGame(Game):
-    begin_command_description = "Take cards or pass with chips in No Thanks!"
+    summary = "Take cards or pass with chips in No Thanks!"
     move_command_group_description = "Commands for No Thanks!"
     description = "On your turn, either take the face-up card with chips or spend one chip to pass."
     name = "No Thanks!"

@@ -7,13 +7,13 @@ from discord.ext import commands
 from ruamel.yaml import YAML
 
 import configuration.constants as constants
-from cogs.games import begin_game, handle_autocomplete, handle_move  # For exec context
-from utils.locale import get
+from cogs.general import command_play
+from cogs.games import handle_autocomplete, handle_move  # For exec context
 from configuration.constants import *
 from utils import database as db
 from utils.analytics import Timer
 from utils.command_builder import build_function_definitions
-from utils.discord_utils import command_error, interaction_check
+from utils.discord_utils import command_error
 from utils.formatter import Formatter
 
 # Logging setup
@@ -109,17 +109,8 @@ class PlayCordBot(commands.Bot):
         self.tree.on_error = command_error
 
         # Dynamic command registration
-        play_group = app_commands.Group(name="play", description="All of the games of PlayCord.", guild_only=True)
-        play_group.interaction_check = interaction_check
-
-        # In discord.py, you use decorators for error handlers on groups.
-        # Since we have a global tree handler, we don't necessarily need it here,
-        # but if we want it:
-        @play_group.error
-        async def play_group_error(interaction, error):
-            await command_error(interaction, error)
-
-        dynamic_commands = build_function_definitions(play_group)
+        self.tree.add_command(command_play)
+        dynamic_commands = build_function_definitions()
 
         for group in dynamic_commands:
             self.tree.add_command(group)
@@ -131,8 +122,6 @@ class PlayCordBot(commands.Bot):
                 'group': group,
                 'handle_move': handle_move,
                 'handle_autocomplete': handle_autocomplete,
-                'begin_game': begin_game,
-                'get': get,
             }
 
             for command_str in dynamic_commands[group]:

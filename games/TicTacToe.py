@@ -9,7 +9,7 @@ from api.Response import Response, ResponseType
 
 
 class TicTacToeGame(Game):
-    begin_command_description = "The classic game of Xs and Os, brought to discord"
+    summary = "The classic game of Xs and Os, brought to discord"
     move_command_group_description = "Commands for TicTacToe"
     description = ("Tic-Tac-Toe on Discord! The game is pretty self-explanatory,"
                    " just take turns placing Xs and Os until one player gets three in a row!")

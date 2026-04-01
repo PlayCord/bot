@@ -1,5 +1,5 @@
-import random
 import html
+import random
 
 try:
     import cairosvg
@@ -8,7 +8,7 @@ except ImportError:
 from api.Arguments import Integer
 from api.Command import Command
 from api.Game import Game
-from api.MessageComponents import CodeBlock, DataTable, Description, Image
+from api.MessageComponents import DataTable, Description, Image
 from api.Player import Player
 from api.Response import Response
 
@@ -106,7 +106,7 @@ def render_battleship_peek_png(own_grid: list[list[str]], shots_grid: list[list[
 
 
 class BattleshipGame(Game):
-    begin_command_description = "Hunt your opponent's hidden ships."
+    summary = "Hunt your opponent's hidden ships."
     move_command_group_description = "Commands for Battleship"
     description = "Take turns firing at coordinates on a hidden 6x6 board."
     name = "Battleship"

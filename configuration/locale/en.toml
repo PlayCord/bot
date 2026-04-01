@@ -84,6 +84,10 @@ param_bot3 = "Third bot difficulty to add (optional)"
 param_bot4 = "Fourth bot difficulty to add (optional)"
 param_bot5 = "Fifth bot difficulty to add (optional)"
 
+[commands.play]
+description = "Start a new game lobby"
+param_game = "The game you want to play"
+
 [commands.kick]
 description = "Remove a player from your lobby (they can rejoin)"
 param_user = "The player to kick from the lobby"

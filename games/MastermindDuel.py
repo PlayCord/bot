@@ -7,7 +7,7 @@ from api.Response import Response
 
 
 class MastermindDuelGame(Game):
-    begin_command_description = "Breaker guesses a secret code set by the setter."
+    summary = "Breaker guesses a secret code set by the setter."
     move_command_group_description = "Commands for Mastermind Duel"
     description = "Player 1 sets a 4-digit secret code (1-6). Player 2 has 10 guesses to crack it."
     name = "Mastermind Duel"

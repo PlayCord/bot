@@ -10,7 +10,7 @@ from discord.ext import commands
 from configuration.constants import *
 from utils import database as db, embeds as _embeds, ramcheck
 from utils.conversion import contextify
-from utils.discord_utils import get_user_error_embed
+from utils.discord_utils import get_user_error_embed, interaction_check
 from utils.emojis import get_emoji_string, get_game_emoji
 from utils.graphs import generate_elo_chart
 from utils.interfaces import MatchmakingInterface, user_in_active_game
@@ -43,7 +43,13 @@ async def autocomplete_game_id(ctx: discord.Interaction, current: str) -> list[C
 
     for game_id, (module_name, class_name) in GAME_TYPES.items():
         game_class = getattr(importlib.import_module(module_name), class_name)
-        display_name = getattr(game_class, "name", game_id)
+        print(game_class.__dict__)
+        description = str(getattr(game_class, "summary", None))
+        if description is not None:
+            description = " (" + description + ")"
+        else:
+            description = ""
+        display_name = str(getattr(game_class, "name", game_id)) + description
 
         searchable = f"{game_id} {display_name}".lower()
         if query and query not in searchable:
@@ -55,10 +61,32 @@ async def autocomplete_game_id(ctx: discord.Interaction, current: str) -> list[C
             rank = 1
         else:
             rank = 2
-        matches.append((rank, game_id.lower(), game_id, game_id))
+        matches.append((rank, game_id.lower(), display_name, game_id))
 
     matches.sort(key=lambda item: (item[0], item[1]))
     return [Choice(name=name[:100], value=value) for _, _, name, value in matches[:25]]
+
+
+@app_commands.command(name="play", description=get("commands.play.description"))
+@app_commands.describe(
+    game=get("commands.play.param_game"),
+    rated=get("commands.settings.param_rated"),
+    private=get("commands.settings.param_private"),
+)
+@app_commands.autocomplete(game=autocomplete_game_id)
+@app_commands.guild_only()
+@app_commands.check(interaction_check)
+async def command_play(ctx: discord.Interaction, game: str, rated: bool = True, private: bool = False) -> None:
+    selected_game = game.strip()
+    game_type = selected_game.lower()
+    if game_type not in GAME_TYPES:
+        embed = get_user_error_embed("game_invalid", game=selected_game)
+        await ctx.response.send_message(embed=embed, ephemeral=True)
+        return
+
+    from cogs.games import begin_game
+
+    await begin_game(ctx, game_type, rated=rated, private=private)
 
 
 async def autocomplete_invite_bot(ctx: discord.Interaction, current: str) -> list[Choice[str]]:

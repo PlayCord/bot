@@ -65,7 +65,7 @@ PostgreSQL-backed leaderboard with TrueSkill-style ratings.
 /play <game>              Start a new game
 /play tictactoe           Start Tic-Tac-Toe
 /play connectfour rated:false   Start an unrated game
-/play tictactoe bot:hard  Start Tic-Tac-Toe with a hard bot opponent
+/play chess private:true   Start a private game
 ```
 
 ### During Games

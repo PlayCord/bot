@@ -9,7 +9,7 @@ from api.Response import Response
 
 
 class CodenamesLiteGame(Game):
-    begin_command_description = "Guess words by teammate clues in a simplified Codenames."
+    summary = "Guess words by teammate clues in a simplified Codenames."
     move_command_group_description = "Commands for Codenames Lite"
     description = "4-player teams, one cluegiver and one guesser per team, race to reveal your words."
     name = "Codenames Lite"

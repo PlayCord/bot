@@ -8,7 +8,7 @@ from api.Response import Response
 
 
 class BlackjackTableGame(Game):
-    begin_command_description = "Multiplayer blackjack against the dealer."
+    summary = "Multiplayer blackjack against the dealer."
     move_command_group_description = "Commands for Blackjack Table"
     description = "Players take turns hitting or standing; dealer plays after all stand or bust."
     name = "Blackjack Table"

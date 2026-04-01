@@ -7,7 +7,7 @@ from api.Response import Response
 
 
 class NimGame(Game):
-    begin_command_description = "Take stones from piles. Take the last stone to win."
+    summary = "Take stones from piles. Take the last stone to win."
     move_command_group_description = "Commands for Nim"
     description = "Classic Nim with three piles. On your turn, remove 1+ stones from one pile."
     name = "Nim"

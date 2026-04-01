@@ -7,7 +7,7 @@ from api.Response import Response
 
 
 class TestGame:
-    begin_command_description: str = "A test game, to test the API features and make sure that things don't break."
+    summary: str = "A test game, to test the API features and make sure that things don't break."
     move_command_group_description: str = "A test game, to test the API features and make sure that things don't break."
     description: str = "A test game, to test the API features and make sure that things don't break."
     name: str = "API Test"

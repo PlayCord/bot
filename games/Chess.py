@@ -388,7 +388,7 @@ class ChessBoard:
 class ChessGame(Game):
     """Chess implementation."""
 
-    begin_command_description = "Play Chess!"
+    summary = "Play Chess!"
     move_command_group_description = "Commands for Chess"
     description = (
         "Classic Chess - the timeless strategy game. Checkmate your opponent's king to win!"

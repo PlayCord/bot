@@ -73,7 +73,7 @@ def render_connect_four_board_png(
 
 
 class ConnectFourGame(Game):
-    begin_command_description = "Drop discs into columns and connect four in a row."
+    summary = "Drop discs into columns and connect four in a row."
     move_command_group_description = "Commands for Connect Four"
     description = "Drop your disc into a column. First to connect four discs wins."
     name = "Connect Four"

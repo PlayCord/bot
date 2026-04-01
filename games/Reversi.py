@@ -7,7 +7,7 @@ from api.Response import Response
 
 
 class ReversiGame(Game):
-    begin_command_description = "Claim territory by surrounding your opponent's discs."
+    summary = "Claim territory by surrounding your opponent's discs."
     move_command_group_description = "Commands for Reversi"
     description = "Place discs to flank and flip your opponent's discs on an 8x8 board."
     name = "Reversi"
