@@ -1,7 +1,7 @@
 <div align="center">
 
   <h1>
-    <img src="docs/playcord_logo.jpg" alt="PlayCord icon" width="80" /> PlayCord
+    <img src="docs/playcord_logo.jpg" alt="PlayCord icon" width="80" align="center" /> PlayCord
   </h1>
 
   <p><em>A Discord bot for turn-based & paper/pencil games</em></p>
@@ -176,7 +176,8 @@ class MyGame(Game):
 - `cairosvg` - SVG rendering for game boards
 - `pillow` - Image manipulation
 
-PlayCord now uses SVG-based board renders (converted to PNG for Discord attachments) for visual-heavy games like Chess, Connect Four, and Battleship peek views when `cairosvg` is available.
+PlayCord now uses SVG-based board renders (converted to PNG for Discord attachments) for visual-heavy games like Chess,
+Connect Four, and Battleship peek views when `cairosvg` is available.
 
 ## Project Structure
 
