@@ -963,6 +963,9 @@ class Database:
                     )
                 )
 
+            for user_id in results:
+                cur.execute("SELECT update_global_rating(%s, %s);", (user_id, match.game_id))
+
     def delete_match(self, match_id: int):
         """Delete a match (cascades to participants and moves)"""
         query = "DELETE FROM matches WHERE match_id = %s;"

@@ -10,7 +10,7 @@ from discord.ext import commands
 from configuration.constants import *
 from utils import database as db, embeds as _embeds, ramcheck
 from utils.conversion import contextify
-from utils.discord_utils import get_user_error_embed, interaction_check
+from utils.discord_utils import format_user_error_message, interaction_check
 from utils.emojis import get_emoji_string, get_game_emoji
 from utils.graphs import generate_elo_chart
 from api.Game import resolve_player_count
@@ -81,8 +81,10 @@ async def command_play(ctx: discord.Interaction, game: str, rated: bool = True, 
     selected_game = game.strip()
     game_type = selected_game.lower()
     if game_type not in GAME_TYPES:
-        embed = get_user_error_embed("game_invalid", game=selected_game)
-        await ctx.response.send_message(embed=embed, ephemeral=True)
+        await ctx.response.send_message(
+            content=format_user_error_message("game_invalid", game=selected_game),
+            ephemeral=True,
+        )
         return
 
     from cogs.games import begin_game
@@ -180,18 +182,24 @@ class GeneralCog(commands.Cog):
 
         if ctx.user.id not in id_matchmaking:
             if user_in_active_game(ctx.user.id):
-                embed = get_user_error_embed("already_in_game_other_server")
-                await ctx.response.send_message(embed=embed, ephemeral=True)
+                await ctx.response.send_message(
+                    content=format_user_error_message("already_in_game_other_server"),
+                    ephemeral=True,
+                )
                 return
 
             if game is None:
-                embed = get_user_error_embed("no_active_lobby")
-                await ctx.response.send_message(embed=embed, ephemeral=True)
+                await ctx.response.send_message(
+                    content=format_user_error_message("no_active_lobby"),
+                    ephemeral=True,
+                )
                 return
 
             if game not in GAME_TYPES:
-                embed = get_user_error_embed("game_invalid", game=game)
-                await ctx.response.send_message(embed=embed, ephemeral=True)
+                await ctx.response.send_message(
+                    content=format_user_error_message("game_invalid", game=game),
+                    ephemeral=True,
+                )
                 return
 
             # Start a new matchmaking lobby
@@ -209,8 +217,10 @@ class GeneralCog(commands.Cog):
         from cogs.games import add_matchmaking_bot
 
         if matchmaker.private and matchmaker.creator.id != ctx.user.id:
-            embed = get_user_error_embed("invite_not_creator_private")
-            await ctx.response.send_message(embed=embed, ephemeral=True)
+            await ctx.response.send_message(
+                content=format_user_error_message("invite_not_creator_private"),
+                ephemeral=True,
+            )
             f_log.debug(f"/invite rejected: not creator. {contextify(ctx)}")
             return
 
@@ -276,13 +286,17 @@ class GeneralCog(commands.Cog):
         id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
 
         if ctx.user.id not in id_matchmaking:
-            embed = get_user_error_embed("kick_no_lobby")
-            await ctx.response.send_message(embed=embed, ephemeral=True)
+            await ctx.response.send_message(
+                content=format_user_error_message("kick_no_lobby"),
+                ephemeral=True,
+            )
             return
         matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
         if matchmaker.creator.id != ctx.user.id:
-            embed = get_user_error_embed("kick_not_creator")
-            await ctx.response.send_message(embed=embed, ephemeral=True)
+            await ctx.response.send_message(
+                content=format_user_error_message("kick_not_creator"),
+                ephemeral=True,
+            )
             return
 
         return_value = await matchmaker.kick(user, reason)
@@ -298,13 +312,17 @@ class GeneralCog(commands.Cog):
         id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
 
         if ctx.user.id not in id_matchmaking:
-            embed = get_user_error_embed("ban_no_lobby")
-            await ctx.response.send_message(embed=embed, ephemeral=True)
+            await ctx.response.send_message(
+                content=format_user_error_message("ban_no_lobby"),
+                ephemeral=True,
+            )
             return
         matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
         if matchmaker.creator.id != ctx.user.id:
-            embed = get_user_error_embed("ban_not_creator")
-            await ctx.response.send_message(embed=embed, ephemeral=True)
+            await ctx.response.send_message(
+                content=format_user_error_message("ban_not_creator"),
+                ephemeral=True,
+            )
             return
 
         return_value = await matchmaker.ban(user, reason)
@@ -362,7 +380,7 @@ class GeneralCog(commands.Cog):
                         inline=False)
         embed.add_field(name=get("embeds.about.field_dev_time"),
                         value="October 2024 - March 2025\nMarch 2026 - Present")
-        embed.set_footer(text=get("embeds.about.footer"))
+        embed.set_footer(text=get("embeds.about.footer"), icon_url=get("brand.footer_icon"))
 
         await ctx.response.send_message(embed=embed)
 
@@ -434,8 +452,10 @@ class GeneralCog(commands.Cog):
         f_log.debug(f"/learn called for game={game}: {contextify(ctx)}")
 
         if game not in GAME_TYPES:
-            embed = get_user_error_embed("learn_game_not_found", game=game)
-            await ctx.response.send_message(embed=embed, ephemeral=True)
+            await ctx.response.send_message(
+                content=format_user_error_message("learn_game_not_found", game=game),
+                ephemeral=True,
+            )
             return
 
         game_info = GAME_TYPES[game]
@@ -458,8 +478,10 @@ class GeneralCog(commands.Cog):
         f_log.debug(f"/leaderboard called for game={game}, scope={scope}, page={page}: {contextify(ctx)}")
 
         if game not in GAME_TYPES:
-            embed = get_user_error_embed("game_invalid", game=game)
-            await ctx.response.send_message(embed=embed, ephemeral=True)
+            await ctx.response.send_message(
+                content=format_user_error_message("game_invalid", game=game),
+                ephemeral=True,
+            )
             return
 
         # Defer response for database query (shows "thinking...")
@@ -686,8 +708,10 @@ class GeneralCog(commands.Cog):
 
         player = db.database.get_player(user, ctx.guild.id)
         if player is None:
-            embed = get_user_error_embed("player_not_found", player_name=user.display_name)
-            await ctx.followup.send(embed=embed, ephemeral=True)
+            await ctx.followup.send(
+                content=format_user_error_message("player_not_found", player_name=user.display_name),
+                ephemeral=True,
+            )
             return
 
         embed = CustomEmbed(title=fmt("embeds.profile.title", username=user.display_name), color=INFO_COLOR)
@@ -766,7 +790,7 @@ class GeneralCog(commands.Cog):
             value=f"{total_matches} {plural('game', total_matches)}",
             inline=True,
         )
-        await ctx.response.send_message(embed=embed)
+        await ctx.followup.send(embed=embed)
 
     @command_root.command(name="history", description=get("commands.history.description"))
     @app_commands.describe(

@@ -5,9 +5,9 @@ from typing import Callable
 
 import discord
 from discord import SelectOption
-from emoji import is_emoji
 
 from api.Player import Player
+from utils.emojis import parse_discord_emoji
 
 
 class MessageComponent:
@@ -298,25 +298,7 @@ class Button(MessageComponent):
         self.arguments = arguments
         self.row = row
 
-        if emoji is None:  # If no emoji, pass None
-            self.emoji = None
-        elif is_emoji(emoji):  # Default emoji, not custom emoji
-            self.emoji = emoji
-        else:  # Custom emoji
-
-            # either [a, name, id] (animated), or [name, id] (static)
-            emoji_formatted = emoji.replace("<", "").replace(">", "").split(":")
-
-            emoji_animated = emoji_formatted[0] == "a"
-            if emoji_animated:  # Animated
-                emoji_name = emoji_formatted[1]
-                emoji_id = int(emoji_formatted[2])
-            else:  # static
-                emoji_name = emoji_formatted[0]
-                emoji_id = int(emoji_formatted[1])
-
-            # Create PartialEmoji with data
-            self.emoji = discord.PartialEmoji(name=emoji_name, id=emoji_id, animated=emoji_animated)
+        self.emoji = parse_discord_emoji(emoji)
 
         self.require_current_turn = require_current_turn
         if self.arguments is not None:  # create arguments like key=value,key2=value2
@@ -374,24 +356,7 @@ class Dropdown(MessageComponent):
         self.components = []
         for component in data:
             if "emoji" in component:
-                emoji = component["emoji"]
-                if emoji is None:  # If no emoji, pass None
-                    emoji = None
-                elif not is_emoji(emoji):  # Custom emoji
-
-                    # either [a, name, id] (animated), or [name, id] (static)
-                    emoji_formatted = emoji.replace("<", "").replace(">", "").split(":")
-
-                    emoji_animated = emoji_formatted[0] == "a"
-                    if emoji_animated:  # Animated
-                        emoji_name = emoji_formatted[1]
-                        emoji_id = int(emoji_formatted[2])
-                    else:  # static
-                        emoji_name = emoji_formatted[0]
-                        emoji_id = int(emoji_formatted[1])
-
-                    # Create PartialEmoji with data
-                    emoji = discord.PartialEmoji(name=emoji_name, id=emoji_id, animated=emoji_animated)
+                emoji = parse_discord_emoji(component["emoji"])
             else:
                 emoji = None
             if "default" not in component:

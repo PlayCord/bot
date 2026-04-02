@@ -11,11 +11,26 @@ from utils.database import DatabaseConnectionError
 from utils.locale import fmt, get, get_error
 from utils import embeds as _embeds
 
-CustomEmbed = _embeds.CustomEmbed
 ErrorEmbed = _embeds.ErrorEmbed
 UserErrorEmbed = getattr(_embeds, "UserErrorEmbed", ErrorEmbed)
 
 log = logging.getLogger(LOGGING_ROOT)
+
+
+def format_user_error_message(error_key: str, **kwargs) -> str:
+    """Plain-text user error for ephemeral replies (no embed)."""
+    title, description, suggestion = get_error(error_key)
+    if kwargs:
+        title = title.format(**kwargs)
+        description = description.format(**kwargs)
+        if suggestion:
+            suggestion = suggestion.format(**kwargs)
+    parts = [title]
+    if description:
+        parts.append(description)
+    if suggestion:
+        parts.append(suggestion)
+    return "\n".join(parts)
 
 
 def get_user_error_embed(error_key: str, **kwargs) -> UserErrorEmbed:
@@ -33,13 +48,12 @@ def get_user_error_embed(error_key: str, **kwargs) -> UserErrorEmbed:
 
 async def send_simple_embed(ctx: discord.Interaction, title: str, description: str, ephemeral: bool = True,
                             responded: bool = False) -> None:
-    """
-    Generate a simple embed
-    """
+    """Send a short ephemeral status as plain text."""
+    text = f"{title}\n{description}" if description else title
     if not responded:
-        await ctx.response.send_message(embed=CustomEmbed(title=title, description=description), ephemeral=ephemeral)
+        await ctx.response.send_message(content=text, ephemeral=ephemeral)
     else:
-        await ctx.followup.send(embed=CustomEmbed(title=title, description=description), ephemeral=ephemeral)
+        await ctx.followup.send(content=text, ephemeral=ephemeral)
 
 
 async def interaction_check(ctx: discord.Interaction) -> bool:
@@ -68,11 +82,11 @@ async def command_error(ctx: discord.Interaction, error: app_commands.AppCommand
 
     # Check for database connection error - use friendly message
     if isinstance(error, app_commands.CommandInvokeError) and isinstance(error.original, DatabaseConnectionError):
-        embed = get_user_error_embed("database_error")
+        msg = format_user_error_message("database_error")
         if ctx.response.is_done():
-            await ctx.followup.send(embed=embed, ephemeral=True)
+            await ctx.followup.send(content=msg, ephemeral=True)
         else:
-            await ctx.response.send_message(embed=embed, ephemeral=True)
+            await ctx.response.send_message(content=msg, ephemeral=True)
         return
 
     # For unexpected errors, show the full error embed for debugging

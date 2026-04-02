@@ -14,10 +14,7 @@ from utils.locale import get, fmt
 
 class CustomEmbed(discord.Embed):
     """
-    A modified version of discord.Embed with two key changes:
-
-    * respects the default embed color of constants.py
-    * Adds a bagel footer by default
+    discord.Embed with project default color. Brand footers are opt-in (e.g. /about).
     """
 
     def __init__(self, **kwargs):
@@ -30,9 +27,6 @@ class CustomEmbed(discord.Embed):
             kwargs['color'] = EMBED_COLOR
         super().__init__(**kwargs)  # Force a consistent embed color based on the config
 
-        self.set_footer(text=get("brand.footer"),
-                        icon_url=get("brand.footer_icon"))
-
 
 class SuccessEmbed(discord.Embed):
     """Embed for successful operations."""
@@ -43,7 +37,6 @@ class SuccessEmbed(discord.Embed):
         if description:
             kwargs['description'] = description
         super().__init__(**kwargs)
-        self.set_footer(text=get("brand.name"))
 
 
 class WarningEmbed(discord.Embed):
@@ -55,7 +48,6 @@ class WarningEmbed(discord.Embed):
         if description:
             kwargs['description'] = description
         super().__init__(**kwargs)
-        self.set_footer(text=get("brand.name"))
 
 
 class UserErrorEmbed(discord.Embed):
@@ -75,8 +67,6 @@ class UserErrorEmbed(discord.Embed):
         
         if suggestion:
             self.add_field(name=get("embeds.user_error.suggestion_field"), value=suggestion, inline=False)
-        
-        self.set_footer(text=get("embeds.user_error.footer"))
 
 
 class LoadingEmbed(discord.Embed):

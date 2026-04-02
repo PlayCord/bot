@@ -174,6 +174,26 @@ class GameInterface:
         self.processing_move = asyncio.Lock()
         self.processing_bot_turn = False
         self.ending_game = False
+        self._pending_ui_tasks: list[asyncio.Task] = []
+
+    def _track_ui_task(self, coro) -> asyncio.Task:
+        task = asyncio.create_task(coro)
+        self._pending_ui_tasks.append(task)
+
+        def _discard(t: asyncio.Task) -> None:
+            try:
+                self._pending_ui_tasks.remove(t)
+            except ValueError:
+                pass
+
+        task.add_done_callback(_discard)
+        return task
+
+    async def await_pending_ui_tasks(self, timeout: float = 30.0) -> None:
+        pending = [t for t in self._pending_ui_tasks if not t.done()]
+        if not pending:
+            return
+        await asyncio.wait(pending, timeout=timeout)
 
     async def setup(self) -> None:
         """
@@ -616,7 +636,7 @@ class GameInterface:
                 await asyncio.sleep(1)
             await self.info_message.edit(embed=info_embed)
 
-        asyncio.create_task(edit_info_message())
+        self._track_ui_task(edit_info_message())
 
         if picture is not None:  # For some reason, [None] is not accepted by discord.py, so send it None if no image.
             attachments = [picture]
@@ -639,7 +659,7 @@ class GameInterface:
                 await asyncio.sleep(1)
             await self.game_message.edit(**pass_data)
 
-        asyncio.create_task(edit_game_message())
+        self._track_ui_task(edit_game_message())
 
         # Edit overview embed with new data
         async def edit_status_message():
@@ -648,7 +668,7 @@ class GameInterface:
             await self.status_message.edit(
                 embed=GameOverviewEmbed(self.game.name, self.game_type, self.rated, self.players, self.current_turn))
 
-        asyncio.create_task(edit_status_message())
+        self._track_ui_task(edit_status_message())
 
         # async def purge_phantom():
         #     while self.game_message is None:
@@ -1331,6 +1351,7 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
         game_over_embed = ErrorEmbed(what_failed=get("game.error_during_move"), reason=outcome)
         # Send the embed
         await outbound_message.edit(embed=game_over_embed)
+        await interface.await_pending_ui_tasks()
         await thread.edit(locked=True, archived=True, reason=get("threads.game_crashed"))
         await thread.send(embed=game_over_embed)
         return
@@ -1415,6 +1436,8 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
     # Send the embed to overview / game thread
     await thread.send(embed=game_over_embed)
     await outbound_message.edit(embed=game_over_embed, view=None)
+
+    await interface.await_pending_ui_tasks()
 
     # Close the game thread
     await thread.edit(locked=True, archived=True, reason=get("threads.game_over"))

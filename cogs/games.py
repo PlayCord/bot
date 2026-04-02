@@ -7,7 +7,7 @@ from discord.ext import commands
 from configuration.constants import *
 from utils import database as db, embeds as _embeds
 from utils.analytics import Timer
-from utils.discord_utils import decode_discord_arguments, get_user_error_embed, send_simple_embed
+from utils.discord_utils import decode_discord_arguments, format_user_error_message, send_simple_embed
 from utils.emojis import get_emoji_string
 from utils.interfaces import MatchmakingInterface, user_in_active_game
 from utils.locale import get
@@ -50,8 +50,10 @@ class GamesCog(commands.Cog):
         arguments = {arg.split("=")[0]: arg.split("=")[1] for arg in data[2].split(",")} if data[2] else {}
 
         if game_id not in CURRENT_GAMES:
-            embed = get_user_error_embed("game_ended")
-            await ctx.followup.send(embed=embed, ephemeral=True)
+            await ctx.followup.send(
+                content=format_user_error_message("game_ended"),
+                ephemeral=True,
+            )
             return
 
         game = CURRENT_GAMES[game_id]
@@ -77,8 +79,10 @@ class GamesCog(commands.Cog):
         arguments["values"] = ctx.data.get("values", [])
 
         if game_id not in CURRENT_GAMES:
-            embed = get_user_error_embed("game_ended")
-            await ctx.followup.send(embed=embed, ephemeral=True)
+            await ctx.followup.send(
+                content=format_user_error_message("game_ended"),
+                ephemeral=True,
+            )
             return
 
         game = CURRENT_GAMES[game_id]
@@ -97,8 +101,10 @@ class GamesCog(commands.Cog):
         f_log = log.getChild("callback.spectate")
         game_id = int(ctx.data['custom_id'].replace(BUTTON_PREFIX_SPECTATE, ""))
         if game_id not in CURRENT_GAMES:
-            embed = get_user_error_embed("game_ended")
-            await ctx.followup.send(embed=embed, ephemeral=True)
+            await ctx.followup.send(
+                content=format_user_error_message("game_ended"),
+                ephemeral=True,
+            )
             return
 
         game = CURRENT_GAMES[game_id]
@@ -125,8 +131,10 @@ class GamesCog(commands.Cog):
             # Just resend the latest game state to the user ephemerally
             await CURRENT_GAMES[game_id].display_game_state(ctx)
         else:
-            embed = get_user_error_embed("game_ended")
-            await ctx.followup.send(embed=embed, ephemeral=True)
+            await ctx.followup.send(
+                content=format_user_error_message("game_ended"),
+                ephemeral=True,
+            )
 
 
 async def setup(bot: commands.Bot):
@@ -147,12 +155,16 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
         return None
     if not (ctx.channel.permissions_for(ctx.guild.me).create_private_threads and ctx.channel.permissions_for(
             ctx.guild.me).send_messages):
-        embed = get_user_error_embed("missing_permissions")
-        await ctx.response.send_message(embed=embed, ephemeral=True)
+        await ctx.response.send_message(
+            content=format_user_error_message("missing_permissions"),
+            ephemeral=True,
+        )
         return None
     if ctx.channel.type in [discord.ChannelType.public_thread, discord.ChannelType.private_thread]:
-        embed = get_user_error_embed("invalid_channel")
-        await ctx.response.send_message(embed=embed, ephemeral=True)
+        await ctx.response.send_message(
+            content=format_user_error_message("invalid_channel"),
+            ephemeral=True,
+        )
         return None
 
     await ctx.response.send_message(embed=CustomEmbed(description=get_emoji_string("loading")).remove_footer())

@@ -9,9 +9,11 @@ Provides functionality for:
 - Getting game-specific emojis
 """
 import logging
-from typing import Optional
+from typing import Optional, Union
 
+import discord
 import ruamel.yaml
+from emoji import is_emoji
 
 from configuration.constants import EMOJI_CONFIGURATION_FILE, LONG_SPACE_EMBED
 
@@ -186,3 +188,46 @@ def get_game_emoji(game_id: str) -> str:
         initialize_emojis()
     
     return game_emojis.get(game_id, "🎮")
+
+
+def parse_discord_emoji(
+    emoji: Union[str, discord.PartialEmoji, None],
+) -> Union[str, discord.PartialEmoji, None]:
+    """
+    Normalize an emoji value for discord.py UI components (buttons, selects).
+
+    Accepts unicode emoji, <:name:id> / <a:name:id>, or discord.PartialEmoji.
+    """
+    if emoji is None:
+        return None
+    if isinstance(emoji, discord.PartialEmoji):
+        return emoji
+    if not isinstance(emoji, str):
+        return None
+    s = emoji.strip()
+    if not s:
+        return None
+    if s.startswith("<") and s.endswith(">"):
+        inner = s[1:-1]
+        animated = inner.startswith("a:")
+        body = inner[2:] if animated else inner
+        parts = body.split(":")
+        if len(parts) >= 2:
+            try:
+                name, eid = parts[0], int(parts[-1])
+                return discord.PartialEmoji(name=name, id=eid, animated=animated)
+            except (ValueError, TypeError):
+                logger.debug("Invalid custom emoji markup: %r", emoji)
+                return None
+        return None
+    if is_emoji(s):
+        return s
+    from_str = getattr(discord.PartialEmoji, "from_str", None)
+    if callable(from_str):
+        try:
+            pe = from_str(s)
+            if pe is not None and pe.id is not None:
+                return pe
+        except (ValueError, TypeError, AttributeError):
+            pass
+    return None
