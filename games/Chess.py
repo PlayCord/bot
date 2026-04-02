@@ -394,7 +394,7 @@ class ChessGame(Game):
         "Classic Chess - the timeless strategy game. Checkmate your opponent's king to win!"
     )
     name = "Chess"
-    players = [2]
+    player_count = [2]
     moves = [
         Command(name="move", description="Make a move (e.g., e2e4 or e2-e4).",
                 callback="make_move",

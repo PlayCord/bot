@@ -83,7 +83,7 @@ class PokerGame(Game):
         "are revealed. Make the best 5-card hand to win the pot!"
     )
     name = "Poker"
-    players = [2, 3, 4, 5, 6, 7, 8]
+    player_count = [2, 3, 4, 5, 6, 7, 8]
     moves = [
         Command(name="peek", description="View your hole cards privately.",
                 callback="peek", require_current_turn=False),

@@ -11,7 +11,7 @@ class NimGame(Game):
     move_command_group_description = "Commands for Nim"
     description = "Classic Nim with three piles. On your turn, remove 1+ stones from one pile."
     name = "Nim"
-    players = [2, 3, 4]
+    player_count = [2, 3, 4]
     moves = [
         Command(
             name="take",

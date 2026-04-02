@@ -13,6 +13,7 @@ from utils.conversion import contextify
 from utils.discord_utils import get_user_error_embed, interaction_check
 from utils.emojis import get_emoji_string, get_game_emoji
 from utils.graphs import generate_elo_chart
+from api.Game import resolve_player_count
 from utils.interfaces import MatchmakingInterface, user_in_active_game
 from utils.locale import fmt, get, plural
 from utils.views import HelpView, InviteView, PaginationView
@@ -632,7 +633,9 @@ class GeneralCog(commands.Cog):
             game_desc = getattr(game_class, 'description', get("help.game_info.no_description"))
             game_time = getattr(game_class, 'time', get("help.game_info.unknown"))
             game_difficulty = getattr(game_class, 'difficulty', get("help.game_info.unknown"))
-            game_players = getattr(game_class, 'players', get("help.game_info.unknown"))
+            game_players = resolve_player_count(game_class)
+            if game_players is None:
+                game_players = get("help.game_info.unknown")
             game_emoji = get_game_emoji(game_id)
             if isinstance(game_players, list):
                 player_text = fmt("help.game_info.players_range_format", min=min(game_players), max=max(game_players))

@@ -20,7 +20,7 @@ from api.Response import Response
 
 class MyGame(Game):
     name = "My Game"
-    players = 2
+    player_count = 2
     moves = [Command(name="move", description="Make a move", callback="do_move")]
 
     def __init__(self, players):
@@ -54,7 +54,7 @@ The base class for all games. Inherit from this and implement required methods.
 | Attribute                        | Type               | Description                                    |
 |----------------------------------|--------------------|------------------------------------------------|
 | `name`                           | `str`              | Human-readable game name                       |
-| `players`                        | `int \| list[int]` | Allowed player counts (e.g., `2` or `[2,3,4]`) |
+| `player_count`                   | `int \| list[int]` | Allowed player counts (e.g., `2` or `[2,3,4]`) |
 | `description`                    | `str`              | Full game description                          |
 | `summary`                        | `str`              | Short description for `/play` command          |
 | `move_command_group_description` | `str`              | Description for move commands                  |

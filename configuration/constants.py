@@ -1,6 +1,6 @@
 import discord
 
-from utils.locale import get, fmt, get_dict
+from utils.locale import fmt, get, get_dict
 
 VERSION = "0.1.1"
 IS_ACTIVE = True
@@ -36,13 +36,13 @@ WELCOME_MESSAGE = [
 ]
 
 # Standardized embed colors for consistent UX
-EMBED_COLOR = discord.Color.from_str("#6877ED")      # Primary brand color (purple-blue)
-ERROR_COLOR = discord.Color.from_str("#ED6868")      # Errors and failures (red)
-INFO_COLOR = discord.Color.from_str("#9A9CB0")       # Informational embeds (gray)
-SUCCESS_COLOR = discord.Color.from_str("#68ED7B")    # Success messages (green)
-WARNING_COLOR = discord.Color.from_str("#EDC868")    # Warnings and cautions (yellow/orange)
-GAME_COLOR = discord.Color.from_str("#68D4ED")       # Game-related embeds (cyan)
-MATCHMAKING_COLOR = discord.Color.from_str("#B068ED") # Matchmaking/lobby embeds (purple)
+EMBED_COLOR = discord.Color.from_str("#6877ED")  # Primary brand color (purple-blue)
+ERROR_COLOR = discord.Color.from_str("#ED6868")  # Errors and failures (red)
+INFO_COLOR = discord.Color.from_str("#9A9CB0")  # Informational embeds (gray)
+SUCCESS_COLOR = discord.Color.from_str("#68ED7B")  # Success messages (green)
+WARNING_COLOR = discord.Color.from_str("#EDC868")  # Warnings and cautions (yellow/orange)
+GAME_COLOR = discord.Color.from_str("#68D4ED")  # Game-related embeds (cyan)
+MATCHMAKING_COLOR = discord.Color.from_str("#B068ED")  # Matchmaking/lobby embeds (purple)
 
 CONFIG_BOT_SECRET = "secret"
 
@@ -67,7 +67,6 @@ GAME_TYPES = {
     "battleship": ["games.Battleship", "BattleshipGame"],
     "nothanks": ["games.NoThanks", "NoThanksGame"],
     "blackjack": ["games.BlackjackTable", "BlackjackTableGame"],
-    "codenames": ["games.CodenamesLite", "CodenamesLiteGame"],
     "poker": ["games.Poker", "PokerGame"],
     "chess": ["games.Chess", "ChessGame"],
 }
@@ -84,7 +83,6 @@ GAME_TRUESKILL = {
     "battleship": {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 180, "draw": 0},
     "nothanks": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 0},
     "blackjack": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 1 / 5},
-    "codenames": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 220, "draw": 0},
     "poker": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 0},
     "chess": {"sigma": 1 / 5, "beta": 1 / 10, "tau": 1 / 150, "draw": 1 / 10},
 }

@@ -2,6 +2,7 @@ import os
 
 import discord
 
+from api.Game import resolve_player_count
 from configuration.constants import (
     EMBED_COLOR, ERROR_COLOR, SUCCESS_COLOR, WARNING_COLOR, 
     INFO_COLOR, GAME_COLOR, MATCHMAKING_COLOR
@@ -254,7 +255,9 @@ class HelpGameInfoEmbed(CustomEmbed):
     def __init__(self, game_id: str, game_class):
         game_name = getattr(game_class, 'name', game_id)
         description = getattr(game_class, 'description', get("help.game_info.no_description"))
-        players = getattr(game_class, 'players', get("help.game_info.unknown"))
+        players = resolve_player_count(game_class)
+        if players is None:
+            players = get("help.game_info.unknown")
         time_est = getattr(game_class, 'time', get("help.game_info.unknown"))
         difficulty = getattr(game_class, 'difficulty', get("help.game_info.unknown"))
         author = getattr(game_class, 'author', get("help.game_info.unknown"))

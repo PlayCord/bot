@@ -142,7 +142,7 @@ from api.MessageComponents import Description, Button
 
 class MyGame(Game):
     name = "My Game"
-    players = 2
+    player_count = 2
     moves = [Command(name="move", description="Make a move", callback="do_move")]
 
     def __init__(self, players):

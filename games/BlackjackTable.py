@@ -12,7 +12,7 @@ class BlackjackTableGame(Game):
     move_command_group_description = "Commands for Blackjack Table"
     description = "Players take turns hitting or standing; dealer plays after all stand or bust."
     name = "Blackjack Table"
-    players = [2, 3, 4, 5, 6, 7]
+    player_count = [2, 3, 4, 5, 6, 7]
     moves = [
         Command(name="hit", description="Draw one card.", callback="hit"),
         Command(name="stand", description="End your turn for this round.", callback="stand"),

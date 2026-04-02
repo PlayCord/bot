@@ -11,7 +11,7 @@ class ReversiGame(Game):
     move_command_group_description = "Commands for Reversi"
     description = "Place discs to flank and flip your opponent's discs on an 8x8 board."
     name = "Reversi"
-    players = 2
+    player_count = 2
     moves = [
         Command(
             name="move",

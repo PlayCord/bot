@@ -9,7 +9,7 @@ from typing import Any
 
 import trueskill
 
-from api.Game import PlayerOrder
+from api.Game import PlayerOrder, resolve_player_count
 from api.Player import Player
 from api.Response import Response
 from configuration.constants import *
@@ -720,12 +720,13 @@ class MatchmakingInterface:
 
         # Required and maximum players for game TODO: more complex requirements for start/stop
 
-        if not hasattr(self.game, "players"):  # If no players defined, any value is "fine"
+        player_count = resolve_player_count(self.game)
+        if player_count is None:  # If no player count is defined, any value is "fine"
             self.player_verification_function = lambda x: True
             self.allowed_players = get("queue.any_players")
         else:
-            self.player_verification_function = player_verification_function(self.game.players)
-            self.allowed_players = player_representative(self.game.players)
+            self.player_verification_function = player_verification_function(player_count)
+            self.allowed_players = player_representative(player_count)
 
         self.outcome = None  # Whether the matchmaking was successful (True, None, or False)
         self.logger = logging.getLogger(f"playcord.matchmaking_interface[{message.id}]")
@@ -747,10 +748,11 @@ class MatchmakingInterface:
             return fmt("queue.bot_already_added", difficulty=difficulty)
 
         current_count = len(self.queued_players) + len(self.bots)
-        if isinstance(self.game.players, list):
-            if (current_count + 1) not in self.game.players:
+        player_count = resolve_player_count(self.game)
+        if isinstance(player_count, list):
+            if (current_count + 1) not in player_count:
                 return get("queue.bot_too_many_for_game")
-        elif (current_count + 1) != self.game.players:
+        elif isinstance(player_count, int) and (current_count + 1) != player_count:
             return get("queue.bot_too_many_for_game")
 
         used_names = {getattr(p, "name", None) for p in self.bots if getattr(p, "name", None)}
@@ -817,10 +819,11 @@ class MatchmakingInterface:
 
         # Can the start button be pressed?
         start_enabled = self.player_verification_function(len(self.queued_players))
-        if isinstance(self.game.players, list):
-            start_enabled = len(self.all_players()) in self.game.players
-        else:
-            start_enabled = len(self.all_players()) == self.game.players
+        player_count = resolve_player_count(self.game)
+        if isinstance(player_count, list):
+            start_enabled = len(self.all_players()) in player_count
+        elif isinstance(player_count, int):
+            start_enabled = len(self.all_players()) == player_count
 
         # Create matchmaking button view (with callbacks and can_start)
         view = MatchmakingView(join_button_id=f"join/{self.message.id}",
@@ -1090,11 +1093,12 @@ class MatchmakingInterface:
             return
 
         total_players = len(self.all_players())
-        if isinstance(self.game.players, list):
-            if total_players not in self.game.players:
+        player_count = resolve_player_count(self.game)
+        if isinstance(player_count, list):
+            if total_players not in player_count:
                 await ctx.followup.send(get("queue.bot_too_many_for_game"), ephemeral=True)
                 return
-        elif total_players != self.game.players:
+        elif isinstance(player_count, int) and total_players != player_count:
             await ctx.followup.send(get("queue.bot_too_many_for_game"), ephemeral=True)
             return
 

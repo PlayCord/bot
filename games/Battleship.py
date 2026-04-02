@@ -110,7 +110,7 @@ class BattleshipGame(Game):
     move_command_group_description = "Commands for Battleship"
     description = "Take turns firing at coordinates on a hidden 6x6 board."
     name = "Battleship"
-    players = 2
+    player_count = 2
     moves = [
         Command(
             name="fire",

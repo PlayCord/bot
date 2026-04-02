@@ -12,7 +12,7 @@ class NoThanksGame(Game):
     move_command_group_description = "Commands for No Thanks!"
     description = "On your turn, either take the face-up card with chips or spend one chip to pass."
     name = "No Thanks!"
-    players = [3, 4, 5, 6, 7]
+    player_count = [3, 4, 5, 6, 7]
     moves = [
         Command(name="take", description="Take the current card.", callback="take"),
         Command(name="pass", description="Pay one chip to pass.", callback="pass_turn"),

@@ -13,7 +13,7 @@ class LiarsDiceGame(Game):
     description = ("Liar's Dice is a game of deception, with nearly infinite possibilities."
                    " This version uses the \'reset\' variant.")
     name = "Liar's Dice"
-    players = [2, 3, 4, 5, 6]
+    player_count = [2, 3, 4, 5, 6]
     moves = [Command(name="raise", description="Raise the bet.",
                      options=[
                          Integer(argument_name="dice_number", description="The number on the dice to call", min_value=1,

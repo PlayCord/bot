@@ -77,7 +77,7 @@ class ConnectFourGame(Game):
     move_command_group_description = "Commands for Connect Four"
     description = "Drop your disc into a column. First to connect four discs wins."
     name = "Connect Four"
-    players = 2
+    player_count = 2
     moves = [
         Command(
             name="drop",

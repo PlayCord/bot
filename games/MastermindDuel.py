@@ -11,7 +11,7 @@ class MastermindDuelGame(Game):
     move_command_group_description = "Commands for Mastermind Duel"
     description = "Player 1 sets a 4-digit secret code (1-6). Player 2 has 10 guesses to crack it."
     name = "Mastermind Duel"
-    players = 2
+    player_count = 2
     player_order = PlayerOrder.PRESERVE
     moves = [
         Command(
