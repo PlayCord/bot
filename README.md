@@ -4,7 +4,7 @@
     <img src="docs/playcord_logo.jpg" alt="PlayCord icon" width="80" align="center" /> PlayCord
   </h1>
 
-  <p><em>A Discord bot for turn-based & paper/pencil games</em></p>
+  <p><em>A Discord bot for turn-based & paper/pencil games, written in Python</em></p>
   <p>
     <a href="#"><img src="https://img.shields.io/badge/python-3.12-blue?logo=python" alt="python" /></a>
     <a href="#"><img src="https://img.shields.io/badge/license-GPLv3-green?logo=opensourceinitiative" alt="license" /></a>
@@ -48,7 +48,6 @@ PostgreSQL-backed leaderboard with TrueSkill-style ratings.
 | Mastermind Duel | 2       | Code-breaking game         |
 | No Thanks!      | 3-7     | Card avoidance game        |
 | Blackjack Table | 2-7     | Multiplayer blackjack      |
-| Codenames Lite  | 4-8     | Word association team game |
 
 ### Planned
 
@@ -198,7 +197,7 @@ playcord/
 
 ## Planned features
 
-- []
+See [BROKEN.md](BROKEN.md) for a running list of known issues and planned features.
 
 ## License
 
