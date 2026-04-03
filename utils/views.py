@@ -132,30 +132,24 @@ class SpectateView(DynamicButtonView):
 
 class PaginationView(DynamicButtonView):
     """
-    Pagination with First/Previous/Next/Last buttons (timeout=None for long-lived menus).
-    After a bot restart, buttons are handled by a global interaction fallback (see bot.py).
+    Pagination with First/Previous/Next/Last (timeout=None). Button custom_ids carry only
+    guild_id/user_id for ownership checks; page state lives on this view instance.
+    If the view is not registered (e.g. after restart), GamesCog.on_interaction replies ephemerally.
     """
 
-    def __init__(self, command: str, guild_id: int, user_id: int, current_page: int,
-                 max_pages: int, params_hash: str, callback_handler):
+    def __init__(self, guild_id: int, user_id: int, current_page: int,
+                 max_pages: int, callback_handler):
         """
-        Initialize pagination view.
-        
-        Args:
-            command: Command name (catalog, leaderboard, history)
-            guild_id: Guild ID for validation
-            user_id: User ID who invoked the command (only they can interact)
-            current_page: Current page number (1-indexed)
-            max_pages: Total number of pages
-            params_hash: Hash of additional parameters (game, user, days, etc.)
-            callback_handler: Async function to regenerate embed for a new page
+        :param guild_id: Guild ID for validation (0 if not in a guild)
+        :param user_id: User who invoked the command (only they can use the buttons)
+        :param current_page: Current page (1-indexed)
+        :param max_pages: Total pages
+        :param callback_handler: async (interaction, new_page) -> None
         """
-        self.command = command
         self.guild_id = guild_id
         self.user_id = user_id
         self.current_page = current_page
         self.max_pages = max_pages
-        self.params_hash = params_hash
         self.callback_handler = callback_handler
 
         from configuration.constants import (
@@ -165,12 +159,13 @@ class PaginationView(DynamicButtonView):
             BUTTON_PREFIX_PAGINATION_LAST
         )
 
+        base = f"{guild_id}/{user_id}"
         super().__init__([
             {
                 "label": get("buttons.first"),
                 "emoji": "⏮️",
                 "style": discord.ButtonStyle.gray,
-                "id": f"{BUTTON_PREFIX_PAGINATION_FIRST}{command}/{guild_id}/{user_id}/1/{max_pages}/{params_hash}",
+                "id": f"{BUTTON_PREFIX_PAGINATION_FIRST}{base}",
                 "disabled": (current_page == 1),
                 "callback": self._first_callback,
             },
@@ -178,7 +173,7 @@ class PaginationView(DynamicButtonView):
                 "label": get("buttons.previous"),
                 "emoji": "◀️",
                 "style": discord.ButtonStyle.primary,
-                "id": f"{BUTTON_PREFIX_PAGINATION_PREV}{command}/{guild_id}/{user_id}/{current_page}/{max_pages}/{params_hash}",
+                "id": f"{BUTTON_PREFIX_PAGINATION_PREV}{base}",
                 "disabled": (current_page == 1),
                 "callback": self._prev_callback,
             },
@@ -186,7 +181,7 @@ class PaginationView(DynamicButtonView):
                 "label": get("buttons.next"),
                 "emoji": "▶️",
                 "style": discord.ButtonStyle.primary,
-                "id": f"{BUTTON_PREFIX_PAGINATION_NEXT}{command}/{guild_id}/{user_id}/{current_page}/{max_pages}/{params_hash}",
+                "id": f"{BUTTON_PREFIX_PAGINATION_NEXT}{base}",
                 "disabled": (current_page >= max_pages),
                 "callback": self._next_callback,
             },
@@ -194,7 +189,7 @@ class PaginationView(DynamicButtonView):
                 "label": get("buttons.last"),
                 "emoji": "⏭️",
                 "style": discord.ButtonStyle.gray,
-                "id": f"{BUTTON_PREFIX_PAGINATION_LAST}{command}/{guild_id}/{user_id}/{max_pages}/{max_pages}/{params_hash}",
+                "id": f"{BUTTON_PREFIX_PAGINATION_LAST}{base}",
                 "disabled": (current_page >= max_pages),
                 "callback": self._last_callback,
             },
@@ -412,46 +407,6 @@ class HelpButton(discord.ui.Button):
         )
         
         return embed
-
-
-def parse_pagination_custom_id(custom_id: str) -> dict:
-    """
-    Parse pagination button custom_id to extract components.
-    
-    Format: <prefix><command>/<guild_id>/<user_id>/<page>/<max_pages>/<params_hash>
-    
-    Returns:
-        dict with keys: command, guild_id, user_id, page, max_pages, params_hash
-        
-    Raises:
-        ValueError: If custom_id format is invalid
-    """
-    from configuration.constants import (
-        BUTTON_PREFIX_PAGINATION_FIRST,
-        BUTTON_PREFIX_PAGINATION_PREV,
-        BUTTON_PREFIX_PAGINATION_NEXT,
-        BUTTON_PREFIX_PAGINATION_LAST
-    )
-
-    # Remove prefix
-    for prefix in [BUTTON_PREFIX_PAGINATION_FIRST, BUTTON_PREFIX_PAGINATION_PREV,
-                   BUTTON_PREFIX_PAGINATION_NEXT, BUTTON_PREFIX_PAGINATION_LAST]:
-        if custom_id.startswith(prefix):
-            custom_id = custom_id[len(prefix):]
-            break
-
-    parts = custom_id.split('/')
-    if len(parts) != 6:
-        raise ValueError(f"Invalid pagination custom_id format: expected 6 parts, got {len(parts)}")
-
-    return {
-        'command': parts[0],
-        'guild_id': int(parts[1]),
-        'user_id': int(parts[2]),
-        'page': int(parts[3]),
-        'max_pages': int(parts[4]),
-        'params_hash': parts[5]
-    }
 
 
 class ContextualHelpView(discord.ui.View):

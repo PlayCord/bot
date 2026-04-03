@@ -1,4 +1,3 @@
-import hashlib
 import importlib
 import logging
 from datetime import datetime
@@ -514,16 +513,13 @@ class GeneralCog(commands.Cog):
         max_pages = page if is_last_page else page + 1
         embed.set_footer(text=fmt("embeds.leaderboard.footer", page=page, max=max_pages))
 
-        params_hash = hashlib.md5(f"{game}:{scope}".encode()).hexdigest()[:8]
         view = PaginationView(
-            command="leaderboard",
             guild_id=ctx.guild.id if ctx.guild else 0,
             user_id=ctx.user.id,
             current_page=page,
             max_pages=max_pages,
-            params_hash=params_hash,
             callback_handler=lambda interaction, new_page: self._leaderboard_page_callback(
-                interaction, game, game_name, game_db.game_id, scope, new_page, limit, params_hash
+                interaction, game, game_name, game_db.game_id, scope, new_page, limit
             )
         )
         await ctx.followup.send(embed=embed, view=view)
@@ -598,7 +594,7 @@ class GeneralCog(commands.Cog):
 
     async def _leaderboard_page_callback(self, interaction: discord.Interaction, game: str, game_name: str,
                                          game_id: int, scope: str, new_page: int,
-                                         limit: int, params_hash: str):
+                                         limit: int):
         """Callback for leaderboard pagination buttons."""
         embed, has_data, is_last_page = await self._build_leaderboard_embed(
             game, game_name, game_id, scope, interaction.guild, new_page, limit
@@ -606,14 +602,12 @@ class GeneralCog(commands.Cog):
         max_pages = new_page if is_last_page else new_page + 1
         embed.set_footer(text=fmt("embeds.leaderboard.footer", page=new_page, max=max_pages))
         view = PaginationView(
-            command="leaderboard",
             guild_id=interaction.guild.id if interaction.guild else 0,
             user_id=interaction.user.id,
             current_page=new_page,
             max_pages=max_pages,  # Dynamic max based on data
-            params_hash=params_hash,
             callback_handler=lambda inter, pg: self._leaderboard_page_callback(
-                inter, game, game_name, game_id, scope, pg, limit, params_hash
+                inter, game, game_name, game_id, scope, pg, limit
             )
         )
         await interaction.edit_original_response(embed=embed, view=view)
@@ -633,16 +627,13 @@ class GeneralCog(commands.Cog):
 
         embed = self._build_catalog_embed(page, total_pages, all_games, games_per_page)
 
-        params_hash = hashlib.md5(f"catalog".encode()).hexdigest()[:8]
         view = PaginationView(
-            command="catalog",
             guild_id=ctx.guild.id if ctx.guild else 0,
             user_id=ctx.user.id,
             current_page=page,
             max_pages=total_pages,
-            params_hash=params_hash,
             callback_handler=lambda interaction, new_page: self._catalog_page_callback(
-                interaction, new_page, total_pages, all_games, games_per_page, params_hash
+                interaction, new_page, total_pages, all_games, games_per_page
             )
         )
         await ctx.response.send_message(embed=embed, view=view)
@@ -687,18 +678,16 @@ class GeneralCog(commands.Cog):
         return embed
 
     async def _catalog_page_callback(self, interaction: discord.Interaction, new_page: int,
-                                     total_pages: int, all_games: list, games_per_page: int, params_hash: str):
+                                     total_pages: int, all_games: list, games_per_page: int):
         """Callback for catalog pagination buttons."""
         embed = self._build_catalog_embed(new_page, total_pages, all_games, games_per_page)
         view = PaginationView(
-            command="catalog",
             guild_id=interaction.guild.id if interaction.guild else 0,
             user_id=interaction.user.id,
             current_page=new_page,
             max_pages=total_pages,
-            params_hash=params_hash,
             callback_handler=lambda inter, pg: self._catalog_page_callback(
-                inter, pg, total_pages, all_games, games_per_page, params_hash
+                inter, pg, total_pages, all_games, games_per_page
             )
         )
         await interaction.edit_original_response(embed=embed, view=view)
@@ -845,16 +834,13 @@ class GeneralCog(commands.Cog):
 
         max_pages = page if is_last_page else page + 1
         embed.set_footer(text=fmt("pagination.page_footer", page=page, max=max_pages))
-        params_hash = hashlib.md5(f"{game}:{user.id}:{days}".encode()).hexdigest()[:8]
         view = PaginationView(
-            command="history",
             guild_id=ctx.guild.id if ctx.guild else 0,
             user_id=ctx.user.id,
             current_page=page,
             max_pages=max_pages,
-            params_hash=params_hash,
             callback_handler=lambda interaction, new_page: self._history_page_callback(
-                interaction, user, game_name, game_db.game_id, new_page, days, params_hash, f_log
+                interaction, user, game_name, game_db.game_id, new_page, days, f_log
             )
         )
         if chart_file:
@@ -961,7 +947,7 @@ class GeneralCog(commands.Cog):
         return embed, chart_file, has_data, is_last_page
 
     async def _history_page_callback(self, interaction: discord.Interaction, user, game_name: str,
-                                     game_id: int, new_page: int, days: int, params_hash: str, f_log):
+                                     game_id: int, new_page: int, days: int, f_log):
         """Callback for history pagination buttons."""
         embed, chart_file, has_data, is_last_page = self._build_history_embed(
             user, game_name, game_id, interaction.guild.id, new_page, days, f_log
@@ -969,14 +955,12 @@ class GeneralCog(commands.Cog):
         max_pages = new_page if is_last_page else new_page + 1
         embed.set_footer(text=fmt("pagination.page_footer", page=new_page, max=max_pages))
         view = PaginationView(
-            command="history",
             guild_id=interaction.guild.id if interaction.guild else 0,
             user_id=interaction.user.id,
             current_page=new_page,
             max_pages=max_pages,  # Dynamic max based on data
-            params_hash=params_hash,
             callback_handler=lambda inter, pg: self._history_page_callback(
-                inter, user, game_name, game_id, pg, days, params_hash, f_log
+                inter, user, game_name, game_id, pg, days, f_log
             )
         )
         # Chart file only on page 1, so we won't have it on other pages

@@ -1305,7 +1305,19 @@ async def _successful_matchmaking_impl(interface: MatchmakingInterface) -> None:
     await game.display_game_state()  # Send the game display state
 
 
-async def rating_groups_to_string(rankings: list[int], groups: list[dict[InternalPlayer, trueskill.Rating]],
+def _pre_match_mu_sigma(player: Any, game_type: str) -> tuple[float, float]:
+    """Mu/sigma before rate(): InternalPlayer has per-game stats; in-game api.Player uses .mu/.sigma."""
+    stat = getattr(player, game_type, None)
+    if stat is not None and hasattr(stat, "mu"):
+        return float(stat.mu), float(stat.sigma)
+    if isinstance(player, Player):
+        return float(player.mu), float(player.sigma)
+    raise TypeError(
+        f"Cannot read pre-match rating for {type(player).__name__!r} (game_type={game_type!r})"
+    )
+
+
+async def rating_groups_to_string(rankings: list[int], groups: list[dict[Any, trueskill.Rating]],
                                   game_type: str) \
         -> tuple[str, dict[int, dict[str, str | bool | int | Any]]]:
     """
@@ -1348,8 +1360,7 @@ async def rating_groups_to_string(rankings: list[int], groups: list[dict[Interna
             nums_current_place = 1
 
         # Extract starting and ending rating variables
-        starting_mu, starting_sigma = (getattr(pre_rated_player, game_type).mu,
-                                       getattr(pre_rated_player, game_type).sigma)
+        starting_mu, starting_sigma = _pre_match_mu_sigma(pre_rated_player, game_type)
         aftermath_mu, aftermath_sigma = all_ratings[pre_rated_player].mu, all_ratings[pre_rated_player].sigma
 
         # Change in ELO
@@ -1466,7 +1477,7 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
             winner = environment.create_rating(outcome.mu, outcome.sigma)
 
             # All the losers
-            losers = [{p: environment.create_rating(getattr(p, game_type).mu, getattr(p, game_type).sigma)}
+            losers = [{p: environment.create_rating(*_pre_match_mu_sigma(p, game_type))}
                       for p in players if p != outcome]
 
             rating_groups = [{InternalPlayer(ratings={game_type: {"mu": outcome.mu, "sigma": outcome.sigma}},

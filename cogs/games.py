@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import discord
@@ -17,6 +18,41 @@ CustomEmbed = _embeds.CustomEmbed
 
 log = logging.getLogger(LOGGING_ROOT)
 
+_PAGINATION_PREFIXES = (
+    BUTTON_PREFIX_PAGINATION_FIRST,
+    BUTTON_PREFIX_PAGINATION_PREV,
+    BUTTON_PREFIX_PAGINATION_NEXT,
+    BUTTON_PREFIX_PAGINATION_LAST,
+)
+
+
+async def _pagination_unhandled_fallback(interaction: discord.Interaction, custom_id: str) -> None:
+    """If no registered PaginationView handled the click (e.g. after restart), reply ephemerally."""
+    await asyncio.sleep(0)
+    if interaction.response.is_done():
+        return
+    rest = custom_id
+    for prefix in _PAGINATION_PREFIXES:
+        if custom_id.startswith(prefix):
+            rest = custom_id[len(prefix):]
+            break
+    msg = get("interactions.pagination_outdated")
+    parts = rest.split("/")
+    if len(parts) == 2:
+        try:
+            gid, uid = int(parts[0]), int(parts[1])
+        except ValueError:
+            pass
+        else:
+            if interaction.user.id != uid:
+                msg = get("interactions.pagination_not_yours")
+            elif interaction.guild_id is not None and gid != interaction.guild_id:
+                msg = get("interactions.pagination_not_yours")
+    try:
+        await interaction.response.send_message(msg, ephemeral=True)
+    except discord.HTTPException:
+        pass
+
 
 class GamesCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -24,8 +60,15 @@ class GamesCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_interaction(self, ctx: discord.Interaction) -> None:
-        custom_id = ctx.data.get("custom_id")
+        data = ctx.data if ctx.data is not None else {}
+        custom_id = data.get("custom_id")
         if custom_id is None:
+            return
+
+        if ctx.type is discord.InteractionType.component and any(
+            custom_id.startswith(p) for p in _PAGINATION_PREFIXES
+        ):
+            asyncio.create_task(_pagination_unhandled_fallback(ctx, custom_id))
             return
 
         if custom_id.startswith(BUTTON_PREFIX_SELECT_CURRENT):

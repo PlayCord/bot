@@ -715,7 +715,7 @@ bot_display_rating = "Bot"
 pagination_not_yours = "You cannot interact with another user's pagination buttons."
 help_not_yours = "This help menu belongs to someone else. Use `/playcord help` to open your own!"
 dead_view = "That interaction is no longer active due to a bot restart! Please create a new interaction :)"
-pagination_outdated = "This interaction is outdated. Please reopen the menu."
+pagination_outdated = "This pagination is outdated due to a bot restart. Please just run `/playcord catalog` again to see the latest games :)"
 
 [autocomplete]
 no_game_in_channel = "There is no game in this channel!"
