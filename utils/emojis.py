@@ -130,10 +130,15 @@ def get_emoji_string(name: str) -> str:
                            f" and a long space will fill its place.")
         return LONG_SPACE_EMBED
 
+    try:
+        eid = int(emoji["id"])
+    except (KeyError, TypeError, ValueError):
+        logger.warning("Emoji %r has invalid id %r", name, emoji.get("id"))
+        return LONG_SPACE_EMBED
+
     if emoji.get("animated", False):
-        return f"<a:{name}:{emoji['id']}>"
-    else:
-        return f"<:{name}:{emoji['id']}>"
+        return f"<a:{name}:{eid}>"
+    return f"<:{name}:{eid}>"
 
 
 def get_all_emojis() -> dict[str, dict]:

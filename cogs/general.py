@@ -3,6 +3,7 @@ import importlib
 import logging
 from datetime import datetime
 
+import discord
 from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
@@ -615,7 +616,7 @@ class GeneralCog(commands.Cog):
                 inter, game, game_name, game_id, scope, pg, limit, params_hash
             )
         )
-        await interaction.response.edit_message(embed=embed, view=view)
+        await interaction.edit_original_response(embed=embed, view=view)
 
     @command_root.command(name="catalog", description=get("commands.catalog.description"))
     @app_commands.describe(page=get("commands.catalog.param_page"))
@@ -700,7 +701,7 @@ class GeneralCog(commands.Cog):
                 inter, pg, total_pages, all_games, games_per_page, params_hash
             )
         )
-        await interaction.response.edit_message(embed=embed, view=view)
+        await interaction.edit_original_response(embed=embed, view=view)
 
     @command_root.command(name="profile", description=get("commands.profile.description"))
     @app_commands.describe(user=get("commands.profile.param_user"))
@@ -892,10 +893,20 @@ class GeneralCog(commands.Cog):
             for row in display_history:
                 rank_text = _ordinal(row.get('final_ranking'))
                 delta = row.get('mu_delta', 0)
+                meta = row.get("metadata") or {}
+                if not isinstance(meta, dict):
+                    meta = {}
+                summ = meta.get("outcome_summary")
+                summ_txt = ""
+                if summ:
+                    s = str(summ)
+                    if len(s) > 72:
+                        s = s[:69] + "..."
+                    summ_txt = f" — {s}"
                 lines.append(
                     f"{rank_text}/{row.get('player_count', '?')} | {fmt('history.seat', seat=row.get('player_number', '?'))}"
                     f" | {get('history.rated') if row.get('is_rated', True) else get('history.casual')}"
-                    f" | {'+' if delta >= 0 else ''}{round(delta)}"
+                    f" | {'+' if delta >= 0 else ''}{round(delta)}{summ_txt}"
                 )
             embed.add_field(name=get("history.recent_matches"), value="\n".join(lines), inline=False)
         else:
@@ -969,7 +980,7 @@ class GeneralCog(commands.Cog):
             )
         )
         # Chart file only on page 1, so we won't have it on other pages
-        await interaction.response.edit_message(embed=embed, view=view)
+        await interaction.edit_original_response(embed=embed, view=view)
 
     @command_root.command(name="settings", description=get("commands.settings.description"))
     @app_commands.describe(rated=get("commands.settings.param_rated"), private=get("commands.settings.param_private"))
@@ -1005,6 +1016,46 @@ class GeneralCog(commands.Cog):
             await ctx.response.send_message(get("settings.updated") + "\n" + "\n".join(changes), ephemeral=True)
         else:
             await ctx.response.send_message(get("settings.no_changes"), ephemeral=True)
+
+    @command_root.command(name="set_channel", description=get("commands.set_channel.description"))
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(channel=get("commands.set_channel.param_channel"))
+    async def command_set_channel(
+        self,
+        ctx: discord.Interaction,
+        channel: discord.TextChannel | None = None,
+    ):
+        if ctx.guild is None:
+            await ctx.response.send_message(get("commands.set_channel.guild_only"), ephemeral=True)
+            return
+        await ctx.response.defer(ephemeral=True)
+        if channel is None:
+            db.database.merge_guild_settings(ctx.guild.id, {"playcord_channel_id": None})
+            await ctx.followup.send(content=get("commands.set_channel.cleared"), ephemeral=True)
+            return
+        db.database.merge_guild_settings(ctx.guild.id, {"playcord_channel_id": channel.id})
+        await ctx.followup.send(
+            content=fmt("commands.set_channel.saved", channel=channel.mention),
+            ephemeral=True,
+        )
+
+    @command_root.command(name="analytics", description=get("commands.analytics.description"))
+    @app_commands.describe(hours="Look-back window in hours (default 24)")
+    async def command_analytics(self, ctx: discord.Interaction, hours: int = 24):
+        if ctx.user.id not in OWNERS:
+            await ctx.response.send_message(get("commands.analytics.denied"), ephemeral=True)
+            return
+        await ctx.response.defer(ephemeral=True)
+        hours_clamped = max(1, min(hours, 24 * 30))
+        rows = db.database.get_analytics_event_counts(hours=hours_clamped)
+        if not rows:
+            await ctx.followup.send(content=fmt("commands.analytics.empty", hours=hours_clamped), ephemeral=True)
+            return
+        lines = [f"`{r['event_type']}`: **{r['cnt']}**" for r in rows]
+        await ctx.followup.send(
+            content=fmt("commands.analytics.summary", hours=hours_clamped, body="\n".join(lines[:50])),
+            ephemeral=True,
+        )
 
 
 async def setup(bot: commands.Bot):

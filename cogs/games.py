@@ -1,5 +1,6 @@
 import logging
 
+import discord
 from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
@@ -10,7 +11,7 @@ from utils.analytics import Timer
 from utils.discord_utils import decode_discord_arguments, format_user_error_message, send_simple_embed
 from utils.emojis import get_emoji_string
 from utils.interfaces import MatchmakingInterface, user_in_active_game
-from utils.locale import get
+from utils.locale import fmt, get
 
 CustomEmbed = _embeds.CustomEmbed
 
@@ -39,6 +40,8 @@ class GamesCog(commands.Cog):
             await self.spectate_callback(ctx)
         elif custom_id.startswith(BUTTON_PREFIX_PEEK):
             await self.peek_callback(ctx)
+        elif custom_id.startswith(BUTTON_PREFIX_REMATCH):
+            await self.rematch_button_callback(ctx)
 
     async def game_button_callback(self, ctx: discord.Interaction, current_turn_required: bool = True) -> None:
         await ctx.response.defer()
@@ -136,6 +139,54 @@ class GamesCog(commands.Cog):
                 ephemeral=True,
             )
 
+    async def rematch_button_callback(self, ctx: discord.Interaction) -> None:
+        await ctx.response.defer(ephemeral=True)
+        from utils.models import MatchStatus
+
+        tail = ctx.data["custom_id"].replace(BUTTON_PREFIX_REMATCH, "", 1)
+        try:
+            mid = int(tail)
+        except ValueError:
+            await ctx.followup.send(content=format_user_error_message("rematch_invalid"), ephemeral=True)
+            return
+        match = db.database.get_match(mid)
+        if not match or match.status != MatchStatus.COMPLETED:
+            await ctx.followup.send(content=format_user_error_message("rematch_unavailable"), ephemeral=True)
+            return
+        human_ids = db.database.get_match_human_user_ids_ordered(mid)
+        if ctx.user.id not in human_ids:
+            await ctx.followup.send(content=get("rematch.not_participant"), ephemeral=True)
+            return
+        for uid in human_ids:
+            if user_in_active_game(uid):
+                await ctx.followup.send(content=get("rematch.someone_busy"), ephemeral=True)
+                return
+        g = ctx.guild
+        if g is None or not isinstance(ctx.channel, discord.TextChannel):
+            await ctx.followup.send(content=get("rematch.bad_channel"), ephemeral=True)
+            return
+        game_row = db.database.get_game_by_id(match.game_id)
+        if not game_row:
+            await ctx.followup.send(content=get("rematch.unknown_game"), ephemeral=True)
+            return
+        game_type = game_row.game_name
+        loading = await ctx.channel.send(embed=CustomEmbed(description=get_emoji_string("loading")).remove_footer())
+        mm = MatchmakingInterface(ctx.user, game_type, loading, rated=match.is_rated, private=False)
+        if mm.failed is not None:
+            await loading.edit(embed=mm.failed)
+            await ctx.followup.send(content=get("rematch.failed"), ephemeral=True)
+            return
+        err = await mm.seed_rematch_players(g, human_ids)
+        if err:
+            try:
+                await loading.delete()
+            except discord.HTTPException:
+                pass
+            await ctx.followup.send(content=err, ephemeral=True)
+            return
+        await mm.update_embed()
+        await ctx.followup.send(content=get("rematch.created"), ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(GamesCog(bot))
@@ -166,6 +217,22 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
             ephemeral=True,
         )
         return None
+
+    require_pc = CONFIGURATION.get("playcord", {}).get("require_playcord_channel", False)
+    if require_pc and ctx.guild is not None:
+        pc = db.database.get_playcord_channel_id(ctx.guild.id)
+        if pc is None:
+            await ctx.response.send_message(
+                content=format_user_error_message("playcord_channel_unset"),
+                ephemeral=True,
+            )
+            return None
+        if ctx.channel.id != pc:
+            await ctx.response.send_message(
+                content=fmt("playcord.wrong_channel", channel=f"<#{pc}>"),
+                ephemeral=True,
+            )
+            return None
 
     await ctx.response.send_message(embed=CustomEmbed(description=get_emoji_string("loading")).remove_footer())
     game_overview_message = await ctx.original_response()

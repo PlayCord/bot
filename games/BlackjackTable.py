@@ -16,7 +16,8 @@ class BlackjackTableGame(Game):
     moves = [
         Command(name="hit", description="Draw one card.", callback="hit"),
         Command(name="stand", description="End your turn for this round.", callback="stand"),
-        Command(name="peek", description="Show your hand privately.", callback="peek", require_current_turn=False),
+        Command(name="peek", description="Show your hand privately.", callback="peek", require_current_turn=False,
+                is_game_affecting=False),
     ]
     author = "@quantumbagel"
     version = "1.0"

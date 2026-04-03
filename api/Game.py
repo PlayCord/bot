@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from enum import Enum
 
 from api.Bot import Bot
@@ -77,6 +78,8 @@ class Game(ABC):
     difficulty: str
     player_order: PlayerOrder = PlayerOrder.RANDOM
     game_schema_version: int = 1
+    # Optional per-game TrueSkill scale (sigma/beta/tau/draw as fractions of MU); None uses global GAME_TRUESKILL
+    trueskill_scale: dict | None = None
 
     @abstractmethod
     def __init__(self, players: list[Player]) -> None:
@@ -127,3 +130,17 @@ class Game(ABC):
         return _normalize_player_count_spec(
             getattr(cls, "player_count", None)
         )
+
+    def attach_replay_logger(self, log_fn: Callable[[dict], None] | None) -> None:
+        """Called by GameInterface so games can log stochastic events (shuffle, RNG) to replay JSONL."""
+        self._replay_log = log_fn
+
+    def log_replay_event(self, event: dict) -> None:
+        """Append a replay JSONL event (e.g. type \"rng\" / \"shuffle\") when a logger is attached."""
+        fn = getattr(self, "_replay_log", None)
+        if callable(fn):
+            fn(event)
+
+    def match_summary(self, outcome: object) -> str | None:
+        """Optional short human-readable result (stored on the match and shown in history)."""
+        return None

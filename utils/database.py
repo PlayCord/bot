@@ -433,6 +433,29 @@ class Database:
         result = self._execute_query(query, (guild_id,), fetchone=True)
         return result['settings'] if result else None
 
+    def merge_guild_settings(self, guild_id: int, patch: Dict[str, Any]) -> None:
+        """Merge JSON keys into guilds.settings (creates row if missing)."""
+        self.create_guild(guild_id, {})
+        query = """
+            UPDATE guilds
+            SET settings = COALESCE(settings, '{}'::jsonb) || %s::jsonb,
+                updated_at = NOW()
+            WHERE guild_id = %s;
+        """
+        self._execute_query(query, (json.dumps(patch), guild_id))
+
+    def get_playcord_channel_id(self, guild_id: int) -> Optional[int]:
+        s = self.get_guild_settings(guild_id)
+        if not s:
+            return None
+        raw = s.get("playcord_channel_id")
+        if raw is None:
+            return None
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
     def delete_guild(self, guild_id: int):
         """Delete a guild (cascades to matches, ratings, etc.)"""
         query = "DELETE FROM guilds WHERE guild_id = %s;"
@@ -912,6 +935,28 @@ class Database:
         query = "UPDATE matches SET status = %s WHERE match_id = %s;"
         self._execute_query(query, (status, match_id))
 
+    def merge_match_metadata_outcome_summary(self, match_id: int, summary: str) -> None:
+        """Store human-readable outcome summary in matches.metadata (JSON)."""
+        query = """
+            UPDATE matches
+            SET metadata = COALESCE(metadata, '{}'::jsonb)
+                || jsonb_build_object('outcome_summary', to_jsonb(%s::text))
+            WHERE match_id = %s;
+        """
+        self._execute_query(query, (summary, match_id))
+
+    def get_match_human_user_ids_ordered(self, match_id: int) -> List[int]:
+        """Participant Discord user IDs for a match, excluding bot accounts, in seat order."""
+        query = """
+            SELECT mp.user_id
+            FROM match_participants mp
+            JOIN users u ON u.user_id = mp.user_id
+            WHERE mp.match_id = %s AND u.is_bot = FALSE
+            ORDER BY mp.player_number;
+        """
+        rows = self._execute_query(query, (match_id,), fetchall=True) or []
+        return [int(r["user_id"]) for r in rows]
+
     def update_match_context(
         self,
         match_id: int,
@@ -1261,6 +1306,7 @@ class Database:
                 g.display_name as game_name,
                 m.ended_at,
                 m.is_rated,
+                m.metadata,
                 mp.final_ranking as final_ranking,
                 mp.player_number,
                 COUNT(*) OVER (PARTITION BY m.match_id) as player_count,
@@ -1473,6 +1519,18 @@ class Database:
         """
         result = self._execute_query(query, (guild_id, days), fetchone=True)
         return result if result else {}
+
+    def get_analytics_event_counts(self, hours: int = 24) -> List[Dict[str, Any]]:
+        """Count analytics rows by event_type in the last N hours."""
+        query = """
+            SELECT event_type, COUNT(*)::BIGINT AS cnt
+            FROM analytics_events
+            WHERE timestamp > NOW() - (%s * INTERVAL '1 hour')
+            GROUP BY event_type
+            ORDER BY cnt DESC;
+        """
+        rows = self._execute_query(query, (hours,), fetchall=True)
+        return rows if rows else []
 
     # ========================================================================
     # MAINTENANCE OPERATIONS

@@ -124,6 +124,9 @@ MIGRATIONS: List[Tuple[str, str, List[str]]] = [
             CREATE INDEX IF NOT EXISTS idx_rating_game_user ON user_game_ratings (game_id, user_id)
             """,
             """
+            DROP FUNCTION IF EXISTS apply_skill_decay(integer, double precision) CASCADE
+            """,
+            """
             CREATE OR REPLACE FUNCTION apply_skill_decay(
                 days_inactive INTEGER DEFAULT 30,
                 sigma_increase_factor DOUBLE PRECISION DEFAULT 0.1

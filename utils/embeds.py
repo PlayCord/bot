@@ -131,10 +131,16 @@ class GameOverviewEmbed(CustomEmbed):
 
 class GameOverEmbed(CustomEmbed):
 
-    def __init__(self, rankings, game_name):
+    def __init__(self, rankings, game_name, outcome_summary: str | None = None):
         super().__init__(title=fmt("embeds.game_over.title", game_name=game_name),
                          description=get("embeds.game_over.description"))
         self.add_field(name=get("embeds.game_over.field_rankings"), value=rankings, inline=True)
+        if outcome_summary:
+            self.add_field(
+                name=get("embeds.game_over.field_summary"),
+                value=outcome_summary,
+                inline=False,
+            )
 
 
 class InviteEmbed(CustomEmbed):
@@ -327,39 +333,3 @@ class MatchmakingEmbed(CustomEmbed):
                 inline=False
             )
 
-
-class FirstTimeUserEmbed(CustomEmbed):
-    """Welcome embed for first-time users with tutorial guidance."""
-    
-    def __init__(self, game_name: str = None):
-        name = get("brand.name")
-        super().__init__(
-            title=fmt("tutorial.title", name=name),
-            description=get("tutorial.description"),
-            color=SUCCESS_COLOR
-        )
-        
-        self.add_field(
-            name=get("tutorial.fields.how_games_work.name"),
-            value=get("tutorial.fields.how_games_work.value"),
-            inline=False
-        )
-        
-        self.add_field(
-            name=get("tutorial.fields.ratings.name"),
-            value=get("tutorial.fields.ratings.value"),
-            inline=False
-        )
-        
-        self.add_field(
-            name=get("tutorial.fields.tips.name"),
-            value=get("tutorial.fields.tips.value"),
-            inline=False
-        )
-        
-        if game_name:
-            self.add_field(
-                name=fmt("tutorial.fields.ready_to_play.name", game_name=game_name),
-                value=get("tutorial.fields.ready_to_play.value"),
-                inline=False
-            )

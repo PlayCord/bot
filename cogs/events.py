@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+import discord
 from discord.ext import commands
 
 from configuration.constants import *
@@ -31,6 +32,11 @@ class EventsCog(commands.Cog):
         embed = CustomEmbed(title=WELCOME_MESSAGE[0][0], description=WELCOME_MESSAGE[0][1], color=EMBED_COLOR)
         for line in WELCOME_MESSAGE[1:]:
             embed.add_field(name=line[0], value=line[1])
+        embed.add_field(
+            name=get("welcome.fields.playcord_channel.name"),
+            value=get("welcome.fields.playcord_channel.value"),
+            inline=False,
+        )
 
         try:
             await guild.system_channel.send(embed=embed)
@@ -67,8 +73,15 @@ class EventsCog(commands.Cog):
         game = CURRENT_GAMES[message.channel.id]
         participant_ids = {p.id for p in game.players}
 
-        # If user is a participant, allow the message
+        # If user is a participant, optionally restrict to slash-style messages only
         if message.author.id in participant_ids:
+            if THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY:
+                text = (message.content or "").strip()
+                if text and not text.startswith("/"):
+                    try:
+                        await message.delete()
+                    except (discord.Forbidden, discord.NotFound):
+                        pass
             return
 
         f_log = log.getChild("event.thread_policy")

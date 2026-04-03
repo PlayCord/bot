@@ -1,8 +1,10 @@
+import asyncio
 import logging
 import os
 import sys
 
-from discord import app_commands
+import discord
+from discord import InteractionType, app_commands
 from discord.ext import commands
 from ruamel.yaml import YAML
 
@@ -15,6 +17,7 @@ from utils.analytics import Timer
 from utils.command_builder import build_function_definitions
 from utils.discord_utils import command_error
 from utils.formatter import Formatter
+from utils.locale import get
 
 # Logging setup
 logging.getLogger("discord").setLevel(logging.INFO)
@@ -135,6 +138,51 @@ class PlayCordBot(commands.Bot):
         if general_cog:
             if not any(c.name == general_cog.command_root.name for c in self.tree.get_commands()):
                 self.tree.add_command(general_cog.command_root)
+
+        self.add_listener(self._on_interaction_pagination_stale, "interaction")
+
+        await self._maybe_sync_commands_if_configured()
+
+    async def _on_interaction_pagination_stale(self, interaction: discord.Interaction) -> None:
+        if interaction.type is not InteractionType.component:
+            return
+        data = interaction.data or {}
+        cid = data.get("custom_id") or ""
+        if not any(
+            cid.startswith(p)
+            for p in (
+                BUTTON_PREFIX_PAGINATION_FIRST,
+                BUTTON_PREFIX_PAGINATION_PREV,
+                BUTTON_PREFIX_PAGINATION_NEXT,
+                BUTTON_PREFIX_PAGINATION_LAST,
+            )
+        ):
+            return
+
+        async def _reply_if_stale() -> None:
+            await asyncio.sleep(0)
+            if interaction.response.is_done():
+                return
+            try:
+                await interaction.response.send_message(
+                    get("interactions.pagination_outdated"),
+                    ephemeral=True,
+                )
+            except discord.HTTPException:
+                pass
+
+        asyncio.create_task(_reply_if_stale())
+
+    async def _maybe_sync_commands_if_configured(self) -> None:
+        """Optional: sync app command tree when config bot.auto_sync_commands is true."""
+        cfg = constants.CONFIGURATION.get("bot", {}) or {}
+        if not cfg.get("auto_sync_commands"):
+            return
+        try:
+            synced = await self.tree.sync()
+            startup_logger.info("auto_sync_commands: synced %s global command(s)", len(synced))
+        except Exception as e:
+            startup_logger.warning("auto_sync_commands failed: %s", e)
 
 
 if __name__ == "__main__":

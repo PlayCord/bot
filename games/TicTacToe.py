@@ -6,6 +6,7 @@ from api.Command import Command
 from api.Game import Game
 from api.MessageComponents import Button, ButtonStyle, DataTable
 from api.Response import Response, ResponseType
+from utils.locale import fmt, get
 
 
 class TicTacToeGame(Game):
@@ -178,6 +179,14 @@ class TicTacToeGame(Game):
             return {"name": "move", "arguments": {"move": random.choice(corners)}}
 
         return {"name": "move", "arguments": {"move": random.choice(available)}}
+
+    def match_summary(self, outcome):
+        filled = sum(1 for row in self.board for cell in row if cell.id is not None)
+        if isinstance(outcome, Player):
+            return fmt("game_summary.tictactoe.win", moves=filled)
+        if isinstance(outcome, list):
+            return get("game_summary.tictactoe.draw")
+        return None
 
     def outcome(self):
         # Check rows

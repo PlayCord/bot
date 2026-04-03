@@ -5,6 +5,8 @@
 -- FUNCTION: apply_skill_decay
 -- Increases sigma for inactive players to reflect skill uncertainty
 -- ============================================================================
+DROP FUNCTION IF EXISTS apply_skill_decay(integer, double precision) CASCADE;
+
 CREATE OR REPLACE FUNCTION apply_skill_decay(
     days_inactive INTEGER DEFAULT 30,
     sigma_increase_factor DOUBLE PRECISION DEFAULT 0.1

@@ -43,6 +43,40 @@ value = "Every game has a skill-based rating system. Win games to climb the lead
 name = "❓ Need Help?"
 value = "Use `/playcord help` for an interactive guide, or check out our [GitHub]({github_url}) for documentation."
 
+[welcome.fields.playcord_channel]
+name = "📌 Optional: dedicated channel"
+value = "Administrators can run `/playcord set_channel` in the channel where you want matchmaking to live when your server enforces a single PlayCord channel."
+
+[playcord]
+wrong_channel = "On this server, start games from {channel}."
+
+[rematch]
+not_participant = "Only players from that match can start a rematch."
+someone_busy = "Someone from that game is already in another active match."
+bad_channel = "Use rematch from a server text channel."
+unknown_game = "Could not resolve the game type for that match."
+failed = "Could not open a rematch lobby."
+created = "Rematch lobby posted in this channel."
+member_missing = "{mention} is not in this server — everyone from the last game must still be here to rematch."
+db_failed = "Could not load player data for rematch."
+
+[game_summary.tictactoe]
+win = "Won by three in a row after {moves} moves."
+draw = "Draw — the board filled with no winner."
+
+[commands.set_channel]
+description = "Set or clear the channel where /play must be used when the server requires it"
+param_channel = "Text channel, or leave empty to clear"
+guild_only = "Use this command in a server."
+cleared = "PlayCord channel setting cleared for this server."
+saved = "PlayCord channel set to {channel}."
+
+[commands.analytics]
+description = "Bot owners: analytics event counts for recent hours"
+denied = "You don't have access to this command."
+empty = "No analytics events in the last {hours} hour(s)."
+summary = "Analytics (last {hours}h):\n{body}"
+
 # =============================================================================
 # BOT STATUS / PRESENCE
 # =============================================================================
@@ -340,6 +374,18 @@ suggestion = "Make sure I have permissions to **Create Private Threads** and **S
 description = "Games can't be started inside threads."
 suggestion = "Use this command in a regular text channel instead."
 
+[errors.playcord_channel_unset]
+description = "This server requires a PlayCord channel, but none is configured yet."
+suggestion = "Ask an admin to run `/playcord set_channel` in the channel where matchmaking should appear."
+
+[errors.rematch_invalid]
+description = "That rematch control is not valid."
+suggestion = "Start a new lobby with `/play <game>`."
+
+[errors.rematch_unavailable]
+description = "That match can't be rematched right now."
+suggestion = "It may still be in progress or missing from the database."
+
 [errors.player_not_found]
 description = "I couldn't find any data for **{player_name}**."
 suggestion = "This player may not have played any games yet."
@@ -379,6 +425,7 @@ description = "Please wait while we fetch your data..."
 # =============================================================================
 [system_error]
 title = "Something went wrong!"
+internal_what_failed = "Internal bot error while starting the game (not caused by game rules)."
 report_field = "Please report the issue on GitHub"
 report_value = "I would really appreciate if you reported this error (and a detailed description of what you did to cause it if possible) on the [GitHub issue tracker]({github_issues_url})"
 context_field = "Context:"
@@ -411,6 +458,7 @@ field_turn = "Turn:"
 title = "{game_name} game over!"
 description = "Thanks so much for playing! Here are the rankings:"
 field_rankings = "Rankings:"
+field_summary = "How it ended"
 
 # =============================================================================
 # EMBEDS - INVITE
@@ -519,6 +567,7 @@ leave = "Leave"
 start = "Start"
 spectate = "Spectate Game"
 peek = "Peek"
+rematch = "Rematch"
 go_to_game = "Go To Game (won't join)"
 join_game = "Join Game"
 need_help = "Need Help?"
@@ -666,6 +715,7 @@ bot_display_rating = "Bot"
 pagination_not_yours = "You cannot interact with another user's pagination buttons."
 help_not_yours = "This help menu belongs to someone else. Use `/playcord help` to open your own!"
 dead_view = "That interaction is no longer active due to a bot restart! Please create a new interaction :)"
+pagination_outdated = "This interaction is outdated. Please reopen the menu."
 
 [autocomplete]
 no_game_in_channel = "There is no game in this channel!"

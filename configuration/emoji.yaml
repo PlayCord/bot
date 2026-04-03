@@ -31,6 +31,7 @@ button_emojis:
   start: "▶️"    # Play button for start
   spectate: "👁️"  # Eye for spectate
   peek: "🔍"     # Magnifying glass for peek
+  rematch: "🔁"   # Rematch lobby
 
 # Game emojis - Unicode emojis for each game type
 game_emojis:
@@ -44,6 +45,5 @@ game_emojis:
   battleship: "🚢"
   nothanks: "🃏"
   blackjack: "🂡"
-  codenames: "🕵️"
   poker: "♠️"
   chess: "♟️"

@@ -132,8 +132,8 @@ class SpectateView(DynamicButtonView):
 
 class PaginationView(DynamicButtonView):
     """
-    Persistent pagination view with First/Previous/Next/Last buttons.
-    Uses timeout=None to survive bot restarts.
+    Pagination with First/Previous/Next/Last buttons (timeout=None for long-lived menus).
+    After a bot restart, buttons are handled by a global interaction fallback (see bot.py).
     """
 
     def __init__(self, command: str, guild_id: int, user_id: int, current_page: int,
@@ -217,6 +217,7 @@ class PaginationView(DynamicButtonView):
             )
             return
 
+        await interaction.response.defer()
         await self.callback_handler(interaction, 1)
 
     async def _prev_callback(self, interaction: discord.Interaction):
@@ -229,6 +230,7 @@ class PaginationView(DynamicButtonView):
             return
 
         new_page = max(1, self.current_page - 1)
+        await interaction.response.defer()
         await self.callback_handler(interaction, new_page)
 
     async def _next_callback(self, interaction: discord.Interaction):
@@ -241,6 +243,7 @@ class PaginationView(DynamicButtonView):
             return
 
         new_page = min(self.max_pages, self.current_page + 1)
+        await interaction.response.defer()
         await self.callback_handler(interaction, new_page)
 
     async def _last_callback(self, interaction: discord.Interaction):
@@ -252,7 +255,26 @@ class PaginationView(DynamicButtonView):
             )
             return
 
+        await interaction.response.defer()
         await self.callback_handler(interaction, self.max_pages)
+
+
+class RematchView(DynamicButtonView):
+    """Rematch button; interaction is handled in GamesCog (see callback \"none\")."""
+
+    def __init__(self, match_id: int):
+        from configuration.constants import BUTTON_PREFIX_REMATCH
+
+        super().__init__([
+            {
+                "label": get("buttons.rematch"),
+                "style": discord.ButtonStyle.success,
+                "id": f"{BUTTON_PREFIX_REMATCH}{match_id}",
+                "emoji": get_button_emoji("rematch"),
+                "disabled": False,
+                "callback": "none",
+            },
+        ])
 
 
 class HelpView(discord.ui.View):

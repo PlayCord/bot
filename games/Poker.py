@@ -86,7 +86,7 @@ class PokerGame(Game):
     player_count = [2, 3, 4, 5, 6, 7, 8]
     moves = [
         Command(name="peek", description="View your hole cards privately.",
-                callback="peek", require_current_turn=False),
+                callback="peek", require_current_turn=False, is_game_affecting=False),
     ]
     author = "@quantumbagel"
     version = "1.0"

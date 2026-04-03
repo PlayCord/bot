@@ -1,6 +1,7 @@
 import logging
 import traceback
 
+import discord
 from discord.ext import commands
 
 from configuration.constants import *

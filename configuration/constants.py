@@ -153,6 +153,7 @@ BUTTON_PREFIX_PAGINATION_FIRST = "pagination_first/"
 BUTTON_PREFIX_PAGINATION_PREV = "pagination_prev/"
 BUTTON_PREFIX_PAGINATION_NEXT = "pagination_next/"
 BUTTON_PREFIX_PAGINATION_LAST = "pagination_last/"
+BUTTON_PREFIX_REMATCH = "rematch/"
 
 PRESENCE_TIMEOUT = 60
 PRESENCE_PRESETS = [
@@ -172,3 +173,5 @@ PERMISSION_MSG_NOT_YOUR_TURN = get("permissions.not_your_turn")
 THREAD_POLICY_WARN_NON_PARTICIPANTS = True  # Warn users who message in game threads without being participants
 THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES = False  # Delete messages from non-participants (more aggressive)
 THREAD_POLICY_WARNING_MESSAGE = get("thread_policy.warning")
+# If True, participants may only send messages that look like slash usage (start with '/') in active game threads
+THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY = False

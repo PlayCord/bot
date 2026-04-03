@@ -22,13 +22,12 @@ from utils import embeds as _embeds
 from utils.bot_names import generate_bot_name
 from utils.emojis import get_emoji_string
 from utils.locale import get, fmt
-from utils.views import MatchmakingView, SpectateView
+from utils.views import MatchmakingView, RematchView, SpectateView
 
 CustomEmbed = _embeds.CustomEmbed
 ErrorEmbed = _embeds.ErrorEmbed
 GameOverEmbed = _embeds.GameOverEmbed
 GameOverviewEmbed = _embeds.GameOverviewEmbed
-FirstTimeUserEmbed = getattr(_embeds, "FirstTimeUserEmbed", CustomEmbed)
 
 
 def user_in_active_game(user_id: int) -> bool:
@@ -41,30 +40,6 @@ def user_in_active_game(user_id: int) -> bool:
 
 def synthetic_bot_name_from_id(user_id: int) -> str:
     return f"Bot {str(user_id)[-4:]} (Bot)"
-
-
-async def check_and_send_first_time_welcome(user: discord.User, guild_id: int, game_name: str = None):
-    """
-    Check if a user is playing for the first time and send them a welcome message.
-    
-    Args:
-        user: The Discord user
-        guild_id: The guild ID
-        game_name: Optional game name for context
-    """
-    try:
-        total_matches = db.database.count_matches_for_user(user.id, guild_id)
-        if total_matches == 0:
-            # First-time player! Send them a welcome DM
-            embed = FirstTimeUserEmbed(game_name)
-            try:
-                await user.send(embed=embed)
-            except discord.Forbidden:
-                # User has DMs disabled, that's okay
-                pass
-    except Exception as e:
-        # Don't let welcome message errors affect gameplay
-        logging.getLogger("playcord.interfaces").debug(f"Failed to send first-time welcome: {e}")
 
 
 class GameInterface:
@@ -163,6 +138,7 @@ class GameInterface:
             )
 
         self.game = game_class(game_players)
+        self.game.attach_replay_logger(self._replay_sink_from_game)
 
         self.current_turn = None
         self.logger = logging.getLogger(f"GameInterface[{game_type}]")
@@ -299,6 +275,8 @@ class GameInterface:
 
             await self.display_game_state()  # Update game state
 
+            self._persist_move_and_replay(function_to_call, ctx.user.id, arguments, "slash_command")
+
             if (outcome := self.game.outcome()) is not None:  # Game is over
                 log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
                           f" context: {contextify(ctx)}")
@@ -314,6 +292,79 @@ class GameInterface:
                 callback = command.callback
                 break
         return command_name if callback is None else callback
+
+    def _replay_sink_from_game(self, event: dict) -> None:
+        try:
+            if not isinstance(event, dict):
+                return
+            row = dict(event)
+            row.setdefault("type", "game_event")
+            db.database.append_replay_event(self.game_id, row)
+        except Exception as e:
+            self.logger.getChild("replay").warning("append_replay_event failed: %s", e, exc_info=True)
+
+    def _lookup_move_command(self, python_callback_name: str):
+        for cmd in self.game.moves:
+            effective = cmd.callback if cmd.callback is not None else cmd.name
+            if effective == python_callback_name:
+                return cmd
+        return None
+
+    @staticmethod
+    def _json_safe_for_move(value: Any) -> Any:
+        if value is None or isinstance(value, (bool, int, float, str)):
+            return value
+        if isinstance(value, dict):
+            return {str(k): GameInterface._json_safe_for_move(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [GameInterface._json_safe_for_move(v) for v in value]
+        if hasattr(value, "id") and hasattr(value, "name"):
+            return {
+                "id": getattr(value, "id", None),
+                "name": str(getattr(value, "name", "")),
+                "is_bot": bool(getattr(value, "is_bot", False)),
+            }
+        return str(value)
+
+    def _persist_move_and_replay(
+        self,
+        python_callback_name: str,
+        user_id: int | None,
+        arguments: dict[str, Any],
+        source: str,
+    ) -> None:
+        try:
+            cmd = self._lookup_move_command(python_callback_name)
+            affecting = cmd.is_game_affecting if cmd else True
+            move_no = db.database.get_move_count(self.game_id) + 1
+            move_data = {
+                "source": source,
+                "game_type": self.game_type,
+                "python_callback": python_callback_name,
+                "command_name": cmd.name if cmd else python_callback_name,
+                "arguments": self._json_safe_for_move(dict(arguments)),
+            }
+            db.database.record_move(
+                self.game_id,
+                user_id,
+                move_no,
+                move_data,
+                game_state_after=None,
+                time_taken_ms=None,
+                is_game_affecting=affecting,
+            )
+            evt = {
+                "type": "move",
+                "move_number": move_no,
+                "command_name": cmd.name if cmd else python_callback_name,
+                "python_callback": python_callback_name,
+                "user_id": user_id,
+                "arguments": move_data["arguments"],
+                "is_game_affecting": affecting,
+            }
+            db.database.append_replay_event(self.game_id, evt)
+        except Exception as e:
+            self.logger.getChild("replay").warning("persist move failed: %s", e, exc_info=True)
 
     async def _send_bot_response(self, move_response: Response) -> None:
         async def send_to_thread(**kwargs):
@@ -337,8 +388,11 @@ class GameInterface:
             return
 
         self.processing_bot_turn = True
+        replay_python_fn: str | None = None
+        replay_args: dict[str, Any] = {}
         try:
             await asyncio.sleep(1.0)
+            move_response = None
             async with self.processing_move:
                 self.current_turn = self.game.current_turn()
                 if not getattr(self.current_turn, "is_bot", False):
@@ -371,13 +425,19 @@ class GameInterface:
                         await self.thread.send(fmt("game.bot_failed_move", player=self.current_turn.mention))
                         return
                     function_name = self._resolve_move_callable(command_name)
+                    replay_python_fn = function_name
+                    replay_args = dict(command_arguments)
                     move_response = getattr(self.game, function_name)(self.current_turn, **command_arguments)
                 elif isinstance(bot_result, tuple) and len(bot_result) == 2:
                     command_name, command_arguments = bot_result
                     function_name = self._resolve_move_callable(command_name)
+                    replay_python_fn = function_name
+                    replay_args = dict(command_arguments)
                     move_response = getattr(self.game, function_name)(self.current_turn, **command_arguments)
                 elif isinstance(bot_result, str):
                     function_name = self._resolve_move_callable(bot_result)
+                    replay_python_fn = function_name
+                    replay_args = {}
                     move_response = getattr(self.game, function_name)(self.current_turn)
                 else:
                     move_response = bot_result
@@ -389,6 +449,10 @@ class GameInterface:
                 await self._send_bot_response(move_response)
 
             await self.display_game_state()
+
+            if replay_python_fn is not None:
+                uid = getattr(self.current_turn, "id", None)
+                self._persist_move_and_replay(replay_python_fn, uid, replay_args, "bot")
 
             if (outcome := self.game.outcome()) is not None:
                 await game_over(self, outcome)
@@ -480,6 +544,8 @@ class GameInterface:
             # Update display painting
             await self.display_game_state()
 
+            self._persist_move_and_replay(name, ctx.user.id, type_converted_arguments, "button")
+
             if (outcome := self.game.outcome()) is not None:  # Game is over
                 log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
                           f" context: {contextify(ctx)}")
@@ -543,6 +609,10 @@ class GameInterface:
 
             # Update display painting
             await self.display_game_state()
+
+            self._persist_move_and_replay(
+                name, ctx.user.id, {"values": ctx.data.get("values", [])}, "select"
+            )
 
             if (outcome := self.game.outcome()) is not None:  # Game is over
                 log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
@@ -855,6 +925,23 @@ class MatchmakingInterface:
         await self.message.edit(embed=embed, view=view)
         log.debug(f"Finished matchmaking update task in {update_timer.stop()}ms.")
 
+    async def seed_rematch_players(self, guild: discord.Guild, user_ids: list[int]) -> str | None:
+        """Add humans from a finished match to this lobby (creator is already queued)."""
+        present = {p.id for p in self.queued_players}
+        for uid in user_ids:
+            if uid in present:
+                continue
+            try:
+                member = await guild.fetch_member(uid)
+            except (discord.NotFound, discord.HTTPException):
+                return fmt("rematch.member_missing", mention=f"<@{uid}>")
+            player = db.database.get_player(member, guild.id)
+            if player is None:
+                return get("rematch.db_failed")
+            self.queued_players.add(player)
+            IN_MATCHMAKING[player] = self
+        return None
+
     async def accept_invite(self, ctx: discord.Interaction) -> bool:
         """
         Accept a invite.
@@ -1141,7 +1228,26 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
     :param interface: MatchmakingInterface that will be registered as a GameInterface by this function
     :return: Nothing
     """
+    message = interface.message
+    sm_log = logging.getLogger(f"{LOGGING_ROOT}.successful_matchmaking")
+    try:
+        await _successful_matchmaking_impl(interface)
+    except Exception:
+        sm_log.exception("successful_matchmaking failed")
+        try:
+            await message.edit(
+                embed=ErrorEmbed(
+                    ctx=None,
+                    what_failed=get("system_error.internal_what_failed"),
+                    reason=traceback.format_exc(),
+                ),
+                view=None,
+            )
+        except Exception:
+            pass
 
+
+async def _successful_matchmaking_impl(interface: MatchmakingInterface) -> None:
     # Extract class variables
     game_class = interface.game
     rated = interface.rated
@@ -1186,12 +1292,6 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
 
     # Register the game to the channel it's in
     CURRENT_GAMES.update({game.thread.id: game})
-
-    # Send first-time welcome to any new players (non-blocking)
-    game_name = getattr(game_class, 'name', game_type)
-    for player in players:
-        if hasattr(player, "user") and player.user is not None:
-            asyncio.create_task(check_and_send_first_time_welcome(player, message.guild.id, game_name))
 
     # Edit the status message with the SpectateView
     async def create_spectate_view():
@@ -1336,11 +1436,15 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
     players = interface.players
     game_id = interface.game_id
 
-    # Get environment constants
-    sigma = MU * GAME_TRUESKILL[game_type]["sigma"]
-    beta = MU * GAME_TRUESKILL[game_type]["beta"]
-    tau = MU * GAME_TRUESKILL[game_type]["tau"]
-    draw = GAME_TRUESKILL[game_type]["draw"]
+    # TrueSkill environment (per-game class override or global GAME_TRUESKILL)
+    game_cls = type(interface.game)
+    ts = getattr(game_cls, "trueskill_scale", None) or GAME_TRUESKILL.get(
+        game_type, GAME_TRUESKILL["tictactoe"]
+    )
+    sigma = MU * ts["sigma"]
+    beta = MU * ts["beta"]
+    tau = MU * ts["tau"]
+    draw = ts["draw"]
 
     # mpmath backend = near infinite floating point precision
     environment = trueskill.TrueSkill(mu=MU, sigma=sigma, beta=beta, tau=tau, draw_probability=draw,
@@ -1425,17 +1529,33 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
 
         player_string = await non_rated_groups_to_string(rankings, groups)
 
+    outcome_summary: str | None = None
+    try:
+        fn = getattr(interface.game, "match_summary", None)
+        if callable(fn):
+            outcome_summary = fn(outcome)
+            if outcome_summary is not None:
+                outcome_summary = str(outcome_summary).strip() or None
+    except Exception:
+        outcome_summary = None
+    if outcome_summary:
+        db.database.merge_match_metadata_outcome_summary(game_id, outcome_summary)
+
     for p in players:  # Players playing this game are no longer in the game... it's over lol
         IN_GAME.pop(p, None)
 
     CURRENT_GAMES.pop(thread.id)  # Remove this game from the CURRENT_GAMES tracker
 
     # Create GameOverEmbed to show in the status and info messages
-    game_over_embed = GameOverEmbed(rankings=player_string, game_name=interface.game.name)
+    game_over_embed = GameOverEmbed(
+        rankings=player_string,
+        game_name=interface.game.name,
+        outcome_summary=outcome_summary,
+    )
 
     # Send the embed to overview / game thread
     await thread.send(embed=game_over_embed)
-    await outbound_message.edit(embed=game_over_embed, view=None)
+    await outbound_message.edit(embed=game_over_embed, view=RematchView(game_id))
 
     await interface.await_pending_ui_tasks()
 
