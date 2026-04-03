@@ -277,97 +277,78 @@ value = "Good luck and have fun! 🍀"
 # ERROR MESSAGES
 # =============================================================================
 [errors.generic]
-title = "Something went wrong"
 description = "An unexpected error occurred."
 suggestion = "Please try again. If the problem persists, use `/playcord help` for assistance."
 
 [errors.not_in_matchmaking]
-title = "Not in a Lobby"
 description = "You need to be in a game lobby to use this command."
 suggestion = "Start a new game with `/play <game>` or join an existing lobby first."
 
 [errors.not_creator]
-title = "Permission Denied"
 description = "Only the lobby creator can perform this action."
 suggestion = "Ask the lobby creator to make changes, or create your own game lobby."
 
 [errors.already_in_game]
-title = "Already Playing"
 description = "You're already in an active game."
 suggestion = "Finish your current game first, or forfeit it if you want to leave."
 
 [errors.user_not_found]
-title = "User Not Found"
 description = "I couldn't find that user in this server."
 suggestion = "Make sure you're mentioning a valid user who is in this server."
 
 [errors.game_not_found]
-title = "Game Not Found"
 description = "That game doesn't exist."
 suggestion = "Use `/playcord catalog` to see all available games."
 
 [errors.database_error]
-title = "Connection Issue"
 description = "I'm having trouble connecting to the database right now."
 suggestion = "Please try again in a few moments. If this persists, the bot may be under maintenance."
 
 [errors.invalid_move]
-title = "Invalid Move"
 description = "That move isn't allowed right now."
 suggestion = "Check the game rules or available moves and try again."
 
 [errors.not_your_turn]
-title = "Not Your Turn"
 description = "It's not your turn to play."
 suggestion = "Wait for other players to make their moves."
 
 [errors.game_ended]
-title = "Game Ended"
 description = "This game has already finished."
 suggestion = "Start a new game with `/play <game>`!"
 
 [errors.not_participant]
-title = "Not a Participant"
 description = "You're not playing in this game."
 suggestion = "Click the **Spectate** button on the game status message to watch instead."
 
 [errors.spectating_disabled]
-title = "Spectating Disabled"
 description = "Spectating has been disabled for this game."
 suggestion = "This game type doesn't allow spectators to preserve hidden information."
 
 [errors.wrong_channel]
-title = "Wrong Channel"
 description = "Move commands can only be used during an active game."
 suggestion = "Start a new game with `/play <game>` first!"
 
 [errors.no_active_game]
-title = "No Active Game"
 description = "There's no active game in this channel."
 suggestion = "This game thread may have ended. Start a new game with `/play <game>`!"
 
 [errors.missing_permissions]
-title = "Missing Permissions"
 description = "I don't have the required permissions in this channel."
 suggestion = "Make sure I have permissions to **Create Private Threads** and **Send Messages** in this channel."
 
 [errors.invalid_channel]
-title = "Invalid Channel"
 description = "Games can't be started inside threads."
 suggestion = "Use this command in a regular text channel instead."
 
 [errors.player_not_found]
-title = "Player Not Found"
 description = "I couldn't find any data for **{player_name}**."
 suggestion = "This player may not have played any games yet."
 
 [errors.no_active_lobby]
-title = "No Active Lobby"
 description = "You're not in a game lobby right now."
 suggestion = "Specify a `game` parameter to create a new lobby and invite players, or use `/play <game>` first."
 
 [errors.game_invalid]
-title = "Game Not Found"
 description = "**{game}** isn't a valid game."
 suggestion = "Use `/playcord catalog` to see all available games."
 
@@ -409,7 +390,6 @@ footer = "Sorry for the inconvenience! Please report this issue on our GitHub pa
 # EMBEDS - USER ERROR
 # =============================================================================
 [embeds.user_error]
-default_title = "Oops!"
 suggestion_field = "💡 Suggestion"
 footer = "Need help? Use /playcord help"
 
@@ -738,37 +718,30 @@ bot_turn_computing = "It is {player}'s turn (bot is computing a move...)"
 bot_failed_move = "Bot {player} failed to make a move."
 
 [errors.already_in_game_other_server]
-title = "Already in a Game"
 description = "You're already playing a game in another server."
 suggestion = "Finish your current game first, or forfeit it to start a new one."
 
 [errors.invite_not_creator_private]
-title = "Permission Denied"
 description = "Only the lobby creator can invite players to a private game."
 suggestion = "Ask the lobby creator to send invites, or create your own lobby."
 
 [errors.kick_no_lobby]
-title = "No Active Lobby"
 description = "You need to be in a game lobby to kick players."
 suggestion = "Start a new game with `/play <game>` first."
 
 [errors.kick_not_creator]
-title = "Permission Denied"
 description = "Only the lobby creator can kick players."
 suggestion = "Ask the lobby creator, or create your own lobby."
 
 [errors.ban_no_lobby]
-title = "No Active Lobby"
 description = "You need to be in a game lobby to ban players."
 suggestion = "Start a new game with `/play <game>` first."
 
 [errors.ban_not_creator]
-title = "Permission Denied"
 description = "Only the lobby creator can ban players."
 suggestion = "Ask the lobby creator, or create your own lobby."
 
 [errors.learn_game_not_found]
-title = "Game Not Found"
 description = "I couldn't find a game called **{game}**."
 suggestion = "Use `/playcord catalog` to see all available games, or try `/playcord help` for general help."
 

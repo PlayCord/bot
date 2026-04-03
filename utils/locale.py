@@ -15,7 +15,7 @@ Usage:
     welcome = fmt("welcome.title", name="PlayCord")  # Returns formatted string
     
     # Get error messages
-    error = get_error("not_in_matchmaking")  # Returns (title, description, suggestion)
+    error = get_error("not_in_matchmaking")  # Returns (description, suggestion)
 """
 
 import logging
@@ -143,24 +143,23 @@ def fmt(key: str, default: str = None, locale: str = None, **kwargs) -> str:
         return template
 
 
-def get_error(error_key: str, locale: str = None) -> tuple[str, str, str]:
+def get_error(error_key: str, locale: str = None) -> tuple[str, str]:
     """
     Get an error message tuple by its key.
-    
+
     Args:
         error_key: The error identifier (e.g., "not_in_matchmaking")
         locale: Optional locale override
-    
+
     Returns:
-        Tuple of (title, description, suggestion)
+        Tuple of (description, suggestion)
     """
     locale = locale or _current_locale
-    
-    title = get(f"errors.{error_key}.title", "Error", locale)
+
     description = get(f"errors.{error_key}.description", "An error occurred.", locale)
     suggestion = get(f"errors.{error_key}.suggestion", "", locale)
-    
-    return title, description, suggestion
+
+    return description, suggestion
 
 
 def get_dict(key: str, locale: str = None) -> dict:

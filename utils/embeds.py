@@ -55,16 +55,14 @@ class UserErrorEmbed(discord.Embed):
     Embed for user-facing errors with helpful guidance.
     Unlike ErrorEmbed, this is for expected user errors, not system errors.
     """
-    
-    def __init__(self, title: str = None, description: str = None, 
-                 suggestion: str = None, **kwargs):
+
+    def __init__(self, description: str = None, suggestion: str = None, **kwargs):
         kwargs['color'] = ERROR_COLOR
-        kwargs['title'] = f"❌ {title or get('embeds.user_error.default_title')}"
         super().__init__(**kwargs)
-        
+
         if description:
             self.description = description
-        
+
         if suggestion:
             self.add_field(name=get("embeds.user_error.suggestion_field"), value=suggestion, inline=False)
 

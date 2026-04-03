@@ -18,32 +18,26 @@ log = logging.getLogger(LOGGING_ROOT)
 
 
 def format_user_error_message(error_key: str, **kwargs) -> str:
-    """Plain-text user error for ephemeral replies (no embed)."""
-    title, description, suggestion = get_error(error_key)
+    """Plain-text user error for ephemeral replies: description + optional suggestion (no title)."""
+    description, suggestion = get_error(error_key)
     if kwargs:
-        title = title.format(**kwargs)
         description = description.format(**kwargs)
         if suggestion:
             suggestion = suggestion.format(**kwargs)
-    parts = [title]
-    if description:
-        parts.append(description)
-    if suggestion:
-        parts.append(suggestion)
-    return "\n".join(parts)
+    parts = [p for p in (description, suggestion) if p]
+    return "\n\n".join(parts)
 
 
 def get_user_error_embed(error_key: str, **kwargs) -> UserErrorEmbed:
-    """Get a pre-defined user error embed with optional formatting from locale."""
-    title, description, suggestion = get_error(error_key)
+    """Get a pre-defined user error embed with optional formatting from locale (no title row)."""
+    description, suggestion = get_error(error_key)
 
-    # Apply any formatting kwargs
     if kwargs:
-        title = title.format(**kwargs)
         description = description.format(**kwargs)
-        suggestion = suggestion.format(**kwargs)
+        if suggestion:
+            suggestion = suggestion.format(**kwargs)
 
-    return UserErrorEmbed(title=title, description=description, suggestion=suggestion)
+    return UserErrorEmbed(description=description, suggestion=suggestion or None)
 
 
 async def send_simple_embed(ctx: discord.Interaction, title: str, description: str, ephemeral: bool = True,
