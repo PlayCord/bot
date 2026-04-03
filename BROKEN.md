@@ -65,9 +65,9 @@ empty, I will release 1.0.0
     - If this channel is not set, attempting to run anything that requires the channel will fail.
 - [x] Database problems (Phase 1 foundation — see below; broader schema for leaderboards / presets / replay UI still
       evolves with other features)
-    - [x] FFA vs win/loss/tie: `match_participants` already used `final_ranking`; `end_match` now treats **tie for first**
-      as a draw for all rank-1 players. SQL helper `calculate_win_loss_tie_from_ranking` exists. Per-game aggregate
-      `wins` / `losses` / `draws` on `user_game_ratings` remain for leaderboards.
+    - [x] FFA vs win/loss/tie: `match_participants` uses `final_ranking`; SQL helper
+      `calculate_win_loss_tie_from_ranking` exists. **Denormalized `wins` / `losses` / `draws` were removed** from
+      `user_game_ratings`; derive outcomes from `match_participants` (see `v_active_leaderboard` / `v_player_stats`).
     - [x] Prevent negative ratings: `mu >= 0` (CHECK + trigger using `games.rating_config.min_mu` + config
       `ratings.min_mu`), plus Python clamps on rating updates.
     - [x] Prevent sigma too small: `sigma >= 0.001` (CHECK + `min_sigma` in rating_config + config `ratings.min_sigma`),

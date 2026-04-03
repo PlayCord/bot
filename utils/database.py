@@ -605,9 +605,8 @@ class Database:
     # RATING OPERATIONS
     # ========================================================================
 
-    def initialize_user_rating(self, user_id: int, guild_id: int, game_id: int):
-        """Initialize user rating for a game in a guild"""
-        # Get game config for default values
+    def initialize_user_rating(self, user_id: int, game_id: int):
+        """Ensure a rating row exists for this user and game (global, not per-guild)."""
         game = self.get_game_by_id(game_id)
         if not game:
             raise ValueError(f"Game {game_id} not found")
@@ -616,62 +615,53 @@ class Database:
         sigma = game.default_sigma
 
         query = """
-            INSERT INTO user_game_ratings (user_id, guild_id, game_id, mu, sigma)
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT (user_id, guild_id, game_id) DO NOTHING;
+            INSERT INTO user_game_ratings (user_id, game_id, mu, sigma)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (user_id, game_id) DO NOTHING;
         """
-        self._execute_query(query, (user_id, guild_id, game_id, mu, sigma))
+        self._execute_query(query, (user_id, game_id, mu, sigma))
 
-    def get_user_rating(self, user_id: int, guild_id: int, game_id: int) -> Optional[Rating]:
-        """Get user rating for a specific game in a guild"""
+    def get_user_rating(self, user_id: int, game_id: int) -> Optional[Rating]:
+        """Get user rating for a specific game."""
         query = """
             SELECT * FROM user_game_ratings
-            WHERE user_id = %s AND guild_id = %s AND game_id = %s;
+            WHERE user_id = %s AND game_id = %s;
         """
-        result = self._execute_query(query, (user_id, guild_id, game_id), fetchone=True)
+        result = self._execute_query(query, (user_id, game_id), fetchone=True)
         return row_to_rating(result) if result else None
 
-    def get_user_all_ratings(self, user_id: int, guild_id: int) -> List[Rating]:
-        """Get all ratings for a user in a guild"""
+    def get_user_all_ratings(self, user_id: int) -> List[Rating]:
+        """Get all game ratings for a user."""
         query = """
             SELECT * FROM user_game_ratings
-            WHERE user_id = %s AND guild_id = %s
+            WHERE user_id = %s
             ORDER BY game_id;
         """
-        results = self._execute_query(query, (user_id, guild_id), fetchall=True)
+        results = self._execute_query(query, (user_id,), fetchall=True)
         return [row_to_rating(row) for row in results] if results else []
 
     def update_rating(
         self,
         user_id: int,
-        guild_id: int,
         game_id: int,
         mu: float,
         sigma: float,
         matches_increment: int = 1,
-        win: bool = False,
-        loss: bool = False,
-        draw: bool = False
     ):
-        """Update user rating"""
+        """Update user rating after a match (W/L/D derived from match_participants when needed)."""
         mu, sigma = self._clamp_rating(mu, sigma, game_id)
         query = """
             UPDATE user_game_ratings
             SET mu = %s,
                 sigma = %s,
                 matches_played = matches_played + %s,
-                wins = wins + %s,
-                losses = losses + %s,
-                draws = draws + %s,
                 last_played = NOW(),
                 updated_at = NOW()
-            WHERE user_id = %s AND guild_id = %s AND game_id = %s;
+            WHERE user_id = %s AND game_id = %s;
         """
         self._execute_query(
             query,
-            (mu, sigma, matches_increment,
-             1 if win else 0, 1 if loss else 0, 1 if draw else 0,
-             user_id, guild_id, game_id)
+            (mu, sigma, matches_increment, user_id, game_id)
         )
 
     def bulk_update_ratings(self, updates: List[Dict[str, Any]]):
@@ -682,18 +672,17 @@ class Database:
                     UPDATE user_game_ratings
                     SET mu = %s, sigma = %s, matches_played = matches_played + 1,
                         last_played = NOW(), updated_at = NOW()
-                    WHERE user_id = %s AND guild_id = %s AND game_id = %s;
+                    WHERE user_id = %s AND game_id = %s;
                 """
                 mu_c, sig_c = self._clamp_rating(
                     update['mu'], update['sigma'], update['game_id']
                 )
                 cur.execute(
                     query,
-                    (mu_c, sig_c, update['user_id'],
-                     update['guild_id'], update['game_id'])
+                    (mu_c, sig_c, update['user_id'], update['game_id'])
                 )
 
-    def reset_user_rating(self, user_id: int, guild_id: int, game_id: int):
+    def reset_user_rating(self, user_id: int, game_id: int):
         """Reset user rating to defaults"""
         game = self.get_game_by_id(game_id)
         if not game:
@@ -704,26 +693,23 @@ class Database:
             SET mu = %s,
                 sigma = %s,
                 matches_played = 0,
-                wins = 0,
-                losses = 0,
-                draws = 0,
                 last_played = NULL,
                 last_sigma_increase = NULL,
                 updated_at = NOW()
-            WHERE user_id = %s AND guild_id = %s AND game_id = %s;
+            WHERE user_id = %s AND game_id = %s;
         """
         self._execute_query(
             query,
-            (game.default_mu, game.default_sigma, user_id, guild_id, game_id)
+            (game.default_mu, game.default_sigma, user_id, game_id)
         )
 
-    def delete_user_rating(self, user_id: int, guild_id: int, game_id: int):
+    def delete_user_rating(self, user_id: int, game_id: int):
         """Delete user rating"""
         query = """
             DELETE FROM user_game_ratings
-            WHERE user_id = %s AND guild_id = %s AND game_id = %s;
+            WHERE user_id = %s AND game_id = %s;
         """
-        self._execute_query(query, (user_id, guild_id, game_id))
+        self._execute_query(query, (user_id, game_id))
 
     # ========================================================================
     # LEADERBOARD OPERATIONS
@@ -731,13 +717,15 @@ class Database:
 
     def get_leaderboard(
         self,
-        guild_id: int,
+        member_user_ids: List[int],
         game_id: int,
         limit: int = 10,
         offset: int = 0,
         min_matches: int = 5
     ) -> List[Dict[str, Any]]:
-        """Get leaderboard for a game in a guild"""
+        """Guild/server leaderboard: same global ratings, filtered to guild members."""
+        if not member_user_ids:
+            return []
         query = """
             SELECT 
                 ugr.user_id,
@@ -745,26 +733,18 @@ class Database:
                 ugr.mu,
                 ugr.sigma,
                 (ugr.mu - 3 * ugr.sigma) as conservative_rating,
-                ugr.matches_played,
-                ugr.wins,
-                ugr.losses,
-                ugr.draws,
-                CASE
-                    WHEN (ugr.matches_played - ugr.draws) > 0
-                    THEN ROUND(100.0 * ugr.wins / (ugr.matches_played - ugr.draws), 2)
-                    ELSE 0.0
-                END as win_rate
+                ugr.matches_played
             FROM user_game_ratings ugr
             JOIN users u ON ugr.user_id = u.user_id
-            WHERE ugr.guild_id = %s
-              AND ugr.game_id = %s
+            WHERE ugr.game_id = %s
+              AND ugr.user_id = ANY(%s::bigint[])
               AND ugr.matches_played >= %s
             ORDER BY conservative_rating DESC
             LIMIT %s OFFSET %s;
         """
         results = self._execute_query(
             query,
-            (guild_id, game_id, min_matches, limit, offset),
+            (game_id, member_user_ids, min_matches, limit, offset),
             fetchall=True
         )
         return results if results else []
@@ -776,47 +756,56 @@ class Database:
         offset: int = 0,
         min_matches: int = 10
     ) -> List[Dict[str, Any]]:
-        """Get global leaderboard across all guilds"""
+        """Global leaderboard (all users with a rating row for this game)."""
         query = """
             SELECT 
-                gr.user_id,
+                ugr.user_id,
                 u.username,
-                gr.global_mu as mu,
-                gr.global_sigma as sigma,
-                (gr.global_mu - 3 * gr.global_sigma) as conservative_rating,
-                gr.total_matches as matches_played,
-                ARRAY_LENGTH(gr.guilds_played_in, 1) as guild_count
-            FROM global_ratings gr
-            JOIN users u ON gr.user_id = u.user_id
-            WHERE gr.game_id = %s
-              AND gr.total_matches >= %s
+                ugr.mu,
+                ugr.sigma,
+                (ugr.mu - 3 * ugr.sigma) as conservative_rating,
+                ugr.matches_played
+            FROM user_game_ratings ugr
+            JOIN users u ON ugr.user_id = u.user_id
+            WHERE ugr.game_id = %s
+              AND ugr.matches_played >= %s
             ORDER BY conservative_rating DESC
             LIMIT %s OFFSET %s;
         """
         results = self._execute_query(query, (game_id, min_matches, limit, offset), fetchall=True)
         return results if results else []
 
-    def get_user_rank(self, user_id: int, guild_id: int, game_id: int) -> int:
-        """Get user rank in guild/game leaderboard"""
+    def get_user_rank(
+        self,
+        user_id: int,
+        member_user_ids: List[int],
+        game_id: int,
+        min_matches: int = 5,
+    ) -> int:
+        """Rank among guild members for this game (1-based), or -1 if unranked."""
+        if not member_user_ids:
+            return -1
         query = """
             WITH ranked AS (
                 SELECT 
                     user_id,
                     ROW_NUMBER() OVER (ORDER BY (mu - 3 * sigma) DESC) as rank
                 FROM user_game_ratings
-                WHERE guild_id = %s
-                  AND game_id = %s
-                  AND matches_played >= 5
+                WHERE game_id = %s
+                  AND user_id = ANY(%s::bigint[])
+                  AND matches_played >= %s
             )
             SELECT rank FROM ranked WHERE user_id = %s;
         """
-        result = self._execute_query(query, (guild_id, game_id, user_id), fetchone=True)
+        result = self._execute_query(
+            query, (game_id, member_user_ids, min_matches, user_id), fetchone=True
+        )
         return result['rank'] if result else -1
 
     def get_user_global_rank(self, user_id: int, game_id: int, min_matches: int = 5) -> Optional[int]:
         """
-        Get user's global rank across all servers for a specific game.
-        
+        Get user's global rank for a specific game.
+
         :param user_id: Discord user ID
         :param game_id: Game ID
         :param min_matches: Minimum matches required to be ranked
@@ -826,10 +815,10 @@ class Database:
             WITH ranked AS (
                 SELECT 
                     user_id,
-                    ROW_NUMBER() OVER (ORDER BY (global_mu - 3 * global_sigma) DESC) as rank
-                FROM global_ratings
+                    ROW_NUMBER() OVER (ORDER BY (mu - 3 * sigma) DESC) as rank
+                FROM user_game_ratings
                 WHERE game_id = %s
-                  AND total_matches >= %s
+                  AND matches_played >= %s
             )
             SELECT rank FROM ranked WHERE user_id = %s;
         """
@@ -839,16 +828,16 @@ class Database:
     def get_global_player_count(self, game_id: int, min_matches: int = 5) -> int:
         """
         Get total number of ranked players globally for a game.
-        
+
         :param game_id: Game ID
         :param min_matches: Minimum matches required to be ranked
         :return: Total ranked player count
         """
         query = """
             SELECT COUNT(*) as count
-            FROM global_ratings
+            FROM user_game_ratings
             WHERE game_id = %s
-              AND total_matches >= %s;
+              AND matches_played >= %s;
         """
         result = self._execute_query(query, (game_id, min_matches), fetchone=True)
         return result['count'] if result else 0
@@ -876,7 +865,7 @@ class Database:
         # Ensure all users exist and have ratings
         for user_id in participants:
             self.create_user(user_id)
-            self.initialize_user_rating(user_id, guild_id, game_id)
+            self.initialize_user_rating(user_id, game_id)
 
         config_json = json.dumps(game_config or {})
 
@@ -897,7 +886,7 @@ class Database:
             # Add participants
             for idx, user_id in enumerate(participants, start=1):
                 # Get current rating for history
-                rating = self.get_user_rating(user_id, guild_id, game_id)
+                rating = self.get_user_rating(user_id, game_id)
                 mu_before = rating.mu if rating else MU
                 sigma_before = rating.sigma if rating else (MU / 3)
 
@@ -981,8 +970,6 @@ class Database:
                 (final_state_json, match_id)
             )
 
-            rank1_count = sum(1 for r in results.values() if r.get('ranking') == 1)
-
             # Update participants and ratings
             for user_id, result in results.items():
                 # Update participant
@@ -1005,16 +992,6 @@ class Database:
                     )
                 )
 
-                ranking = result['ranking']
-                if result.get('is_draw'):
-                    is_win, is_loss, is_draw = False, False, True
-                elif ranking == 1 and rank1_count > 1:
-                    is_win, is_loss, is_draw = False, False, True
-                elif ranking == 1:
-                    is_win, is_loss, is_draw = True, False, False
-                else:
-                    is_win, is_loss, is_draw = False, True, False
-
                 new_mu, new_sigma = self._clamp_rating(
                     result['new_mu'], result['new_sigma'], match.game_id
                 )
@@ -1026,21 +1003,14 @@ class Database:
                     SET mu = %s,
                         sigma = %s,
                         matches_played = matches_played + 1,
-                        wins = wins + %s,
-                        losses = losses + %s,
-                        draws = draws + %s,
                         last_played = NOW(),
                         updated_at = NOW()
-                    WHERE user_id = %s AND guild_id = %s AND game_id = %s;
+                    WHERE user_id = %s AND game_id = %s;
                     """,
                     (
                         new_mu,
                         new_sigma,
-                        1 if is_win else 0,
-                        1 if is_loss else 0,
-                        1 if is_draw else 0,
                         user_id,
-                        match.guild_id,
                         match.game_id
                     )
                 )
@@ -1064,9 +1034,6 @@ class Database:
                         new_sigma
                     )
                 )
-
-            for user_id in results:
-                cur.execute("SELECT update_global_rating(%s, %s);", (user_id, match.game_id))
 
     def delete_match(self, match_id: int):
         """Delete a match (cascades to participants and moves)"""
@@ -1369,29 +1336,22 @@ class Database:
     def get_user_stats(
         self,
         user_id: int,
-        guild_id: int,
         game_id: int
     ) -> Optional[Dict[str, Any]]:
-        """Get comprehensive user statistics"""
+        """Get comprehensive user statistics (global per-game rating)."""
         query = """
             SELECT 
                 ugr.*,
                 u.username,
                 g.display_name as game_name,
-                (ugr.mu - 3 * ugr.sigma) as conservative_rating,
-                CASE
-                    WHEN (ugr.matches_played - ugr.draws) > 0
-                    THEN ROUND(100.0 * ugr.wins / (ugr.matches_played - ugr.draws), 2)
-                    ELSE 0.0
-                END as win_rate
+                (ugr.mu - 3 * ugr.sigma) as conservative_rating
             FROM user_game_ratings ugr
             JOIN users u ON ugr.user_id = u.user_id
             JOIN games g ON ugr.game_id = g.game_id
             WHERE ugr.user_id = %s
-              AND ugr.guild_id = %s
               AND ugr.game_id = %s;
         """
-        result = self._execute_query(query, (user_id, guild_id, game_id), fetchone=True)
+        result = self._execute_query(query, (user_id, game_id), fetchone=True)
         return result
 
     def get_rating_history(
@@ -1555,7 +1515,7 @@ class Database:
                 return count
 
     def get_inactive_users(self, guild_id: int, days: int = 30) -> List[Dict[str, Any]]:
-        """Get inactive users in a guild"""
+        """Users who played in this guild and have a stale global last_played for some game."""
         query = """
             SELECT DISTINCT
                 ugr.user_id,
@@ -1565,7 +1525,12 @@ class Database:
                 EXTRACT(EPOCH FROM (NOW() - ugr.last_played))::INTEGER / 86400 as days_inactive
             FROM user_game_ratings ugr
             JOIN users u ON ugr.user_id = u.user_id
-            WHERE ugr.guild_id = %s
+            WHERE ugr.user_id IN (
+                SELECT DISTINCT mp.user_id
+                FROM match_participants mp
+                JOIN matches m ON mp.match_id = m.match_id
+                WHERE m.guild_id = %s AND m.status = 'completed'
+            )
               AND ugr.last_played < NOW() - (%s * INTERVAL '1 day')
             ORDER BY ugr.last_played ASC;
         """
@@ -1608,11 +1573,8 @@ class Database:
     # ========================================================================
 
     def calculate_global_ratings(self, game_id: int) -> int:
-        """Calculate global ratings for all users in a game"""
-        # Call PostgreSQL function
-        query = "SELECT batch_update_global_ratings(%s) as count;"
-        result = self._execute_query(query, (game_id,), fetchone=True)
-        return result['count'] if result else 0
+        """No-op count: ratings are stored only in user_game_ratings (game_id kept for API compatibility)."""
+        return 0
 
     # ========================================================================
     # AGGREGATION & REPORTS
@@ -1636,18 +1598,24 @@ class Database:
         return {row['game_name']: row['match_count'] for row in results} if results else {}
 
     def get_player_retention(self, guild_id: int, days: int = 7) -> float:
-        """Get player retention rate"""
+        """Share of distinct users who completed a match in this guild recently vs. ever."""
         query = """
-            WITH active_players AS (
-                SELECT COUNT(DISTINCT user_id) as count
-                FROM user_game_ratings
-                WHERE guild_id = %s
-                  AND last_played > NOW() - (%s * INTERVAL '1 day')
+            WITH guild_users AS (
+                SELECT DISTINCT mp.user_id
+                FROM match_participants mp
+                JOIN matches m ON mp.match_id = m.match_id
+                WHERE m.guild_id = %s AND m.status = 'completed'
+            ),
+            active_players AS (
+                SELECT COUNT(DISTINCT mp.user_id) as count
+                FROM match_participants mp
+                JOIN matches m ON mp.match_id = m.match_id
+                WHERE m.guild_id = %s
+                  AND m.status = 'completed'
+                  AND m.ended_at > NOW() - (%s * INTERVAL '1 day')
             ),
             total_players AS (
-                SELECT COUNT(DISTINCT user_id) as count
-                FROM user_game_ratings
-                WHERE guild_id = %s
+                SELECT COUNT(*)::BIGINT as count FROM guild_users
             )
             SELECT 
                 CASE 
@@ -1657,7 +1625,7 @@ class Database:
                 END as retention_rate
             FROM active_players, total_players;
         """
-        result = self._execute_query(query, (guild_id, days, guild_id), fetchone=True)
+        result = self._execute_query(query, (guild_id, guild_id, days), fetchone=True)
         return result['retention_rate'] if result else 0.0
 
     def get_most_active_players(
@@ -1714,12 +1682,13 @@ class Database:
         return result['count'] if result else 0
 
     def count_users(self, guild_id: Optional[int] = None, is_active: bool = True) -> int:
-        """Count users (optionally filtered by guild)"""
+        """Count users (optionally: distinct users who completed a match in the guild)."""
         if guild_id is not None:
             query = """
-                SELECT COUNT(DISTINCT user_id) as count
-                FROM user_game_ratings
-                WHERE guild_id = %s;
+                SELECT COUNT(DISTINCT mp.user_id) as count
+                FROM match_participants mp
+                JOIN matches m ON mp.match_id = m.match_id
+                WHERE m.guild_id = %s AND m.status = 'completed';
             """
             result = self._execute_query(query, (guild_id,), fetchone=True)
         else:
@@ -1769,15 +1738,14 @@ class Database:
         guild_id: int
     ) -> Optional[InternalPlayer]:
         """
-        Get an InternalPlayer object from the database (per-guild ratings).
-        This maintains compatibility with existing code.
+        Get an InternalPlayer object from the database (global per-game ratings).
+        guild_id is ignored; kept for call-site compatibility.
         """
         user_id = user.id if isinstance(user, (discord.User, discord.Member, InternalPlayer)) else user
         preferences = self.get_user_preferences(user_id)
         metadata = preferences['preferences'] if preferences and preferences.get('preferences') else {}
 
-        # Get all ratings for this user in this guild
-        all_ratings = self.get_user_all_ratings(user_id, guild_id)
+        all_ratings = self.get_user_all_ratings(user_id)
         
         # Convert to old format {game_name: {mu, sigma}}
         ratings = {}
@@ -1818,24 +1786,26 @@ class Database:
 
     def get_game_leaderboard(
         self,
-        guild_id: int,
+        member_user_ids: List[int],
         game_name: str,
         limit: int = 10,
         min_matches: int = 5
     ) -> List[Dict[str, Any]]:
-        """Legacy method - maps to get_leaderboard"""
+        """Legacy method - maps to get_leaderboard(member_user_ids, ...)."""
         game = self.get_game(game_name)
         if not game:
             return []
-        return self.get_leaderboard(guild_id, game.game_id, limit=limit, min_matches=min_matches)
+        return self.get_leaderboard(
+            member_user_ids, game.game_id, limit=limit, min_matches=min_matches
+        )
 
     def get_user_game_ratings(
         self,
         user_id: int,
-        guild_id: int,
-        game_name_or_id: int | str
+        game_name_or_id: int | str,
+        guild_id: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Legacy method - get user rating"""
+        """Legacy method - get user rating (guild_id ignored)."""
         if isinstance(game_name_or_id, str):
             game = self.get_game(game_name_or_id)
             if not game:
@@ -1844,7 +1814,7 @@ class Database:
         else:
             game_id = game_name_or_id
 
-        rating = self.get_user_rating(user_id, guild_id, game_id)
+        rating = self.get_user_rating(user_id, game_id)
         if not rating:
             return None
 
@@ -1856,46 +1826,45 @@ class Database:
             'last_played': rating.last_played
         }
 
-    def initialize_user_game_ratings(self, user_id: int, guild_id: int, game_name: str):
-        """Legacy method - initialize rating with game name instead of ID"""
+    def initialize_user_game_ratings(self, user_id: int, game_name: str, guild_id: Optional[int] = None):
+        """Legacy method - initialize rating with game name instead of ID (guild_id ignored)."""
         game = self.get_game(game_name)
         if not game:
             raise ValueError(f"Game {game_name} not found")
-        self.initialize_user_rating(user_id, guild_id, game.game_id)
+        self.initialize_user_rating(user_id, game.game_id)
 
     def update_ratings_after_match(
         self,
         user_id: int,
-        guild_id: int,
         game_name: str,
         mu: float,
         sigma: float,
-        matches_played_increment: int = 1
+        matches_played_increment: int = 1,
+        guild_id: Optional[int] = None,
     ):
-        """Legacy method - update rating with game name instead of ID"""
+        """Legacy method - update rating with game name instead of ID (guild_id ignored)."""
         game = self.get_game(game_name)
         if not game:
             raise ValueError(f"Game {game_name} not found")
-        
-        # Update rating
+
         self.update_rating(
-            user_id, guild_id, game.game_id,
+            user_id, game.game_id,
             mu, sigma, matches_increment=matches_played_increment
         )
 
-    def reset_user_game_ratings(self, user_id: int, guild_id: int, game_name: str):
-        """Legacy method - reset rating with game name"""
+    def reset_user_game_ratings(self, user_id: int, game_name: str, guild_id: Optional[int] = None):
+        """Legacy method - reset rating with game name (guild_id ignored)."""
         game = self.get_game(game_name)
         if not game:
             raise ValueError(f"Game {game_name} not found")
-        self.reset_user_rating(user_id, guild_id, game.game_id)
+        self.reset_user_rating(user_id, game.game_id)
 
-    def delete_user_game_ratings(self, user_id: int, guild_id: int, game_name: str):
-        """Legacy method - delete rating with game name"""
+    def delete_user_game_ratings(self, user_id: int, game_name: str, guild_id: Optional[int] = None):
+        """Legacy method - delete rating with game name (guild_id ignored)."""
         game = self.get_game(game_name)
         if not game:
             raise ValueError(f"Game {game_name} not found")
-        self.delete_user_rating(user_id, guild_id, game.game_id)
+        self.delete_user_rating(user_id, game.game_id)
 
     def count_matches_for_game(
         self,
@@ -2094,7 +2063,7 @@ class Database:
         # Return in old format
         results = []
         for p in participants:
-            rating = self.get_user_rating(p.user_id, match.guild_id, match.game_id)
+            rating = self.get_user_rating(p.user_id, match.game_id)
             results.append({
                 'match_id': match_id,
                 'game_id': match.game_id,

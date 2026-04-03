@@ -499,14 +499,16 @@ class GeneralCog(commands.Cog):
 
         limit = 10
 
-        embed, has_data, is_last_page = self._build_leaderboard_embed(game, game_name, game_db.game_id, scope,
-                                                                      ctx.guild, page, limit)
+        embed, has_data, is_last_page = await self._build_leaderboard_embed(
+            game, game_name, game_db.game_id, scope, ctx.guild, page, limit
+        )
 
         # If no data on this page and page > 1, go back to page 1
         if not has_data and page > 1:
             page = 1
-            embed, has_data, is_last_page = self._build_leaderboard_embed(game, game_name, game_db.game_id, scope,
-                                                                          ctx.guild, page, limit)
+            embed, has_data, is_last_page = await self._build_leaderboard_embed(
+                game, game_name, game_db.game_id, scope, ctx.guild, page, limit
+            )
 
         max_pages = page if is_last_page else page + 1
         embed.set_footer(text=fmt("embeds.leaderboard.footer", page=page, max=max_pages))
@@ -525,8 +527,8 @@ class GeneralCog(commands.Cog):
         )
         await ctx.followup.send(embed=embed, view=view)
 
-    def _build_leaderboard_embed(self, game: str, game_name: str, game_id: int, scope: str,
-                                 guild, page: int, limit: int):
+    async def _build_leaderboard_embed(self, game: str, game_name: str, game_id: int, scope: str,
+                                        guild, page: int, limit: int):
         """Build the leaderboard embed for a specific page. Returns (embed, has_data, is_last_page)."""
         offset = (page - 1) * limit
         if scope == "global":
@@ -539,15 +541,19 @@ class GeneralCog(commands.Cog):
             )
             scope_text = get("leaderboard.scope_global")
         else:
-            # Fetch one extra item to check if there are more pages
+            member_ids: list[int] = []
+            if guild is not None:
+                await guild.chunk()
+                member_ids = [m.id for m in guild.members]
             leaderboard_data = db.database.get_leaderboard(
-                guild.id,
+                member_ids,
                 game_id,
                 limit=limit + 1,
                 offset=offset,
                 min_matches=1,
             )
-            scope_text = fmt("leaderboard.scope_server", guild_name=guild.name)
+            gname = guild.name if guild is not None else "—"
+            scope_text = fmt("leaderboard.scope_server", guild_name=gname)
 
         title_key = "embeds.leaderboard.title_global" if scope == "global" else "embeds.leaderboard.title_server"
         embed = CustomEmbed(title=fmt(title_key, game_name=game_name), color=INFO_COLOR)
@@ -593,9 +599,9 @@ class GeneralCog(commands.Cog):
                                          game_id: int, scope: str, new_page: int,
                                          limit: int, params_hash: str):
         """Callback for leaderboard pagination buttons."""
-        embed, has_data, is_last_page = self._build_leaderboard_embed(game, game_name, game_id, scope,
-                                                                      interaction.guild,
-                                                                      new_page, limit)
+        embed, has_data, is_last_page = await self._build_leaderboard_embed(
+            game, game_name, game_id, scope, interaction.guild, new_page, limit
+        )
         max_pages = new_page if is_last_page else new_page + 1
         embed.set_footer(text=fmt("embeds.leaderboard.footer", page=new_page, max=max_pages))
         view = PaginationView(
@@ -722,7 +728,7 @@ class GeneralCog(commands.Cog):
             game_info = GAME_TYPES[game_id]
             game_class = getattr(importlib.import_module(game_info[0]), game_info[1])
             game_name = getattr(game_class, 'name', game_id)
-            rating_info = db.database.get_user_game_ratings(user.id, ctx.guild.id, game_id)
+            rating_info = db.database.get_user_game_ratings(user.id, game_id)
             if rating_info and rating_info.get('matches_played', 0) > 0:
                 mu = rating_info.get('mu', 1000)
                 matches = rating_info.get('matches_played', 0)

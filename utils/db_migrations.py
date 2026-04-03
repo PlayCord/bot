@@ -10,146 +10,118 @@ from typing import List, Tuple
 logger = logging.getLogger("playcord.database.migrations")
 
 # (version, description, statements) — version must match database_migrations.chk_version_format
+# Migrations start at 2.4.0 (global per-game ratings). 2.5.0 adds leaderboard index and SQL decay fix.
 MIGRATIONS: List[Tuple[str, str, List[str]]] = [
     (
-        "2.1.0",
-        "Phase 1: rating floors, sync helpers, moves.is_game_affecting",
+        "2.4.0",
+        "Global per-game ratings; remove guild_id from user_game_ratings; drop global_ratings",
         [
+            "DROP VIEW IF EXISTS v_active_leaderboard CASCADE",
+            "DROP VIEW IF EXISTS v_player_stats CASCADE",
+            "DROP VIEW IF EXISTS v_global_leaderboard CASCADE",
+            "DROP VIEW IF EXISTS v_inactive_players CASCADE",
+            "DROP VIEW IF EXISTS v_guild_activity_summary CASCADE",
+            "DROP VIEW IF EXISTS v_game_popularity CASCADE",
+            "DROP TRIGGER IF EXISTS trg_enforce_min_rating ON user_game_ratings",
+            "DROP TRIGGER IF EXISTS tr_ratings_updated_at ON user_game_ratings",
             """
-            UPDATE user_game_ratings SET sigma = 0.001 WHERE sigma < 0.001
-            """,
-            """
-            UPDATE user_game_ratings SET mu = 0.0 WHERE mu < 0.0
-            """,
-            """
-            UPDATE global_ratings SET global_sigma = 0.001 WHERE global_sigma < 0.001
-            """,
-            """
-            UPDATE global_ratings SET global_mu = 0.0 WHERE global_mu < 0.0
-            """,
-            """
-            ALTER TABLE games ADD COLUMN IF NOT EXISTS game_schema_version INTEGER DEFAULT 1 NOT NULL
-            """,
-            """
-            ALTER TABLE moves ADD COLUMN IF NOT EXISTS is_game_affecting BOOLEAN DEFAULT TRUE NOT NULL
-            """,
-            """
-            CREATE INDEX IF NOT EXISTS idx_moves_game_affecting ON moves (is_game_affecting)
-            WHERE is_game_affecting = TRUE
-            """,
-            """
-            DO $c$
-            BEGIN
-                ALTER TABLE user_game_ratings DROP CONSTRAINT IF EXISTS chk_rating_positive;
-                IF NOT EXISTS (
-                    SELECT 1 FROM pg_constraint c
-                    JOIN pg_class t ON c.conrelid = t.oid
-                    WHERE t.relname = 'user_game_ratings' AND c.conname = 'chk_rating_floor'
-                ) THEN
-                    ALTER TABLE user_game_ratings
-                    ADD CONSTRAINT chk_rating_floor CHECK (mu >= 0.0 AND sigma >= 0.001);
-                END IF;
-            END $c$
-            """,
-            """
-            DO $c$
-            BEGIN
-                ALTER TABLE global_ratings DROP CONSTRAINT IF EXISTS chk_global_rating_positive;
-                IF NOT EXISTS (
-                    SELECT 1 FROM pg_constraint c
-                    JOIN pg_class t ON c.conrelid = t.oid
-                    WHERE t.relname = 'global_ratings' AND c.conname = 'chk_global_rating_floor'
-                ) THEN
-                    ALTER TABLE global_ratings
-                    ADD CONSTRAINT chk_global_rating_floor
-                    CHECK (global_mu >= 0.0 AND global_sigma >= 0.001);
-                END IF;
-            END $c$
-            """,
-            """
-            CREATE OR REPLACE FUNCTION calculate_win_loss_tie_from_ranking(
-                p_final_ranking INTEGER,
-                p_match_id BIGINT
+            CREATE TABLE user_game_ratings_new
+            (
+                rating_id           BIGSERIAL PRIMARY KEY,
+                user_id             BIGINT                    NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
+                game_id             INTEGER                   NOT NULL REFERENCES games (game_id) ON DELETE CASCADE,
+                mu                  DOUBLE PRECISION          NOT NULL DEFAULT 1000.0,
+                sigma               DOUBLE PRECISION          NOT NULL DEFAULT 333.33,
+                matches_played      INTEGER     DEFAULT 0     NOT NULL,
+                last_played         TIMESTAMPTZ,
+                last_sigma_increase TIMESTAMPTZ,
+                created_at          TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+                updated_at          TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+                CONSTRAINT uq_user_game UNIQUE (user_id, game_id),
+                CONSTRAINT chk_rating_floor CHECK (mu >= 0.0 AND sigma >= 0.001),
+                CONSTRAINT chk_matches_counts CHECK (matches_played >= 0)
             )
-            RETURNS TABLE (is_win BOOLEAN, is_loss BOOLEAN, is_draw BOOLEAN) AS $$
-            DECLARE
-                rank1_count INTEGER;
-            BEGIN
-                IF p_final_ranking IS NULL THEN
-                    RETURN QUERY SELECT FALSE, FALSE, FALSE;
-                    RETURN;
-                END IF;
-                SELECT COUNT(*) INTO rank1_count
-                FROM match_participants mp
-                WHERE mp.match_id = p_match_id AND mp.final_ranking = 1;
-                IF p_final_ranking = 1 AND rank1_count > 1 THEN
-                    RETURN QUERY SELECT FALSE, FALSE, TRUE;
-                ELSIF p_final_ranking = 1 THEN
-                    RETURN QUERY SELECT TRUE, FALSE, FALSE;
-                ELSE
-                    RETURN QUERY SELECT FALSE, TRUE, FALSE;
-                END IF;
-            END;
-            $$ LANGUAGE plpgsql STABLE
             """,
             """
-            COMMENT ON FUNCTION calculate_win_loss_tie_from_ranking IS
-            'Derive win/loss/draw flags from final_ranking and tie-for-first count (FFA-safe).'
+            INSERT INTO user_game_ratings_new (user_id, game_id, mu, sigma, matches_played, last_played,
+                                               last_sigma_increase, created_at, updated_at)
+            SELECT user_id,
+                   game_id,
+                   (array_agg(mu ORDER BY matches_played DESC, last_played DESC NULLS LAST))[1],
+                (array_agg(sigma ORDER BY matches_played DESC, last_played DESC NULLS LAST))[1],
+                SUM(matches_played)::INTEGER,
+                MAX(last_played),
+                MAX(last_sigma_increase),
+                MIN(created_at),
+                MAX(updated_at)
+            FROM user_game_ratings
+            GROUP BY user_id, game_id
+            """,
+            "DROP TABLE user_game_ratings CASCADE",
+            "ALTER TABLE user_game_ratings_new RENAME TO user_game_ratings",
+            "ALTER SEQUENCE IF EXISTS user_game_ratings_new_rating_id_seq RENAME TO user_game_ratings_rating_id_seq",
+            """
+            CREATE INDEX IF NOT EXISTS idx_rating_leaderboard ON user_game_ratings (
+                game_id, (mu - 3 * sigma) DESC
+                ) WHERE matches_played >= 5
             """,
             """
-            CREATE OR REPLACE FUNCTION sync_games_played_counts()
-            RETURNS INTEGER AS $$
-            DECLARE
-                updated INTEGER;
-            BEGIN
-                UPDATE user_game_ratings ugr
-                SET matches_played = COALESCE((
-                    SELECT COUNT(*)::INTEGER
-                    FROM match_participants mp
-                    JOIN matches m ON mp.match_id = m.match_id
-                    WHERE mp.user_id = ugr.user_id
-                      AND m.guild_id = ugr.guild_id
-                      AND m.game_id = ugr.game_id
-                      AND m.status = 'completed'
-                ), 0);
-                GET DIAGNOSTICS updated = ROW_COUNT;
-                RETURN updated;
-            END;
-            $$ LANGUAGE plpgsql
+            CREATE INDEX IF NOT EXISTS idx_rating_user_activity ON user_game_ratings (
+                user_id, game_id, last_played DESC
+                )
             """,
             """
-            COMMENT ON FUNCTION sync_games_played_counts IS
-            'Recompute matches_played from completed matches (repair drift).'
+            CREATE INDEX IF NOT EXISTS idx_rating_inactive ON user_game_ratings (last_played)
+                WHERE last_played IS NOT NULL
             """,
+            "CREATE INDEX IF NOT EXISTS idx_rating_game ON user_game_ratings (game_id)",
             """
-            CREATE OR REPLACE FUNCTION enforce_user_game_rating_floors()
-            RETURNS TRIGGER AS $$
-            DECLARE
-                min_mu DOUBLE PRECISION;
-                min_sigma DOUBLE PRECISION;
-            BEGIN
-                SELECT
-                    COALESCE((g.rating_config->>'min_mu')::DOUBLE PRECISION, 0.0),
-                    COALESCE((g.rating_config->>'min_sigma')::DOUBLE PRECISION, 0.001)
-                INTO min_mu, min_sigma
-                FROM games g WHERE g.game_id = NEW.game_id;
-                IF min_sigma < 0.001 THEN
-                    min_sigma := 0.001;
-                END IF;
-                NEW.mu := GREATEST(NEW.mu, min_mu);
-                NEW.sigma := GREATEST(NEW.sigma, min_sigma);
-                RETURN NEW;
-            END;
-            $$ LANGUAGE plpgsql
-            """,
-            """
-            DROP TRIGGER IF EXISTS trg_enforce_min_rating ON user_game_ratings
+            CREATE TRIGGER tr_ratings_updated_at
+                BEFORE UPDATE
+                ON user_game_ratings
+                FOR EACH ROW
+                EXECUTE FUNCTION update_updated_at_column()
             """,
             """
             CREATE TRIGGER trg_enforce_min_rating
-                BEFORE INSERT OR UPDATE OF mu, sigma ON user_game_ratings
+                BEFORE INSERT OR
+            UPDATE OF mu, sigma
+            ON user_game_ratings
                 FOR EACH ROW
                 EXECUTE FUNCTION enforce_user_game_rating_floors()
+            """,
+            "DROP TABLE IF EXISTS global_ratings CASCADE",
+            "DROP FUNCTION IF EXISTS batch_update_global_ratings(INTEGER) CASCADE",
+            "DROP FUNCTION IF EXISTS update_global_rating(BIGINT, INTEGER) CASCADE",
+            "DROP FUNCTION IF EXISTS get_user_rank(BIGINT, BIGINT, INTEGER) CASCADE",
+            """
+            CREATE
+            OR REPLACE FUNCTION sync_games_played_counts()
+            RETURNS INTEGER AS $$
+            DECLARE
+            updated INTEGER;
+            BEGIN
+            UPDATE user_game_ratings ugr
+            SET matches_played = COALESCE((SELECT COUNT(*) ::INTEGER
+                                           FROM match_participants mp
+                                                    JOIN matches m ON mp.match_id = m.match_id
+                                           WHERE mp.user_id = ugr.user_id
+                                             AND m.game_id = ugr.game_id
+                                             AND m.status = 'completed'), 0);
+            GET DIAGNOSTICS updated = ROW_COUNT;
+            RETURN updated;
+            END;
+            $$
+            LANGUAGE plpgsql
+            """,
+        ],
+    ),
+    (
+        "2.5.0",
+        "Guild leaderboard index; apply_skill_decay aligned with global ratings (no guild_id)",
+        [
+            """
+            CREATE INDEX IF NOT EXISTS idx_rating_game_user ON user_game_ratings (game_id, user_id)
             """,
             """
             CREATE OR REPLACE FUNCTION apply_skill_decay(
@@ -159,11 +131,10 @@ MIGRATIONS: List[Tuple[str, str, List[str]]] = [
             RETURNS TABLE (
                 user_id BIGINT,
                 game_id INTEGER,
-                guild_id BIGINT,
                 old_sigma DOUBLE PRECISION,
                 new_sigma DOUBLE PRECISION,
                 days_since_play INTEGER
-            ) AS $$
+            ) AS $f$
             BEGIN
                 RETURN QUERY
                 UPDATE user_game_ratings ugr
@@ -179,7 +150,6 @@ MIGRATIONS: List[Tuple[str, str, List[str]]] = [
                         r.rating_id,
                         r.user_id AS uid,
                         r.game_id AS gid,
-                        r.guild_id AS guildid,
                         r.sigma AS old_sig,
                         r.sigma * (1 + sigma_increase_factor) AS new_sig,
                         EXTRACT(EPOCH FROM (NOW() - r.last_played))::INTEGER / 86400 AS days_inactive_calc
@@ -193,73 +163,14 @@ MIGRATIONS: List[Tuple[str, str, List[str]]] = [
                 RETURNING
                     decay_data.uid,
                     decay_data.gid,
-                    decay_data.guildid,
                     decay_data.old_sig,
                     ugr.sigma,
                     decay_data.days_inactive_calc;
             END;
-            $$ LANGUAGE plpgsql
+            $f$ LANGUAGE plpgsql
             """,
             """
-            CREATE OR REPLACE FUNCTION update_global_rating(
-                p_user_id BIGINT,
-                p_game_id INTEGER
-            )
-            RETURNS VOID AS $$
-            DECLARE
-                total_precision DOUBLE PRECISION;
-                weighted_mu_sum DOUBLE PRECISION;
-                guild_count INTEGER;
-                guilds_array BIGINT[];
-                new_global_mu DOUBLE PRECISION;
-                new_global_sigma DOUBLE PRECISION;
-                match_count INTEGER;
-            BEGIN
-                SELECT
-                    SUM(1.0 / (sigma * sigma)) AS total_prec,
-                    SUM(mu / (sigma * sigma)) AS weighted_mu,
-                    COUNT(*) AS guild_cnt,
-                    ARRAY_AGG(guild_id) AS guilds,
-                    SUM(matches_played) AS total_matches
-                INTO
-                    total_precision,
-                    weighted_mu_sum,
-                    guild_count,
-                    guilds_array,
-                    match_count
-                FROM user_game_ratings
-                WHERE user_id = p_user_id
-                  AND game_id = p_game_id
-                  AND matches_played > 0;
-                IF guild_count > 0 THEN
-                    new_global_mu := weighted_mu_sum / total_precision;
-                    new_global_sigma := SQRT(1.0 / total_precision);
-                    new_global_mu := GREATEST(new_global_mu, 0.0);
-                    new_global_sigma := GREATEST(new_global_sigma, 0.001);
-                    INSERT INTO global_ratings (user_id, game_id, global_mu, global_sigma, total_matches, guilds_played_in, last_updated)
-                    VALUES (p_user_id, p_game_id, new_global_mu, new_global_sigma, match_count, guilds_array, NOW())
-                    ON CONFLICT (user_id, game_id)
-                    DO UPDATE SET
-                        global_mu = EXCLUDED.global_mu,
-                        global_sigma = EXCLUDED.global_sigma,
-                        total_matches = EXCLUDED.total_matches,
-                        guilds_played_in = EXCLUDED.guilds_played_in,
-                        last_updated = NOW();
-                END IF;
-            END;
-            $$ LANGUAGE plpgsql
-            """,
-        ],
-    ),
-    (
-        "2.2.0",
-        "Replay: JSONL action log on matches; drop random_seed",
-        [
-            """
-            ALTER TABLE matches ADD COLUMN IF NOT EXISTS replay_log TEXT
-            """,
-            """
-            ALTER TABLE matches DROP COLUMN IF EXISTS random_seed
+            COMMENT ON FUNCTION apply_skill_decay IS 'Apply skill decay to inactive players by increasing sigma'
             """,
         ],
     ),

@@ -12,7 +12,6 @@ CREATE OR REPLACE FUNCTION apply_skill_decay(
 RETURNS TABLE (
     user_id BIGINT,
     game_id INTEGER,
-    guild_id BIGINT,
     old_sigma DOUBLE PRECISION,
     new_sigma DOUBLE PRECISION,
     days_since_play INTEGER
@@ -32,7 +31,6 @@ BEGIN
             r.rating_id,
             r.user_id AS uid,
             r.game_id AS gid,
-            r.guild_id AS guildid,
             r.sigma AS old_sig,
             r.sigma * (1 + sigma_increase_factor) AS new_sig,
             EXTRACT(EPOCH FROM (NOW() - r.last_played))::INTEGER / 86400 AS days_inactive_calc
@@ -46,7 +44,6 @@ BEGIN
     RETURNING
         decay_data.uid,
         decay_data.gid,
-        decay_data.guildid,
         decay_data.old_sig,
         ugr.sigma,
         decay_data.days_inactive_calc;
@@ -71,40 +68,6 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 COMMENT ON FUNCTION calculate_conservative_rating IS 'Calculate conservative rating for leaderboard ordering';
-
-
--- ============================================================================
--- FUNCTION: get_user_rank
--- Get user's rank in a specific guild/game leaderboard
--- ============================================================================
-CREATE OR REPLACE FUNCTION get_user_rank(
-    p_user_id BIGINT,
-    p_guild_id BIGINT,
-    p_game_id INTEGER
-)
-RETURNS INTEGER AS $$
-DECLARE
-    user_rank INTEGER;
-BEGIN
-    SELECT rank INTO user_rank
-    FROM (
-        SELECT 
-            user_id,
-            ROW_NUMBER() OVER (
-                ORDER BY (mu - 3 * sigma) DESC
-            ) as rank
-        FROM user_game_ratings
-        WHERE guild_id = p_guild_id
-          AND game_id = p_game_id
-          AND matches_played >= 5
-    ) ranked
-    WHERE user_id = p_user_id;
-    
-    RETURN COALESCE(user_rank, -1);  -- -1 if not ranked
-END;
-$$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION get_user_rank IS 'Get user rank in guild/game leaderboard (-1 if unranked)';
 
 
 -- ============================================================================
@@ -199,96 +162,6 @@ $$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION archive_old_matches IS 'Mark old matches as archived in metadata';
 
-
--- ============================================================================
--- FUNCTION: update_global_rating
--- Calculate and update global rating for a user/game combination
--- Uses Bayesian aggregation across guilds
--- ============================================================================
-CREATE OR REPLACE FUNCTION update_global_rating(
-    p_user_id BIGINT,
-    p_game_id INTEGER
-)
-RETURNS VOID AS $$
-DECLARE
-    total_precision DOUBLE PRECISION;
-    weighted_mu_sum DOUBLE PRECISION;
-    guild_count INTEGER;
-    guilds_array BIGINT[];
-    new_global_mu DOUBLE PRECISION;
-    new_global_sigma DOUBLE PRECISION;
-    match_count INTEGER;
-BEGIN
-    -- Calculate precision-weighted average across guilds
-    SELECT 
-        SUM(1.0 / (sigma * sigma)) as total_prec,
-        SUM(mu / (sigma * sigma)) as weighted_mu,
-        COUNT(*) as guild_cnt,
-        ARRAY_AGG(guild_id) as guilds,
-        SUM(matches_played) as total_matches
-    INTO 
-        total_precision,
-        weighted_mu_sum,
-        guild_count,
-        guilds_array,
-        match_count
-    FROM user_game_ratings
-    WHERE user_id = p_user_id
-      AND game_id = p_game_id
-      AND matches_played > 0;
-    
-    IF guild_count > 0 THEN
-        -- Bayesian combination: mu = sum(mu_i / sigma_i^2) / sum(1 / sigma_i^2)
-        new_global_mu := weighted_mu_sum / total_precision;
-        -- Combined uncertainty: sigma = sqrt(1 / sum(1 / sigma_i^2))
-        new_global_sigma := SQRT(1.0 / total_precision);
-        new_global_mu := GREATEST(new_global_mu, 0.0);
-        new_global_sigma := GREATEST(new_global_sigma, 0.001);
-
-        -- Insert or update global rating
-        INSERT INTO global_ratings (user_id, game_id, global_mu, global_sigma, total_matches, guilds_played_in, last_updated)
-        VALUES (p_user_id, p_game_id, new_global_mu, new_global_sigma, match_count, guilds_array, NOW())
-        ON CONFLICT (user_id, game_id) 
-        DO UPDATE SET
-            global_mu = new_global_mu,
-            global_sigma = new_global_sigma,
-            total_matches = match_count,
-            guilds_played_in = guilds_array,
-            last_updated = NOW();
-    END IF;
-END;
-$$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION update_global_rating IS 'Calculate global rating using Bayesian combination across guilds';
-
-
--- ============================================================================
--- FUNCTION: batch_update_global_ratings
--- Update all global ratings for a specific game
--- ============================================================================
-CREATE OR REPLACE FUNCTION batch_update_global_ratings(
-    p_game_id INTEGER DEFAULT NULL
-)
-RETURNS BIGINT AS $$
-DECLARE
-    updated_count BIGINT := 0;
-    user_game_rec RECORD;
-BEGIN
-    FOR user_game_rec IN
-        SELECT DISTINCT user_id, game_id
-        FROM user_game_ratings
-        WHERE (p_game_id IS NULL OR game_id = p_game_id)
-          AND matches_played > 0
-    LOOP
-        PERFORM update_global_rating(user_game_rec.user_id, user_game_rec.game_id);
-        updated_count := updated_count + 1;
-    END LOOP;
-    
-    RETURN updated_count;
-END;
-$$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION batch_update_global_ratings IS 'Recalculate global ratings for all users (optionally filtered by game)';
 
 
 -- ============================================================================
@@ -512,7 +385,6 @@ BEGIN
         FROM match_participants mp
         JOIN matches m ON mp.match_id = m.match_id
         WHERE mp.user_id = ugr.user_id
-          AND m.guild_id = ugr.guild_id
           AND m.game_id = ugr.game_id
           AND m.status = 'completed'
     ), 0);

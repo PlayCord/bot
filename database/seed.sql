@@ -342,14 +342,14 @@ INSERT INTO users (user_id, username, is_bot, preferences) VALUES
 ON CONFLICT (user_id) DO NOTHING;
 
 -- Initialize test ratings
-INSERT INTO user_game_ratings (user_id, guild_id, game_id, mu, sigma, matches_played, wins, losses, draws)
+INSERT INTO user_game_ratings (user_id, guild_id, game_id, mu, sigma, matches_played)
 SELECT 
     u.user_id,
     g.guild_id,
     gm.game_id,
     (gm.rating_config->>'default_mu')::DOUBLE PRECISION,
     (gm.rating_config->>'default_sigma')::DOUBLE PRECISION,
-    0, 0, 0, 0
+    0
 FROM users u
 CROSS JOIN guilds g
 CROSS JOIN games gm

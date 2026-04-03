@@ -136,17 +136,13 @@ class Game:
 
 @dataclass
 class Rating:
-    """Represents a user's rating for a specific game in a guild"""
+    """Represents a user's global rating for a specific game (one row per user per game)."""
     rating_id: int
     user_id: int
-    guild_id: int
     game_id: int
     mu: float
     sigma: float
     matches_played: int = 0
-    wins: int = 0
-    losses: int = 0
-    draws: int = 0
     last_played: Optional[datetime] = None
     last_sigma_increase: Optional[datetime] = None
     created_at: Optional[datetime] = None
@@ -156,14 +152,6 @@ class Rating:
     def conservative_rating(self) -> float:
         """Conservative rating estimate (mu - 3*sigma)"""
         return self.mu - (3.0 * self.sigma)
-
-    @property
-    def win_rate(self) -> float:
-        """Win rate percentage (excluding draws)"""
-        decisive_matches = self.matches_played - self.draws
-        if decisive_matches <= 0:
-            return 0.0
-        return (self.wins / decisive_matches) * 100.0
 
     def is_uncertain(self, threshold: float = 0.5) -> bool:
         """Check if rating is uncertain based on sigma threshold"""
@@ -388,7 +376,6 @@ class LeaderboardEntry:
     username: str
     rating: Rating
     conservative_rating: float
-    win_rate: float
 
 
 @dataclass
@@ -493,14 +480,10 @@ def row_to_rating(row: Dict[str, Any]) -> Rating:
     return Rating(
         rating_id=row['rating_id'],
         user_id=row['user_id'],
-        guild_id=row['guild_id'],
         game_id=row['game_id'],
         mu=row['mu'],
         sigma=row['sigma'],
         matches_played=row.get('matches_played', 0),
-        wins=row.get('wins', 0),
-        losses=row.get('losses', 0),
-        draws=row.get('draws', 0),
         last_played=row.get('last_played'),
         last_sigma_increase=row.get('last_sigma_increase'),
         created_at=row.get('created_at'),

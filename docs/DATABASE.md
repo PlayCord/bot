@@ -13,7 +13,7 @@ analytics. The database is designed for:
 
 ## Architecture
 
-### Database Schema Version: 2.0
+### Database Schema Version: 2.4
 
 The schema consists of:
 
@@ -508,7 +508,7 @@ Database schema version tracking.
 
 - `chk_version_format`: version ~ '^\d+\.\d+(\.\d+)?$'
 
-**Current Version:** 2.0.0
+**Current Version:** 2.5.0 (migrations from 2.4.0)
 
 ---
 
@@ -522,7 +522,7 @@ Leaderboard with minimum match requirements and win rates.
 
 **Columns:**
 
-- guild_id, game_id, user_id, username
+- game_id, user_id, username (global ratings; filter to a guild in application code)
 - mu, sigma, conservative_rating (mu - 3*sigma)
 - matches_played, wins, losses, draws
 - win_rate (calculated)
@@ -538,8 +538,7 @@ Leaderboard with minimum match requirements and win rates.
 ```sql
 SELECT *
 FROM v_active_leaderboard
-WHERE guild_id = $1
-  AND game_id = $2
+WHERE game_id = $1
 LIMIT 10;
 ```
 
@@ -747,8 +746,8 @@ ORDER BY total_matches DESC;
 
 **`apply_skill_decay(days_inactive, sigma_increase_factor)`**
 
-- Increases sigma for inactive players
-- Returns affected users
+- Increases sigma for inactive players (global `user_game_ratings` rows)
+- Returns affected user_id, game_id, old/new sigma, days_since_play
 
 **`cleanup_old_analytics(days_to_keep)`**
 
@@ -756,9 +755,7 @@ ORDER BY total_matches DESC;
 
 ### Rating Functions
 
-**`update_global_rating(user_id, game_id)`**
-
-- Recalculates global rating using Bayesian combination
+**Global ratings** live in `user_game_ratings` (migration 2.4.0 removed `global_ratings` and related functions).
 
 ---
 
@@ -787,48 +784,9 @@ SELECT calculate_conservative_rating(1500.0, 200.0); -- Returns 900.0
 
 ---
 
-#### `update_global_rating(user_id, game_id)`
+#### `update_global_rating` / `batch_update_global_ratings` (removed)
 
-**Returns:** VOID
-
-Recalculates global rating for a user in a specific game using Bayesian weighted average of all guild ratings.
-
-**Parameters:**
-
-- `user_id`: User ID
-- `game_id`: Game ID
-
-**Algorithm:**
-
-1. Fetch all ratings for user across guilds
-2. Weight by inverse variance (1/sigma²)
-3. Combine using Bayesian formula
-4. Update global_ratings table
-
-**Usage:**
-
-```sql
-SELECT update_global_rating(123456789, 1);
-```
-
----
-
-#### `batch_update_global_ratings(game_id)`
-
-**Returns:** BIGINT (count of updated ratings)
-
-Recalculates global ratings for all users who play a specific game.
-
-**Parameters:**
-
-- `game_id`: Game ID (optional, NULL for all games)
-
-**Usage:**
-
-```sql
-SELECT batch_update_global_ratings(NULL); -- Update all games
-SELECT batch_update_global_ratings(1); -- Update specific game
-```
+These functions and the `global_ratings` table were removed in migration **2.4.0**. Global skill is stored in `user_game_ratings` (one row per user per game).
 
 ---
 
@@ -836,27 +794,27 @@ SELECT batch_update_global_ratings(1); -- Update specific game
 
 #### `apply_skill_decay(days_inactive, sigma_increase_factor)`
 
-**Returns:** TABLE (user_id, guild_id, game_id, old_sigma, new_sigma)
+**Returns:** TABLE (user_id, game_id, old_sigma, new_sigma, days_since_play)
 
-Increases sigma (uncertainty) for players inactive beyond threshold.
+Increases sigma (uncertainty) for players inactive beyond threshold, respecting per-game `min_sigma` in `games.rating_config`.
 
 **Parameters:**
 
 - `days_inactive`: Number of days to consider inactive (e.g., 30)
-- `sigma_increase_factor`: Multiplier for sigma (e.g., 1.1 = 10% increase)
+- `sigma_increase_factor`: Applied as `sigma * (1 + factor)` (e.g., `0.1` = 10% increase)
 
 **Usage:**
 
 ```sql
 -- Increase sigma by 10% for players inactive 30+ days
 SELECT *
-FROM apply_skill_decay(30, 1.1);
+FROM apply_skill_decay(30, 0.1);
 ```
 
-**Returns:**
-| user_id | guild_id | game_id | old_sigma | new_sigma |
-|---------|----------|---------|-----------|-----------|
-| 123 | 456 | 1 | 200.0 | 220.0 |
+**Returns (example):**
+| user_id | game_id | old_sigma | new_sigma | days_since_play |
+|---------|---------|-----------|-----------|-----------------|
+| 123 | 1 | 200.0 | 220.0 | 45 |
 
 ---
 

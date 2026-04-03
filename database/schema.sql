@@ -1,5 +1,5 @@
 -- PlayCord PostgreSQL Database Schema
--- Version: 2.0
+-- Version: 2.4
 -- Description: Comprehensive database schema for Discord game bot with TrueSkill rating system
 --
 -- Key Features:
@@ -104,45 +104,33 @@ COMMENT ON COLUMN games.game_schema_version IS 'Bumped when game definition in c
 
 -- ============================================================================
 -- TABLE: user_game_ratings
--- Per-user, per-guild, per-game rating information (TrueSkill)
+-- One TrueSkill rating per user per game (global); guild leaderboards filter by member list in app/SQL
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS user_game_ratings
 (
     rating_id           BIGSERIAL PRIMARY KEY,
     user_id             BIGINT                    NOT NULL,
-    guild_id            BIGINT                    NOT NULL,
     game_id             INTEGER                   NOT NULL,
     mu                  DOUBLE PRECISION          NOT NULL DEFAULT 1000.0,
     sigma               DOUBLE PRECISION          NOT NULL DEFAULT 333.33,
     matches_played      INTEGER     DEFAULT 0     NOT NULL,
-    wins                INTEGER     DEFAULT 0     NOT NULL,
-    losses              INTEGER     DEFAULT 0     NOT NULL,
-    draws               INTEGER     DEFAULT 0     NOT NULL,
     last_played         TIMESTAMPTZ,
     last_sigma_increase TIMESTAMPTZ,
     created_at          TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at          TIMESTAMPTZ DEFAULT NOW() NOT NULL,
 
-    CONSTRAINT uq_user_guild_game UNIQUE (user_id, guild_id, game_id),
+    CONSTRAINT uq_user_game UNIQUE (user_id, game_id),
     CONSTRAINT fk_user_rating_user FOREIGN KEY (user_id)
         REFERENCES users (user_id) ON DELETE CASCADE,
-    CONSTRAINT fk_user_rating_guild FOREIGN KEY (guild_id)
-        REFERENCES guilds (guild_id) ON DELETE CASCADE,
     CONSTRAINT fk_user_rating_game FOREIGN KEY (game_id)
         REFERENCES games (game_id) ON DELETE CASCADE,
     CONSTRAINT chk_rating_floor CHECK (mu >= 0.0 AND sigma >= 0.001),
-    CONSTRAINT chk_matches_counts CHECK (
-        matches_played >= 0 AND
-        wins >= 0 AND
-        losses >= 0 AND
-        draws >= 0 AND
-        wins + losses + draws <= matches_played
-        )
+    CONSTRAINT chk_matches_counts CHECK (matches_played >= 0)
 );
 
 -- Indexes for leaderboard queries and user activity
 CREATE INDEX IF NOT EXISTS idx_rating_leaderboard ON user_game_ratings (
-                                                                        guild_id, game_id, (mu - 3 * sigma) DESC
+                                                                        game_id, (mu - 3 * sigma) DESC
     ) WHERE matches_played >= 5;
 
 CREATE INDEX IF NOT EXISTS idx_rating_user_activity ON user_game_ratings (
@@ -152,9 +140,12 @@ CREATE INDEX IF NOT EXISTS idx_rating_user_activity ON user_game_ratings (
 CREATE INDEX IF NOT EXISTS idx_rating_inactive ON user_game_ratings (last_played)
     WHERE last_played IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_rating_game_guild ON user_game_ratings (game_id, guild_id);
+CREATE INDEX IF NOT EXISTS idx_rating_game ON user_game_ratings (game_id);
 
-COMMENT ON TABLE user_game_ratings IS 'TrueSkill ratings per user, per guild, per game';
+-- Guild leaderboard queries: filter by game_id then member user_ids
+CREATE INDEX IF NOT EXISTS idx_rating_game_user ON user_game_ratings (game_id, user_id);
+
+COMMENT ON TABLE user_game_ratings IS 'TrueSkill ratings: one row per user per game (not per guild)';
 COMMENT ON COLUMN user_game_ratings.mu IS 'TrueSkill mean (skill estimate)';
 COMMENT ON COLUMN user_game_ratings.sigma IS 'TrueSkill standard deviation (uncertainty)';
 COMMENT ON COLUMN user_game_ratings.last_sigma_increase IS 'When sigma was last increased due to inactivity (skill decay)';
@@ -373,40 +364,6 @@ COMMENT ON TABLE rating_history IS 'Historical rating changes for progress track
 
 
 -- ============================================================================
--- TABLE: global_ratings
--- Aggregated cross-guild ratings for global leaderboards
--- ============================================================================
-CREATE TABLE IF NOT EXISTS global_ratings
-(
-    global_rating_id BIGSERIAL PRIMARY KEY,
-    user_id          BIGINT                    NOT NULL,
-    game_id          INTEGER                   NOT NULL,
-    global_mu        DOUBLE PRECISION          NOT NULL,
-    global_sigma     DOUBLE PRECISION          NOT NULL,
-    total_matches    INTEGER     DEFAULT 0     NOT NULL,
-    guilds_played_in BIGINT[]    DEFAULT ARRAY []::BIGINT[],
-    last_updated     TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-
-    CONSTRAINT uq_global_user_game UNIQUE (user_id, game_id),
-    CONSTRAINT fk_global_user FOREIGN KEY (user_id)
-        REFERENCES users (user_id) ON DELETE CASCADE,
-    CONSTRAINT fk_global_game FOREIGN KEY (game_id)
-        REFERENCES games (game_id) ON DELETE CASCADE,
-    CONSTRAINT chk_global_rating_floor CHECK (global_mu >= 0.0 AND global_sigma >= 0.001),
-    CONSTRAINT chk_global_matches CHECK (total_matches >= 0)
-);
-
--- Index for global leaderboards
-CREATE INDEX IF NOT EXISTS idx_global_leaderboard ON global_ratings (
-                                                                     game_id, (global_mu - 3 * global_sigma) DESC
-    );
-CREATE INDEX IF NOT EXISTS idx_global_user ON global_ratings (user_id, game_id);
-
-COMMENT ON TABLE global_ratings IS 'Aggregated ratings across all guilds for global leaderboards';
-COMMENT ON COLUMN global_ratings.guilds_played_in IS 'Array of guild IDs where user has played this game';
-
-
--- ============================================================================
 -- TABLE: game_seasons
 -- Seasonal competitions and leaderboards
 -- ============================================================================
@@ -505,17 +462,19 @@ EXECUTE FUNCTION update_updated_at_column();
 
 
 -- ============================================================================
--- INITIAL MIGRATION RECORD
+-- INITIAL MIGRATION RECORD (baseline; app migrations start at 2.4.0)
 -- ============================================================================
 INSERT INTO database_migrations (version, description)
-VALUES ('2.0.0', 'Initial PostgreSQL schema with full feature set')
+VALUES (
+    '2.4.0',
+    'Baseline schema: global per-game ratings, replay log, migration track from 2.4.0 onward'
+)
 ON CONFLICT (version) DO NOTHING;
 
 INSERT INTO database_migrations (version, description)
-VALUES ('2.1.0', 'Phase 1: rating floors, replay columns, sync helpers (fresh installs)')
-ON CONFLICT (version) DO NOTHING;
-
-INSERT INTO database_migrations (version, description)
-VALUES ('2.2.0', 'Replay: JSONL action log on matches; drop random_seed (fresh installs)')
+VALUES (
+    '2.5.0',
+    'Guild leaderboard index; apply_skill_decay without guild_id (fresh installs)'
+)
 ON CONFLICT (version) DO NOTHING;
 

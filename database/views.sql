@@ -10,19 +10,21 @@ SELECT
     ugr.rating_id,
     ugr.user_id,
     u.username,
-    ugr.guild_id,
     ugr.game_id,
     g.display_name as game_name,
     ugr.mu,
     ugr.sigma,
     (ugr.mu - 3 * ugr.sigma) as conservative_rating,
     ugr.matches_played,
-    ugr.wins,
-    ugr.losses,
-    ugr.draws,
+    COALESCE(mo.wins, 0)::INTEGER as wins,
+    COALESCE(mo.losses, 0)::INTEGER as losses,
+    COALESCE(mo.draws, 0)::INTEGER as draws,
     CASE 
-        WHEN (ugr.matches_played - ugr.draws) > 0 
-        THEN ROUND(100.0 * ugr.wins / (ugr.matches_played - ugr.draws), 2)
+        WHEN (ugr.matches_played - COALESCE(mo.draws, 0)) > 0 
+        THEN ROUND(
+            100.0 * COALESCE(mo.wins, 0) / (ugr.matches_played - COALESCE(mo.draws, 0))::NUMERIC,
+            2
+        )
         ELSE 0.0
     END as win_rate_pct,
     ugr.last_played,
@@ -30,10 +32,37 @@ SELECT
 FROM user_game_ratings ugr
 JOIN users u ON ugr.user_id = u.user_id
 JOIN games g ON ugr.game_id = g.game_id
+LEFT JOIN (
+    SELECT
+        mp.user_id,
+        m.game_id,
+        SUM(
+            CASE
+                WHEN mp.final_ranking = 1 AND COALESCE(r1.rank1_count, 0) = 1 THEN 1
+                ELSE 0
+            END
+        )::INTEGER AS wins,
+        SUM(
+            CASE
+                WHEN mp.final_ranking = 1 AND COALESCE(r1.rank1_count, 0) > 1 THEN 1
+                ELSE 0
+            END
+        )::INTEGER AS draws,
+        SUM(CASE WHEN mp.final_ranking > 1 THEN 1 ELSE 0 END)::INTEGER AS losses
+    FROM match_participants mp
+    JOIN matches m ON m.match_id = mp.match_id AND m.status = 'completed'
+    LEFT JOIN (
+        SELECT match_id, COUNT(*)::INTEGER AS rank1_count
+        FROM match_participants
+        WHERE final_ranking = 1
+        GROUP BY match_id
+    ) r1 ON r1.match_id = mp.match_id
+    GROUP BY mp.user_id, m.game_id
+) mo ON mo.user_id = ugr.user_id AND mo.game_id = ugr.game_id
 WHERE ugr.matches_played >= 5  -- Minimum matches for ranking
 AND u.is_active = TRUE
 AND g.is_active = TRUE
-ORDER BY ugr.guild_id, ugr.game_id, conservative_rating DESC;
+ORDER BY ugr.game_id, conservative_rating DESC;
 
 COMMENT ON VIEW v_active_leaderboard IS 'Leaderboard with minimum match requirement and win rates';
 
@@ -80,19 +109,21 @@ SELECT
     u.user_id,
     u.username,
     u.is_bot,
-    ugr.guild_id,
     g.game_id,
     g.display_name as game_name,
     ugr.mu,
     ugr.sigma,
     (ugr.mu - 3 * ugr.sigma) as conservative_rating,
     ugr.matches_played,
-    ugr.wins,
-    ugr.losses,
-    ugr.draws,
+    COALESCE(mo.wins, 0)::INTEGER as wins,
+    COALESCE(mo.losses, 0)::INTEGER as losses,
+    COALESCE(mo.draws, 0)::INTEGER as draws,
     CASE 
-        WHEN (ugr.matches_played - ugr.draws) > 0 
-        THEN ROUND(100.0 * ugr.wins / (ugr.matches_played - ugr.draws), 2)
+        WHEN (ugr.matches_played - COALESCE(mo.draws, 0)) > 0 
+        THEN ROUND(
+            100.0 * COALESCE(mo.wins, 0) / (ugr.matches_played - COALESCE(mo.draws, 0))::NUMERIC,
+            2
+        )
         ELSE 0.0
     END as win_rate_pct,
     ugr.last_played,
@@ -109,6 +140,33 @@ SELECT
 FROM users u
 JOIN user_game_ratings ugr ON u.user_id = ugr.user_id
 JOIN games g ON ugr.game_id = g.game_id
+LEFT JOIN (
+    SELECT
+        mp.user_id,
+        m.game_id,
+        SUM(
+            CASE
+                WHEN mp.final_ranking = 1 AND COALESCE(r1.rank1_count, 0) = 1 THEN 1
+                ELSE 0
+            END
+        )::INTEGER AS wins,
+        SUM(
+            CASE
+                WHEN mp.final_ranking = 1 AND COALESCE(r1.rank1_count, 0) > 1 THEN 1
+                ELSE 0
+            END
+        )::INTEGER AS draws,
+        SUM(CASE WHEN mp.final_ranking > 1 THEN 1 ELSE 0 END)::INTEGER AS losses
+    FROM match_participants mp
+    JOIN matches m ON m.match_id = mp.match_id AND m.status = 'completed'
+    LEFT JOIN (
+        SELECT match_id, COUNT(*)::INTEGER AS rank1_count
+        FROM match_participants
+        WHERE final_ranking = 1
+        GROUP BY match_id
+    ) r1 ON r1.match_id = mp.match_id
+    GROUP BY mp.user_id, m.game_id
+) mo ON mo.user_id = ugr.user_id AND mo.game_id = ugr.game_id
 LEFT JOIN LATERAL (
     SELECT 
         history_id,
@@ -120,7 +178,6 @@ LEFT JOIN LATERAL (
     FROM rating_history
     WHERE user_id = u.user_id 
       AND game_id = ugr.game_id
-      AND guild_id = ugr.guild_id
     ORDER BY timestamp DESC 
     LIMIT 1
 ) rh ON true
@@ -135,29 +192,28 @@ COMMENT ON VIEW v_player_stats IS 'Comprehensive player statistics with rating t
 -- ============================================================================
 CREATE OR REPLACE VIEW v_global_leaderboard AS
 SELECT 
-    gr.user_id,
+    ugr.user_id,
     u.username,
-    gr.game_id,
+    ugr.game_id,
     g.display_name as game_name,
-    gr.global_mu,
-    gr.global_sigma,
-    (gr.global_mu - 3 * gr.global_sigma) as conservative_rating,
-    gr.total_matches,
-    ARRAY_LENGTH(gr.guilds_played_in, 1) as guild_count,
-    gr.last_updated,
+    ugr.mu as global_mu,
+    ugr.sigma as global_sigma,
+    (ugr.mu - 3 * ugr.sigma) as conservative_rating,
+    ugr.matches_played as total_matches,
+    ugr.updated_at as last_updated,
     ROW_NUMBER() OVER (
-        PARTITION BY gr.game_id 
-        ORDER BY (gr.global_mu - 3 * gr.global_sigma) DESC
+        PARTITION BY ugr.game_id 
+        ORDER BY (ugr.mu - 3 * ugr.sigma) DESC
     ) as global_rank
-FROM global_ratings gr
-JOIN users u ON gr.user_id = u.user_id
-JOIN games g ON gr.game_id = g.game_id
+FROM user_game_ratings ugr
+JOIN users u ON ugr.user_id = u.user_id
+JOIN games g ON ugr.game_id = g.game_id
 WHERE u.is_active = TRUE
   AND g.is_active = TRUE
-  AND gr.total_matches >= 10  -- Minimum for global ranking
-ORDER BY gr.game_id, conservative_rating DESC;
+  AND ugr.matches_played >= 10  -- Minimum for global ranking
+ORDER BY ugr.game_id, conservative_rating DESC;
 
-COMMENT ON VIEW v_global_leaderboard IS 'Global leaderboard across all guilds';
+COMMENT ON VIEW v_global_leaderboard IS 'Global leaderboard (same data as user_game_ratings)';
 
 
 -- ============================================================================
@@ -192,9 +248,14 @@ SELECT
             'sigma_delta', mp.sigma_delta
         ) ORDER BY mp.player_number
     ) as participants,
-    (SELECT COUNT(*) FROM moves WHERE match_id = m.match_id) as move_count
+    COALESCE(MAX(mc.cnt), 0)::BIGINT as move_count
 FROM matches m
 JOIN games g ON m.game_id = g.game_id
+LEFT JOIN (
+    SELECT match_id, COUNT(*)::BIGINT AS cnt
+    FROM moves
+    GROUP BY match_id
+) mc ON mc.match_id = m.match_id
 LEFT JOIN match_participants mp ON m.match_id = mp.match_id
 LEFT JOIN users u ON mp.user_id = u.user_id
 GROUP BY m.match_id, g.display_name
@@ -254,7 +315,6 @@ CREATE OR REPLACE VIEW v_inactive_players AS
 SELECT 
     ugr.user_id,
     u.username,
-    ugr.guild_id,
     ugr.game_id,
     g.display_name as game_name,
     ugr.matches_played,
@@ -288,16 +348,17 @@ CREATE OR REPLACE VIEW v_guild_activity_summary AS
 SELECT 
     g.guild_id,
     g.is_active,
-    COUNT(DISTINCT ugr.user_id) as total_players,
-    COUNT(DISTINCT ugr.game_id) as games_played,
-    SUM(ugr.matches_played) as total_matches,
-    MAX(ugr.last_played) as last_activity,
-    EXTRACT(EPOCH FROM (NOW() - MAX(ugr.last_played)))::INTEGER / 86400 as days_since_activity,
-    COUNT(DISTINCT CASE WHEN ugr.last_played > NOW() - INTERVAL '7 days' THEN ugr.user_id END) as active_players_7d,
-    COUNT(DISTINCT CASE WHEN ugr.last_played > NOW() - INTERVAL '30 days' THEN ugr.user_id END) as active_players_30d
+    COUNT(DISTINCT mp.user_id) as total_players,
+    COUNT(DISTINCT m.game_id) as games_played,
+    COUNT(DISTINCT m.match_id) FILTER (WHERE m.status = 'completed') as total_matches,
+    MAX(m.ended_at) as last_activity,
+    EXTRACT(EPOCH FROM (NOW() - MAX(m.ended_at)))::INTEGER / 86400 as days_since_activity,
+    COUNT(DISTINCT CASE WHEN m.ended_at > NOW() - INTERVAL '7 days' THEN mp.user_id END) as active_players_7d,
+    COUNT(DISTINCT CASE WHEN m.ended_at > NOW() - INTERVAL '30 days' THEN mp.user_id END) as active_players_30d
 FROM guilds g
-LEFT JOIN user_game_ratings ugr ON g.guild_id = ugr.guild_id
-GROUP BY g.guild_id
+LEFT JOIN matches m ON m.guild_id = g.guild_id AND m.status = 'completed'
+LEFT JOIN match_participants mp ON mp.match_id = m.match_id
+GROUP BY g.guild_id, g.is_active
 ORDER BY last_activity DESC NULLS LAST;
 
 COMMENT ON VIEW v_guild_activity_summary IS 'Guild activity metrics and player counts';
@@ -312,17 +373,19 @@ SELECT
     gm.game_id,
     gm.game_name,
     gm.display_name,
-    COUNT(DISTINCT ugr.guild_id) as guilds_playing,
-    COUNT(DISTINCT ugr.user_id) as total_players,
-    SUM(ugr.matches_played) as total_matches,
-    COUNT(DISTINCT CASE WHEN ugr.last_played > NOW() - INTERVAL '7 days' THEN ugr.user_id END) as active_players_7d,
-    MAX(ugr.last_played) as last_played,
-    AVG(ugr.matches_played) as avg_matches_per_player,
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ugr.mu - 3 * ugr.sigma) as median_rating
+    COUNT(DISTINCT m.guild_id) as guilds_playing,
+    COUNT(DISTINCT mp.user_id) as total_players,
+    COUNT(DISTINCT m.match_id) as total_matches,
+    COUNT(DISTINCT CASE WHEN m.ended_at > NOW() - INTERVAL '7 days' THEN mp.user_id END) as active_players_7d,
+    MAX(m.ended_at) as last_played,
+    (SELECT AVG(ugr.matches_played)::DOUBLE PRECISION FROM user_game_ratings ugr WHERE ugr.game_id = gm.game_id) as avg_matches_per_player,
+    (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ugr.mu - 3 * ugr.sigma)
+     FROM user_game_ratings ugr WHERE ugr.game_id = gm.game_id) as median_rating
 FROM games gm
-LEFT JOIN user_game_ratings ugr ON gm.game_id = ugr.game_id
+LEFT JOIN matches m ON m.game_id = gm.game_id AND m.status = 'completed'
+LEFT JOIN match_participants mp ON mp.match_id = m.match_id
 WHERE gm.is_active = TRUE
-GROUP BY gm.game_id
+GROUP BY gm.game_id, gm.game_name, gm.display_name
 ORDER BY total_matches DESC NULLS LAST;
 
 COMMENT ON VIEW v_game_popularity IS 'Game popularity and engagement metrics';
