@@ -69,16 +69,17 @@ COMMENT ON COLUMN users.preferences IS 'User preferences: {"favorite_game": "che
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS games
 (
-    game_id       SERIAL PRIMARY KEY,
-    game_name     VARCHAR(100) UNIQUE       NOT NULL,
-    display_name  VARCHAR(200)              NOT NULL,
-    min_players   INTEGER                   NOT NULL,
-    max_players   INTEGER                   NOT NULL,
-    rating_config JSONB                     NOT NULL,
-    game_metadata JSONB       DEFAULT '{}'::jsonb,
-    is_active     BOOLEAN     DEFAULT TRUE  NOT NULL,
-    created_at    TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    updated_at    TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    game_id             SERIAL PRIMARY KEY,
+    game_name           VARCHAR(100) UNIQUE       NOT NULL,
+    display_name        VARCHAR(200)              NOT NULL,
+    min_players         INTEGER                   NOT NULL,
+    max_players         INTEGER                   NOT NULL,
+    rating_config       JSONB                     NOT NULL,
+    game_metadata       JSONB       DEFAULT '{}'::jsonb,
+    game_schema_version INTEGER     DEFAULT 1     NOT NULL,
+    is_active           BOOLEAN     DEFAULT TRUE  NOT NULL,
+    created_at          TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at          TIMESTAMPTZ DEFAULT NOW() NOT NULL,
 
     CONSTRAINT chk_game_players CHECK (min_players >= 1 AND max_players >= min_players),
     CONSTRAINT chk_game_name_format CHECK (game_name ~ '^[a-z][a-z0-9_]*$'),
@@ -98,6 +99,7 @@ COMMENT ON COLUMN games.game_name IS 'Internal game identifier (lowercase, snake
 COMMENT ON COLUMN games.display_name IS 'Human-readable game name for display';
 COMMENT ON COLUMN games.rating_config IS 'TrueSkill parameters: {"sigma": 0.1667, "beta": 0.0833, "tau": 0.01, "draw": 0.9}';
 COMMENT ON COLUMN games.game_metadata IS 'Game rules, description, etc.: {"description": "...", "rules": [...], ...}';
+COMMENT ON COLUMN games.game_schema_version IS 'Bumped when game definition in code changes; used for registration sync';
 
 
 -- ============================================================================
@@ -128,7 +130,7 @@ CREATE TABLE IF NOT EXISTS user_game_ratings
         REFERENCES guilds (guild_id) ON DELETE CASCADE,
     CONSTRAINT fk_user_rating_game FOREIGN KEY (game_id)
         REFERENCES games (game_id) ON DELETE CASCADE,
-    CONSTRAINT chk_rating_positive CHECK (mu > 0 AND sigma > 0),
+    CONSTRAINT chk_rating_floor CHECK (mu >= 0.0 AND sigma >= 0.001),
     CONSTRAINT chk_matches_counts CHECK (
         matches_played >= 0 AND
         wins >= 0 AND
@@ -174,6 +176,7 @@ CREATE TABLE IF NOT EXISTS matches
     status      VARCHAR(20) DEFAULT 'in_progress' NOT NULL,
     is_rated    BOOLEAN     DEFAULT TRUE          NOT NULL,
     game_config JSONB       DEFAULT '{}'::jsonb,
+    replay_log  TEXT,
     final_state JSONB,
     metadata    JSONB       DEFAULT '{}'::jsonb,
     created_at  TIMESTAMPTZ DEFAULT NOW()         NOT NULL,
@@ -208,6 +211,7 @@ COMMENT ON TABLE matches IS 'Game matches (completed and in-progress)';
 COMMENT ON COLUMN matches.game_config IS 'Game-specific settings used for this match';
 COMMENT ON COLUMN matches.final_state IS 'Final board/game state at completion';
 COMMENT ON COLUMN matches.metadata IS 'Spectators, timeout info, etc.: {"spectators": [...], "timeouts": [...]}';
+COMMENT ON COLUMN matches.replay_log IS 'Append-only JSONL: one JSON object per line describing a game action for replay';
 
 
 -- ============================================================================
@@ -261,9 +265,10 @@ CREATE TABLE IF NOT EXISTS moves
     match_id         BIGINT                    NOT NULL,
     user_id          BIGINT,
     move_number      INTEGER                   NOT NULL,
-    move_data        JSONB                     NOT NULL,
-    game_state_after JSONB,
-    timestamp        TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    move_data         JSONB                     NOT NULL,
+    game_state_after  JSONB,
+    is_game_affecting BOOLEAN     DEFAULT TRUE  NOT NULL,
+    timestamp         TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     time_taken_ms    INTEGER,
 
     CONSTRAINT uq_match_move_number UNIQUE (match_id, move_number),
@@ -279,12 +284,15 @@ CREATE TABLE IF NOT EXISTS moves
 CREATE INDEX IF NOT EXISTS idx_moves_match_sequence ON moves (match_id, move_number ASC);
 CREATE INDEX IF NOT EXISTS idx_moves_user ON moves (user_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_moves_timestamp ON moves (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_moves_game_affecting ON moves (is_game_affecting)
+    WHERE is_game_affecting = TRUE;
 
 COMMENT ON TABLE moves IS 'Complete move history for game replay and auditing';
 COMMENT ON COLUMN moves.user_id IS 'Player who made the move (NULL for system/automatic moves)';
 COMMENT ON COLUMN moves.move_data IS 'Game-specific move format: {"position": "e4", "piece": "pawn", ...}';
 COMMENT ON COLUMN moves.game_state_after IS 'Optional: Full game state after this move for replay';
 COMMENT ON COLUMN moves.time_taken_ms IS 'Thinking time in milliseconds';
+COMMENT ON COLUMN moves.is_game_affecting IS 'False for cosmetic/no-op moves excluded from replay logic';
 
 
 -- ============================================================================
@@ -384,7 +392,7 @@ CREATE TABLE IF NOT EXISTS global_ratings
         REFERENCES users (user_id) ON DELETE CASCADE,
     CONSTRAINT fk_global_game FOREIGN KEY (game_id)
         REFERENCES games (game_id) ON DELETE CASCADE,
-    CONSTRAINT chk_global_rating_positive CHECK (global_mu > 0 AND global_sigma > 0),
+    CONSTRAINT chk_global_rating_floor CHECK (global_mu >= 0.0 AND global_sigma >= 0.001),
     CONSTRAINT chk_global_matches CHECK (total_matches >= 0)
 );
 
@@ -501,5 +509,13 @@ EXECUTE FUNCTION update_updated_at_column();
 -- ============================================================================
 INSERT INTO database_migrations (version, description)
 VALUES ('2.0.0', 'Initial PostgreSQL schema with full feature set')
+ON CONFLICT (version) DO NOTHING;
+
+INSERT INTO database_migrations (version, description)
+VALUES ('2.1.0', 'Phase 1: rating floors, replay columns, sync helpers (fresh installs)')
+ON CONFLICT (version) DO NOTHING;
+
+INSERT INTO database_migrations (version, description)
+VALUES ('2.2.0', 'Replay: JSONL action log on matches; drop random_seed (fresh installs)')
 ON CONFLICT (version) DO NOTHING;
 

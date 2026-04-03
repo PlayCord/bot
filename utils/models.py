@@ -100,6 +100,7 @@ class Game:
     max_players: int
     rating_config: Dict[str, float]
     game_metadata: Dict[str, Any] = field(default_factory=dict)
+    game_schema_version: int = 1
     is_active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -188,6 +189,7 @@ class Match:
     status: MatchStatus
     is_rated: bool = True
     game_config: Dict[str, Any] = field(default_factory=dict)
+    replay_log: Optional[str] = None
     final_state: Optional[Dict[str, Any]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[datetime] = None
@@ -254,6 +256,7 @@ class Move:
     move_number: int
     move_data: Dict[str, Any]
     game_state_after: Optional[Dict[str, Any]] = None
+    is_game_affecting: bool = True
     timestamp: Optional[datetime] = None
     time_taken_ms: Optional[int] = None
 
@@ -478,6 +481,7 @@ def row_to_game(row: Dict[str, Any]) -> Game:
         max_players=row['max_players'],
         rating_config=row['rating_config'],
         game_metadata=row.get('game_metadata', {}),
+        game_schema_version=row.get('game_schema_version', 1),
         is_active=row.get('is_active', True),
         created_at=row.get('created_at'),
         updated_at=row.get('updated_at')
@@ -517,6 +521,7 @@ def row_to_match(row: Dict[str, Any]) -> Match:
         status=MatchStatus(row['status']),
         is_rated=row.get('is_rated', True),
         game_config=row.get('game_config', {}),
+        replay_log=row.get('replay_log'),
         final_state=row.get('final_state'),
         metadata=row.get('metadata', {}),
         created_at=row.get('created_at')
@@ -549,6 +554,7 @@ def row_to_move(row: Dict[str, Any]) -> Move:
         move_number=row['move_number'],
         move_data=row['move_data'],
         game_state_after=row.get('game_state_after'),
+        is_game_affecting=row.get('is_game_affecting', True),
         timestamp=row.get('timestamp'),
         time_taken_ms=row.get('time_taken_ms')
     )

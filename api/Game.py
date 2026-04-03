@@ -76,6 +76,7 @@ class Game(ABC):
     time: str
     difficulty: str
     player_order: PlayerOrder = PlayerOrder.RANDOM
+    game_schema_version: int = 1
 
     @abstractmethod
     def __init__(self, players: list[Player]) -> None:

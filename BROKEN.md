@@ -6,18 +6,23 @@ empty, I will release 1.0.0
 ## Features (focus on this)
 
 - [ ] No match replay functionality
+    - **Done (DB / foundation only):** `matches.replay_log` holds append-only **JSONL** (one JSON object per line per
+      action). `Database.append_replay_event` / `get_replay_events` wrap it—still need games / `GameInterface` to emit
+      events and a viewer UI. The `moves` table has `is_game_affecting`; `record_move` accepts it (optional parallel to
+      JSONL).
     - This would require storing the sequence of move JSONs for each game, and then implementing a way to replay those
       moves in a embed with pagination or something. This is a pretty big feature but would be really cool and add a lot
       of value to
       the bot.
     - This also raises the question of how to handle games that have some element of randomness (like card draws or
-      something). We would need to store the random seed used for the game and then use that to ensure the replay is
-      deterministic.
+      something). **Approach:** log each stochastic outcome as its own JSONL event (e.g. shuffle order, die roll) so
+      replay does not depend on a global random seed.
     - This also opens up the possibility of players sharing replays with each other, which would be really cool. We
       could generate a unique ID for each replay that players can share, and then when someone sees that, they can open
       the replay and view it.
     - Replay ID would be displayed in match history.
     - commands would need to specify whether they actually affect the game (so hand peeks aren't counted etc)
+      **(Column + API on `record_move` exist; Command / callback wiring still TODO.)**
     - Bots would also need to be handled.
 - [ ] We need a way to prevent people from sending messages in game thread that are not commands, or people spectating
   from sending anything at all. The issue is that the app command and send message privileges are combined.
@@ -58,15 +63,21 @@ empty, I will release 1.0.0
     - The channel should be a config option that has to be set by a server administrator with /playcord settings
     - If the bot is added to a server, it will include this in the onboarding message that it sends
     - If this channel is not set, attempting to run anything that requires the channel will fail.
-- [ ] Database problems
-    - Database has wins-losses-ties, which doesn't work very well for FFA
-    - Prevent negative ELO ratings
-    - Prevent sigma getting too close to 0
-    - Basically all of the previous problems require some fixes to the database (leaderboards, customization updates,
-      replays, etc)
-    - Player total games played gets out of sync with finished games if bot crashes
-    - Allow games in the database to be managed by the game registration function. We can also use this to check if bot
-      commands would be out of date based on the last database state and update
+- [x] Database problems (Phase 1 foundation — see below; broader schema for leaderboards / presets / replay UI still
+      evolves with other features)
+    - [x] FFA vs win/loss/tie: `match_participants` already used `final_ranking`; `end_match` now treats **tie for first**
+      as a draw for all rank-1 players. SQL helper `calculate_win_loss_tie_from_ranking` exists. Per-game aggregate
+      `wins` / `losses` / `draws` on `user_game_ratings` remain for leaderboards.
+    - [x] Prevent negative ratings: `mu >= 0` (CHECK + trigger using `games.rating_config.min_mu` + config
+      `ratings.min_mu`), plus Python clamps on rating updates.
+    - [x] Prevent sigma too small: `sigma >= 0.001` (CHECK + `min_sigma` in rating_config + config `ratings.min_sigma`),
+      skill decay and global rating aggregation clamp to the floor.
+    - [ ] Broader schema work still tied to leaderboards, customization, full replay pipeline, etc. (ongoing)
+    - [x] `matches_played` drift: `sync_games_played_counts()` recomputes from completed matches; runs on bot startup
+      (best-effort if the function is missing on ancient DBs).
+    - [x] Game registration from code: `sync_games_from_code()` on startup upserts all `GAME_TYPES` entries;
+      `games.game_schema_version` and `Game.game_schema_version` for tracking definition changes. **Not yet:** using DB
+      state to auto-detect Discord command tree drift (see separate item below).
 - [ ] Detect if the synced commands are not equal to the local command tree and auto sync
 - [ ] Move the trueskill rating stuff INTO the game class (game.trueskill_parameters) and provide sensible defaults if
   not provided
@@ -86,6 +97,10 @@ empty, I will release 1.0.0
     - This would greatly increase the number of possibilities for games.
     - If this was implemented, it would completely replace the current game infastructure but have such a large
       featureset that implementing a game in the current method would also be trivial
+- [ ] PaginationView does not survive restarts.
+    - Note that I don't want it to, I just want it to show a popup message that says "This interaction is outdated.
+      Please reopen the menu."
+- [ ] Remove all instances of the first time welcome message. There's no point.
 
 ## Bugs/Visuals (later)
 

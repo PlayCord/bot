@@ -19,7 +19,7 @@ PlayCord aims to provide an easy-to-use framework and bot that can host classic 
 project focuses on an extensible game API, server-side match state management, SVG rendering for game boards, and a
 PostgreSQL-backed leaderboard with TrueSkill-style ratings.
 
-### TLDR: Games, on Discord, without Activities.
+### TLDR: Games, on Discord, without needing Activities.
 
 > If you think this is cool, please (1) star the project and (2) follow me, it helps motivate me to keep improving the
 > project :D

@@ -20,31 +20,35 @@ RETURNS TABLE (
 BEGIN
     RETURN QUERY
     UPDATE user_game_ratings ugr
-    SET 
-        sigma = ugr.sigma * (1 + sigma_increase_factor),
+    SET
+        sigma = GREATEST(
+            decay_data.new_sig,
+            COALESCE((g.rating_config->>'min_sigma')::DOUBLE PRECISION, 0.001)
+        ),
         last_sigma_increase = NOW(),
         updated_at = NOW()
     FROM (
-        SELECT 
+        SELECT
             r.rating_id,
-            r.user_id as uid,
-            r.game_id as gid,
-            r.guild_id as guildid,
-            r.sigma as old_sig,
-            r.sigma * (1 + sigma_increase_factor) as new_sig,
-            EXTRACT(EPOCH FROM (NOW() - r.last_played))::INTEGER / 86400 as days_inactive_calc
+            r.user_id AS uid,
+            r.game_id AS gid,
+            r.guild_id AS guildid,
+            r.sigma AS old_sig,
+            r.sigma * (1 + sigma_increase_factor) AS new_sig,
+            EXTRACT(EPOCH FROM (NOW() - r.last_played))::INTEGER / 86400 AS days_inactive_calc
         FROM user_game_ratings r
         WHERE r.last_played < NOW() - (days_inactive || ' days')::INTERVAL
-          AND (r.last_sigma_increase IS NULL 
+          AND (r.last_sigma_increase IS NULL
                OR r.last_sigma_increase < NOW() - (days_inactive || ' days')::INTERVAL)
     ) decay_data
+    JOIN games g ON g.game_id = ugr.game_id
     WHERE ugr.rating_id = decay_data.rating_id
-    RETURNING 
+    RETURNING
         decay_data.uid,
         decay_data.gid,
         decay_data.guildid,
         decay_data.old_sig,
-        decay_data.new_sig,
+        ugr.sigma,
         decay_data.days_inactive_calc;
 END;
 $$ LANGUAGE plpgsql;
@@ -238,7 +242,9 @@ BEGIN
         new_global_mu := weighted_mu_sum / total_precision;
         -- Combined uncertainty: sigma = sqrt(1 / sum(1 / sigma_i^2))
         new_global_sigma := SQRT(1.0 / total_precision);
-        
+        new_global_mu := GREATEST(new_global_mu, 0.0);
+        new_global_sigma := GREATEST(new_global_sigma, 0.001);
+
         -- Insert or update global rating
         INSERT INTO global_ratings (user_id, game_id, global_mu, global_sigma, total_matches, guilds_played_in, last_updated)
         VALUES (p_user_id, p_game_id, new_global_mu, new_global_sigma, match_count, guilds_array, NOW())
@@ -456,6 +462,97 @@ END;
 $$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION get_player_activity_summary IS 'Get comprehensive activity summary for a player';
+
+
+-- ============================================================================
+-- FUNCTION: calculate_win_loss_tie_from_ranking
+-- Win / loss / draw from final_ranking and tie-for-first (FFA-safe)
+-- ============================================================================
+CREATE OR REPLACE FUNCTION calculate_win_loss_tie_from_ranking(
+    p_final_ranking INTEGER,
+    p_match_id BIGINT
+)
+RETURNS TABLE (is_win BOOLEAN, is_loss BOOLEAN, is_draw BOOLEAN) AS $$
+DECLARE
+    rank1_count INTEGER;
+BEGIN
+    IF p_final_ranking IS NULL THEN
+        RETURN QUERY SELECT FALSE, FALSE, FALSE;
+        RETURN;
+    END IF;
+    SELECT COUNT(*) INTO rank1_count
+    FROM match_participants mp
+    WHERE mp.match_id = p_match_id AND mp.final_ranking = 1;
+    IF p_final_ranking = 1 AND rank1_count > 1 THEN
+        RETURN QUERY SELECT FALSE, FALSE, TRUE;
+    ELSIF p_final_ranking = 1 THEN
+        RETURN QUERY SELECT TRUE, FALSE, FALSE;
+    ELSE
+        RETURN QUERY SELECT FALSE, TRUE, FALSE;
+    END IF;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+COMMENT ON FUNCTION calculate_win_loss_tie_from_ranking IS
+'Derive win/loss/draw flags from final_ranking and tie-for-first count (FFA-safe).';
+
+
+-- ============================================================================
+-- FUNCTION: sync_games_played_counts
+-- Recompute matches_played from completed matches
+-- ============================================================================
+CREATE OR REPLACE FUNCTION sync_games_played_counts()
+RETURNS INTEGER AS $$
+DECLARE
+    updated INTEGER;
+BEGIN
+    UPDATE user_game_ratings ugr
+    SET matches_played = COALESCE((
+        SELECT COUNT(*)::INTEGER
+        FROM match_participants mp
+        JOIN matches m ON mp.match_id = m.match_id
+        WHERE mp.user_id = ugr.user_id
+          AND m.guild_id = ugr.guild_id
+          AND m.game_id = ugr.game_id
+          AND m.status = 'completed'
+    ), 0);
+    GET DIAGNOSTICS updated = ROW_COUNT;
+    RETURN updated;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION sync_games_played_counts IS
+'Recompute matches_played from completed matches (repair drift).';
+
+
+-- ============================================================================
+-- TRIGGER: enforce rating floors from games.rating_config (min_mu, min_sigma)
+-- ============================================================================
+CREATE OR REPLACE FUNCTION enforce_user_game_rating_floors()
+RETURNS TRIGGER AS $$
+DECLARE
+    min_mu DOUBLE PRECISION;
+    min_sigma DOUBLE PRECISION;
+BEGIN
+    SELECT
+        COALESCE((g.rating_config->>'min_mu')::DOUBLE PRECISION, 0.0),
+        COALESCE((g.rating_config->>'min_sigma')::DOUBLE PRECISION, 0.001)
+    INTO min_mu, min_sigma
+    FROM games g WHERE g.game_id = NEW.game_id;
+    IF min_sigma < 0.001 THEN
+        min_sigma := 0.001;
+    END IF;
+    NEW.mu := GREATEST(NEW.mu, min_mu);
+    NEW.sigma := GREATEST(NEW.sigma, min_sigma);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_enforce_min_rating ON user_game_ratings;
+CREATE TRIGGER trg_enforce_min_rating
+    BEFORE INSERT OR UPDATE OF mu, sigma ON user_game_ratings
+    FOR EACH ROW
+    EXECUTE FUNCTION enforce_user_game_rating_floors();
 
 
 -- ============================================================================

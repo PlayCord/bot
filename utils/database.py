@@ -23,6 +23,7 @@ except ImportError:
 from api.Player import Player
 from configuration import constants
 from configuration.constants import GAME_TRUESKILL, MU
+from utils import db_migrations
 from utils.models import (
     User, Guild, Game, Rating, Match, Participant, Move,
     AnalyticsEvent, RatingHistory, GlobalRating, Season,
@@ -454,30 +455,116 @@ class Database:
         min_players: int,
         max_players: int,
         rating_config: Dict[str, float],
-        game_metadata: Optional[Dict[str, Any]] = None
+        game_metadata: Optional[Dict[str, Any]] = None,
+        game_schema_version: int = 1
     ) -> int:
-        """Register a new game type"""
+        """Register a new game type (upsert from code definitions)."""
         config_json = json.dumps(rating_config)
         metadata_json = json.dumps(game_metadata or {})
         query = """
             INSERT INTO games (game_name, display_name, min_players, max_players,
-                              rating_config, game_metadata)
-            VALUES (%s, %s, %s, %s, %s::jsonb, %s::jsonb)
+                              rating_config, game_metadata, game_schema_version)
+            VALUES (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s)
             ON CONFLICT (game_name) DO UPDATE SET
                 display_name = EXCLUDED.display_name,
                 min_players = EXCLUDED.min_players,
                 max_players = EXCLUDED.max_players,
                 rating_config = EXCLUDED.rating_config,
                 game_metadata = EXCLUDED.game_metadata,
+                game_schema_version = EXCLUDED.game_schema_version,
                 updated_at = NOW()
             RETURNING game_id;
         """
         result = self._execute_query(
             query,
-            (game_name, display_name, min_players, max_players, config_json, metadata_json),
+            (
+                game_name,
+                display_name,
+                min_players,
+                max_players,
+                config_json,
+                metadata_json,
+                game_schema_version,
+            ),
             fetchone=True
         )
         return result['game_id'] if result else None
+
+    def _clamp_rating(self, mu: float, sigma: float, game_id: int) -> Tuple[float, float]:
+        """Clamp mu/sigma using global config and per-game rating_config floors."""
+        cfg = constants.CONFIGURATION.get("ratings", {})
+        min_mu = float(cfg.get("min_mu", 0.0))
+        min_sigma = float(cfg.get("min_sigma", 0.001))
+        game = self.get_game_by_id(game_id)
+        if game and game.rating_config:
+            min_mu = float(game.rating_config.get("min_mu", min_mu))
+            min_sigma = max(
+                min_sigma,
+                float(game.rating_config.get("min_sigma", min_sigma)),
+            )
+        min_sigma = max(min_sigma, 0.001)
+        min_mu = max(min_mu, 0.0)
+        return max(mu, min_mu), max(sigma, min_sigma)
+
+    def sync_games_from_code(self) -> None:
+        """Upsert all games from GAME_TYPES and GAME_TRUESKILL (call on bot startup)."""
+        import importlib
+
+        from api.Game import resolve_player_count
+        from configuration.constants import GAME_TYPES
+
+        cfg = constants.CONFIGURATION.get("ratings", {})
+        default_min_mu = float(cfg.get("min_mu", 0.0))
+        default_min_sigma = float(cfg.get("min_sigma", 0.001))
+
+        for game_name, (mod_name, cls_name) in GAME_TYPES.items():
+            mod = importlib.import_module(mod_name)
+            cls = getattr(mod, cls_name)
+            display_name = getattr(cls, "name", game_name.replace("_", " ").title())
+            spec = resolve_player_count(cls)
+            if isinstance(spec, list):
+                min_p, max_p = min(spec), max(spec)
+            elif spec is None:
+                min_p, max_p = 2, 2
+            else:
+                min_p = max_p = int(spec)
+            ts = GAME_TRUESKILL.get(
+                game_name,
+                {"sigma": 1 / 3, "beta": 1 / 5, "tau": 1 / 250, "draw": 0.0},
+            )
+            def_sigma = float(ts["sigma"] * MU)
+            rating_config = {
+                "sigma": float(ts["sigma"] * MU),
+                "beta": float(ts["beta"] * MU),
+                "tau": float(ts["tau"] * MU),
+                "draw": float(ts["draw"]),
+                "default_mu": float(MU),
+                "default_sigma": def_sigma,
+                "min_mu": default_min_mu,
+                "min_sigma": max(default_min_sigma, 0.001),
+            }
+            schema_ver = int(getattr(cls, "game_schema_version", 1))
+            meta = {
+                "summary": getattr(cls, "summary", ""),
+                "description": getattr(cls, "description", ""),
+            }
+            self.register_game(
+                game_name=game_name,
+                display_name=display_name,
+                min_players=min_p,
+                max_players=max_p,
+                rating_config=rating_config,
+                game_metadata=meta,
+                game_schema_version=schema_ver,
+            )
+
+    def sync_matches_played_counts(self) -> int:
+        """Recompute matches_played from completed matches (repair drift)."""
+        result = self._execute_query(
+            "SELECT sync_games_played_counts() AS n;",
+            fetchone=True,
+        )
+        return int(result["n"]) if result else 0
 
     def get_game(self, game_name: str) -> Optional[Game]:
         """Get game by name"""
@@ -567,6 +654,7 @@ class Database:
         draw: bool = False
     ):
         """Update user rating"""
+        mu, sigma = self._clamp_rating(mu, sigma, game_id)
         query = """
             UPDATE user_game_ratings
             SET mu = %s,
@@ -596,9 +684,12 @@ class Database:
                         last_played = NOW(), updated_at = NOW()
                     WHERE user_id = %s AND guild_id = %s AND game_id = %s;
                 """
+                mu_c, sig_c = self._clamp_rating(
+                    update['mu'], update['sigma'], update['game_id']
+                )
                 cur.execute(
                     query,
-                    (update['mu'], update['sigma'], update['user_id'],
+                    (mu_c, sig_c, update['user_id'],
                      update['guild_id'], update['game_id'])
                 )
 
@@ -890,6 +981,8 @@ class Database:
                 (final_state_json, match_id)
             )
 
+            rank1_count = sum(1 for r in results.values() if r.get('ranking') == 1)
+
             # Update participants and ratings
             for user_id, result in results.items():
                 # Update participant
@@ -912,10 +1005,19 @@ class Database:
                     )
                 )
 
-                # Determine win/loss/draw
-                is_win = result['ranking'] == 1
-                is_draw = result.get('is_draw', False)
-                is_loss = not is_win and not is_draw
+                ranking = result['ranking']
+                if result.get('is_draw'):
+                    is_win, is_loss, is_draw = False, False, True
+                elif ranking == 1 and rank1_count > 1:
+                    is_win, is_loss, is_draw = False, False, True
+                elif ranking == 1:
+                    is_win, is_loss, is_draw = True, False, False
+                else:
+                    is_win, is_loss, is_draw = False, True, False
+
+                new_mu, new_sigma = self._clamp_rating(
+                    result['new_mu'], result['new_sigma'], match.game_id
+                )
 
                 # Update rating
                 cur.execute(
@@ -932,8 +1034,8 @@ class Database:
                     WHERE user_id = %s AND guild_id = %s AND game_id = %s;
                     """,
                     (
-                        result['new_mu'],
-                        result['new_sigma'],
+                        new_mu,
+                        new_sigma,
                         1 if is_win else 0,
                         1 if is_loss else 0,
                         1 if is_draw else 0,
@@ -956,10 +1058,10 @@ class Database:
                         match.guild_id,
                         match.game_id,
                         match_id,
-                        result.get('mu_before', result['new_mu'] - result['mu_delta']),
-                        result.get('sigma_before', result['new_sigma'] - result['sigma_delta']),
-                        result['new_mu'],
-                        result['new_sigma']
+                        result.get('mu_before', new_mu - result['mu_delta']),
+                        result.get('sigma_before', new_sigma - result['sigma_delta']),
+                        new_mu,
+                        new_sigma
                     )
                 )
 
@@ -1083,7 +1185,8 @@ class Database:
         move_number: int,
         move_data: Dict[str, Any],
         game_state_after: Optional[Dict[str, Any]] = None,
-        time_taken_ms: Optional[int] = None
+        time_taken_ms: Optional[int] = None,
+        is_game_affecting: bool = True
     ):
         """Record a move in a match"""
         move_json = json.dumps(move_data)
@@ -1091,13 +1194,55 @@ class Database:
 
         query = """
             INSERT INTO moves
-                (match_id, user_id, move_number, move_data, game_state_after, time_taken_ms)
-            VALUES (%s, %s, %s, %s::jsonb, %s::jsonb, %s);
+                (match_id, user_id, move_number, move_data, game_state_after,
+                 time_taken_ms, is_game_affecting)
+            VALUES (%s, %s, %s, %s::jsonb, %s::jsonb, %s, %s);
         """
         self._execute_query(
             query,
-            (match_id, user_id, move_number, move_json, state_json, time_taken_ms)
+            (
+                match_id,
+                user_id,
+                move_number,
+                move_json,
+                state_json,
+                time_taken_ms,
+                is_game_affecting,
+            )
         )
+
+    def append_replay_event(self, match_id: int, event: Dict[str, Any]) -> None:
+        """
+        Append one JSON object as a single line to matches.replay_log (JSONL).
+        Schema of each line is up to the game; include a stable "type" field when possible.
+        """
+        line = json.dumps(event, separators=(",", ":"), ensure_ascii=False) + "\n"
+        query = """
+            UPDATE matches
+            SET replay_log = COALESCE(replay_log, '') || %s
+            WHERE match_id = %s;
+        """
+        self._execute_query(query, (line, match_id))
+
+    def get_replay_events(self, match_id: int) -> List[Dict[str, Any]]:
+        """Parse matches.replay_log JSONL into a list of dicts (skips blank lines and invalid JSON)."""
+        match = self.get_match(match_id)
+        if not match or not match.replay_log:
+            return []
+        out: List[Dict[str, Any]] = []
+        for raw_line in match.replay_log.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError:
+                logger.warning(
+                    "Skipping invalid JSONL line in replay_log for match_id=%s: %s",
+                    match_id,
+                    line[:200],
+                )
+        return out
 
     def get_match_moves(self, match_id: int) -> List[Move]:
         """Get all moves for a match in order"""
@@ -1828,7 +1973,8 @@ class Database:
                 cur.execute(
                     """
                     INSERT INTO matches
-                        (game_id, guild_id, channel_id, thread_id, started_at, status, is_rated, game_config, metadata)
+                        (game_id, guild_id, channel_id, thread_id, started_at, status, is_rated,
+                         game_config, metadata)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb)
                     RETURNING match_id;
                     """,
@@ -1841,7 +1987,7 @@ class Database:
                         status,
                         is_rated,
                         game_data_json,
-                        game_data_json
+                        game_data_json,
                     )
                 )
                 result = cur.fetchone()
@@ -1990,6 +2136,13 @@ def startup():
             max_overflow=config_db.get("max_overflow", 20),
             pool_timeout=config_db.get("pool_timeout", 30)
         )
+        db_migrations.apply_migrations(db)
+        db.sync_games_from_code()
+        try:
+            n = db.sync_matches_played_counts()
+            logger.info("sync_games_played_counts updated %s rating rows", n)
+        except Exception as sync_err:
+            logger.warning("sync_matches_played_counts skipped: %s", sync_err)
         database = db
         logger.info("Database startup successful")
         return True
