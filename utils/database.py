@@ -1561,13 +1561,13 @@ class Database:
         return rows if rows else []
 
     def get_analytics_event_counts_by_game(self, hours: int = 24) -> List[Dict[str, Any]]:
-        """Count rows by game_type (non-null) in the last N hours."""
+        """Count rows by game slug in the last N hours (via analytics_events.game_id -> games.game_name)."""
         query = """
-            SELECT game_type, COUNT(*)::BIGINT AS cnt
-            FROM analytics_events
-            WHERE timestamp > NOW() - (%s * INTERVAL '1 hour')
-              AND game_type IS NOT NULL
-            GROUP BY game_type
+            SELECT g.game_name AS game_type, COUNT(*)::BIGINT AS cnt
+            FROM analytics_events ae
+            INNER JOIN games g ON g.game_id = ae.game_id
+            WHERE ae.timestamp > NOW() - (%s * INTERVAL '1 hour')
+            GROUP BY g.game_name
             ORDER BY cnt DESC;
         """
         rows = self._execute_query(query, (hours,), fetchall=True)

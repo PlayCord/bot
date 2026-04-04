@@ -1074,7 +1074,7 @@ class GeneralCog(commands.Cog):
         await ctx.followup.send(embed=embed, view=view, ephemeral=True)
 
     @command_root.command(name="feedback", description=get("commands.feedback.description"))
-    @app_commands.describe(message=get("commands.feedback.param_text"))
+    @app_commands.describe(message=get("commands.feedback.param_message"))
     @app_commands.check(interaction_check)
     async def command_feedback(self, ctx: discord.Interaction, message: app_commands.Range[str, 1, 500]):
         text = (message or "").strip()
