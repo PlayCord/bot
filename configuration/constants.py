@@ -2,7 +2,7 @@ import discord
 
 from utils.locale import fmt, get, get_dict
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 IS_ACTIVE = True
 NAME = get("brand.name")
 MANAGED_BY = get("meta.author")
