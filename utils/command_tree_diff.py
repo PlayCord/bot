@@ -194,6 +194,101 @@ def format_drift_report(drift: dict[str, Any], *, max_lines: int = 40) -> str:
     return "\n".join(lines)
 
 
+_ZWSP = "\u200b"
+
+
+def drift_to_embed(
+    drift: dict[str, Any],
+    *,
+    color: discord.Color,
+    title: str,
+    inline_column_limit: int = 340,
+    max_modified_sections: int = 14,
+) -> discord.Embed:
+    """
+    Build one embed: summary row, three-column drift (added / removed / modified names),
+    then non-inline fields per modified command (diff lines).
+    """
+    local_all = list(drift.get("local_all") or [])
+    remote_all = list(drift.get("remote_all") or [])
+    added = list(drift.get("added") or [])
+    removed = list(drift.get("removed") or [])
+    modified: dict[str, list[str]] = dict(drift.get("modified") or {})
+
+    embed = discord.Embed(title=title[:256], color=color)
+    embed.description = fmt(
+        "commands.treediff.embed_description_stats",
+        local_n=len(local_all),
+        remote_n=len(remote_all),
+        n_add=len(added),
+        n_rem=len(removed),
+        n_mod=len(modified),
+    )[:4096]
+
+    def short_list(names: list[str], lim: int) -> str:
+        if not names:
+            return get("common.empty_markdown")
+        parts = [f"`{n}`" for n in names]
+        s = ", ".join(parts)
+        if len(s) <= lim:
+            return s
+        acc: list[str] = []
+        total = 0
+        for p in parts:
+            sep = 2 if acc else 0
+            if total + sep + len(p) > lim - 3:
+                break
+            acc.append(p)
+            total += sep + len(p)
+        return ", ".join(acc) + "\n…" if acc else "…"
+
+    row_counts = [
+        ("commands.treediff.field_local_leaves", str(len(local_all))),
+        ("commands.treediff.field_remote_leaves", str(len(remote_all))),
+        (
+            "commands.treediff.field_drift_totals",
+            f"`+{len(added)}` / `−{len(removed)}` / `~{len(modified)}`",
+        ),
+    ]
+    for locale_key, value in row_counts:
+        embed.add_field(name=get(locale_key), value=value[:1024], inline=True)
+
+    row_lists = [
+        ("commands.treediff.field_added", short_list(added, inline_column_limit)),
+        ("commands.treediff.field_removed", short_list(removed, inline_column_limit)),
+        (
+            "commands.treediff.field_modified_cmds",
+            short_list(list(modified.keys()), inline_column_limit),
+        ),
+    ]
+    for locale_key, value in row_lists:
+        embed.add_field(name=get(locale_key), value=value[:1024], inline=True)
+
+    mod_sorted = sorted(modified.items())
+    shown = 0
+    for cmd_name, changes in mod_sorted:
+        if len(embed.fields) >= 24 or shown >= max_modified_sections:
+            break
+        body = "\n".join(f"• {c}" for c in changes)
+        if len(body) > 1024:
+            body = body[:1021] + "…"
+        embed.add_field(
+            name=f"`{cmd_name}`"[:256],
+            value=body or _ZWSP,
+            inline=False,
+        )
+        shown += 1
+
+    if shown < len(mod_sorted):
+        embed.add_field(
+            name=get("commands.treediff.field_more_modified"),
+            value=fmt("commands.treediff.more_modified_detail", n=len(mod_sorted) - shown),
+            inline=False,
+        )
+
+    return embed
+
+
 async def fetch_and_analyze_tree(
         tree: app_commands.CommandTree, *, guild: discord.abc.Snowflake | None = None
 ) -> dict[str, Any]:

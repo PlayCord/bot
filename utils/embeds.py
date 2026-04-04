@@ -11,6 +11,69 @@ from utils.conversion import column_elo, column_names, column_turn, contextify
 from utils.emojis import get_emoji_string
 from utils.locale import get, fmt
 
+# Discord embed field value limit; cap single input lines so chunking cannot exceed this.
+_EMBED_FIELD_VALUE_MAX = 1024
+_EMBED_LINE_SAFE_MAX = 500
+
+
+def lines_to_embed_field_chunks(
+    lines: list[str],
+    *,
+    value_max: int = _EMBED_FIELD_VALUE_MAX,
+    line_max: int = _EMBED_LINE_SAFE_MAX,
+) -> list[str]:
+    """
+    Join lines into newline-separated chunks, each at most ``value_max`` characters.
+    Long individual lines are truncated so a lone line cannot exceed ``value_max``.
+    """
+    safe: list[str] = []
+    for ln in lines:
+        if len(ln) <= line_max:
+            safe.append(ln)
+        else:
+            safe.append(ln[: line_max - 1] + "…")
+
+    chunks: list[str] = []
+    bucket: list[str] = []
+    size = 0
+    for line in safe:
+        add = len(line) + (1 if bucket else 0)
+        if bucket and size + add > value_max:
+            chunks.append("\n".join(bucket))
+            bucket = [line]
+            size = len(line)
+        else:
+            bucket.append(line)
+            size += add
+    if bucket:
+        chunks.append("\n".join(bucket))
+    return chunks
+
+
+def append_chunked_fields(
+    embed: discord.Embed,
+    chunks: list[str],
+    *,
+    first_name: str,
+    more_name: str = "\u200b",
+    truncated_note: str | None = None,
+    max_fields: int = 24,
+) -> None:
+    """
+    Append each chunk as a non-inline field; first uses ``first_name``, rest ``more_name``.
+    If the embed already has ``max_fields`` fields before the next chunk, append
+    ``truncated_note`` once (if set) and stop.
+    """
+    vm = _EMBED_FIELD_VALUE_MAX
+    for i, chunk in enumerate(chunks):
+        if len(embed.fields) >= max_fields:
+            if truncated_note:
+                embed.add_field(name="\u200b", value=truncated_note, inline=False)
+            return
+        name = (first_name if i == 0 else more_name)[:256]
+        val = chunk if len(chunk) <= vm else chunk[: vm - 1] + "…"
+        embed.add_field(name=name, value=val or "\u200b", inline=False)
+
 
 class CustomEmbed(discord.Embed):
     """

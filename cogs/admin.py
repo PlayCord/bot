@@ -2,29 +2,16 @@ import asyncio
 import logging
 import traceback
 
+import discord
 from discord.ext import commands
 
 from configuration.constants import *
 from utils import database as db
 from utils.analytics import format_recent_event_row, render_analytics_matplotlib_summary
-from utils.embeds import ErrorEmbed
+from utils.embeds import ErrorEmbed, append_chunked_fields, lines_to_embed_field_chunks
 from utils.locale import fmt, get
 
 log = logging.getLogger(LOGGING_ROOT)
-
-
-def _chunk_discord_text(text: str, size: int = 1900):
-    for i in range(0, len(text), size):
-        yield text[i: i + size]
-
-
-# Discord embed description limit is 4096; stay below for safety.
-_EMBED_DESC_LIMIT = 4000
-
-
-def _iter_embed_descriptions(text: str, limit: int = _EMBED_DESC_LIMIT):
-    for i in range(0, len(text), limit):
-        yield text[i: i + limit]
 
 
 async def _add_processing_reaction(msg: discord.Message) -> None:
@@ -35,7 +22,7 @@ async def _add_processing_reaction(msg: discord.Message) -> None:
 
 
 async def _finalize_admin_reactions(
-        msg: discord.Message, bot_user: discord.abc.User, *, success: bool
+    msg: discord.Message, bot_user: discord.abc.User, *, success: bool
 ) -> None:
     try:
         await msg.remove_reaction(MESSAGE_COMMAND_PENDING, bot_user)
@@ -228,25 +215,26 @@ class AdminCog(commands.Cog):
         if chart_buf is not None:
             chart_buf.seek(0)
             main_embed.set_image(url="attachment://playcord-analytics.png")
+
+        recent_lines: list[str] = (
+            [format_recent_event_row(r) for r in recent]
+            if recent
+            else [get("common.empty_markdown")]
+        )
+        append_chunked_fields(
+            main_embed,
+            lines_to_embed_field_chunks(recent_lines),
+            first_name=get("commands.analytics.field_recent"),
+            truncated_note=get("commands.analytics.recent_truncated_note"),
+        )
+
+        if chart_buf is not None:
             await msg.reply(
                 embed=main_embed,
                 file=discord.File(chart_buf, filename="playcord-analytics.png"),
             )
         else:
             await msg.reply(embed=main_embed)
-
-        recent_lines = [get("commands.analytics.message_recent_header"), ""]
-        if recent:
-            recent_lines.extend(format_recent_event_row(r) for r in recent)
-        else:
-            recent_lines.append(get("common.empty_markdown"))
-        recent_body = "\n".join(recent_lines)
-        for idx, chunk in enumerate(_iter_embed_descriptions(recent_body)):
-            recent_embed = discord.Embed(color=EMBED_COLOR)
-            if idx == 0:
-                recent_embed.title = get("commands.analytics.embed_recent_title")
-            recent_embed.description = chunk
-            await msg.channel.send(embed=recent_embed)
         return True
 
     async def _task_treediff(self, msg: discord.Message) -> bool:
@@ -278,7 +266,7 @@ class AdminCog(commands.Cog):
                     )
                     return False
         try:
-            from utils.command_tree_diff import fetch_and_analyze_tree, format_drift_report
+            from utils.command_tree_diff import drift_to_embed, fetch_and_analyze_tree
 
             drift = await fetch_and_analyze_tree(self.bot.tree, guild=guild)
         except discord.HTTPException as e:
@@ -297,17 +285,12 @@ class AdminCog(commands.Cog):
                 )
             )
             return False
-        report_body = format_drift_report(drift, max_lines=45)
-        title = get("commands.treediff.embed_title")
-        for idx, chunk in enumerate(_iter_embed_descriptions(report_body)):
-            diff_embed = discord.Embed(color=EMBED_COLOR)
-            if idx == 0:
-                diff_embed.title = title
-            diff_embed.description = chunk
-            if idx == 0:
-                await msg.reply(embed=diff_embed)
-            else:
-                await msg.channel.send(embed=diff_embed)
+        diff_embed = drift_to_embed(
+            drift,
+            color=EMBED_COLOR,
+            title=get("commands.treediff.embed_title"),
+        )
+        await msg.reply(embed=diff_embed)
         return True
 
     async def _task_clear(self, msg: discord.Message) -> bool:
