@@ -9,6 +9,7 @@ from typing import Any
 import discord
 from discord import app_commands
 from discord.app_commands.models import AppCommandGroup, Argument
+from utils.locale import fmt, get
 
 
 def _collect_local_leaves(
@@ -87,14 +88,18 @@ def _deep_compare_leaf(
     differences: list[str] = []
     loc_desc = (local_cmd.description or "").strip()
     if loc_desc != remote_description:
-        differences.append("Command description was modified")
+        differences.append(get("commands.treediff.diff.command_description_modified"))
 
     lparams = {p.name: p for p in local_cmd.parameters}
     ropts = {a.name: a for a in remote_args}
 
     if set(lparams.keys()) != set(ropts.keys()):
         differences.append(
-            f"Parameter set mismatch (local {sorted(lparams)!s}, remote {sorted(ropts)!s})"
+            fmt(
+                "commands.treediff.diff.parameter_set_mismatch",
+                local_names=", ".join(sorted(lparams.keys())) or "—",
+                remote_names=", ".join(sorted(ropts.keys())) or "—",
+            )
         )
         return differences
 
@@ -102,11 +107,11 @@ def _deep_compare_leaf(
         p = lparams[name]
         r = ropts[name]
         if (p.description or "").strip() != (r.description or "").strip():
-            differences.append(f"Parameter '{name}' description was modified")
+            differences.append(fmt("commands.treediff.diff.param_description_modified", name=name))
         if p.required != r.required:
-            differences.append(f"Parameter '{name}' required status was modified")
+            differences.append(fmt("commands.treediff.diff.param_required_modified", name=name))
         if p.type.value != r.type.value:
-            differences.append(f"Parameter '{name}' type was modified")
+            differences.append(fmt("commands.treediff.diff.param_type_modified", name=name))
 
     return differences
 
@@ -138,35 +143,36 @@ def analyze_command_tree_drift(
 
 def format_drift_report(drift: dict[str, Any], *, max_lines: int = 40) -> str:
     lines: list[str] = []
+    none = get("common.empty_markdown")
     local_all = drift.get("local_all") or []
     remote_all = drift.get("remote_all") or []
-    lines.append(f"**All registered locally ({len(local_all)}):**")
+    lines.append(fmt("commands.treediff.report.all_local", count=len(local_all)))
     if local_all:
         lines.extend(f"- `{n}`" for n in local_all)
     else:
-        lines.append("_none_")
-    lines.append(f"**All registered remotely ({len(remote_all)}):**")
+        lines.append(none)
+    lines.append(fmt("commands.treediff.report.all_remote", count=len(remote_all)))
     if remote_all:
         lines.extend(f"- `{n}`" for n in remote_all)
     else:
-        lines.append("_none_")
-    lines.append("---")
-    lines.append("**Diff**")
-    lines.append("**Added locally (not on API):**")
+        lines.append(none)
+    lines.append(get("commands.treediff.report.separator"))
+    lines.append(get("commands.treediff.report.section_diff"))
+    lines.append(get("commands.treediff.report.added_header"))
     if drift["added"]:
         lines.extend(f"- `{n}`" for n in drift["added"])
     else:
-        lines.append("_none_")
-    lines.append("**Removed from API (not local):**")
+        lines.append(none)
+    lines.append(get("commands.treediff.report.removed_header"))
     if drift["removed"]:
         lines.extend(f"- `{n}`" for n in drift["removed"])
     else:
-        lines.append("_none_")
+        lines.append(none)
     mod = drift.get("modified") or {}
     if not mod:
-        lines.append("**Modified:** _none_")
+        lines.append(get("commands.treediff.report.modified_none"))
     else:
-        lines.append("**Modified:**")
+        lines.append(get("commands.treediff.report.modified_header"))
         line_count = 0
         truncated = False
         for cmd_name, changes in mod.items():
@@ -184,7 +190,7 @@ def format_drift_report(drift: dict[str, Any], *, max_lines: int = 40) -> str:
             if truncated:
                 break
         if truncated:
-            lines.append("… _(truncated)_")
+            lines.append(get("commands.treediff.report.truncated"))
     return "\n".join(lines)
 
 

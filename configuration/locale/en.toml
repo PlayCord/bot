@@ -20,6 +20,12 @@ github_url = "https://github.com/PlayCord/bot"
 readme_url = "https://github.com/PlayCord/bot/blob/master/README.md"
 
 # =============================================================================
+# SHARED UI FRAGMENTS
+# =============================================================================
+[common]
+empty_markdown = "_(none)_"
+
+# =============================================================================
 # WELCOME MESSAGE (when bot joins a server)
 # =============================================================================
 [welcome]
@@ -89,6 +95,7 @@ summary = "Analytics (last {hours}h):\n{body}"
 message_denied = "Only bot owners can use this command."
 message_usage = "Usage: `{prefix}analytics [hours]` — default window 24 hours, max 720."
 message_empty = "No analytics rows in the last {hours} hour(s)."
+message_title = "**Analytics** — last **{hours}** hour(s)"
 message_counts_header = "**Counts by type** (bar = share of max in this table)"
 message_by_game_header = "**Counts by game_type** (non-null only)"
 message_recent_header = "**Recent events** (newest first)"
@@ -97,6 +104,41 @@ message_recent_header = "**Recent events** (newest first)"
 message_usage = "Usage: `{prefix}treediff` (global tree) or `{prefix}treediff this` / `{prefix}treediff <guild_id>`."
 message_failed = "Could not fetch or compare slash commands with Discord."
 need_guild = "Use `treediff this` in a server, or pass a guild id."
+
+[commands.treediff.report]
+title = "### Command tree (local vs API)\n"
+all_local = "**All registered locally ({count}):**"
+all_remote = "**All registered remotely ({count}):**"
+separator = "---"
+section_diff = "**Diff**"
+added_header = "**Added locally (not on API):**"
+removed_header = "**Removed from API (not local):**"
+modified_none = "**Modified:** _none_"
+modified_header = "**Modified:**"
+truncated = "… _(truncated)_"
+
+[commands.treediff.diff]
+command_description_modified = "Command description was modified"
+parameter_set_mismatch = "Parameter set mismatch (local: {local_names}; remote: {remote_names})"
+param_description_modified = "Parameter '{name}' description was modified"
+param_required_modified = "Parameter '{name}' required status was modified"
+param_type_modified = "Parameter '{name}' type was modified"
+
+[commands.admin]
+sync_failed = "Could not sync slash commands ({error_type})."
+sync_usage = "Invalid argument. Usage: `{prefix}sync` (global), `{prefix}sync this`, or `{prefix}sync <guild_id>`."
+clear_usage = "Invalid argument. Usage: `{prefix}clear` (global), `{prefix}clear this`, or `{prefix}clear <guild_id>`."
+guild_required_for_this = "Use `this` only in a server channel, or pass a numeric guild id."
+
+# =============================================================================
+# BOT STARTUP (logging; English operators may still translate for consistency)
+# =============================================================================
+[startup]
+auto_sync_commands_ok = "auto_sync_commands: synced {count} global slash command(s)."
+auto_sync_commands_failed = "auto_sync_commands failed: {error}"
+compare_command_tree_drift_intro = "compare_command_tree_on_startup: slash tree differs from API —"
+compare_command_tree_ok = "compare_command_tree_on_startup: global slash tree matches API."
+compare_command_tree_failed = "compare_command_tree_on_startup failed: {error}"
 
 # =============================================================================
 # BOT STATUS / PRESENCE

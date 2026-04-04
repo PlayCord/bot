@@ -12,6 +12,7 @@ from cogs.general import command_play
 from configuration.constants import *
 from utils import database as db
 from utils.analytics import Timer
+from utils.locale import fmt, get
 from utils.command_builder import build_function_definitions
 from utils.discord_utils import command_error
 from utils.formatter import Formatter
@@ -146,9 +147,13 @@ class PlayCordBot(commands.Bot):
             return
         try:
             synced = await self.tree.sync()
-            startup_logger.info("auto_sync_commands: synced %s global command(s)", len(synced))
+            startup_logger.info(
+                fmt("startup.auto_sync_commands_ok", count=len(synced))
+            )
         except Exception as e:
-            startup_logger.warning("auto_sync_commands failed: %s", e)
+            startup_logger.warning(
+                fmt("startup.auto_sync_commands_failed", error=str(e))
+            )
 
     async def _maybe_compare_command_tree_to_api(self) -> None:
         """When bot.compare_command_tree_on_startup is true, log drift vs Discord (global tree)."""
@@ -161,13 +166,16 @@ class PlayCordBot(commands.Bot):
             drift = await fetch_and_analyze_tree(self.tree, guild=None)
             if drift["added"] or drift["removed"] or drift["modified"]:
                 startup_logger.warning(
-                    "compare_command_tree_on_startup: slash tree differs from API —\n%s",
-                    format_drift_report(drift, max_lines=35),
+                    get("startup.compare_command_tree_drift_intro")
+                    + "\n"
+                    + format_drift_report(drift, max_lines=35)
                 )
             else:
-                startup_logger.info("compare_command_tree_on_startup: global slash tree matches API.")
+                startup_logger.info(get("startup.compare_command_tree_ok"))
         except Exception as e:
-            startup_logger.warning("compare_command_tree_on_startup failed: %s", e)
+            startup_logger.warning(
+                fmt("startup.compare_command_tree_failed", error=str(e))
+            )
 
 
 if __name__ == "__main__":

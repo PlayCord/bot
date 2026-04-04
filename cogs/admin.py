@@ -43,17 +43,32 @@ class AdminCog(commands.Cog):
                     await self.bot.tree.sync()
                 except Exception as e:
                     await msg.add_reaction(MESSAGE_COMMAND_FAILED)
-                    await msg.reply(embed=ErrorEmbed(what_failed=f"Couldn't sync commands! ({type(e)})",
-                                                     reason=traceback.format_exc()))
+                    await msg.reply(
+                        embed=ErrorEmbed(
+                            what_failed=fmt(
+                                "commands.admin.sync_failed",
+                                error_type=type(e).__name__,
+                            ),
+                            reason=traceback.format_exc(),
+                        )
+                    )
                     return
                 f_log.info(f"Performed authorized sync from user {msg.author.id} to all guilds.")
             else:
                 if split[1] == MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER:
+                    if msg.guild is None:
+                        await msg.reply(get("commands.admin.guild_required_for_this"))
+                        await msg.add_reaction(MESSAGE_COMMAND_FAILED)
+                        return
                     g = msg.guild
                 else:
                     try:
                         g = discord.Object(id=int(split[1]))
                     except ValueError:
+                        await msg.reply(
+                            fmt("commands.admin.sync_usage", prefix=f"{LOGGING_ROOT}/")
+                        )
+                        await msg.add_reaction(MESSAGE_COMMAND_FAILED)
                         return
 
                 self.bot.tree.copy_global_to(guild=g)
@@ -61,8 +76,15 @@ class AdminCog(commands.Cog):
                     await self.bot.tree.sync(guild=g)
                 except Exception as e:
                     await msg.add_reaction(MESSAGE_COMMAND_FAILED)
-                    await msg.reply(embed=ErrorEmbed(what_failed=f"Couldn't sync commands! ({type(e)})",
-                                                     reason=traceback.format_exc()))
+                    await msg.reply(
+                        embed=ErrorEmbed(
+                            what_failed=fmt(
+                                "commands.admin.sync_failed",
+                                error_type=type(e).__name__,
+                            ),
+                            reason=traceback.format_exc(),
+                        )
+                    )
                     return
                 f_log.info(f"Performed authorized sync from user {msg.author.id} to guild {msg.guild.id}")
             await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)
@@ -114,22 +136,26 @@ class AdminCog(commands.Cog):
                 await msg.reply(fmt("commands.analytics.message_empty", hours=hours))
                 await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)
                 return
-            lines: list[str] = [f"**Analytics** — last **{hours}** hour(s)", ""]
+            none = get("common.empty_markdown")
+            lines: list[str] = [
+                fmt("commands.analytics.message_title", hours=hours),
+                "",
+            ]
             lines.append(get("commands.analytics.message_counts_header"))
             if counts:
                 lines.extend(format_ascii_bar_chart(counts, label_key="event_type", value_key="cnt"))
             else:
-                lines.append("_(none)_")
+                lines.append(none)
             lines.extend(("", get("commands.analytics.message_by_game_header")))
             if by_game:
                 lines.extend(format_ascii_bar_chart(by_game, label_key="game_type", value_key="cnt"))
             else:
-                lines.append("_(none)_")
+                lines.append(none)
             lines.extend(("", get("commands.analytics.message_recent_header")))
             if recent:
                 lines.extend(format_recent_event_row(r) for r in recent)
             else:
-                lines.append("_(none)_")
+                lines.append(none)
             body = "\n".join(lines)
             first = True
             for chunk in _chunk_discord_text(body):
@@ -180,7 +206,9 @@ class AdminCog(commands.Cog):
                     )
                 )
                 return
-            report = "### Command tree (local vs API)\n" + format_drift_report(drift, max_lines=45)
+            report = get("commands.treediff.report.title") + format_drift_report(
+                drift, max_lines=45
+            )
             first = True
             for chunk in _chunk_discord_text(report):
                 if first:
@@ -199,9 +227,20 @@ class AdminCog(commands.Cog):
                 f_log.info(f"Performed authorized command tree clear from user {msg.author.id} to all guilds.")
             else:
                 if split[1] == MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER:
+                    if msg.guild is None:
+                        await msg.reply(get("commands.admin.guild_required_for_this"))
+                        await msg.add_reaction(MESSAGE_COMMAND_FAILED)
+                        return
                     g = msg.guild
                 else:
-                    g = discord.Object(id=int(split[1]))
+                    try:
+                        g = discord.Object(id=int(split[1]))
+                    except ValueError:
+                        await msg.reply(
+                            fmt("commands.admin.clear_usage", prefix=f"{LOGGING_ROOT}/")
+                        )
+                        await msg.add_reaction(MESSAGE_COMMAND_FAILED)
+                        return
                 self.bot.tree.clear_commands(guild=g)
                 await self.bot.tree.sync(guild=g)
                 f_log.info(f"Performed authorized command tree clear from user {msg.author.id} to guild {msg.guild.id}")
