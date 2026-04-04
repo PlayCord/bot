@@ -21,7 +21,7 @@ class Response:
     """
 
     def __init__(self, components: list[MessageComponent] = None, content: str = None, style: ResponseType = None,
-                 ephemeral: bool = False, delete_after: int = None) -> None:
+                 ephemeral: bool = False, delete_after: int = None, *, record_replay: bool = False) -> None:
         """
         Create a new Response object.
         :param components: list of MessageComponent objects to put in the response
@@ -29,6 +29,8 @@ class Response:
         :param style: the style of the embed (normal, info, error)
         :param ephemeral: whether or not the embed is invisible to everyone but who called the callback
         :param delete_after: after how long to delete the message after it is sent
+        :param record_replay: if True, this callback still counts as a game-affecting move for replay/DB when
+            the handler returned a Response (normally only ``None`` means the move applied).
         """
 
         # Get embed color
@@ -49,6 +51,7 @@ class Response:
             self.components = []
         self.ephemeral = ephemeral
         self.delete_after = delete_after
+        self.record_replay = record_replay
 
     def generate_message(self, message_send_function: coroutine, game_id: int = None,
                          enable_embed_components: bool = True, enable_view_components: bool = True) \

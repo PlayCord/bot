@@ -142,6 +142,35 @@ class BlackjackTableGame(Game):
         self.last_action = f"Dealer reveals {self._render_hand(self.dealer_hand)} ({dealer_value})."
         return groups
 
+    def match_global_summary(self, outcome):
+        if not self.finished or not isinstance(outcome, list):
+            return None
+        dv = self._hand_value(self.dealer_hand)
+        bits = [f"{p.mention} {self._hand_value(self.hands[p])}" for p in self.players]
+        return f"Dealer {dv} — " + " · ".join(bits)
+
+    def match_summary(self, outcome):
+        if not self.finished or not isinstance(outcome, list):
+            return None
+        result: dict[int, str] = {}
+
+        def ord_s(place: int) -> str:
+            return {1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th", 6: "6th", 7: "7th"}.get(place, f"{place}th")
+
+        for place_idx, group in enumerate(outcome):
+            pos = place_idx + 1
+            tie = len(group)
+            for p in group:
+                hv = self._hand_value(self.hands[p])
+                label = "bust" if p in self.busted else str(hv)
+                if pos == 1:
+                    text = f"Tied 1st ({label})" if tie > 1 else f"Won ({label})"
+                else:
+                    o = ord_s(pos)
+                    text = f"Tied {o} ({label})" if tie > 1 else f"{o} place ({label})"
+                result[p.id] = text
+        return result
+
     def _advance_turn(self):
         self.turn = (self.turn + 1) % len(self.players)
         self._advance_turn_if_needed()

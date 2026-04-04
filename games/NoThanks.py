@@ -115,6 +115,29 @@ class NoThanksGame(Game):
                 groups.append([player])
         return groups
 
+    def match_global_summary(self, outcome):
+        if not isinstance(outcome, list):
+            return None
+        parts = [f"{p.mention}: {self._score_player(p)}" for group in outcome for p in group]
+        return "Final scores (lower is better) — " + " · ".join(parts)
+
+    def match_summary(self, outcome):
+        if not isinstance(outcome, list):
+            return None
+        result: dict[int, str] = {}
+        for place_idx, group in enumerate(outcome):
+            pos = place_idx + 1
+            tie = len(group)
+            for p in group:
+                sc = self._score_player(p)
+                if pos == 1:
+                    text = f"Tied 1st ({sc} pts)" if tie > 1 else f"Won ({sc} pts)"
+                else:
+                    ord_s = {2: "2nd", 3: "3rd", 4: "4th", 5: "5th", 6: "6th", 7: "7th"}.get(pos, f"{pos}th")
+                    text = f"Tied {ord_s} ({sc} pts)" if tie > 1 else f"{ord_s} place ({sc} pts)"
+                result[p.id] = text
+        return result
+
     def _score_player(self, player: Player) -> int:
         cards = sorted(self.cards[player])
         if not cards:

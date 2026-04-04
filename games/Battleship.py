@@ -230,6 +230,22 @@ class BattleshipGame(Game):
             return self.winner
         return None
 
+    def match_global_summary(self, outcome):
+        if self.winner is None:
+            return None
+        return f"{self.winner.mention} wins — all enemy ships sunk"
+
+    def match_summary(self, outcome):
+        if self.winner is None:
+            return None
+        a, b = self.players[0], self.players[1]
+        loser = b if self.winner == a else a
+        detail = "fleet sunk"
+        return {
+            self.winner.id: f"Won ({detail})",
+            loser.id: f"Lost ({detail})",
+        }
+
     def _place_random_ships(self, board: list[list[str]]) -> None:
         for length in self.ship_lengths:
             placed = False

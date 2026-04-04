@@ -76,8 +76,12 @@ class ReversiGame(Game):
             if self._valid_moves(opponent):
                 self.turn = opponent_index
                 self.last_action = f"{player.mention} had no legal moves. Turn passed to {opponent.mention}."
-                return Response(content="No legal moves available. Your turn was passed.", ephemeral=True,
-                                delete_after=7)
+                return Response(
+                    content="No legal moves available. Your turn was passed.",
+                    ephemeral=True,
+                    delete_after=7,
+                    record_replay=True,
+                )
             self.finished = True
             self.last_action = "Both players are out of legal moves."
             return None

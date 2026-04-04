@@ -580,7 +580,7 @@ class ChessGame(Game):
             return Response(content="You already offered a draw.", ephemeral=True, delete_after=5)
 
         self.draw_offered_by = player
-        return Response(content=f"{player.mention} offers a draw!")
+        return Response(content=f"{player.mention} offers a draw!", record_replay=True)
 
     def accept_draw(self, player: Player):
         """Accept a draw offer."""
@@ -607,7 +607,7 @@ class ChessGame(Game):
                             ephemeral=True, delete_after=5)
 
         self.draw_offered_by = None
-        return Response(content=f"{player.mention} declines the draw offer.")
+        return Response(content=f"{player.mention} declines the draw offer.", record_replay=True)
 
     def outcome(self):
         """Return game outcome."""

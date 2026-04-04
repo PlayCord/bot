@@ -41,6 +41,10 @@ class LiarsDiceGame(Game):
         self.round_state = None
         self.new_round_message()
 
+    def on_replay_logger_attached(self) -> None:
+        hands = {str(p.id): [d.number for d in self.hands[p]] for p in self.players}
+        self.log_replay_event({"type": "rng", "phase": "liars_dice_initial_hands", "hands": hands})
+
     def new_round_message(self):
         self.message = f"A new round begins! {self.players[self.turn]}, make your move."
         self.round_state = "new_round"
@@ -101,8 +105,12 @@ class LiarsDiceGame(Game):
             total_counts_of_dice += len(repr_hand)
 
         if total_counts_of_dice >= self.current_bid[1]:  # If the bidder was right
-            response = Response(content=f"Your call failed! (There were {total_counts_of_dice} of {die_number_to_count}"
-                                        f" on a bid of {self.current_bid[1]})", ephemeral=True)
+            response = Response(
+                content=f"Your call failed! (There were {total_counts_of_dice} of {die_number_to_count}"
+                f" on a bid of {self.current_bid[1]})",
+                ephemeral=True,
+                record_replay=True,
+            )
             self.hands[player].pop(0)  # Remove a die from the player who made the call
             self.end_round_message(player, self.players[self.turn - 1], False, total_counts_of_dice,
                                    self.current_bid[1], die_number_to_count)
@@ -111,7 +119,10 @@ class LiarsDiceGame(Game):
         else:
             response = Response(
                 content=f"Your call succeeded! (There were {total_counts_of_dice} of {die_number_to_count}"
-                        f" on a bid of {self.current_bid[1]})", ephemeral=True)
+                f" on a bid of {self.current_bid[1]})",
+                ephemeral=True,
+                record_replay=True,
+            )
             self.hands[self.players[self.turn - 1]].pop(0)
             self.end_round_message(player, self.players[self.turn - 1], True, total_counts_of_dice, self.current_bid[1],
                                    die_number_to_count)
@@ -140,7 +151,11 @@ class LiarsDiceGame(Game):
             self.turn += 1
             if self.turn == len(self.players):
                 self.turn = 0
-            return Response(content=f"Raised to bid {Die(number=dice_number)} # {number_of_dice}", ephemeral=True)
+            return Response(
+                content=f"Raised to bid {Die(number=dice_number)} # {number_of_dice}",
+                ephemeral=True,
+                record_replay=True,
+            )
         else:
             return Response(
                 content=f"Invalid bid!\nYour bid: {Die(number=dice_number)} # {number_of_dice},"

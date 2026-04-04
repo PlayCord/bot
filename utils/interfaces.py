@@ -20,6 +20,7 @@ from utils.conversion import column_creator, column_elo, column_names, column_tu
 from utils.database import InternalPlayer, get_shallow_player, internal_player_to_player
 from utils import embeds as _embeds
 from utils.bot_names import generate_bot_name
+from utils.trueskill_params import get_trueskill_fractions
 from utils.emojis import get_emoji_string
 from utils.locale import get, fmt
 from utils.views import MatchmakingView, RematchView, SpectateView
@@ -115,7 +116,7 @@ class GameInterface:
                 game_players.append(
                     Player(
                         mu=MU,
-                        sigma=MU * GAME_TRUESKILL[self.game_type]["sigma"],
+                        sigma=MU * get_trueskill_fractions(self.game_type)["sigma"],
                         ranking=None,
                         id=participant.id,
                         name=getattr(participant, "name", synthetic_bot_name_from_id(participant.id)),
@@ -283,7 +284,9 @@ class GameInterface:
 
             await self.display_game_state()  # Update game state
 
-            self._persist_move_and_replay(function_to_call, ctx.user.id, arguments, "slash_command")
+            _cmd = self._lookup_move_command(function_to_call)
+            if self._should_persist_move_replay(move_response, _cmd):
+                self._persist_move_and_replay(function_to_call, ctx.user.id, arguments, "slash_command")
 
             if (outcome := self.game.outcome()) is not None:  # Game is over
                 log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
@@ -317,6 +320,23 @@ class GameInterface:
             if effective == python_callback_name:
                 return cmd
         return None
+
+    @staticmethod
+    def _should_persist_move_replay(move_response: Any, cmd) -> bool:
+        """
+        Persist replay / match_moves only when a game-affecting callback actually changed state (or opted in).
+
+        Returning ``None`` means success; returning ``Response`` is usually validation/no-op unless
+        ``record_replay=True``. Non-affecting commands (e.g. peek) never persist.
+        """
+        affecting = cmd.is_game_affecting if cmd is not None else True
+        if cmd is not None and not affecting:
+            return False
+        if move_response is None:
+            return True
+        if isinstance(move_response, Response) and getattr(move_response, "record_replay", False):
+            return True
+        return False
 
     @staticmethod
     def _json_safe_for_move(value: Any) -> Any:
@@ -460,7 +480,9 @@ class GameInterface:
 
             if replay_python_fn is not None:
                 uid = getattr(self.current_turn, "id", None)
-                self._persist_move_and_replay(replay_python_fn, uid, replay_args, "bot")
+                _bcmd = self._lookup_move_command(replay_python_fn)
+                if self._should_persist_move_replay(move_response, _bcmd):
+                    self._persist_move_and_replay(replay_python_fn, uid, replay_args, "bot")
 
             if (outcome := self.game.outcome()) is not None:
                 await game_over(self, outcome)
@@ -552,7 +574,9 @@ class GameInterface:
             # Update display painting
             await self.display_game_state()
 
-            self._persist_move_and_replay(name, ctx.user.id, type_converted_arguments, "button")
+            _bcmd = self._lookup_move_command(name)
+            if self._should_persist_move_replay(move_response, _bcmd):
+                self._persist_move_and_replay(name, ctx.user.id, type_converted_arguments, "button")
 
             if (outcome := self.game.outcome()) is not None:  # Game is over
                 log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
@@ -618,9 +642,11 @@ class GameInterface:
             # Update display painting
             await self.display_game_state()
 
-            self._persist_move_and_replay(
-                name, ctx.user.id, {"values": ctx.data.get("values", [])}, "select"
-            )
+            _scmd = self._lookup_move_command(name)
+            if self._should_persist_move_replay(move_response, _scmd):
+                self._persist_move_and_replay(
+                    name, ctx.user.id, {"values": ctx.data.get("values", [])}, "select"
+                )
 
             if (outcome := self.game.outcome()) is not None:  # Game is over
                 log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
@@ -1470,11 +1496,8 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
     players = interface.players
     game_id = interface.game_id
 
-    # TrueSkill environment (per-game class override or global GAME_TRUESKILL)
-    game_cls = type(interface.game)
-    ts = getattr(game_cls, "trueskill_scale", None) or GAME_TRUESKILL.get(
-        game_type, GAME_TRUESKILL["tictactoe"]
-    )
+    # TrueSkill environment (via Game.trueskill_fractions / GAME_TRUESKILL)
+    ts = get_trueskill_fractions(game_type)
     sigma = MU * ts["sigma"]
     beta = MU * ts["beta"]
     tau = MU * ts["tau"]

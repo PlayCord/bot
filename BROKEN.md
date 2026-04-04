@@ -6,13 +6,14 @@ empty, I will release 1.0.0
 ## Features (focus on this)
 
 - [ ] No match replay functionality (viewer / sharing)
-    - **Done (persistence):** On each successful move, `GameInterface` calls `Database.record_move` and
-      `append_replay_event` (JSONL on `matches.replay_log`). `Command.is_game_affecting` (default true; Poker/Blackjack
-      `peek` = false). Bot moves recorded with bot `user_id`. `Game.attach_replay_logger` / `Game.log_replay_event`
-      exist
-      for stochastic events—games must call `log_replay_event` where RNG matters (shuffle, dice); Poker (deck +
-      showdown tiebreak), Blackjack (each shuffle), No Thanks (setup), and Battleship (placement) log; other games
-      (e.g. Liar's Dice) still optional.
+    - **Done (persistence):** After a callback, `GameInterface` calls `Database.record_move` and `append_replay_event`
+      (JSONL on `matches.replay_log`) only when [`_should_persist_move_replay`](utils/interfaces.py) allows it: for
+      game-affecting commands, **`return None`** (move applied) or **`Response(..., record_replay=True)`** (applied but
+      still returning a message); plain **`Response`** without that flag = validation/no-op → **not** logged. Commands
+      with **`is_game_affecting=False`** (e.g. Poker/Blackjack `peek`) never log. Bot moves use bot `user_id`.
+    - **RNG in replay:** `Game.attach_replay_logger` / `Game.log_replay_event` / `on_replay_logger_attached` for stochastic
+      setup; Poker (deck + showdown tiebreak), Blackjack (each shuffle), No Thanks (setup), Battleship (placement), Liar's
+      Dice (initial hands) log; per-die rerolls during play still not logged (optional).
     - **Done (viewer / discovery):** `/playcord replay <match_id>` (guild-only) shows paginated JSONL-derived lines via
       [`utils/replay_format.py`](utils/replay_format.py). `/playcord history` rows prefix `` `match_id` `` so users can
       copy the ID.
@@ -28,9 +29,10 @@ empty, I will release 1.0.0
       global line is shown at the top of the game-over embed and replay viewer; per-player lines in history. Legacy
       `outcome_summary` string is still read for old history rows. Example:
       [`games/TicTacToe.py`](games/TicTacToe.py).
-    - **Partial:** Per-player `match_summary` on Chess, Poker, Connect Four, Reversi, Nim, Tic-Tac-Toe; more games
-      still optional.
-- [ ] Better seating algorithm for games. Some games are assymetric (like Mastermind) and seating can have a big impact
+    - **Partial:** `match_global_summary` + per-player `match_summary` on Chess, Poker, Connect Four, Reversi, Nim,
+      Tic-Tac-Toe, Battleship, Blackjack Table, No Thanks, Mastermind Duel; other games can override both on
+      [`api/Game.py`](api/Game.py) as needed.
+- [ ] Better seating algorithm for games. Some games are asymmetric (like Mastermind) and seating can have a big impact
   on the game, so we should take that into account when seating players.
     - We would need maybe a way to configure roles for players in each game, and then the seating algorithm would try to
       seat players in a way that balances those roles as much as possible. This would be a pretty complex feature but
@@ -48,13 +50,13 @@ empty, I will release 1.0.0
       instance.
     - This also opens up the possibility of players creating their own custom games by defining the ruleset in a config
       file or something, and then the bot just implements the mechanics of running the game and enforcing the ruleset.
-      This is a much more complex feature but could be really cool. Would also force unrated oboviously.
+      This is a much more complex feature but could be really cool. Would also force unrated obviously.
 - [x] Rematch button after games
     - **Done:** `RematchView` on the overview message; [`GamesCog.rematch_button_callback`](cogs/games.py) rebuilds a
       lobby with human participants via [`MatchmakingInterface.seed_rematch_players`](utils/interfaces.py).
 - [ ] Remove the made with love footer in most locations, except for about command etc
-    - `[brand] footer` in locale may still be unused; `/about` uses copyright footer. Sweep game `Footer` components if
-      any duplicate the brand line.
+    - `[brand] footer` in locale may still be unused; `/about` uses copyright footer. **Checked:** production games do not
+      use `Footer` for brand copy; only [`games/TestGame.py`](games/TestGame.py) includes a demo `Footer` for API examples.
 - [ ] New custom emojis made for the bot
     - Pixel art, use the blue pixel art duotone
 - [ ] Substitution emoji logic is really janky and should be redone, especially for custom emojis
@@ -65,8 +67,10 @@ empty, I will release 1.0.0
       onboarding mentions it; [`playcord.require_playcord_channel`](configuration/config.yaml) forces `/play` to run
       only
       in that channel when true.
-    - **Not done:** Matchmaker UI always posted into the bot channel while `/play` can start elsewhere; thread naming
-      `(PlayCord)` cleanup; “everything requires channel if unset” beyond `/play` guard.
+    - **Not done:** Matchmaker UI always posted into the bot channel while `/play` can start elsewhere; “everything
+      requires channel if unset” beyond `/play` guard.
+    - **Partial:** Active game thread title uses [`queue.thread_name`](configuration/locale/en.toml) (`match_id` + game
+      label); further “PlayCord” / branding cleanup in thread names or copy still optional.
 - [x] Database problems (Phase 1 foundation — see below; broader schema for leaderboards / presets / replay UI still
   evolves with other features)
     - [x] FFA vs win/loss/tie: `match_participants` uses `final_ranking`; SQL helper
@@ -99,16 +103,16 @@ empty, I will release 1.0.0
 - [ ] Analytics viewer of some kind
     - **Partial:** Owner message command [`playcord/analytics [hours]`](cogs/admin.py) — aggregates by `event_type` plus
       recent rows (id, user, guild, match, metadata). Events are written **directly** to `analytics_events` from
-      [`utils.analytics.register_event`](utils/analytics.py) (matchmaking started, game started/completed/abandoned,
+      [`register_event`](utils/analytics.py) (matchmaking started, game started/completed/abandoned,
       feedback, etc.). Background flush retries buffered rows after failures. No charts UI yet.
 - [ ] More modular game format
     - Currently all of the games have some kind of "game_message" that is entirely controlled by it (within parameters)
     - It might be good/cool to have a more open format where more messages are sent by the bot in the channel as the
-      game progresses, maybe with occassional resets ETC.
-    - This would also change the bot-provided current turn embed to a ephmeral notification sent by the bot (or a
+      game progresses, maybe with occasional resets ETC.
+    - This would also change the bot-provided current turn embed to an ephemeral notification sent by the bot (or a
       message)
     - This would greatly increase the number of possibilities for games.
-    - If this was implemented, it would completely replace the current game infastructure but have such a large
+    - If this was implemented, it would completely replace the current game infrastructure but have such a large
       featureset that implementing a game in the current method would also be trivial
 - [x] Pagination after bot restarts (UX)
     - **Done:** Pagination callbacks `defer()` immediately; [`GamesCog.on_interaction`](cogs/games.py) schedules a fallback
@@ -116,14 +120,14 @@ empty, I will release 1.0.0
       when no registered view handled the component. Button `custom_id`s only encode guild/user (no recoverable query state).
 - [x] Remove all instances of the first time welcome message. There's no point.
     - **Done:** Removed `check_and_send_first_time_welcome` / `FirstTimeUserEmbed` usage.
-      namespace.
 
 ## Bugs/Visuals (later)
 
 - [ ] The leaderboard looks like crap
 - [ ] Many matrix-like displays (such as the game queue) don't render well on mobile
 - [ ] Inconsistent styling between /history and /profile for individual games
-- [ ] Move commands from other games cause a crash if they don't exist and unintended behavior if they share a
+- [ ] Cross-game slash safety: invoking another game's move (or a missing subcommand) can crash or behave oddly if
+      command names overlap or the tree doesn't match expectations.
 
 ## Website (later)
 

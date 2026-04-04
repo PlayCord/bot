@@ -84,7 +84,9 @@ class MastermindDuelGame(Game):
         self.phase = "guessing"
         self.turn = 1
         self.last_action = f"{player.mention} set a secret code. {self.breaker.mention} may now guess."
-        return Response(content="Your secret code has been set.", ephemeral=True, delete_after=6)
+        return Response(
+            content="Your secret code has been set.", ephemeral=True, delete_after=6, record_replay=True
+        )
 
     def _guess(self, player: Player, code: int):
         if self.phase != "guessing" or self.secret is None:
@@ -111,12 +113,32 @@ class MastermindDuelGame(Game):
             self.last_action += f" Secret was `{reveal}`."
             return None
 
-        return Response(content=f"Feedback: {feedback}", ephemeral=True, delete_after=8)
+        return Response(content=f"Feedback: {feedback}", ephemeral=True, delete_after=8, record_replay=True)
 
     def outcome(self):
         if self.winner:
             return self.winner
         return None
+
+    def match_global_summary(self, outcome):
+        if self.winner is None:
+            return None
+        if self.winner == self.breaker:
+            return f"{self.breaker.mention} broke the code in {self.attempts} guess(es)"
+        return f"{self.setter.mention} wins — code not broken in {self.max_attempts} guesses"
+
+    def match_summary(self, outcome):
+        if self.winner is None:
+            return None
+        if self.winner == self.breaker:
+            return {
+                self.breaker.id: "Won (code broken)",
+                self.setter.id: "Lost (code broken)",
+            }
+        return {
+            self.setter.id: "Won (secret held)",
+            self.breaker.id: "Lost (max guesses)",
+        }
 
     def _parse_code(self, code: int) -> list[int] | None:
         digits = [int(x) for x in str(code)]
