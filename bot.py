@@ -137,6 +137,7 @@ class PlayCordBot(commands.Bot):
                 self.tree.add_command(general_cog.command_root)
 
         await self._maybe_sync_commands_if_configured()
+        await self._maybe_compare_command_tree_to_api()
 
     async def _maybe_sync_commands_if_configured(self) -> None:
         """Optional: sync app command tree when config bot.auto_sync_commands is true."""
@@ -148,6 +149,25 @@ class PlayCordBot(commands.Bot):
             startup_logger.info("auto_sync_commands: synced %s global command(s)", len(synced))
         except Exception as e:
             startup_logger.warning("auto_sync_commands failed: %s", e)
+
+    async def _maybe_compare_command_tree_to_api(self) -> None:
+        """When bot.compare_command_tree_on_startup is true, log drift vs Discord (global tree)."""
+        cfg = constants.CONFIGURATION.get("bot", {}) or {}
+        if not cfg.get("compare_command_tree_on_startup"):
+            return
+        try:
+            from utils.command_tree_diff import fetch_and_analyze_tree, format_drift_report
+
+            drift = await fetch_and_analyze_tree(self.tree, guild=None)
+            if drift["added"] or drift["removed"] or drift["modified"]:
+                startup_logger.warning(
+                    "compare_command_tree_on_startup: slash tree differs from API —\n%s",
+                    format_drift_report(drift, max_lines=35),
+                )
+            else:
+                startup_logger.info("compare_command_tree_on_startup: global slash tree matches API.")
+        except Exception as e:
+            startup_logger.warning("compare_command_tree_on_startup failed: %s", e)
 
 
 if __name__ == "__main__":

@@ -22,7 +22,8 @@ except ImportError:
 
 from api.Player import Player
 from configuration import constants
-from configuration.constants import GAME_TRUESKILL, MU
+from configuration.constants import GAME_TRUESKILL, GAME_TYPES, MU
+from utils.trueskill_params import get_trueskill_fractions
 from utils import db_migrations
 from utils.models import (
     User, Guild, Game, Rating, Match, Participant, Move,
@@ -59,8 +60,8 @@ class InternalPlayerRatingStatistic:
         self.name = name
         if mu is None:
             self.mu = MU
-            if name in GAME_TRUESKILL:
-                self.sigma = GAME_TRUESKILL[name]["sigma"] * MU
+            if name in GAME_TYPES or name in GAME_TRUESKILL:
+                self.sigma = get_trueskill_fractions(name)["sigma"] * MU
             else:
                 self.sigma = MU / 3.0  # Default sigma
             self.stored = False
@@ -108,11 +109,12 @@ class InternalPlayer:
 
     def _update_ratings(self, ratings: Dict[str, Dict[str, float]]):
         """Update rating attributes from ratings dict"""
-        for key in GAME_TRUESKILL:
+        rating_keys = set(GAME_TRUESKILL) | set(GAME_TYPES)
+        for key in rating_keys:
             if key not in ratings:
                 ratings[key] = {
                     "mu": MU,
-                    "sigma": GAME_TRUESKILL[key]["sigma"] * MU
+                    "sigma": get_trueskill_fractions(key)["sigma"] * MU,
                 }
             setattr(
                 self,
@@ -551,10 +553,7 @@ class Database:
                 min_p, max_p = 2, 2
             else:
                 min_p = max_p = int(spec)
-            ts = GAME_TRUESKILL.get(
-                game_name,
-                {"sigma": 1 / 3, "beta": 1 / 5, "tau": 1 / 250, "draw": 0.0},
-            )
+            ts = get_trueskill_fractions(game_name)
             def_sigma = float(ts["sigma"] * MU)
             rating_config = {
                 "sigma": float(ts["sigma"] * MU),
@@ -1559,6 +1558,19 @@ class Database:
             LIMIT %s;
         """
         rows = self._execute_query(query, (hours, limit), fetchall=True)
+        return rows if rows else []
+
+    def get_analytics_event_counts_by_game(self, hours: int = 24) -> List[Dict[str, Any]]:
+        """Count rows by game_type (non-null) in the last N hours."""
+        query = """
+            SELECT game_type, COUNT(*)::BIGINT AS cnt
+            FROM analytics_events
+            WHERE timestamp > NOW() - (%s * INTERVAL '1 hour')
+              AND game_type IS NOT NULL
+            GROUP BY game_type
+            ORDER BY cnt DESC;
+        """
+        rows = self._execute_query(query, (hours,), fetchall=True)
         return rows if rows else []
 
     # ========================================================================

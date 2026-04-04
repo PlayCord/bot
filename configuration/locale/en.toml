@@ -89,8 +89,14 @@ summary = "Analytics (last {hours}h):\n{body}"
 message_denied = "Only bot owners can use this command."
 message_usage = "Usage: `{prefix}analytics [hours]` — default window 24 hours, max 720."
 message_empty = "No analytics rows in the last {hours} hour(s)."
-message_counts_header = "**Counts by type**"
+message_counts_header = "**Counts by type** (bar = share of max in this table)"
+message_by_game_header = "**Counts by game_type** (non-null only)"
 message_recent_header = "**Recent events** (newest first)"
+
+[commands.treediff]
+message_usage = "Usage: `{prefix}treediff` (global tree) or `{prefix}treediff this` / `{prefix}treediff <guild_id>`."
+message_failed = "Could not fetch or compare slash commands with Discord."
+need_guild = "Use `treediff this` in a server, or pass a guild id."
 
 # =============================================================================
 # BOT STATUS / PRESENCE

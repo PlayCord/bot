@@ -6,7 +6,7 @@ from discord.ext import commands
 
 from configuration.constants import *
 from utils import database as db
-from utils.analytics import format_recent_event_row
+from utils.analytics import format_ascii_bar_chart, format_recent_event_row
 from utils.embeds import ErrorEmbed
 from utils.locale import fmt, get
 
@@ -108,15 +108,21 @@ class AdminCog(commands.Cog):
                     return
             hours = max(1, min(hours, 24 * 30))
             counts = db.database.get_analytics_event_counts(hours=hours)
+            by_game = db.database.get_analytics_event_counts_by_game(hours=hours)
             recent = db.database.get_analytics_recent_events(hours=hours, limit=60)
-            if not counts and not recent:
+            if not counts and not recent and not by_game:
                 await msg.reply(fmt("commands.analytics.message_empty", hours=hours))
                 await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)
                 return
             lines: list[str] = [f"**Analytics** — last **{hours}** hour(s)", ""]
             lines.append(get("commands.analytics.message_counts_header"))
             if counts:
-                lines.extend(f"`{r['event_type']}`: **{r['cnt']}**" for r in counts)
+                lines.extend(format_ascii_bar_chart(counts, label_key="event_type", value_key="cnt"))
+            else:
+                lines.append("_(none)_")
+            lines.extend(("", get("commands.analytics.message_by_game_header")))
+            if by_game:
+                lines.extend(format_ascii_bar_chart(by_game, label_key="game_type", value_key="cnt"))
             else:
                 lines.append("_(none)_")
             lines.extend(("", get("commands.analytics.message_recent_header")))
@@ -127,6 +133,56 @@ class AdminCog(commands.Cog):
             body = "\n".join(lines)
             first = True
             for chunk in _chunk_discord_text(body):
+                if first:
+                    await msg.reply(chunk)
+                    first = False
+                else:
+                    await msg.channel.send(chunk)
+            await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)
+
+        # Slash tree deep diff (local CommandTree vs Discord API)
+        elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_TREEDIFF}"):
+            split = msg.content.split()
+            guild: discord.Guild | discord.Object | None = None
+            if len(split) >= 2:
+                if split[1] == MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER:
+                    if msg.guild is None:
+                        await msg.reply(get("commands.treediff.need_guild"))
+                        await msg.add_reaction(MESSAGE_COMMAND_FAILED)
+                        return
+                    guild = msg.guild
+                else:
+                    try:
+                        guild = discord.Object(id=int(split[1]))
+                    except ValueError:
+                        await msg.reply(fmt("commands.treediff.message_usage", prefix=f"{LOGGING_ROOT}/"))
+                        await msg.add_reaction(MESSAGE_COMMAND_FAILED)
+                        return
+            try:
+                from utils.command_tree_diff import fetch_and_analyze_tree, format_drift_report
+
+                drift = await fetch_and_analyze_tree(self.bot.tree, guild=guild)
+            except discord.HTTPException as e:
+                await msg.add_reaction(MESSAGE_COMMAND_FAILED)
+                await msg.reply(
+                    embed=ErrorEmbed(
+                        what_failed=get("commands.treediff.message_failed"),
+                        reason=str(e),
+                    )
+                )
+                return
+            except Exception as e:
+                await msg.add_reaction(MESSAGE_COMMAND_FAILED)
+                await msg.reply(
+                    embed=ErrorEmbed(
+                        what_failed=get("commands.treediff.message_failed"),
+                        reason=traceback.format_exc(),
+                    )
+                )
+                return
+            report = "### Command tree (local vs API)\n" + format_drift_report(drift, max_lines=45)
+            first = True
+            for chunk in _chunk_discord_text(report):
                 if first:
                     await msg.reply(chunk)
                     first = False

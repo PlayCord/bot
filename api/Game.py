@@ -81,6 +81,21 @@ class Game(ABC):
     # Optional per-game TrueSkill scale (sigma/beta/tau/draw as fractions of MU); None uses global GAME_TRUESKILL
     trueskill_scale: dict | None = None
 
+    @classmethod
+    def trueskill_fractions(cls, game_type_key: str) -> dict[str, float]:
+        """
+        Sigma, beta, tau (multiples of MU) and raw draw probability for this game class.
+
+        Merges :attr:`trueskill_scale` over :data:`configuration.constants.GAME_TRUESKILL` for ``game_type_key``.
+        """
+        from configuration.constants import GAME_TRUESKILL
+
+        base = dict(GAME_TRUESKILL.get(game_type_key, GAME_TRUESKILL["tictactoe"]))
+        over = getattr(cls, "trueskill_scale", None)
+        if over:
+            base.update(over)
+        return base
+
     @abstractmethod
     def __init__(self, players: list[Player]) -> None:
         """

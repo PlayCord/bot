@@ -167,6 +167,29 @@ class Timer:
             return round(elapsed_time, round_digits)
 
 
+def format_ascii_bar_chart(
+    rows: list[dict[str, Any]],
+    *,
+    value_key: str = "cnt",
+    label_key: str = "event_type",
+    width: int = 22,
+) -> list[str]:
+    """
+    Turn count rows into simple Unicode bar lines for Discord (monospace-friendly).
+    """
+    if not rows:
+        return []
+    mx = max(int(r[value_key]) for r in rows) or 1
+    lines: list[str] = []
+    for r in rows:
+        label = str(r.get(label_key) or "?")
+        v = int(r[value_key])
+        filled = max(1, round(width * v / mx)) if mx else width
+        bar = "█" * filled + "░" * (width - filled)
+        lines.append(f"`{label}` {bar} {v}")
+    return lines
+
+
 def format_recent_event_row(row: dict[str, Any]) -> str:
     """One line for owner-facing analytics dump (Discord-safe length)."""
     meta = row.get("metadata")

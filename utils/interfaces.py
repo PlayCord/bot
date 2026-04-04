@@ -199,12 +199,12 @@ class GameInterface:
             name=fmt("queue.thread_name", prefix=rated_prefix, game=self.game.name, match_id=self.game_id),
             type=discord.ChannelType.private_thread, invitable=False)  # Don't allow people to add themselves
 
-        async def add_new_members_to_thread():
-            for player in self.players:  # Add users to the thread
-                if hasattr(player, "user") and player.user is not None:
+        for player in self.players:
+            if hasattr(player, "user") and player.user is not None:
+                try:
                     await game_thread.add_user(player.user)
-
-        asyncio.create_task(add_new_members_to_thread())  # Nonblocking
+                except discord.HTTPException as e:
+                    log.warning("add_user failed for %s: %s", player.user.id, e)
 
         game_info_embed = CustomEmbed(description=get_emoji_string("loading")).remove_footer()
         # Temporary embed TODO: remove this and make it cleaner while still guaranteeing the bot gets the first message
@@ -213,11 +213,8 @@ class GameInterface:
         # Set the thread and game message in the class
         self.thread = game_thread
 
-        async def send_game_messages():
-            self.info_message = await self.thread.send(embed=game_info_embed)
-            self.game_message = await self.thread.send(embed=getting_ready_embed)
-
-        asyncio.create_task(send_game_messages())  # Nonblocking
+        self.info_message = await self.thread.send(embed=game_info_embed)
+        self.game_message = await self.thread.send(embed=getting_ready_embed)
         log.debug(
             f"Finished game setup for a new game in {setup_timer.stop()}ms."
             f" matchmaker ID: {self.status_message.id} game ID: {self.thread.id}")
@@ -1331,27 +1328,47 @@ async def _successful_matchmaking_impl(interface: MatchmakingInterface) -> None:
         metadata={"player_count": len(all_players), "rated": rated and not has_bots},
     )
     game = GameInterface(game_type, message, creator, list(all_players), rated and not has_bots, new_game_id)
-    await game.setup()  # Setup thread and other stuff
+    try:
+        await game.setup()  # Setup thread and other stuff
 
-    db.database.update_match_context(
-        match_id=new_game_id,
-        channel_id=message.channel.id,
-        thread_id=game.thread.id
-    )
+        db.database.update_match_context(
+            match_id=new_game_id,
+            channel_id=message.channel.id,
+            thread_id=game.thread.id
+        )
 
-    # Register the game to the channel it's in
-    CURRENT_GAMES.update({game.thread.id: game})
+        # Register the game to the channel it's in
+        CURRENT_GAMES.update({game.thread.id: game})
 
-    # Edit the status message with the SpectateView
-    async def create_spectate_view():
-        while game.game_message is None:
-            await asyncio.sleep(1)
-        await message.edit(view=SpectateView(spectate_button_id=f"spectate/{game.thread.id}",
-                                             peek_button_id=f"peek/{game.thread.id}/{game.game_message.id}",
-                                             game_link=game.info_message.jump_url))
+        # Edit the status message with the SpectateView
+        async def create_spectate_view():
+            await message.edit(view=SpectateView(spectate_button_id=f"spectate/{game.thread.id}",
+                                                 peek_button_id=f"peek/{game.thread.id}/{game.game_message.id}",
+                                                 game_link=game.info_message.jump_url))
 
-    asyncio.create_task(create_spectate_view())
-    await game.display_game_state()  # Send the game display state
+        asyncio.create_task(create_spectate_view())
+        await game.display_game_state()  # Send the game display state
+    except Exception:
+        _sm = logging.getLogger(f"{LOGGING_ROOT}.successful_matchmaking")
+        try:
+            db.database.abandon_match(new_game_id, "interface_setup_failed")
+        except Exception:
+            _sm.exception("abandon_match failed after setup error")
+        try:
+            register_event(
+                EventType.GAME_ABANDONED,
+                user_id=creator.id,
+                guild_id=message.guild.id,
+                game_type=game_type,
+                match_id=new_game_id,
+                metadata={"phase": "interface_setup", "reason": "setup_failed"},
+            )
+        except Exception:
+            pass
+        th = getattr(game, "thread", None)
+        if th is not None:
+            CURRENT_GAMES.pop(th.id, None)
+        raise
 
 
 def _pre_match_mu_sigma(player: Any, game_type: str) -> tuple[float, float]:
