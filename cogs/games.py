@@ -284,6 +284,15 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
         await game_overview_message.edit(embed=interface.failed)
         return None
     await interface.update_embed()
+    from utils.analytics import EventType, register_event
+
+    register_event(
+        EventType.MATCHMAKING_STARTED,
+        user_id=ctx.user.id,
+        guild_id=ctx.guild.id if ctx.guild else None,
+        game_type=game_type,
+        metadata={"lobby_message_id": game_overview_message.id},
+    )
     return interface
 
 

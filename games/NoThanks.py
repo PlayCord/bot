@@ -31,6 +31,7 @@ class NoThanksGame(Game):
 
         deck = list(range(3, 36))
         random.shuffle(deck)
+        self._nothanks_shuffle = list(deck)
         removed = set(deck[:9])
         self.deck = [card for card in deck[9:] if card not in removed]
 
@@ -39,6 +40,18 @@ class NoThanksGame(Game):
         self.chips = {p: 11 for p in players}
         self.cards = {p: [] for p in players}
         self.last_action = f"{self.current_turn().mention} starts. Current card: {self.current_card}."
+
+    def on_replay_logger_attached(self) -> None:
+        removed = set(self._nothanks_shuffle[:9]) if self._nothanks_shuffle else set()
+        self.log_replay_event(
+            {
+                "type": "rng",
+                "phase": "nothanks_setup",
+                "shuffle_order": list(self._nothanks_shuffle),
+                "removed_nine": sorted(removed),
+                "starting_face_up": self.current_card,
+            }
+        )
 
     def state(self):
         status = "🏁 Game over." if self.finished else f"➡️ Turn: {self.current_turn().mention}"

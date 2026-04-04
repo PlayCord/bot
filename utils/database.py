@@ -935,15 +935,31 @@ class Database:
         query = "UPDATE matches SET status = %s WHERE match_id = %s;"
         self._execute_query(query, (status, match_id))
 
-    def merge_match_metadata_outcome_summary(self, match_id: int, summary: str) -> None:
-        """Store human-readable outcome summary in matches.metadata (JSON)."""
+    def merge_match_metadata_outcome_display(
+        self,
+        match_id: int,
+        *,
+        summaries: dict[int, str] | None = None,
+        global_summary: str | None = None,
+    ) -> None:
+        """
+        Store outcome_global_summary (single line) and/or outcome_summaries (per user id) on matches.metadata.
+        """
+        patch: dict[str, Any] = {}
+        if global_summary and str(global_summary).strip():
+            patch["outcome_global_summary"] = str(global_summary).strip()
+        if summaries is not None:
+            patch["outcome_summaries"] = {str(uid): text for uid, text in summaries.items()}
+        if not patch:
+            return
+        payload = json.dumps(patch)
         query = """
             UPDATE matches
-            SET metadata = COALESCE(metadata, '{}'::jsonb)
-                || jsonb_build_object('outcome_summary', to_jsonb(%s::text))
+            SET metadata = (COALESCE(metadata, '{}'::jsonb) - 'outcome_summary')
+                || %s::jsonb
             WHERE match_id = %s;
         """
-        self._execute_query(query, (summary, match_id))
+        self._execute_query(query, (payload, match_id))
 
     def get_match_human_user_ids_ordered(self, match_id: int) -> List[int]:
         """Participant Discord user IDs for a match, excluding bot accounts, in seat order."""
@@ -1303,6 +1319,7 @@ class Database:
             SELECT 
                 m.match_id,
                 m.game_id,
+                g.game_name as game_key,
                 g.display_name as game_name,
                 m.ended_at,
                 m.is_rated,
@@ -1530,6 +1547,18 @@ class Database:
             ORDER BY cnt DESC;
         """
         rows = self._execute_query(query, (hours,), fetchall=True)
+        return rows if rows else []
+
+    def get_analytics_recent_events(self, hours: int = 24, limit: int = 60) -> List[Dict[str, Any]]:
+        """Recent analytics rows with ids and metadata for operator review."""
+        query = """
+            SELECT event_id, event_type, timestamp, user_id, guild_id, game_id, match_id, metadata
+            FROM analytics_events
+            WHERE timestamp > NOW() - (%s * INTERVAL '1 hour')
+            ORDER BY timestamp DESC
+            LIMIT %s;
+        """
+        rows = self._execute_query(query, (hours, limit), fetchall=True)
         return rows if rows else []
 
     # ========================================================================
@@ -1825,10 +1854,11 @@ class Database:
         user_id: Optional[int] = None,
         guild_id: Optional[int] = None,
         game_type: Optional[str] = None,
+        match_id: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None
     ):
         """
-        Legacy analytics recording (maps game_type to game_id).
+        Record an analytics row (maps game_type slug to games.game_id; optional match_id).
         """
         game_id = None
         if game_type:
@@ -1836,7 +1866,7 @@ class Database:
             if game:
                 game_id = game.game_id
 
-        self.record_event(event_type, user_id, guild_id, game_id, None, metadata)
+        self.record_event(event_type, user_id, guild_id, game_id, match_id, metadata)
 
     # ========================================================================
     # COMPATIBILITY METHODS (for old method names)

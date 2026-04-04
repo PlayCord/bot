@@ -65,6 +65,7 @@ class GameInterface:
         self.status_message = status_message
         # The game type
         self.game_type = game_type
+        self.logger = logging.getLogger(f"GameInterface[{game_type}]")
         # Who created the lobby
         self.creator = creator
 
@@ -139,9 +140,16 @@ class GameInterface:
 
         self.game = game_class(game_players)
         self.game.attach_replay_logger(self._replay_sink_from_game)
+        _replay_hook = getattr(self.game, "on_replay_logger_attached", None)
+        if callable(_replay_hook):
+            try:
+                _replay_hook()
+            except Exception:
+                self.logger.getChild("replay").warning(
+                    "on_replay_logger_attached failed", exc_info=True
+                )
 
         self.current_turn = None
-        self.logger = logging.getLogger(f"GameInterface[{game_type}]")
 
         for p in players:
             if not getattr(p, "is_bot", False):
@@ -187,7 +195,7 @@ class GameInterface:
         rated_prefix = get("queue.thread_rated_prefix") if self.rated else ""
 
         game_thread = await self.status_message.channel.create_thread(  # Create the private thread.
-            name=fmt("queue.thread_name", prefix=rated_prefix, game=self.game.name, name=NAME),
+            name=fmt("queue.thread_name", prefix=rated_prefix, game=self.game.name, match_id=self.game_id),
             type=discord.ChannelType.private_thread, invitable=False)  # Don't allow people to add themselves
 
         async def add_new_members_to_thread():
@@ -906,6 +914,11 @@ class MatchmakingInterface:
         embed.add_field(name=get("queue.field_game_info"), value=self.game.description, inline=False)
         embed.add_field(name=get("queue.field_game_by"),
                         value=f"[{game_metadata['author']}]({game_metadata['author_link']})\n[{get('queue.source')}]({game_metadata['source_link']})")
+        embed.add_field(
+            name=get("queue.field_ids_name"),
+            value=fmt("queue.field_ids_value", lobby_id=self.message.id, game=self.game_type),
+            inline=False,
+        )
 
         # Can the start button be pressed?
         start_enabled = self.player_verification_function(len(self.queued_players))
@@ -1281,6 +1294,16 @@ async def _successful_matchmaking_impl(interface: MatchmakingInterface) -> None:
         is_rated=(rated and not has_bots),
         channel_id=message.channel.id
     )
+    from utils.analytics import EventType, register_event
+
+    register_event(
+        EventType.GAME_STARTED,
+        user_id=creator.id,
+        guild_id=message.guild.id,
+        game_type=game_type,
+        match_id=new_game_id,
+        metadata={"player_count": len(all_players), "rated": rated and not has_bots},
+    )
     game = GameInterface(game_type, message, creator, list(all_players), rated and not has_bots, new_game_id)
     await game.setup()  # Setup thread and other stuff
 
@@ -1469,6 +1492,18 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
         await interface.await_pending_ui_tasks()
         await thread.edit(locked=True, archived=True, reason=get("threads.game_crashed"))
         await thread.send(embed=game_over_embed)
+        try:
+            from utils.analytics import EventType, register_event
+
+            register_event(
+                EventType.GAME_ABANDONED,
+                guild_id=thread.guild.id if thread.guild else None,
+                game_type=game_type,
+                match_id=game_id,
+                metadata={"phase": "game_over_error", "detail": str(outcome)[:300]},
+            )
+        except Exception:
+            pass
         return
 
     if rated:
@@ -1540,17 +1575,59 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
 
         player_string = await non_rated_groups_to_string(rankings, groups)
 
-    outcome_summary: str | None = None
+    outcome_summaries: dict[int, str] | None = None
     try:
         fn = getattr(interface.game, "match_summary", None)
         if callable(fn):
-            outcome_summary = fn(outcome)
-            if outcome_summary is not None:
-                outcome_summary = str(outcome_summary).strip() or None
+            raw = fn(outcome)
+            if isinstance(raw, dict):
+                parsed: dict[int, str] = {}
+                for k, v in raw.items():
+                    try:
+                        kid = int(k)
+                    except (TypeError, ValueError):
+                        continue
+                    s = str(v).strip()
+                    if s:
+                        parsed[kid] = s
+                outcome_summaries = parsed or None
     except Exception:
-        outcome_summary = None
-    if outcome_summary:
-        db.database.merge_match_metadata_outcome_summary(game_id, outcome_summary)
+        outcome_summaries = None
+
+    outcome_global_summary: str | None = None
+    try:
+        gfn = getattr(interface.game, "match_global_summary", None)
+        if callable(gfn):
+            gs = gfn(outcome)
+            if gs is not None:
+                outcome_global_summary = str(gs).strip() or None
+    except Exception:
+        outcome_global_summary = None
+
+    if outcome_summaries is not None or outcome_global_summary:
+        db.database.merge_match_metadata_outcome_display(
+            game_id,
+            summaries=outcome_summaries,
+            global_summary=outcome_global_summary,
+        )
+
+    try:
+        from utils.analytics import EventType, register_event
+
+        register_event(
+            EventType.GAME_COMPLETED,
+            user_id=getattr(interface.creator, "id", None),
+            guild_id=thread.guild.id if thread.guild else None,
+            game_type=game_type,
+            match_id=game_id,
+            metadata={
+                "rated": bool(rated),
+                "has_outcome_summary": outcome_summaries is not None
+                or outcome_global_summary is not None,
+            },
+        )
+    except Exception:
+        pass
 
     for p in players:  # Players playing this game are no longer in the game... it's over lol
         IN_GAME.pop(p, None)
@@ -1561,7 +1638,9 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
     game_over_embed = GameOverEmbed(
         rankings=player_string,
         game_name=interface.game.name,
-        outcome_summary=outcome_summary,
+        players=players,
+        outcome_summaries=outcome_summaries,
+        outcome_global_summary=outcome_global_summary,
     )
 
     # Send the embed to overview / game thread

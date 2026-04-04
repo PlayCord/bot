@@ -153,6 +153,13 @@ class BattleshipGame(Game):
             self.shots[player] = [["~" for _ in range(self.size)] for _ in range(self.size)]
             self.remaining_segments[player] = sum(self.ship_lengths)
 
+    def on_replay_logger_attached(self) -> None:
+        layouts = {
+            str(p.id): "".join(self.boards[p][r][c] for r in range(self.size) for c in range(self.size))
+            for p in self.players
+        }
+        self.log_replay_event({"type": "rng", "phase": "battleship_placement", "boards": layouts})
+
     def state(self):
         if self.winner:
             status = f"🏁 Winner: {self.winner.mention}"

@@ -10,28 +10,34 @@ empty, I will release 1.0.0
       `append_replay_event` (JSONL on `matches.replay_log`). `Command.is_game_affecting` (default true; Poker/Blackjack
       `peek` = false). Bot moves recorded with bot `user_id`. `Game.attach_replay_logger` / `Game.log_replay_event`
       exist
-      for stochastic events—games must call `log_replay_event` where RNG matters (shuffle, dice); not all games do yet.
-    - **Still TODO:** Replay viewer UI (embed/pagination or web), shareable replay ID in history, ensuring every
-      randomizing game logs stochastic outcomes, broader testing.
-    - Replay ID would be displayed in match history.
+      for stochastic events—games must call `log_replay_event` where RNG matters (shuffle, dice); Poker (deck +
+      showdown tiebreak), Blackjack (each shuffle), No Thanks (setup), and Battleship (placement) log; other games
+      (e.g. Liar's Dice) still optional.
+    - **Done (viewer / discovery):** `/playcord replay <match_id>` (guild-only) shows paginated JSONL-derived lines via
+      [`utils/replay_format.py`](utils/replay_format.py). `/playcord history` rows prefix `` `match_id` `` so users can
+      copy the ID.
+    - **Still TODO:** Web or richer replay UI, ensuring every randomizing game logs stochastic outcomes, broader testing.
 - [ ] We need a way to prevent people from sending messages in game thread that are not commands, or people spectating
   from sending anything at all. The issue is that the app command and send message privileges are combined.
     - **Partial:** `THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY` in `configuration/constants.py` (default off) deletes
       non-`/` messages from **participants** in active game threads. Spectators are still non-participants (existing
       warn/delete policy applies); true “spectators silent” may need permission tweaks or stricter deletion.
 - [x] Better match history summaries (foundation)
-    - **Done:** `Game.match_summary(outcome) -> str | None` on [`api/Game.py`](api/Game.py); stored in
-      `matches.metadata.outcome_summary`; shown on game-over embed and in `/playcord history`. Example:
+    - **Done:** `Game.match_global_summary(outcome) -> str | None` (one line: result / scoreboard) and
+      `match_summary` (per-player lines), stored as `metadata.outcome_global_summary` and `outcome_summaries`;
+      global line is shown at the top of the game-over embed and replay viewer; per-player lines in history. Legacy
+      `outcome_summary` string is still read for old history rows. Example:
       [`games/TicTacToe.py`](games/TicTacToe.py).
-    - **Still TODO:** Implement `match_summary` for other games (chess, poker, etc.) with rich text like “checkmate in
-      N.”
+    - **Partial:** Per-player `match_summary` on Chess, Poker, Connect Four, Reversi, Nim, Tic-Tac-Toe; more games
+      still optional.
 - [ ] Better seating algorithm for games. Some games are assymetric (like Mastermind) and seating can have a big impact
   on the game, so we should take that into account when seating players.
     - We would need maybe a way to configure roles for players in each game, and then the seating algorithm would try to
       seat players in a way that balances those roles as much as possible. This would be a pretty complex feature but
       could add a lot of value for certain games. Sometimes it would benefit for this to be random (Secret Hitler), but
       other times we want it to be set. This is something that would be added to the API.
-- [ ] Add a feedback command
+- [x] Add a feedback command
+    - **Done:** `/playcord feedback` records `user_feedback` analytics events with message text (see [`cogs/general.py`](cogs/general.py)).
 - [ ] Add customization options for games (board size, wordlist, basically configurable things). This would probably be
   within the matchmaker GUI and not a command (because we don't want to have a /play command for EVERY game
     - There are other questions raised by this:
@@ -91,10 +97,10 @@ empty, I will release 1.0.0
     - If a crash occurs during game setup or something where it is *our* fault (not within a game's code), we still need
       to show an error consistently everywhere.
 - [ ] Analytics viewer of some kind
-    - **Partial:** `/playcord analytics` (bot owners) — event counts by type from DB for a look-back window. No charts
-      UI
-      yet.
-    - Migrate this to a message command (playcord/analytics) instead
+    - **Partial:** Owner message command [`playcord/analytics [hours]`](cogs/admin.py) — aggregates by `event_type` plus
+      recent rows (id, user, guild, match, metadata). Events are written **directly** to `analytics_events` from
+      [`utils.analytics.register_event`](utils/analytics.py) (matchmaking started, game started/completed/abandoned,
+      feedback, etc.). Background flush retries buffered rows after failures. No charts UI yet.
 - [ ] More modular game format
     - Currently all of the games have some kind of "game_message" that is entirely controlled by it (within parameters)
     - It might be good/cool to have a more open format where more messages are sent by the bot in the channel as the

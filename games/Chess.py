@@ -619,3 +619,49 @@ class ChessGame(Game):
 
         loser = self.black if self.winner == self.white else self.white
         return [[self.winner], [loser]]
+
+    def match_global_summary(self, outcome):
+        n = len(self.move_history)
+        if not self.finished and outcome is None:
+            return None
+        if self.draw:
+            reason = (self.result_reason or "draw").replace("_", " ")
+            return f"Draw — {reason} · {n} half-moves"
+        if self.winner:
+            rr = (self.result_reason or "win").replace("_", " ")
+            return f"{self.winner.mention} wins — {rr} · {n} half-moves"
+        return None
+
+    def match_summary(self, outcome):
+        """Per-player lines for history / metadata."""
+        n = len(self.move_history)
+        moves = f"{n} half-moves"
+        if not self.finished and outcome is None:
+            return None
+        if self.draw:
+            reason = (self.result_reason or "").lower()
+            if reason == "stalemate":
+                line = f"Draw (stalemate · {moves})"
+            elif reason == "agreement":
+                line = f"Draw (agreement · {moves})"
+            else:
+                r = reason or "draw"
+                line = f"Draw ({r} · {moves})"
+            return {self.white.id: line, self.black.id: line}
+        if self.winner:
+            loser = self.black if self.winner == self.white else self.white
+            if self.result_reason == "checkmate":
+                return {
+                    self.winner.id: f"Won (checkmate · {moves})",
+                    loser.id: f"Lost (checkmate · {moves})",
+                }
+            if self.result_reason == "resignation":
+                return {
+                    self.winner.id: f"Won (resignation · {moves})",
+                    loser.id: f"Lost (resignation · {moves})",
+                }
+            return {
+                self.winner.id: f"Won ({moves})",
+                loser.id: f"Lost ({moves})",
+            }
+        return None

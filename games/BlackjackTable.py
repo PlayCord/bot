@@ -167,6 +167,10 @@ class BlackjackTableGame(Game):
         suits = ["♠", "♥", "♦", "♣"]
         deck = [f"{v}{s}" for v in values for s in suits]
         random.shuffle(deck)
+        # _draw uses pop() → chronological deal order is reversed list
+        self.log_replay_event(
+            {"type": "rng", "phase": "blackjack_shuffle", "deal_order": list(reversed(deck))}
+        )
         return deck
 
     def _hand_value(self, hand: list[str]) -> int:

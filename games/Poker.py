@@ -16,6 +16,16 @@ from api.Player import Player
 from api.Response import Response
 
 
+def _poker_ordinal(place: int) -> str:
+    if place == 1:
+        return "1st"
+    if place == 2:
+        return "2nd"
+    if place == 3:
+        return "3rd"
+    return f"{place}th"
+
+
 class HandRank(Enum):
     """Poker hand rankings from lowest to highest."""
     HIGH_CARD = 1
@@ -68,6 +78,8 @@ class Deck:
 
     def shuffle(self):
         random.shuffle(self.cards)
+        # Pop order: last index first (see draw()). Chronological deal order for replay.
+        self.deal_order = [str(c) for c in reversed(self.cards)]
 
     def draw(self) -> Card:
         return self.cards.pop()
@@ -128,6 +140,15 @@ class PokerGame(Game):
         # Deal hole cards
         self._deal_hole_cards()
         self._post_blinds()
+
+    def on_replay_logger_attached(self) -> None:
+        self.log_replay_event(
+            {
+                "type": "rng",
+                "phase": "poker_deck_initial",
+                "deal_order": getattr(self.deck, "deal_order", []),
+            }
+        )
 
     def _deal_hole_cards(self):
         """Deal 2 cards to each player."""
@@ -351,7 +372,16 @@ class PokerGame(Game):
 
         # For now, pick random winner (TODO: implement hand evaluation)
         # This is a scaffold - full hand evaluation would go here
+        eligible_ids = [p.id for p in remaining]
         winner = random.choice(remaining)
+        self.log_replay_event(
+            {
+                "type": "rng",
+                "phase": "poker_showdown_tiebreak",
+                "eligible_user_ids": eligible_ids,
+                "picked_user_id": winner.id,
+            }
+        )
         self._end_hand(winner)
 
     def _end_hand(self, winner: Player):
@@ -381,3 +411,36 @@ class PokerGame(Game):
         if not self.finished:
             return None
         return self.rankings if self.rankings else [[self.winner]]
+
+    def match_global_summary(self, outcome):
+        if not self.finished or not isinstance(outcome, list):
+            return None
+        parts: list[str] = []
+        for group in outcome:
+            for p in group:
+                chips = self.chips.get(p, 0)
+                parts.append(f"{p.mention}: {chips}")
+        if not parts:
+            return None
+        return "Final chips — " + " · ".join(parts)
+
+    def match_summary(self, outcome):
+        if not self.finished or not isinstance(outcome, list):
+            return None
+        result: dict[int, str] = {}
+        for place_idx, group in enumerate(outcome):
+            pos = place_idx + 1
+            tie = len(group)
+            for p in group:
+                chips = self.chips.get(p, 0)
+                if pos == 1:
+                    text = (
+                        f"Tied 1st ({chips} chips)" if tie > 1 else f"Won ({chips} chips)"
+                    )
+                else:
+                    o = _poker_ordinal(pos)
+                    text = (
+                        f"Tied {o} ({chips} chips)" if tie > 1 else f"{o} place ({chips} chips)"
+                    )
+                result[p.id] = text
+        return result or None

@@ -141,6 +141,26 @@ class Game(ABC):
         if callable(fn):
             fn(event)
 
-    def match_summary(self, outcome: object) -> str | None:
-        """Optional short human-readable result (stored on the match and shown in history)."""
+    def on_replay_logger_attached(self) -> None:
+        """
+        Called once after GameInterface attaches the replay logger (runs after Game.__init__).
+        Override to log RNG/setup that happened during __init__.
+        """
+        pass
+
+    def match_global_summary(self, outcome: object) -> str | None:
+        """
+        One line for the whole match: final scoreboard, how the game ended, etc.
+
+        Shown at the top of the game-over embed and replay viewer; stored on ``matches.metadata``.
+        """
+        return None
+
+    def match_summary(self, outcome: object) -> dict[int, str] | None:
+        """
+        Optional per-player result lines keyed by Player.id (Discord or bot id).
+
+        Values are short English phrases such as ``Won (4-in-a-row)`` or ``2nd place (12 chips)``.
+        Include every participant when returning a dict. Define copy on the game class, not locale TOML.
+        """
         return None

@@ -129,18 +129,42 @@ class GameOverviewEmbed(CustomEmbed):
         self.add_field(name=get("embeds.game_overview.field_turn"), value=column_turn(players, turn), inline=True)
 
 
+def _outcome_summaries_embed_value(players, summaries: dict[int, str]) -> str:
+    lines: list[str] = []
+    for p in players:
+        text = summaries.get(p.id)
+        if text:
+            lines.append(f"{p.mention} — {text}")
+    return "\n".join(lines)
+
+
 class GameOverEmbed(CustomEmbed):
 
-    def __init__(self, rankings, game_name, outcome_summary: str | None = None):
+    def __init__(
+        self,
+        rankings,
+        game_name,
+        players=None,
+        outcome_summaries: dict[int, str] | None = None,
+        outcome_global_summary: str | None = None,
+    ):
         super().__init__(title=fmt("embeds.game_over.title", game_name=game_name),
                          description=get("embeds.game_over.description"))
-        self.add_field(name=get("embeds.game_over.field_rankings"), value=rankings, inline=True)
-        if outcome_summary:
+        if outcome_global_summary:
             self.add_field(
-                name=get("embeds.game_over.field_summary"),
-                value=outcome_summary,
+                name=get("embeds.game_over.field_global_summary"),
+                value=outcome_global_summary[:1024],
                 inline=False,
             )
+        self.add_field(name=get("embeds.game_over.field_rankings"), value=rankings, inline=True)
+        if outcome_summaries and players:
+            block = _outcome_summaries_embed_value(players, outcome_summaries)
+            if block:
+                self.add_field(
+                    name=get("embeds.game_over.field_summary"),
+                    value=block,
+                    inline=False,
+                )
 
 
 class InviteEmbed(CustomEmbed):

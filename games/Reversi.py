@@ -127,6 +127,31 @@ class ReversiGame(Game):
             return p1
         return [[p0, p1]]
 
+    def match_global_summary(self, outcome):
+        if outcome is None:
+            return None
+        counts = self._disc_counts()
+        p0, p1 = self.players[0], self.players[1]
+        line = f"⚫ {counts[p0]} · ⚪ {counts[p1]}"
+        if isinstance(outcome, list):
+            return f"Draw — {line}"
+        return f"{line} — {outcome.mention} wins"
+
+    def match_summary(self, outcome):
+        if outcome is None:
+            return None
+        counts = self._disc_counts()
+        p0, p1 = self.players[0], self.players[1]
+        if isinstance(outcome, list):
+            line = f"Draw ({counts[p0]}-{counts[p1]} discs)"
+            return {p0.id: line, p1.id: line}
+        w = outcome
+        loser = p1 if w == p0 else p0
+        return {
+            w.id: f"Won ({counts[w]} discs)",
+            loser.id: f"Lost ({counts[loser]} discs)",
+        }
+
     def _board_full(self) -> bool:
         return all(cell is not None for row in self.board for cell in row)
 

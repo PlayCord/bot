@@ -16,6 +16,7 @@ from utils.graphs import generate_elo_chart
 from api.Game import resolve_player_count
 from utils.interfaces import MatchmakingInterface, user_in_active_game
 from utils.locale import fmt, get, plural
+from utils.replay_format import chunk_replay_lines, format_replay_event_line
 from utils.views import HelpView, InviteView, PaginationView
 
 CustomEmbed = _embeds.CustomEmbed
@@ -882,15 +883,23 @@ class GeneralCog(commands.Cog):
                 meta = row.get("metadata") or {}
                 if not isinstance(meta, dict):
                     meta = {}
-                summ = meta.get("outcome_summary")
+                summ = None
+                by_player = meta.get("outcome_summaries")
+                if isinstance(by_player, dict):
+                    summ = by_player.get(str(user.id))
+                if summ is None:
+                    summ = meta.get("outcome_summary")
                 summ_txt = ""
                 if summ:
                     s = str(summ)
                     if len(s) > 72:
                         s = s[:69] + "..."
                     summ_txt = f" — {s}"
+                mid = row.get("match_id", "?")
+                gkey = row.get("game_key") or "?"
                 lines.append(
-                    f"{rank_text}/{row.get('player_count', '?')} | {fmt('history.seat', seat=row.get('player_number', '?'))}"
+                    f"`{mid}` `{gkey}` · {rank_text}/{row.get('player_count', '?')} | "
+                    f"{fmt('history.seat', seat=row.get('player_number', '?'))}"
                     f" | {get('history.rated') if row.get('is_rated', True) else get('history.casual')}"
                     f" | {'+' if delta >= 0 else ''}{round(delta)}{summ_txt}"
                 )
@@ -966,6 +975,120 @@ class GeneralCog(commands.Cog):
         # Chart file only on page 1, so we won't have it on other pages
         await interaction.edit_original_response(embed=embed, view=view)
 
+    def _replay_game_label(self, game_id: int) -> str:
+        g = db.database.get_game_by_id(game_id)
+        if g is None:
+            return str(game_id)
+        return getattr(g, "display_name", None) or getattr(g, "game_name", str(game_id))
+
+    def _build_replay_embed(
+        self,
+        match_id: int,
+        game_label: str,
+        pages: list[str],
+        page_1based: int,
+        global_summary: str | None = None,
+    ) -> CustomEmbed:
+        total = max(1, len(pages))
+        p = max(1, min(page_1based, total))
+        body = pages[p - 1] if pages else ""
+        code = f"```{body}```" if body.strip() else get("commands.replay.empty_page")
+        head = ""
+        if global_summary and str(global_summary).strip():
+            head = f"{str(global_summary).strip()}\n\n"
+        desc = (head + code)[:4000]
+        emb = CustomEmbed(
+            title=fmt("commands.replay.title", id=match_id, game=game_label),
+            description=desc,
+        )
+        emb.set_footer(text=fmt("pagination.page_footer", page=p, max=total))
+        return emb
+
+    async def _replay_page_callback(
+        self,
+        interaction: discord.Interaction,
+        new_page: int,
+        pages: list[str],
+        match_id: int,
+        game_label: str,
+        global_summary: str | None,
+    ):
+        embed = self._build_replay_embed(
+            match_id, game_label, pages, new_page, global_summary=global_summary
+        )
+        view = PaginationView(
+            guild_id=interaction.guild.id if interaction.guild else 0,
+            user_id=interaction.user.id,
+            current_page=new_page,
+            max_pages=len(pages),
+            callback_handler=lambda inter, np: self._replay_page_callback(
+                inter, np, pages, match_id, game_label, global_summary
+            ),
+        )
+        await interaction.edit_original_response(embed=embed, view=view)
+
+    @command_root.command(name="replay", description=get("commands.replay.description"))
+    @app_commands.describe(match_id=get("commands.replay.param_match_id"))
+    @app_commands.guild_only()
+    @app_commands.check(interaction_check)
+    async def command_replay(self, ctx: discord.Interaction, match_id: int):
+        await ctx.response.defer(ephemeral=True)
+        if ctx.guild is None:
+            await ctx.followup.send(content=get("commands.set_channel.guild_only"), ephemeral=True)
+            return
+        match = db.database.get_match(match_id)
+        if match is None or match.guild_id != ctx.guild.id:
+            await ctx.followup.send(
+                content=format_user_error_message("replay_not_found"),
+                ephemeral=True,
+            )
+            return
+        events = db.database.get_replay_events(match_id)
+        if not events:
+            await ctx.followup.send(
+                content=fmt("commands.replay.no_data", match_id=match_id),
+                ephemeral=True,
+            )
+            return
+        lines = [format_replay_event_line(e) for e in events]
+        pages = chunk_replay_lines(lines)
+        game_label = self._replay_game_label(match.game_id)
+        meta = match.metadata or {}
+        replay_global = None
+        if isinstance(meta, dict):
+            replay_global = meta.get("outcome_global_summary")
+            if replay_global is not None:
+                replay_global = str(replay_global).strip() or None
+        embed = self._build_replay_embed(
+            match_id, game_label, pages, 1, global_summary=replay_global
+        )
+        view = PaginationView(
+            guild_id=ctx.guild.id,
+            user_id=ctx.user.id,
+            current_page=1,
+            max_pages=len(pages),
+            callback_handler=lambda inter, np: self._replay_page_callback(
+                inter, np, pages, match_id, game_label, replay_global
+            ),
+        )
+        await ctx.followup.send(embed=embed, view=view, ephemeral=True)
+
+    @command_root.command(name="feedback", description=get("commands.feedback.description"))
+    @app_commands.describe(message=get("commands.feedback.param_text"))
+    @app_commands.check(interaction_check)
+    async def command_feedback(self, ctx: discord.Interaction, message: app_commands.Range[str, 1, 500]):
+        text = (message or "").strip()
+        if not text:
+            await ctx.response.send_message(get("commands.feedback.empty"), ephemeral=True)
+            return
+        db.database.record_event(
+            "user_feedback",
+            user_id=ctx.user.id,
+            guild_id=ctx.guild.id if ctx.guild else None,
+            metadata={"text": text},
+        )
+        await ctx.response.send_message(get("commands.feedback.thanks"), ephemeral=True)
+
     @command_root.command(name="settings", description=get("commands.settings.description"))
     @app_commands.describe(rated=get("commands.settings.param_rated"), private=get("commands.settings.param_private"))
     async def command_settings(self, ctx: discord.Interaction, rated: bool = None, private: bool = None):
@@ -1020,24 +1143,6 @@ class GeneralCog(commands.Cog):
         db.database.merge_guild_settings(ctx.guild.id, {"playcord_channel_id": channel.id})
         await ctx.followup.send(
             content=fmt("commands.set_channel.saved", channel=channel.mention),
-            ephemeral=True,
-        )
-
-    @command_root.command(name="analytics", description=get("commands.analytics.description"))
-    @app_commands.describe(hours="Look-back window in hours (default 24)")
-    async def command_analytics(self, ctx: discord.Interaction, hours: int = 24):
-        if ctx.user.id not in OWNERS:
-            await ctx.response.send_message(get("commands.analytics.denied"), ephemeral=True)
-            return
-        await ctx.response.defer(ephemeral=True)
-        hours_clamped = max(1, min(hours, 24 * 30))
-        rows = db.database.get_analytics_event_counts(hours=hours_clamped)
-        if not rows:
-            await ctx.followup.send(content=fmt("commands.analytics.empty", hours=hours_clamped), ephemeral=True)
-            return
-        lines = [f"`{r['event_type']}`: **{r['cnt']}**" for r in rows]
-        await ctx.followup.send(
-            content=fmt("commands.analytics.summary", hours=hours_clamped, body="\n".join(lines[:50])),
             ephemeral=True,
         )
 

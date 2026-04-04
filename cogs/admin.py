@@ -5,9 +5,17 @@ import discord
 from discord.ext import commands
 
 from configuration.constants import *
+from utils import database as db
+from utils.analytics import format_recent_event_row
 from utils.embeds import ErrorEmbed
+from utils.locale import fmt, get
 
 log = logging.getLogger(LOGGING_ROOT)
+
+
+def _chunk_discord_text(text: str, size: int = 1900):
+    for i in range(0, len(text), size):
+        yield text[i : i + size]
 
 
 class AdminCog(commands.Cog):
@@ -85,6 +93,45 @@ class AdminCog(commands.Cog):
             constants.IS_ACTIVE = not constants.IS_ACTIVE
             f_log.critical(
                 f"Bot has been {'enabled' if constants.IS_ACTIVE else 'disabled'} by authorized user {msg.author.id}.")
+            await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)
+
+        # Analytics (counts + recent rows; not exposed as a slash command)
+        elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_ANALYTICS}"):
+            split = msg.content.split()
+            hours = 24
+            if len(split) >= 2:
+                try:
+                    hours = int(split[1])
+                except ValueError:
+                    await msg.reply(fmt("commands.analytics.message_usage", prefix=f"{LOGGING_ROOT}/"))
+                    await msg.add_reaction(MESSAGE_COMMAND_FAILED)
+                    return
+            hours = max(1, min(hours, 24 * 30))
+            counts = db.database.get_analytics_event_counts(hours=hours)
+            recent = db.database.get_analytics_recent_events(hours=hours, limit=60)
+            if not counts and not recent:
+                await msg.reply(fmt("commands.analytics.message_empty", hours=hours))
+                await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)
+                return
+            lines: list[str] = [f"**Analytics** — last **{hours}** hour(s)", ""]
+            lines.append(get("commands.analytics.message_counts_header"))
+            if counts:
+                lines.extend(f"`{r['event_type']}`: **{r['cnt']}**" for r in counts)
+            else:
+                lines.append("_(none)_")
+            lines.extend(("", get("commands.analytics.message_recent_header")))
+            if recent:
+                lines.extend(format_recent_event_row(r) for r in recent)
+            else:
+                lines.append("_(none)_")
+            body = "\n".join(lines)
+            first = True
+            for chunk in _chunk_discord_text(body):
+                if first:
+                    await msg.reply(chunk)
+                    first = False
+                else:
+                    await msg.channel.send(chunk)
             await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)
 
         # Clear

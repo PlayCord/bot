@@ -2,14 +2,13 @@ import logging
 import os
 import sys
 
-import discord
 from discord import app_commands
 from discord.ext import commands
 from ruamel.yaml import YAML
 
 import configuration.constants as constants
-from cogs.general import command_play
 from cogs.games import handle_autocomplete, handle_move  # For exec context
+from cogs.general import command_play
 from configuration.constants import *
 from utils import database as db
 from utils.analytics import Timer
@@ -96,7 +95,7 @@ else:
 
 class PlayCordBot(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix="!", intents=discord.Intents.all())
+        super().__init__(command_prefix="!", intents=discord.Intents.all(), help_command=None)
 
     async def setup_hook(self):
         # Load Cogs

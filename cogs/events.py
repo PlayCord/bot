@@ -5,6 +5,7 @@ import discord
 from discord.ext import commands
 
 from configuration.constants import *
+from utils import analytics as analytics_mod
 from utils import database as db
 from utils.embeds import CustomEmbed
 from utils.locale import get, fmt
@@ -23,6 +24,17 @@ class EventsCog(commands.Cog):
         startup_logger = logging.getLogger(f"{LOGGING_ROOT}.startup")
         startup_logger.info(f"Client connected and ready.")
         self.bot.loop.create_task(self.presence())
+        self.bot.loop.create_task(self._analytics_periodic_flush())
+
+    async def _analytics_periodic_flush(self) -> None:
+        """Retry any buffered analytics rows after failed DB writes."""
+        await asyncio.sleep(60)
+        while True:
+            try:
+                analytics_mod.flush_events()
+            except Exception:
+                pass
+            await asyncio.sleep(120)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild) -> None:

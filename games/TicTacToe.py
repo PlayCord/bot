@@ -5,8 +5,8 @@ from api.Bot import Bot
 from api.Command import Command
 from api.Game import Game
 from api.MessageComponents import Button, ButtonStyle, DataTable
+from api.Player import Player
 from api.Response import Response, ResponseType
-from utils.locale import fmt, get
 
 
 class TicTacToeGame(Game):
@@ -180,12 +180,24 @@ class TicTacToeGame(Game):
 
         return {"name": "move", "arguments": {"move": random.choice(available)}}
 
-    def match_summary(self, outcome):
-        filled = sum(1 for row in self.board for cell in row if cell.id is not None)
+    def match_global_summary(self, outcome):
         if isinstance(outcome, Player):
-            return fmt("game_summary.tictactoe.win", moves=filled)
+            return f"{outcome.mention} — 3 in a row"
         if isinstance(outcome, list):
-            return get("game_summary.tictactoe.draw")
+            return "Draw — board full"
+        return None
+
+    def match_summary(self, outcome):
+        detail = "3 in a row"
+        if isinstance(outcome, Player):
+            w = outcome
+            d = {w.id: f"Won ({detail})"}
+            for p in self.players:
+                if p.id != w.id:
+                    d[p.id] = f"Lost ({detail})"
+            return d
+        if isinstance(outcome, list):
+            return {p.id: "Draw (board full)" for p in self.players}
         return None
 
     def outcome(self):

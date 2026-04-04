@@ -190,6 +190,26 @@ class ConnectFourGame(Game):
             return [[self.players[0], self.players[1]]]
         return None
 
+    def match_global_summary(self, outcome):
+        if self.winner is not None:
+            return f"4-in-a-row — {self.winner.mention} wins · {self.move_count} moves"
+        if isinstance(outcome, list):
+            return f"Draw — full board · {self.move_count} moves"
+        return None
+
+    def match_summary(self, outcome):
+        detail = "4-in-a-row"
+        a, b = self.players[0], self.players[1]
+        if self.winner is not None:
+            loser = b if self.winner == a else a
+            return {
+                self.winner.id: f"Won ({detail})",
+                loser.id: f"Lost ({detail})",
+            }
+        if isinstance(outcome, list):
+            return {a.id: f"Draw ({detail})", b.id: f"Draw ({detail})"}
+        return None
+
     def _find_open_row(self, col_index: int) -> int | None:
         for row in range(self.rows - 1, -1, -1):
             if self.board[row][col_index] is None:

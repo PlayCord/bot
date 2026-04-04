@@ -79,3 +79,17 @@ class NimGame(Game):
         if self.winner is not None:
             return self.winner
         return None
+
+    def match_global_summary(self, outcome):
+        if self.winner is None:
+            return None
+        return f"{self.winner.mention} took the last stone"
+
+    def match_summary(self, outcome):
+        if self.winner is None:
+            return None
+        d = {self.winner.id: "Won (last stone)"}
+        for p in self.players:
+            if p.id != self.winner.id:
+                d[p.id] = "Lost (last stone)"
+        return d
