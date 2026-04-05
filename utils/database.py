@@ -312,6 +312,10 @@ class Database:
         self._load_sql_asset("database/functions.sql")
         self._load_sql_asset("database/views.sql")
 
+    def _load_schema_asset(self) -> None:
+        """Execute the tracked schema file."""
+        self._load_sql_asset("database/schema.sql")
+
     @contextmanager
     def transaction(self):
         """
@@ -500,6 +504,16 @@ class Database:
         query = "DELETE FROM guilds WHERE guild_id = %s;"
         self._execute_query(query, (guild_id,))
 
+    def reset_user_data(self, user_id: int) -> None:
+        """Delete all rows related to a user, then recreate a blank user shell."""
+        self.delete_user(user_id)
+        self.create_user(user_id, username="Unknown", is_bot=False)
+
+    def reset_guild_data(self, guild_id: int) -> None:
+        """Delete all rows related to a guild, then recreate an empty guild shell."""
+        self.delete_guild(guild_id)
+        self.create_guild(guild_id, settings={})
+
     def get_active_guilds(self) -> List[Guild]:
         """Get all active guilds"""
         query = "SELECT * FROM guilds WHERE is_active = TRUE ORDER BY created_at DESC;"
@@ -685,6 +699,23 @@ class Database:
         """Deactivate a game"""
         query = "UPDATE games SET is_active = FALSE, updated_at = NOW() WHERE game_id = %s;"
         self._execute_query(query, (game_id,))
+
+    def reset_game_data(self, game_id: int) -> Game:
+        """Delete a game row and all cascaded data, then recreate the game from code definitions."""
+        game = self.get_game_by_id(game_id)
+        if game is None:
+            raise ValueError(f"Game {game_id} not found")
+
+        game_name = game.game_name
+        self._execute_query("DELETE FROM games WHERE game_id = %s;", (game_id,))
+        self._game_cache_by_id.pop(game_id, None)
+        self._game_cache_by_name.pop(game_name, None)
+
+        self.sync_games_from_code()
+        recreated = self.get_game(game_name)
+        if recreated is None:
+            raise DatabaseError(f"Game {game_name!r} was deleted but not recreated from code")
+        return recreated
 
     # ========================================================================
     # RATING OPERATIONS
@@ -1807,6 +1838,22 @@ class Database:
             with conn.cursor() as cur:
                 cur.execute("VACUUM ANALYZE;")
             conn.autocommit = False
+
+    def reset_all_data(self) -> None:
+        """Drop and recreate the entire public schema, then rebuild tracked DB assets."""
+        self._game_cache_by_id.clear()
+        self._game_cache_by_name.clear()
+        with self.get_connection() as conn:
+            conn.autocommit = True
+            with conn.cursor() as cur:
+                cur.execute("DROP SCHEMA IF EXISTS public CASCADE;")
+                cur.execute("CREATE SCHEMA public;")
+            conn.autocommit = False
+
+        self._load_schema_asset()
+        db_migrations.apply_migrations(self)
+        self.refresh_sql_assets()
+        self.sync_games_from_code()
 
     # ========================================================================
     # GLOBAL RATING OPERATIONS

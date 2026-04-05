@@ -120,6 +120,10 @@ class AdminCog(commands.Cog):
         elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_CLEAR}"):
             self._spawn_long_admin_task(msg, self._task_clear)
 
+        # Database reset helpers
+        elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET}"):
+            self._spawn_long_admin_task(msg, self._task_dbreset)
+
     async def _task_sync(self, msg: discord.Message) -> bool:
         f_log = log.getChild("event.on_message")
         split = msg.content.split()
@@ -317,6 +321,89 @@ class AdminCog(commands.Cog):
         await self.bot.tree.sync(guild=g)
         f_log.info(f"Performed authorized command tree clear from user {msg.author.id} to guild {g.id}")
         return True
+
+    async def _task_dbreset(self, msg: discord.Message) -> bool:
+        split = msg.content.split()
+        usage = (
+            f"`{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET} game <id>`\n"
+            f"`{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET} all`\n"
+            f"`{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET} user <id>`\n"
+            f"`{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET} guild <id|{MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER}>`"
+        )
+        if len(split) < 2:
+            await msg.reply(embed=discord.Embed(description=usage, color=INFO_COLOR))
+            return False
+
+        target = split[1].lower()
+        if target == "all":
+            if len(split) != 2:
+                await msg.reply(embed=discord.Embed(description=usage, color=INFO_COLOR))
+                return False
+            db.database.reset_all_data()
+            await msg.reply(
+                embed=discord.Embed(
+                    title="Database reset complete",
+                    description="Dropped and recreated the full database schema, then rebuilt tracked assets.",
+                    color=SUCCESS_COLOR,
+                )
+            )
+            return True
+
+        if len(split) != 3:
+            await msg.reply(embed=discord.Embed(description=usage, color=INFO_COLOR))
+            return False
+
+        raw_id = split[2]
+        try:
+            if target == "guild" and raw_id == MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER:
+                if msg.guild is None:
+                    await msg.reply(get("commands.admin.guild_required_for_this"))
+                    return False
+                entity_id = msg.guild.id
+            else:
+                entity_id = int(raw_id)
+        except ValueError:
+            await msg.reply(embed=discord.Embed(description=usage, color=INFO_COLOR))
+            return False
+
+        if target == "game":
+            recreated = db.database.reset_game_data(entity_id)
+            await msg.reply(
+                embed=discord.Embed(
+                    title="Game reset complete",
+                    description=(
+                        f"Deleted all rows related to game `{entity_id}` and recreated "
+                        f"`{recreated.game_name}` as game id `{recreated.game_id}`."
+                    ),
+                    color=SUCCESS_COLOR,
+                )
+            )
+            return True
+
+        if target == "user":
+            db.database.reset_user_data(entity_id)
+            await msg.reply(
+                embed=discord.Embed(
+                    title="User reset complete",
+                    description=f"Deleted all rows related to user `{entity_id}` and recreated a blank user record.",
+                    color=SUCCESS_COLOR,
+                )
+            )
+            return True
+
+        if target == "guild":
+            db.database.reset_guild_data(entity_id)
+            await msg.reply(
+                embed=discord.Embed(
+                    title="Guild reset complete",
+                    description=f"Deleted all rows related to guild `{entity_id}` and recreated a blank guild record.",
+                    color=SUCCESS_COLOR,
+                )
+            )
+            return True
+
+        await msg.reply(embed=discord.Embed(description=usage, color=INFO_COLOR))
+        return False
 
 
 async def setup(bot: commands.Bot):

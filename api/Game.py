@@ -92,7 +92,22 @@ class Game(ABC):
     difficulty: str
     player_order: PlayerOrder = PlayerOrder.RANDOM
     game_schema_version: int = 1
-    # Optional per-game TrueSkill scale (sigma/beta/tau/draw as fractions of MU) used for bootstrap seeding.
+    # Default per-game TrueSkill scales used when a subclass does not override ``trueskill_scale``.
+    default_trueskill_scales: ClassVar[dict[str, dict[str, float]]] = {
+        "tictactoe": {"sigma": 1 / 6, "beta": 1 / 12, "tau": 1 / 100, "draw": 9 / 10},
+        "liars": {"sigma": 1 / 2.5, "beta": 1 / 5, "tau": 1 / 250, "draw": 0},
+        "test": {"sigma": 1 / 3, "beta": 1 / 5, "tau": 1 / 250, "draw": 0},
+        "connectfour": {"sigma": 1 / 6, "beta": 1 / 12, "tau": 1 / 120, "draw": 1 / 10},
+        "reversi": {"sigma": 1 / 5, "beta": 1 / 10, "tau": 1 / 150, "draw": 1 / 20},
+        "nim": {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 150, "draw": 0},
+        "mastermind": {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 180, "draw": 0},
+        "battleship": {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 180, "draw": 0},
+        "nothanks": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 0},
+        "blackjack": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 1 / 5},
+        "poker": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 0},
+        "chess": {"sigma": 1 / 5, "beta": 1 / 10, "tau": 1 / 150, "draw": 1 / 10},
+    }
+    # Optional per-game TrueSkill scale override (sigma/beta/tau/draw as fractions of MU).
     trueskill_scale: dict | None = None
     # Asymmetric games: role labels (one per seat); length must match player count when using role_mode
     player_roles: ClassVar[tuple[str, ...] | None] = None
@@ -112,15 +127,27 @@ class Game(ABC):
         return cls.trueskill_fractions(game_type_key)
 
     @classmethod
+    def default_trueskill_scale_for(cls, game_type_key: str) -> dict[str, float]:
+        """Base fallback fractions for a game type when no subclass override is present."""
+        return dict(
+            cls.default_trueskill_scales.get(
+                game_type_key,
+                cls.default_trueskill_scales["tictactoe"],
+            )
+        )
+
+    @classmethod
     def trueskill_fractions(cls, game_type_key: str) -> dict[str, float]:
         """
         Sigma, beta, tau (multiples of MU) and raw draw probability for this game class.
 
-        Startup/bootstrap path only. Runtime lookups should use the database-backed game registry.
+        Uses the base-class defaults for ``game_type_key`` and merges any subclass ``trueskill_scale`` override.
         """
-        from utils.trueskill_params import get_seed_trueskill_fractions
-
-        return get_seed_trueskill_fractions(game_type_key)
+        base = cls.default_trueskill_scale_for(game_type_key)
+        over = getattr(cls, "trueskill_scale", None)
+        if over:
+            base.update(over)
+        return base
 
     @classmethod
     def validate_role_selection(cls, selections: dict[int, str]) -> bool | str:
