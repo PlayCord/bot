@@ -7,30 +7,12 @@ import json
 import logging
 import time
 from datetime import datetime
-from enum import Enum
 from typing import Any
 
 from utils.database import database as db
+from utils.models import EventType
 
 logger = logging.getLogger("playcord.analytics")
-
-
-class EventType(Enum):
-    """Types of events that can be tracked"""
-    GAME_STARTED = "game_started"
-    GAME_COMPLETED = "game_completed"
-    GAME_ABANDONED = "game_abandoned"
-    MATCHMAKING_STARTED = "matchmaking_started"
-    MATCHMAKING_COMPLETED = "matchmaking_completed"
-    MATCHMAKING_CANCELLED = "matchmaking_cancelled"
-    PLAYER_JOINED = "player_joined"
-    PLAYER_LEFT = "player_left"
-    COMMAND_USED = "command_used"
-    MOVE_MADE = "move_made"
-    ERROR_OCCURRED = "error_occurred"
-    BOT_STARTED = "bot_started"
-    GUILD_JOINED = "guild_joined"
-    GUILD_LEFT = "guild_left"
 
 
 # Fallback buffer when DB write fails (retry on flush)

@@ -343,7 +343,7 @@ class Dropdown(MessageComponent):
 
         # Instantiate class options
         super().__init__()
-        self.type = "button"
+        self.type = "select"
         self.limit = 25
 
         self.callback = callback
@@ -363,10 +363,7 @@ class Dropdown(MessageComponent):
                 default = False
             else:
                 default = component["default"]
-            if "description" not in component:
-                description = False
-            else:
-                description = component["description"]
+            description = component.get("description")
             self.components.append(SelectOption(label=component["label"], value=component["value"],
                                                 emoji=emoji, default=default, description=description))
 

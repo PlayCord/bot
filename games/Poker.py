@@ -6,7 +6,7 @@ Each player starts with chips and plays through betting rounds.
 """
 
 import random
-from enum import Enum
+from itertools import combinations
 from typing import Optional
 
 from api.Command import Command
@@ -24,20 +24,6 @@ def _poker_ordinal(place: int) -> str:
     if place == 3:
         return "3rd"
     return f"{place}th"
-
-
-class HandRank(Enum):
-    """Poker hand rankings from lowest to highest."""
-    HIGH_CARD = 1
-    PAIR = 2
-    TWO_PAIR = 3
-    THREE_OF_A_KIND = 4
-    STRAIGHT = 5
-    FLUSH = 6
-    FULL_HOUSE = 7
-    FOUR_OF_A_KIND = 8
-    STRAIGHT_FLUSH = 9
-    ROYAL_FLUSH = 10
 
 
 class Card:
@@ -83,6 +69,74 @@ class Deck:
 
     def draw(self) -> Card:
         return self.cards.pop()
+
+
+
+def _straight_high_from_ranks(ranks: list[int]) -> int | None:
+    """High card rank index of a 5-card straight; wheel (A-2-3-4-5) returns 3 (five-high)."""
+    s = set(ranks)
+    if len(s) < 5:
+        return None
+    if {12, 0, 1, 2, 3}.issubset(s):
+        return 3
+    ur = sorted(s, reverse=True)
+    for i in range(len(ur) - 4):
+        window = ur[i : i + 5]
+        if window[0] - window[4] == 4 and all(
+            window[j] - window[j + 1] == 1 for j in range(4)
+        ):
+            return window[0]
+    return None
+
+
+def _evaluate_five(cards: tuple[Card, ...]) -> tuple[int, ...]:
+    """Return a comparison tuple; larger means a stronger 5-card hand."""
+    ranks = [c.rank for c in cards]
+    suits = [c.suit for c in cards]
+    rank_counts: dict[int, int] = {}
+    for r in ranks:
+        rank_counts[r] = rank_counts.get(r, 0) + 1
+    counts = sorted(rank_counts.items(), key=lambda x: (-x[1], -x[0]))
+    is_flush = len(set(suits)) == 1
+    st = _straight_high_from_ranks(ranks)
+    if is_flush and st is not None:
+        return (8, st)
+    if counts[0][1] == 4:
+        quad_rank = counts[0][0]
+        kicker = max(r for r in ranks if r != quad_rank)
+        return (7, quad_rank, kicker)
+    if counts[0][1] == 3 and counts[1][1] == 2:
+        return (6, counts[0][0], counts[1][0])
+    if is_flush:
+        return (5,) + tuple(sorted(ranks, reverse=True))
+    if st is not None:
+        return (4, st)
+    if counts[0][1] == 3:
+        trip = counts[0][0]
+        kickers = sorted((r for r in ranks if r != trip), reverse=True)
+        return (3, trip, kickers[0], kickers[1])
+    pairs = sorted((r for r, c in rank_counts.items() if c == 2), reverse=True)
+    if len(pairs) >= 2:
+        hi, lo = pairs[0], pairs[1]
+        kicker = max(r for r in ranks if r not in (hi, lo))
+        return (2, hi, lo, kicker)
+    if counts[0][1] == 2:
+        pr = counts[0][0]
+        kickers = sorted((r for r in ranks if r != pr), reverse=True)
+        return (1, pr, kickers[0], kickers[1], kickers[2])
+    return (0,) + tuple(sorted(ranks, reverse=True))
+
+
+def _best_hand_strength(hole: list[Card], community: list[Card]) -> tuple[int, ...]:
+    all_cards = hole + community
+    if len(all_cards) < 5:
+        return (0,)
+    best: tuple[int, ...] | None = None
+    for five in combinations(all_cards, 5):
+        key = _evaluate_five(five)
+        if best is None or key > best:
+            best = key
+    return best if best is not None else (0,)
 
 
 class PokerGame(Game):
@@ -312,7 +366,7 @@ class PokerGame(Game):
         # Check if only one player remains
         remaining = [p for p in self.players if p not in self.folded]
         if len(remaining) == 1:
-            self._end_hand(remaining[0])
+            self._end_hand([remaining[0]])
         else:
             self._advance_turn()
 
@@ -363,38 +417,47 @@ class PokerGame(Game):
             self._resolve_showdown()
 
     def _resolve_showdown(self):
-        """Determine winner at showdown."""
+        """Determine winner(s) at showdown from best 5-card hand (hole + board)."""
         remaining = [p for p in self.players if p not in self.folded]
 
         if len(remaining) == 1:
-            self._end_hand(remaining[0])
+            self._end_hand([remaining[0]])
             return
 
-        # For now, pick random winner (TODO: implement hand evaluation)
-        # This is a scaffold - full hand evaluation would go here
-        eligible_ids = [p.id for p in remaining]
-        winner = random.choice(remaining)
+        strengths: dict[Player, tuple[int, ...]] = {}
+        for p in remaining:
+            strengths[p] = _best_hand_strength(self.hole_cards[p], self.community_cards)
+        best = max(strengths.values())
+        winners = [p for p, k in strengths.items() if k == best]
         self.log_replay_event(
             {
-                "type": "rng",
-                "phase": "poker_showdown_tiebreak",
-                "eligible_user_ids": eligible_ids,
-                "picked_user_id": winner.id,
+                "type": "game_event",
+                "phase": "poker_showdown",
+                "strengths": {str(p.id): list(strengths[p]) for p in remaining},
+                "winner_ids": [w.id for w in winners],
             }
         )
-        self._end_hand(winner)
+        self._end_hand(winners)
 
-    def _end_hand(self, winner: Player):
-        """End the hand and award the pot."""
-        self.winner = winner
-        self.chips[winner] += self.pot
-        self.last_action = f"🏆 {winner.mention} wins {self.pot} chips!"
+    def _end_hand(self, winners: list[Player]) -> None:
+        """Award the pot; split evenly when multiple players tie the best hand."""
+        if not winners:
+            return
+        pot = self.pot
+        self.winner = winners[0]
+        if len(winners) == 1:
+            w = winners[0]
+            self.chips[w] += pot
+            self.last_action = f"🏆 {w.mention} wins {pot} chips!"
+        else:
+            n = len(winners)
+            share, rem = divmod(pot, n)
+            mentions = ", ".join(w.mention for w in winners)
+            for i, w in enumerate(winners):
+                self.chips[w] += share + (1 if i < rem else 0)
+            self.last_action = f"🏆 Split pot ({pot} chips): {mentions}"
         self.pot = 0
 
-        # Check for eliminated players
-        eliminated = [p for p in self.players if self.chips[p] <= 0]
-
-        # If only one player has chips, game over
         remaining_with_chips = [p for p in self.players if self.chips[p] > 0]
         if len(remaining_with_chips) == 1:
             self.finished = True

@@ -19,11 +19,11 @@ from utils.formatter import Formatter
 
 # Logging setup
 logging.getLogger("discord").setLevel(logging.INFO)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 root_logger = logging.getLogger("root")
-root_logger.setLevel(logging.DEBUG)
+root_logger.setLevel(logging.INFO)
 ch = logging.StreamHandler(stream=sys.stdout)
-ch.setLevel(logging.DEBUG)
+ch.setLevel(logging.INFO)
 ch.setFormatter(Formatter())
 root_logger.handlers = [ch]
 
@@ -37,7 +37,8 @@ startup_initial_time = Timer().start()
 def load_configuration() -> dict | None:
     begin_load_config = Timer().start()
     try:
-        loaded_config_file = YAML().load(open(CONFIG_FILE))
+        with open(CONFIG_FILE) as config_file:
+            loaded_config_file = YAML().load(config_file)
     except FileNotFoundError:
         startup_logger.critical("Configuration file not found.")
         return

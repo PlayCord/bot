@@ -94,6 +94,7 @@ class NoThanksGame(Game):
             return None
 
         self.current_card = self.deck.pop(0)
+        self.turn = (self.turn + 1) % len(self.players)
         return None
 
     def outcome(self):

@@ -166,7 +166,7 @@ class InternalPlayer:
         return base_rating
 
     def __eq__(self, other):
-        if other is None:
+        if not isinstance(other, InternalPlayer):
             return False
         return self.id == other.id
 
@@ -194,12 +194,19 @@ def get_shallow_player(user: discord.User) -> InternalPlayer:
 def internal_player_to_player(internal_player: InternalPlayer, game_type: str) -> Player:
     """Convert InternalPlayer to API Player object"""
     rating = getattr(internal_player, game_type)
+    user = internal_player.user
+    if user is not None:
+        uid = user.id
+        uname = user.name if isinstance(user, discord.User) else (internal_player.name or f"User {uid}")
+    else:
+        uid = internal_player.id
+        uname = internal_player.name or (f"User {uid}" if uid is not None else "Unknown")
     return Player(
         mu=rating.mu,
         sigma=rating.sigma,
         ranking=None,
-        id=internal_player.user.id,
-        name=internal_player.user.name
+        id=uid,
+        name=uname,
     )
 
 

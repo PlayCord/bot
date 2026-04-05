@@ -199,6 +199,9 @@ class BattleshipGame(Game):
         if self.winner:
             return Response(content="This game is already over.", ephemeral=True, delete_after=5)
 
+        if player != self.current_turn():
+            return Response(content="It's not your turn.", ephemeral=True, delete_after=5)
+
         r = row - 1
         c = column - 1
         if not (0 <= r < self.size and 0 <= c < self.size):

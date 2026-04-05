@@ -25,13 +25,12 @@ class LiarsDiceGame(Game):
     author = "@quantumbagel"
     version = "1.0"
     author_link = "https://github.com/quantumbagel"
-    source_link = "https://github.com/PlayCord/bot/blob/main/games/LiarsDiceGame.py"
+    source_link = "https://github.com/PlayCord/bot/blob/main/games/LiarsDice.py"
     time = "10min"
     difficulty = "Easy"
 
     def __init__(self, players):
-        # Initial state information
-        super().__init__(players)
+        # Initial state information (Game base __init__ is abstract — do not call super().__init__)
         self.players = players
         self.hands = {p: [Die() for _ in range(5)] for p in players}
         self.eliminated = []

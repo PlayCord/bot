@@ -1,6 +1,4 @@
 import logging
-import traceback
-
 import discord
 from discord import app_commands
 from discord.app_commands import CheckFailure
@@ -69,7 +67,6 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
 
 async def command_error(ctx: discord.Interaction, error: app_commands.AppCommandError):
     f_log = log.getChild("error")
-    f_log.warning(f"Exception in command: {error} {contextify(ctx)}")
 
     if isinstance(error, CheckFailure):
         return
@@ -83,19 +80,39 @@ async def command_error(ctx: discord.Interaction, error: app_commands.AppCommand
             await ctx.response.send_message(content=msg, ephemeral=True)
         return
 
-    # For unexpected errors, show the full error embed for debugging
-    error_message = f"While running the command {ctx.command.name!r}, there was an error {error!r}"
+    cmd_name = getattr(ctx.command, "name", None) or "unknown"
+    if isinstance(error, app_commands.CommandInvokeError) and error.original:
+        f_log.error(
+            "Command failed (cmd=%r): %s",
+            cmd_name,
+            contextify(ctx),
+            exc_info=error.original,
+        )
+    else:
+        f_log.error("App command error (cmd=%r): %r %s", cmd_name, error, contextify(ctx))
 
     if ctx.response.is_done():
         try:
             await ctx.delete_original_response()
-        except:
+        except (discord.HTTPException, discord.NotFound):
             pass
-        await ctx.followup.send(embed=ErrorEmbed(ctx=ctx, what_failed=error_message, reason=traceback.format_exc()),
-                                ephemeral=True)
+        await ctx.followup.send(
+            embed=ErrorEmbed(
+                ctx=ctx,
+                what_failed=get("system_error.command_unexpected"),
+                reason=None,
+            ),
+            ephemeral=True,
+        )
     else:
         await ctx.response.send_message(
-            embed=ErrorEmbed(ctx=ctx, what_failed=error_message, reason=traceback.format_exc()), ephemeral=True)
+            embed=ErrorEmbed(
+                ctx=ctx,
+                what_failed=get("system_error.command_unexpected"),
+                reason=None,
+            ),
+            ephemeral=True,
+        )
 
 
 from discord.app_commands import Choice

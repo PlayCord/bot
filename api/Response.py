@@ -1,6 +1,6 @@
-import collections
+from collections.abc import Awaitable, Callable
 from enum import Enum
-from types import coroutine
+from typing import Any
 
 import discord
 
@@ -53,9 +53,13 @@ class Response:
         self.delete_after = delete_after
         self.record_replay = record_replay
 
-    def generate_message(self, message_send_function: coroutine, game_id: int = None,
-                         enable_embed_components: bool = True, enable_view_components: bool = True) \
-            -> tuple[coroutine, collections.abc.Callable[..., coroutine]]:
+    def generate_message(
+        self,
+        message_send_function: Callable[..., Awaitable[Any]],
+        game_id: int = None,
+        enable_embed_components: bool = True,
+        enable_view_components: bool = True,
+    ) -> tuple[Awaitable[Any], Callable[[Any], Awaitable[Any] | None]]:
         """
         Generate coroutines responsible for responding to the interaction
         :param message_send_function: the coroutine function that will send the Response

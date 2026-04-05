@@ -22,13 +22,16 @@ class MatchStatus(str, Enum):
 
 
 class EventType(str, Enum):
-    """Analytics event types"""
+    """Analytics event types (single source of truth; used by utils.analytics.register_event)."""
     GAME_STARTED = "game_started"
     GAME_COMPLETED = "game_completed"
     GAME_ABANDONED = "game_abandoned"
     MATCHMAKING_JOINED = "matchmaking_joined"
     MATCHMAKING_LEFT = "matchmaking_left"
     MATCHMAKING_MATCHED = "matchmaking_matched"
+    MATCHMAKING_STARTED = "matchmaking_started"
+    MATCHMAKING_COMPLETED = "matchmaking_completed"
+    MATCHMAKING_CANCELLED = "matchmaking_cancelled"
     PLAYER_JOINED = "player_joined"
     PLAYER_LEFT = "player_left"
     MOVE_MADE = "move_made"

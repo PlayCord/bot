@@ -70,6 +70,9 @@ class ReversiGame(Game):
         if self.finished:
             return Response(content="This game is already over.", ephemeral=True, delete_after=5)
 
+        if player != self.current_turn():
+            return Response(content="It's not your turn.", ephemeral=True, delete_after=5)
+
         if not self._valid_moves(player):
             opponent_index = (self.turn + 1) % len(self.players)
             opponent = self.players[opponent_index]

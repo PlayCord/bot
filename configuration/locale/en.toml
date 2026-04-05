@@ -518,6 +518,7 @@ context_field = "Context:"
 what_failed_field = "What failed?"
 reason_field = "Reason (part {part} of {total}):"
 footer = "Sorry for the inconvenience! Please report this issue on our GitHub page."
+command_unexpected = "An unexpected error occurred while running this command. Please try again or report on GitHub if it keeps happening."
 
 # =============================================================================
 # EMBEDS - USER ERROR
@@ -754,6 +755,11 @@ invite_failed_not_in_server = "Not in this server"
 invite_failed_already_queued = "Member was already in matchmaking."
 invite_failed_in_game = "Member was already in a game."
 invite_failed_bot = "Member was a bot :skull:."
+session_expired = "This matchmaking session is over. Sorry about that :("
+invite_expired = "This game has already started or been cancelled."
+invite_ok = "Successfully joined the game!"
+invalid_button = "That button is no longer valid."
+invalid_interaction = "This interaction could not be processed."
 
 [queue]
 thread_rated_prefix = "Rated "
@@ -892,6 +898,8 @@ already_in_game_description = "You are already in an active game in another serv
 invalid_context_title = "Move commands can only be run during a game"
 invalid_context_description = "Move commands can only be run during a game in a private thread."
 no_active_game_description = "No active game found in this thread."
+unexpected_processing_error = "An unexpected error occurred while processing your move. Please try again or report on GitHub if it keeps happening."
+
 
 # =============================================================================
 # BOT DISABLED MESSAGE

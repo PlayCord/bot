@@ -1,12 +1,16 @@
+import logging
 import random
 
 from api.Command import Command
+from api.Game import Game
 from api.MessageComponents import Button, ButtonStyle, DataTable, Dropdown, Field, Footer, MessageComponent
 from api.Player import Player
 from api.Response import Response
 
+log = logging.getLogger("playcord.testgame")
 
-class TestGame:
+
+class TestGame(Game):
     summary: str = "A test game, to test the API features and make sure that things don't break."
     move_command_group_description: str = "A test game, to test the API features and make sure that things don't break."
     description: str = "A test game, to test the API features and make sure that things don't break."
@@ -21,25 +25,17 @@ class TestGame:
     difficulty: str = "Not a game"
 
     def __init__(self, players: list[Player]) -> None:
-        """
-        Create a new Game instance.
-        :param players: a list of Players representing who will play the game.
-        """
         self.players = players
         self.turn = 0
         self.mode = "default"
 
-    def return_callback(self, player) -> Response:
-        pass
+    def return_callback(self, player) -> Response | None:
+        return None
 
     def test_callback(self, player, values):
         return Response(content=f"Test callback: you put {values} in, cool")
 
     def state(self) -> list[MessageComponent]:
-        """
-        Return the current state of the game using MessageComponents.
-        :return: a list of MessageComponents representing the game state.
-        """
         data_table = {}
         for player in self.players:
             data_table[player] = {"RNG 1-10:": random.randint(1, 10), "Another column with int value": 2,
@@ -60,23 +56,10 @@ class TestGame:
                 ]
 
     def button_callback(self, player):
-        print(f"Button callback called by {player.name}")
+        log.debug("TestGame button callback called by %s", getattr(player, "name", player))
 
     def current_turn(self) -> Player:
-        """
-        Return the current Player whose turn it is.
-        It is highly recommended to make this function O(1) runtime
-        due to the relative frequency it is called
-        :return: the Player whose turn it is.
-        """
         return self.players[self.turn]
 
     def outcome(self) -> Player | list[list[Player]] | str:
-        """
-        Return the outcome of the game state.
-
-        :return: one Player who has won the game
-        :return: a list of lists representing the outcome of the game. Each index is a place ([first, second, third]),
-         and the inner list represents the people who got that place
-        :return: string representing an error
-        """
+        return ""

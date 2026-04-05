@@ -64,7 +64,7 @@ def column_turn(players: list[InternalPlayer] | set[InternalPlayer], turn: Inter
 
 
 def textify(basis: dict[str, float], replacements: dict[str, str]) -> str:
-    """de
+    """
     Randomly pick a message and fill variables
     :param basis: A list of messages
     :param replacements: A list of things to replace
@@ -157,5 +157,8 @@ def contextify(ctx: discord.Interaction | discord.Member):
 
     if type(ctx) == discord.Interaction:
         return f"guild_id={guild_id} guild_name={guild_name!r} user_id={ctx.user.id}, user_name={ctx.user.name}, is_bot={ctx.user.bot}, data={ctx.data}, type={ctx.type!r}"
-    elif type(ctx) == discord.Member:
-        return f"guild_id={guild_id} guild_name={guild_name!r} user_id={ctx.user.id}, user_name={ctx.user.name}, is_bot={ctx.user.bot}, data={ctx.data}, type={ctx.type!r}"
+    elif isinstance(ctx, discord.Member):
+        return (
+            f"guild_id={guild_id} guild_name={guild_name!r} user_id={ctx.user.id}, "
+            f"user_name={ctx.user.name}, is_bot={ctx.user.bot}, nick={ctx.nick!r}"
+        )

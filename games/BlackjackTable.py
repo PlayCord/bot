@@ -100,8 +100,11 @@ class BlackjackTableGame(Game):
         return None
 
     def outcome(self):
-        if self.finished:
+        if self.ranking_groups is not None:
             return self.ranking_groups
+
+        if self.finished:
+            return None
 
         active = [p for p in self.players if p not in self.stood and p not in self.busted]
         if active:

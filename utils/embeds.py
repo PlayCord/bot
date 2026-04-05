@@ -156,9 +156,9 @@ class ErrorEmbed(discord.Embed):
             self.add_field(name=f"{get_emoji_string('explosion')} {get('system_error.what_failed_field')}", 
                           value="```" + what_failed + "```",
                            inline=False)
-        reason = reason.replace(current_directory, "")  # Remove the main part of the directory
-        # (for obfuscation purposes)
         if reason is not None:
+            reason = reason.replace(current_directory, "")  # Remove the main part of the directory
+            # (for obfuscation purposes)
             text_fields = []
             running_total = 0
             temp_line = ""

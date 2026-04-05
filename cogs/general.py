@@ -45,7 +45,6 @@ async def autocomplete_game_id(ctx: discord.Interaction, current: str) -> list[C
 
     for game_id, (module_name, class_name) in GAME_TYPES.items():
         game_class = getattr(importlib.import_module(module_name), class_name)
-        print(game_class.__dict__)
         description = str(getattr(game_class, "summary", None))
         if description is not None:
             description = " (" + description + ")"

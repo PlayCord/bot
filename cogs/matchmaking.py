@@ -4,6 +4,7 @@ from discord.ext import commands
 
 from configuration.constants import *
 from utils.conversion import contextify
+from utils.locale import get
 
 log = logging.getLogger(LOGGING_ROOT)
 
@@ -20,7 +21,8 @@ class MatchmakingCog(commands.Cog):
         """
         Callback activated after every bot interaction.
         """
-        custom_id = ctx.data.get("custom_id")
+        data = ctx.data if ctx.data is not None else {}
+        custom_id = data.get("custom_id")
         if custom_id is None:
             return
 
@@ -40,22 +42,31 @@ class MatchmakingCog(commands.Cog):
         await ctx.response.defer()
         f_log = log.getChild("callback.matchmaking_button")
 
+        data = ctx.data if ctx.data is not None else {}
+        cid = data.get("custom_id")
+        if not cid:
+            await ctx.followup.send(content=get("matchmaking.invalid_interaction"), ephemeral=True)
+            return
+
         # Get interaction context
         interaction_context = contextify(ctx)
         f_log.info(
-            f"matchmaking button pressed! ID: {ctx.data['custom_id']} context: {interaction_context}"
+            f"matchmaking button pressed! ID: {cid} context: {interaction_context}"
         )
 
         # Leading ID of custom ID string
-        if ctx.data["custom_id"].startswith(BUTTON_PREFIX_JOIN):
+        if cid.startswith(BUTTON_PREFIX_JOIN):
             leading_str = BUTTON_PREFIX_JOIN
-        elif ctx.data["custom_id"].startswith(BUTTON_PREFIX_LEAVE):
+        elif cid.startswith(BUTTON_PREFIX_LEAVE):
             leading_str = BUTTON_PREFIX_LEAVE
         else:
             leading_str = BUTTON_PREFIX_START
 
-        # Get the MatchmakingInterface id (message ID)
-        matchmaking_id = int(ctx.data["custom_id"].replace(leading_str, ""))
+        try:
+            matchmaking_id = int(cid.replace(leading_str, ""))
+        except ValueError:
+            await ctx.followup.send(content=get("matchmaking.invalid_button"), ephemeral=True)
+            return
 
         # Check if it exists
         if matchmaking_id not in CURRENT_MATCHMAKING:
@@ -63,7 +74,8 @@ class MatchmakingCog(commands.Cog):
                 f"Matchmaking expired when trying to press button: {interaction_context}"
             )
             await ctx.followup.send(
-                "This matchmaking session is over. Sorry about that :(", ephemeral=True
+                content=get("matchmaking.session_expired"),
+                ephemeral=True,
             )
             return
 
@@ -84,11 +96,18 @@ class MatchmakingCog(commands.Cog):
         await ctx.response.defer()
         f_log = log.getChild("callback.invite_accept")
 
-        matchmaking_id = int(ctx.data["custom_id"].replace(BUTTON_PREFIX_INVITE, ""))
+        data = ctx.data if ctx.data is not None else {}
+        cid = data.get("custom_id")
+        try:
+            matchmaking_id = int(cid.replace(BUTTON_PREFIX_INVITE, ""))
+        except (TypeError, ValueError, AttributeError):
+            await ctx.followup.send(content=get("matchmaking.invalid_button"), ephemeral=True)
+            return
 
         if matchmaking_id not in CURRENT_MATCHMAKING:
             await ctx.followup.send(
-                "This game has already started or been cancelled.", ephemeral=True
+                content=get("matchmaking.invite_expired"),
+                ephemeral=True,
             )
             return
 
@@ -96,7 +115,7 @@ class MatchmakingCog(commands.Cog):
         success = await matchmaker.accept_invite(ctx)
 
         if success:
-            await ctx.followup.send("Successfully joined the game!", ephemeral=True)
+            await ctx.followup.send(content=get("matchmaking.invite_ok"), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

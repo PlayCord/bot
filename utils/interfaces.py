@@ -3,7 +3,6 @@ import importlib
 import inspect
 import logging
 import random
-import traceback
 import typing
 from typing import Any
 
@@ -223,6 +222,7 @@ class GameInterface:
                               current_turn_required: bool = True) -> None:
         """
         Make a move by command. This function is called dynamically by handle_move in the main program.
+        Game move handlers must be synchronous (return ``Response`` or ``None``).
         How it works:
         1. Call the game's move function
         2. Update the game message based on the changes to the move
@@ -259,11 +259,18 @@ class GameInterface:
                 move_response: Response = getattr(self.game, function_to_call)(
                     internal_player_to_player(db.database.get_player(ctx.user, ctx.guild.id), self.game_type),
                     **arguments)
-            except Exception as e:
-                log.error(f"Error {e!r} with command {name!r} with arguments {arguments!r}"
-                          f" context: {contextify(ctx)}.")
-                error_embed = ErrorEmbed(ctx, what_failed=f"Error occurred while making a move! ({type(e)})",
-                                         reason=traceback.format_exc())
+            except Exception:
+                log.exception(
+                    "move_by_command failed name=%r arguments=%r context=%s",
+                    name,
+                    arguments,
+                    contextify(ctx),
+                )
+                error_embed = ErrorEmbed(
+                    ctx,
+                    what_failed=get("move.unexpected_processing_error"),
+                    reason=None,
+                )
                 await ctx.followup.send(embed=error_embed, ephemeral=True)
                 return
 
@@ -496,6 +503,7 @@ class GameInterface:
         """
         Callback for a move triggered by a button. This function is called dynamically by
         game_button_callback in the main program.
+        Game move handlers must be synchronous (return ``Response`` or ``None``); async move callbacks are not supported.
         :param ctx: discord Context for button interaction
         :param name: Name of game function to callback
         :param arguments: arguments to pass directly into the button function
@@ -549,11 +557,18 @@ class GameInterface:
                 move_response: Response = callback_function(
                     internal_player_to_player(db.database.get_player(ctx.user, ctx.guild.id), self.game_type),
                     **type_converted_arguments)
-            except Exception as e:
-                log.error(f"Error {e!r} with command {name!r} with arguments {arguments!r}"
-                          f" context: {contextify(ctx)}.")
-                error_embed = ErrorEmbed(ctx, what_failed=f"Error occurred while making a move! ({type(e)})",
-                                         reason=traceback.format_exc())
+            except Exception:
+                log.exception(
+                    "move_by_button failed name=%r arguments=%r context=%s",
+                    name,
+                    arguments,
+                    contextify(ctx),
+                )
+                error_embed = ErrorEmbed(
+                    ctx,
+                    what_failed=get("move.unexpected_processing_error"),
+                    reason=None,
+                )
                 await ctx.followup.send(embed=error_embed, ephemeral=True)
                 return
 
@@ -584,6 +599,10 @@ class GameInterface:
                 return
 
     async def move_by_select(self, ctx: discord.Interaction, name: str, current_turn_required: bool = True):
+        """
+        Select-menu moves: the game's callback receives ``(player, ctx.data['values'])``.
+        Handlers must be synchronous like ``move_by_button``.
+        """
         log = self.logger.getChild("move[select]")
         if self.ending_game:  # Don't move if the game is ending
             log.warning(f"Denied interaction to command {name!r}"
@@ -617,11 +636,17 @@ class GameInterface:
                 move_response: Response = callback_function(
                     internal_player_to_player(db.database.get_player(ctx.user, ctx.guild.id), self.game_type),
                     ctx.data["values"])
-            except Exception as e:
-                log.error(f"Error {e!r} with command {name!r}"
-                          f" context: {contextify(ctx)}.")
-                error_embed = ErrorEmbed(ctx, what_failed=f"Error occurred while making a move! ({type(e)})",
-                                         reason=traceback.format_exc())
+            except Exception:
+                log.exception(
+                    "move_by_select failed name=%r context=%s",
+                    name,
+                    contextify(ctx),
+                )
+                error_embed = ErrorEmbed(
+                    ctx,
+                    what_failed=get("move.unexpected_processing_error"),
+                    reason=None,
+                )
                 await ctx.followup.send(embed=error_embed, ephemeral=True)
                 return
 
@@ -690,11 +715,11 @@ class GameInterface:
                 # Call transformation functions if they exist
                 if hasattr(state_type, "_embed_transform"):
                     state_type._embed_transform(state_embed)
-                    if len(state_embed.fields) >= 25:
-                        for remove_index in range(25, len(state_embed.fields)):
-                            state_embed.remove_field(remove_index)
+                    n_fields = len(state_embed.fields)
+                    while len(state_embed.fields) > 25:
+                        state_embed.remove_field(25)
                     should_use_embed = True
-                    removed_fields += len(state_embed.fields) - 25
+                    removed_fields += max(0, n_fields - 25)
                 if hasattr(state_type, "_view_transform"):
                     state_type._view_transform(state_view, self.thread.id)
                     should_use_view = True
@@ -785,7 +810,7 @@ class GameInterface:
             asyncio.create_task(self.execute_bot_turn())
 
     async def bump(self):
-        self.game_message = self.game_message.channel.send()
+        self.game_message = await self.game_message.channel.send()
 
 
 class MatchmakingInterface:
@@ -1275,7 +1300,7 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
                 embed=ErrorEmbed(
                     ctx=None,
                     what_failed=get("system_error.internal_what_failed"),
-                    reason=traceback.format_exc(),
+                    reason=None,
                 ),
                 view=None,
             )
@@ -1577,7 +1602,11 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
         # Rerate the groups
         adjusted_rating_groups = environment.rate(rating_groups=rating_groups, ranks=rankings)
         player_string, player_ratings = await rating_groups_to_string(rankings, adjusted_rating_groups, game_type)
-        print(rankings, rating_groups, adjusted_rating_groups, player_string, player_ratings)
+        logging.getLogger(LOGGING_ROOT).debug(
+            "rated game_over: rankings=%s player_ratings_keys=%s",
+            rankings,
+            list(player_ratings.keys()) if player_ratings else None,
+        )
         ratings = {}
         for player in player_ratings:
             data = player_ratings[player]

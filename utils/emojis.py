@@ -43,7 +43,8 @@ def initialize_emojis() -> bool:
     global emojis, button_emojis, game_emojis, initialized
     initialized = True
     try:
-        config = ruamel.yaml.YAML().load(open(EMOJI_CONFIGURATION_FILE))
+        with open(EMOJI_CONFIGURATION_FILE) as emoji_file:
+            config = ruamel.yaml.YAML().load(emoji_file)
         emojis = config.get("emojis", {})
         button_emojis = config.get("button_emojis", {})
         game_emojis = config.get("game_emojis", {})

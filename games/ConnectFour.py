@@ -159,6 +159,9 @@ class ConnectFourGame(Game):
         if self.winner is not None:
             return Response(content="This game is already over.", ephemeral=True, delete_after=5)
 
+        if player != self.current_turn():
+            return Response(content="It's not your turn.", ephemeral=True, delete_after=5)
+
         if column < 1 or column > self.columns:
             return Response(content="Column must be between 1 and 7.", ephemeral=True, delete_after=5)
 

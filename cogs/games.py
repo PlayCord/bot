@@ -18,6 +18,14 @@ CustomEmbed = _embeds.CustomEmbed
 
 log = logging.getLogger(LOGGING_ROOT)
 
+def _autocomplete_sort_key(label: str, current: str) -> tuple:
+    lo, cu = label.lower(), current.lower()
+    try:
+        return (lo.index(cu), lo)
+    except ValueError:
+        return (0, lo)
+
+
 _PAGINATION_PREFIXES = (
     BUTTON_PREFIX_PAGINATION_FIRST,
     BUTTON_PREFIX_PAGINATION_PREV,
@@ -90,10 +98,16 @@ class GamesCog(commands.Cog):
         await ctx.response.defer()
         f_log = log.getChild("callback.game_button")
         leading_str = BUTTON_PREFIX_CURRENT_TURN if current_turn_required else BUTTON_PREFIX_NO_TURN
-        data = ctx.data['custom_id'].replace(leading_str, "").split("/")
-        game_id = int(data[0])
-        function_id = data[1]
-        arguments = {arg.split("=")[0]: arg.split("=")[1] for arg in data[2].split(",")} if data[2] else {}
+        try:
+            raw = ctx.data["custom_id"].replace(leading_str, "")
+            data = raw.split("/")
+            game_id = int(data[0])
+            function_id = data[1]
+            arg_blob = data[2] if len(data) > 2 else ""
+            arguments = {arg.split("=")[0]: arg.split("=")[1] for arg in arg_blob.split(",") if "=" in arg} if arg_blob else {}
+        except (KeyError, IndexError, ValueError):
+            await ctx.followup.send(content=format_user_error_message("game_ended"), ephemeral=True)
+            return
 
         if game_id not in CURRENT_GAMES:
             await ctx.followup.send(
@@ -117,12 +131,14 @@ class GamesCog(commands.Cog):
         await ctx.response.defer()
         f_log = log.getChild("callback.game_select")
         leading_str = BUTTON_PREFIX_SELECT_CURRENT if current_turn_required else BUTTON_PREFIX_SELECT_NO_TURN
-        data = ctx.data['custom_id'].replace(leading_str, "").split("/")
-        game_id = int(data[0])
-        function_id = data[1]
-        arguments = {arg.split("=")[0]: arg.split("=")[1] for arg in data[2].split(",")} if len(data) > 2 and data[
-            2] else {}
-        arguments["values"] = ctx.data.get("values", [])
+        try:
+            raw = ctx.data["custom_id"].replace(leading_str, "")
+            data = raw.split("/")
+            game_id = int(data[0])
+            function_id = data[1]
+        except (KeyError, IndexError, ValueError):
+            await ctx.followup.send(content=format_user_error_message("game_ended"), ephemeral=True)
+            return
 
         if game_id not in CURRENT_GAMES:
             await ctx.followup.send(
@@ -139,13 +155,18 @@ class GamesCog(commands.Cog):
             await ctx.followup.send(PERMISSION_MSG_NOT_PARTICIPANT, ephemeral=True)
             return
 
-        await game.move_by_button(ctx=ctx, name=function_id, arguments=arguments,
-                                  current_turn_required=current_turn_required)
+        await game.move_by_select(
+            ctx=ctx, name=function_id, current_turn_required=current_turn_required
+        )
 
     async def spectate_callback(self, ctx: discord.Interaction) -> None:
         await ctx.response.defer()
         f_log = log.getChild("callback.spectate")
-        game_id = int(ctx.data['custom_id'].replace(BUTTON_PREFIX_SPECTATE, ""))
+        try:
+            game_id = int(ctx.data["custom_id"].replace(BUTTON_PREFIX_SPECTATE, ""))
+        except (KeyError, ValueError):
+            await ctx.followup.send(content=format_user_error_message("game_ended"), ephemeral=True)
+            return
         if game_id not in CURRENT_GAMES:
             await ctx.followup.send(
                 content=format_user_error_message("game_ended"),
@@ -171,8 +192,12 @@ class GamesCog(commands.Cog):
 
     async def peek_callback(self, ctx: discord.Interaction) -> None:
         await ctx.response.defer()
-        data = ctx.data['custom_id'].replace(BUTTON_PREFIX_PEEK, "").split("/")
-        game_id, message_id = int(data[0]), int(data[1])
+        try:
+            data = ctx.data["custom_id"].replace(BUTTON_PREFIX_PEEK, "").split("/")
+            game_id = int(data[0])
+        except (KeyError, IndexError, ValueError):
+            await ctx.followup.send(content=format_user_error_message("game_ended"), ephemeral=True)
+            return
         if game_id in CURRENT_GAMES:
             # Just resend the latest game state to the user ephemerally
             await CURRENT_GAMES[game_id].display_game_state(ctx)
@@ -385,7 +410,12 @@ async def handle_autocomplete(ctx: discord.Interaction, function, current: str, 
         else:
             player_options = ac_callback(player)
 
-    valid_player_options = [[next(iter(o)), o[next(iter(o))]] for o in player_options if
-                            current.lower() in next(iter(o)).lower()]
-    final_autocomplete = sorted(valid_player_options, key=lambda x: x[0].lower().index(current.lower()))
+    valid_player_options = []
+    for o in player_options:
+        if not o:
+            continue
+        label, value = next(iter(o.items()))
+        if current.lower() in label.lower():
+            valid_player_options.append([label, value])
+    final_autocomplete = sorted(valid_player_options, key=lambda x: _autocomplete_sort_key(x[0], current))
     return [app_commands.Choice(name=ac_option[0], value=ac_option[1]) for ac_option in final_autocomplete]

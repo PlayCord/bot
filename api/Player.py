@@ -71,7 +71,7 @@ class Player:
         return str(round(self.mu))
 
     def __eq__(self, other) -> bool:
-        if other is None:
+        if not isinstance(other, Player):
             return False
         return self.id == other.id
 
