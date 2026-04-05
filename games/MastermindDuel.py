@@ -12,6 +12,7 @@ class MastermindDuelGame(Game):
     description = "Player 1 sets a 4-digit secret code (1-6). Player 2 has 10 guesses to crack it."
     name = "Mastermind Duel"
     player_count = 2
+    trueskill_parameters = {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 180, "draw": 0}
     player_order = PlayerOrder.PRESERVE
     player_roles = ("setter", "breaker")
     role_mode = RoleMode.RANDOM

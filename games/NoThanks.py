@@ -13,6 +13,7 @@ class NoThanksGame(Game):
     description = "On your turn, either take the face-up card with chips or spend one chip to pass."
     name = "No Thanks!"
     player_count = [3, 4, 5, 6, 7]
+    trueskill_parameters = {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 0}
     moves = [
         Command(name="take", description="Take the current card.", callback="take"),
         Command(name="pass", description="Pay one chip to pass.", callback="pass_turn"),

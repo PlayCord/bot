@@ -16,6 +16,7 @@ class NimGame(Game):
     )
     name = "Nim"
     player_count = [2, 3, 4]
+    trueskill_parameters = {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 150, "draw": 0}
     customizable_options = (
         MatchOptionSpec(
             key="win_condition",

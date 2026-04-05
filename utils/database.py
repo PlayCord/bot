@@ -25,7 +25,7 @@ except ImportError:
 from api.Player import Player
 from configuration import constants
 from configuration.constants import GAME_TYPES, MU
-from utils.trueskill_params import get_trueskill_fractions
+from utils.trueskill_params import get_trueskill_parameters
 from utils.match_codes import generate_match_code
 from utils import db_migrations
 from utils.models import (
@@ -63,7 +63,7 @@ class InternalPlayerRatingStatistic:
         if mu is None:
             self.mu = MU
             if name in GAME_TYPES:
-                self.sigma = get_trueskill_fractions(name)["sigma"] * MU
+                self.sigma = get_trueskill_parameters(name)["sigma"] * MU
             else:
                 self.sigma = MU / 3.0  # Default sigma
             self.stored = False
@@ -116,7 +116,7 @@ class InternalPlayer:
             if key not in ratings:
                 ratings[key] = {
                     "mu": MU,
-                    "sigma": get_trueskill_fractions(key)["sigma"] * MU,
+                    "sigma": get_trueskill_parameters(key)["sigma"] * MU,
                 }
             setattr(
                 self,
@@ -621,7 +621,7 @@ class Database:
                 min_p, max_p = 2, 2
             else:
                 min_p = max_p = int(spec)
-            ts = get_trueskill_fractions(game_name)
+            ts = get_trueskill_parameters(game_name)
             def_sigma = float(ts["sigma"] * MU)
             rating_config = {
                 "sigma": float(ts["sigma"] * MU),

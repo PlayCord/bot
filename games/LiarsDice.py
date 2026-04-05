@@ -14,6 +14,7 @@ class LiarsDiceGame(Game):
                    " This version uses the \'reset\' variant.")
     name = "Liar's Dice"
     player_count = [2, 3, 4, 5, 6]
+    trueskill_parameters = {"sigma": 1 / 2.5, "beta": 1 / 5, "tau": 1 / 250, "draw": 0}
     moves = [Command(name="raise", description="Raise the bet.",
                      options=[
                          Integer(argument_name="dice_number", description="The number on the dice to call", min_value=1,

@@ -12,6 +12,7 @@ class ReversiGame(Game):
     description = "Place discs to flank and flip your opponent's discs on an 8x8 board."
     name = "Reversi"
     player_count = 2
+    trueskill_parameters = {"sigma": 1 / 5, "beta": 1 / 10, "tau": 1 / 150, "draw": 1 / 20}
     moves = [
         Command(
             name="move",

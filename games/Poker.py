@@ -150,6 +150,7 @@ class PokerGame(Game):
     )
     name = "Poker"
     player_count = [2, 3, 4, 5, 6, 7, 8]
+    trueskill_parameters = {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 0}
     moves = [
         Command(name="peek", description="View your hole cards privately.",
                 callback="peek", require_current_turn=False, is_game_affecting=False),

@@ -68,6 +68,7 @@ class ConnectFourGame(Game):
     description = "Drop your disc into a column. First to connect four discs wins."
     name = "Connect Four"
     player_count = 2
+    trueskill_parameters = {"sigma": 1 / 6, "beta": 1 / 12, "tau": 1 / 120, "draw": 1 / 10}
     moves = [
         Command(
             name="drop",

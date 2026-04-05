@@ -102,6 +102,7 @@ class BattleshipGame(Game):
     description = "Take turns firing at coordinates on a hidden 6x6 board."
     name = "Battleship"
     player_count = 2
+    trueskill_parameters = {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 180, "draw": 0}
     moves = [
         Command(
             name="fire",

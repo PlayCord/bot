@@ -13,6 +13,7 @@ class BlackjackTableGame(Game):
     description = "Players take turns hitting or standing; dealer plays after all stand or bust."
     name = "Blackjack Table"
     player_count = [2, 3, 4, 5, 6, 7]
+    trueskill_parameters = {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 1 / 5}
     moves = [
         Command(name="hit", description="Draw one card.", callback="hit"),
         Command(name="stand", description="End your turn for this round.", callback="stand"),

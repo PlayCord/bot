@@ -15,6 +15,7 @@ class TestGame(Game):
     move_command_group_description: str = "A test game, to test the API features and make sure that things don't break."
     description: str = "A test game, to test the API features and make sure that things don't break."
     name: str = "API Test"
+    trueskill_parameters = {"sigma": 1 / 3, "beta": 1 / 5, "tau": 1 / 250, "draw": 0}
     players: int | list[int]
     moves: list[Command] = [Command(name="return", require_current_turn=False, callback="return_callback")]
     author: str

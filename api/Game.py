@@ -92,23 +92,15 @@ class Game(ABC):
     difficulty: str
     player_order: PlayerOrder = PlayerOrder.RANDOM
     game_schema_version: int = 1
-    # Default per-game TrueSkill scales used when a subclass does not override ``trueskill_scale``.
-    default_trueskill_scales: ClassVar[dict[str, dict[str, float]]] = {
-        "tictactoe": {"sigma": 1 / 6, "beta": 1 / 12, "tau": 1 / 100, "draw": 9 / 10},
-        "liars": {"sigma": 1 / 2.5, "beta": 1 / 5, "tau": 1 / 250, "draw": 0},
-        "test": {"sigma": 1 / 3, "beta": 1 / 5, "tau": 1 / 250, "draw": 0},
-        "connectfour": {"sigma": 1 / 6, "beta": 1 / 12, "tau": 1 / 120, "draw": 1 / 10},
-        "reversi": {"sigma": 1 / 5, "beta": 1 / 10, "tau": 1 / 150, "draw": 1 / 20},
-        "nim": {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 150, "draw": 0},
-        "mastermind": {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 180, "draw": 0},
-        "battleship": {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 180, "draw": 0},
-        "nothanks": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 0},
-        "blackjack": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 1 / 5},
-        "poker": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 0},
-        "chess": {"sigma": 1 / 5, "beta": 1 / 10, "tau": 1 / 150, "draw": 1 / 10},
+    # Single fallback TrueSkill parameter set used when a game class does not define explicit parameters.
+    default_trueskill_parameters: ClassVar[dict[str, float]] = {
+        "sigma": 1 / 6,
+        "beta": 1 / 12,
+        "tau": 1 / 100,
+        "draw": 9 / 10,
     }
-    # Optional per-game TrueSkill scale override (sigma/beta/tau/draw as fractions of MU).
-    trueskill_scale: dict | None = None
+    # Canonical per-game TrueSkill parameters (sigma/beta/tau as fractions of MU, draw raw).
+    trueskill_parameters: ClassVar[dict[str, float] | None] = None
     # Asymmetric games: role labels (one per seat); length must match player count when using role_mode
     player_roles: ClassVar[tuple[str, ...] | None] = None
     role_mode: ClassVar[RoleMode] = RoleMode.NONE
@@ -116,38 +108,6 @@ class Game(ABC):
     customizable_options: ClassVar[tuple[Any, ...]] = ()
     # When True, any option differing from its default forces an unrated match (like adding bots)
     customization_forces_unrated_when_non_default: ClassVar[bool] = True
-
-    @classmethod
-    def trueskill_parameters(cls, game_type_key: str) -> dict[str, float]:
-        """
-        Canonical TrueSkill fractions (sigma, beta, tau, draw) for this game class.
-
-        Same values as :meth:`trueskill_fractions`; use this name when reading parameters for rating / environments.
-        """
-        return cls.trueskill_fractions(game_type_key)
-
-    @classmethod
-    def default_trueskill_scale_for(cls, game_type_key: str) -> dict[str, float]:
-        """Base fallback fractions for a game type when no subclass override is present."""
-        return dict(
-            cls.default_trueskill_scales.get(
-                game_type_key,
-                cls.default_trueskill_scales["tictactoe"],
-            )
-        )
-
-    @classmethod
-    def trueskill_fractions(cls, game_type_key: str) -> dict[str, float]:
-        """
-        Sigma, beta, tau (multiples of MU) and raw draw probability for this game class.
-
-        Uses the base-class defaults for ``game_type_key`` and merges any subclass ``trueskill_scale`` override.
-        """
-        base = cls.default_trueskill_scale_for(game_type_key)
-        over = getattr(cls, "trueskill_scale", None)
-        if over:
-            base.update(over)
-        return base
 
     @classmethod
     def validate_role_selection(cls, selections: dict[int, str]) -> bool | str:

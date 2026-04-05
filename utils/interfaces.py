@@ -21,6 +21,7 @@ from utils import embeds as _embeds
 from utils.bot_names import generate_bot_name
 from utils.emojis import get_emoji_string
 from utils.locale import get, fmt
+from utils.trueskill_params import get_trueskill_parameters
 from utils.views import MatchmakingLobbyView, MatchmakingView, RematchView, SpectateView
 
 CustomEmbed = _embeds.CustomEmbed
@@ -126,7 +127,7 @@ class GameInterface:
                 game_players.append(
                     Player(
                         mu=MU,
-                        sigma=MU * game_class.trueskill_parameters(self.game_type)["sigma"],
+                        sigma=MU * get_trueskill_parameters(self.game_type)["sigma"],
                         ranking=None,
                         id=participant.id,
                         name=getattr(participant, "name", synthetic_bot_name_from_id(participant.id)),
@@ -1882,7 +1883,7 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
     game_id = interface.game_id
 
     # TrueSkill environment from the DB-backed game registry (bootstrapped from the live game class at startup)
-    ts = type(interface.game).trueskill_parameters(game_type)
+    ts = get_trueskill_parameters(game_type)
     sigma = MU * ts["sigma"]
     beta = MU * ts["beta"]
     tau = MU * ts["tau"]

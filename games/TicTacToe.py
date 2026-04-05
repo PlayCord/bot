@@ -16,6 +16,7 @@ class TicTacToeGame(Game):
                    " just take turns placing Xs and Os until one player gets three in a row!")
     name = "Tic-Tac-Toe"
     player_count = 2
+    trueskill_parameters = {"sigma": 1 / 6, "beta": 1 / 12, "tau": 1 / 100, "draw": 9 / 10}
     moves = [Command(name="move", description="Place a piece down.",
                      options=[String(argument_name="move", description="description", autocomplete="ac_move")])]
     bots = {
