@@ -1,5 +1,6 @@
 import random
 from abc import ABC, abstractmethod
+from collections import Counter, defaultdict
 from collections.abc import Callable
 from enum import Enum
 from typing import Any, ClassVar
@@ -43,12 +44,13 @@ class PlayerOrder(Enum):
     REVERSE = "reverse"  # Reverse the join order
 
 
-class SeatingMode(Enum):
-    """How to assign asymmetric roles after :attr:`player_order` is applied."""
+class RoleMode(Enum):
+    """How roles relate to seating after :attr:`player_order` is applied."""
 
-    DEFAULT = "default"  # No extra reordering
-    RANDOM_ROLE_ASSIGNMENT = "random_roles"  # Shuffle seats (fair random roles for asymmetric games)
-    BALANCE_ROLES_BY_RATING = "balance_roles"  # 2-player: put weaker player in harder seat (see advantaged_role_index)
+    NONE = "none"  # No roles; everyone has the same abilities (default)
+    RANDOM = "random"  # Roles randomly assigned; game reveals them publicly
+    CHOSEN = "chosen"  # Each player picks a role in the lobby; game reveals publicly
+    SECRET = "secret"  # Roles randomly assigned; game reveals privately (state / moves)
 
 
 class Game(ABC):
@@ -72,6 +74,8 @@ class Game(ABC):
         time (str): Estimated game duration
         difficulty (str): Game difficulty level
         player_order (PlayerOrder): How to order players (default: RANDOM)
+        role_mode (RoleMode): How roles map to seats (default: NONE)
+        player_roles (tuple[str, ...] | None): Role id per seat when using roles
     """
     summary: str
     move_command_group_description: str
@@ -88,13 +92,11 @@ class Game(ABC):
     difficulty: str
     player_order: PlayerOrder = PlayerOrder.RANDOM
     game_schema_version: int = 1
-    # Optional per-game TrueSkill scale (sigma/beta/tau/draw as fractions of MU); None uses global GAME_TRUESKILL
+    # Optional per-game TrueSkill scale (sigma/beta/tau/draw as fractions of MU) used for bootstrap seeding.
     trueskill_scale: dict | None = None
-    # Asymmetric games: role labels (one per seat); length must match player count when using seating_mode
+    # Asymmetric games: role labels (one per seat); length must match player count when using role_mode
     player_roles: ClassVar[tuple[str, ...] | None] = None
-    seating_mode: ClassVar[SeatingMode] = SeatingMode.DEFAULT
-    # For BALANCE_ROLES_BY_RATING (2p): seat index that is easier / advantaged (higher mu placed here)
-    advantaged_role_index: ClassVar[int] = 1
+    role_mode: ClassVar[RoleMode] = RoleMode.NONE
     # Lobby selects before start; tuple of MatchOptionSpec (see api.MatchOptions)
     customizable_options: ClassVar[tuple[Any, ...]] = ()
     # When True, any option differing from its default forces an unrated match (like adding bots)
@@ -114,18 +116,38 @@ class Game(ABC):
         """
         Sigma, beta, tau (multiples of MU) and raw draw probability for this game class.
 
-        Merges :attr:`trueskill_scale` over :data:`configuration.constants.GAME_TRUESKILL` for ``game_type_key``.
+        Startup/bootstrap path only. Runtime lookups should use the database-backed game registry.
         """
-        from configuration.constants import GAME_TRUESKILL
+        from utils.trueskill_params import get_seed_trueskill_fractions
 
-        base = dict(GAME_TRUESKILL.get(game_type_key, GAME_TRUESKILL["tictactoe"]))
-        over = getattr(cls, "trueskill_scale", None)
-        if over:
-            base.update(over)
-        return base
+        return get_seed_trueskill_fractions(game_type_key)
 
     @classmethod
-    def seat_players(cls, players: list[Any], game_type_key: str) -> list[Any]:
+    def validate_role_selection(cls, selections: dict[int, str]) -> bool | str:
+        """
+        Called before starting a CHOSEN-mode game.
+
+        Return True if valid, or a short error string if not. Default: each entry in
+        :attr:`player_roles` must be chosen exactly once (multiset match).
+        """
+        roles = getattr(cls, "player_roles", None)
+        if not roles:
+            return True
+        if len(selections) != len(roles):
+            return "Each player must choose a role."
+        expected = Counter(roles)
+        chosen = Counter(selections.values())
+        if expected != chosen:
+            return "Each role must be picked exactly once."
+        return True
+
+    @classmethod
+    def seat_players(
+        cls,
+        players: list[Any],
+        game_type_key: str,
+        selections: dict[int, str] | None = None,
+    ) -> list[Any]:
         """
         Reorder lobby participants for asymmetric roles after :attr:`player_order` was applied.
 
@@ -133,36 +155,33 @@ class Game(ABC):
         """
         ordered = list(players)
         roles = getattr(cls, "player_roles", None)
-        mode = getattr(cls, "seating_mode", SeatingMode.DEFAULT)
-        if (
-            mode == SeatingMode.DEFAULT
-            or not roles
-            or len(roles) != len(ordered)
-        ):
+        mode = getattr(cls, "role_mode", RoleMode.NONE)
+        if not roles or len(roles) != len(ordered):
             return ordered
 
-        if mode == SeatingMode.RANDOM_ROLE_ASSIGNMENT:
+        if mode == RoleMode.NONE:
+            return ordered
+
+        if mode == RoleMode.CHOSEN:
+            if not selections:
+                return ordered
+            by_id = {p.id: p for p in ordered}
+            pools: defaultdict[str, list[Any]] = defaultdict(list)
+            for pid, role_key in selections.items():
+                p = by_id.get(pid)
+                if p is not None:
+                    pools[role_key].append(p)
+            for key in pools:
+                pools[key].sort(key=lambda pl: pl.id)
+            try:
+                return [pools[r].pop(0) for r in roles]
+            except IndexError:
+                return ordered
+
+        if mode in (RoleMode.RANDOM, RoleMode.SECRET):
             random.shuffle(ordered)
             return ordered
 
-        if mode == SeatingMode.BALANCE_ROLES_BY_RATING and len(ordered) == 2:
-            from configuration.constants import MU
-
-            def _mu(p: Any) -> float:
-                if isinstance(p, Player):
-                    return float(p.mu)
-                stat = getattr(p, game_type_key, None)
-                if stat is not None and hasattr(stat, "mu"):
-                    return float(stat.mu)
-                return float(MU)
-
-            weak, strong = sorted(ordered, key=_mu)
-            adv = int(getattr(cls, "advantaged_role_index", 1))
-            if adv == 0:
-                return [strong, weak]
-            return [weak, strong]
-
-        random.shuffle(ordered)
         return ordered
 
     @abstractmethod

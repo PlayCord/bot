@@ -73,20 +73,6 @@ GAME_TYPES = {
 }
 
 MU = 1000
-GAME_TRUESKILL = {
-    "tictactoe": {"sigma": 1 / 6, "beta": 1 / 12, "tau": 1 / 100, "draw": 9 / 10},
-    "liars": {"sigma": 1 / 2.5, "beta": 1 / 5, "tau": 1 / 250, "draw": 0},
-    "test": {"sigma": 1 / 3, "beta": 1 / 5, "tau": 1 / 250, "draw": 0},
-    "connectfour": {"sigma": 1 / 6, "beta": 1 / 12, "tau": 1 / 120, "draw": 1 / 10},
-    "reversi": {"sigma": 1 / 5, "beta": 1 / 10, "tau": 1 / 150, "draw": 1 / 20},
-    "nim": {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 150, "draw": 0},
-    "mastermind": {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 180, "draw": 0},
-    "battleship": {"sigma": 1 / 4, "beta": 1 / 8, "tau": 1 / 180, "draw": 0},
-    "nothanks": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 0},
-    "blackjack": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 1 / 5},
-    "poker": {"sigma": 1 / 3, "beta": 1 / 6, "tau": 1 / 200, "draw": 0},
-    "chess": {"sigma": 1 / 5, "beta": 1 / 10, "tau": 1 / 150, "draw": 1 / 10},
-}
 
 TEXTIFY_CURRENT_GAME_TURN = get_dict("game.turn")
 
@@ -130,6 +116,7 @@ BUTTON_PREFIX_JOIN = "join/"
 BUTTON_PREFIX_LEAVE = "leave/"
 BUTTON_PREFIX_START = "start/"
 BUTTON_PREFIX_LOBBY_OPT = "lobbyopt/"
+BUTTON_PREFIX_LOBBY_ROLE = "lobbyrole/"
 BUTTON_PREFIX_SELECT_CURRENT = "select_c/"
 BUTTON_PREFIX_SELECT_NO_TURN = "select_n/"
 BUTTON_PREFIX_CURRENT_TURN = "c/"

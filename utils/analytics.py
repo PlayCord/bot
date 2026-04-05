@@ -225,7 +225,7 @@ def format_recent_event_row(row: dict[str, Any]) -> str:
             meta_s = str(meta)
         if len(meta_s) > 120:
             meta_s = meta_s[:117] + "..."
-    ts = row.get("timestamp")
+    ts = row.get("created_at") or row.get("timestamp")
     ts_s = ts.isoformat()[:19] if hasattr(ts, "isoformat") else str(ts)[:19]
     return (
         f"`{row.get('event_id')}` **{row.get('event_type')}** {ts_s} "

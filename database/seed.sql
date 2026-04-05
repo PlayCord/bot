@@ -3,7 +3,7 @@
 
 -- ============================================================================
 -- INSERT DEFAULT GAMES
--- Based on configuration/constants.py GAME_TYPES and GAME_TRUESKILL
+-- Based on the code registry (GAME_TYPES) and the seeded TrueSkill defaults used during sync_games_from_code()
 -- ============================================================================
 
 -- Note: Default MU = 1000, sigma values are relative to MU.

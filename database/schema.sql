@@ -22,7 +22,6 @@
 CREATE TABLE IF NOT EXISTS guilds
 (
     guild_id   BIGINT PRIMARY KEY,
-    joined_at  TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     settings   JSONB       DEFAULT '{}'::jsonb,
     is_active  BOOLEAN     DEFAULT TRUE  NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -30,7 +29,7 @@ CREATE TABLE IF NOT EXISTS guilds
 );
 
 -- Index for active guilds
-CREATE INDEX IF NOT EXISTS idx_guilds_active ON guilds (is_active, joined_at DESC);
+CREATE INDEX IF NOT EXISTS idx_guilds_active ON guilds (is_active, created_at DESC);
 
 COMMENT ON TABLE guilds IS 'Discord servers where PlayCord is installed';
 COMMENT ON COLUMN guilds.settings IS 'Guild preferences: {"default_game": "tictactoe", "leaderboard_public": true, ...}';
@@ -44,7 +43,6 @@ CREATE TABLE IF NOT EXISTS users
 (
     user_id     BIGINT PRIMARY KEY,
     username    VARCHAR(100)              NOT NULL,
-    joined_at   TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     preferences JSONB       DEFAULT '{}'::jsonb,
     is_bot      BOOLEAN     DEFAULT FALSE NOT NULL,
     is_active   BOOLEAN     DEFAULT TRUE  NOT NULL,
@@ -55,7 +53,7 @@ CREATE TABLE IF NOT EXISTS users
 );
 
 -- Index for active users and username searches
-CREATE INDEX IF NOT EXISTS idx_users_active ON users (is_active, joined_at DESC);
+CREATE INDEX IF NOT EXISTS idx_users_active ON users (is_active, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username varchar_pattern_ops);
 
 COMMENT ON TABLE users IS 'Discord users who have interacted with PlayCord';
@@ -168,10 +166,10 @@ CREATE TABLE IF NOT EXISTS matches
     is_rated    BOOLEAN     DEFAULT TRUE          NOT NULL,
     game_config JSONB       DEFAULT '{}'::jsonb,
     match_code  VARCHAR(8),
-    replay_log  TEXT,
     final_state JSONB,
     metadata    JSONB       DEFAULT '{}'::jsonb,
     created_at  TIMESTAMPTZ DEFAULT NOW()         NOT NULL,
+    updated_at  TIMESTAMPTZ DEFAULT NOW()         NOT NULL,
 
     CONSTRAINT fk_match_game FOREIGN KEY (game_id)
         REFERENCES games (game_id) ON DELETE CASCADE,
@@ -186,6 +184,8 @@ CREATE TABLE IF NOT EXISTS matches
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_match_code ON matches (match_code)
+    WHERE match_code IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_match_code_ci ON matches ((lower(match_code)))
     WHERE match_code IS NOT NULL;
 
 -- Indexes for match queries
@@ -206,7 +206,6 @@ COMMENT ON TABLE matches IS 'Game matches (completed and in-progress)';
 COMMENT ON COLUMN matches.game_config IS 'Game-specific settings used for this match';
 COMMENT ON COLUMN matches.final_state IS 'Final board/game state at completion';
 COMMENT ON COLUMN matches.metadata IS 'Spectators, timeout info, etc.: {"spectators": [...], "timeouts": [...]}';
-COMMENT ON COLUMN matches.replay_log IS 'Append-only JSONL: one JSON object per line describing a game action for replay';
 
 
 -- ============================================================================
@@ -226,6 +225,7 @@ CREATE TABLE IF NOT EXISTS match_participants
     mu_delta       DOUBLE PRECISION DEFAULT 0.0   NOT NULL,
     sigma_delta    DOUBLE PRECISION DEFAULT 0.0   NOT NULL,
     joined_at      TIMESTAMPTZ      DEFAULT NOW() NOT NULL,
+    updated_at     TIMESTAMPTZ      DEFAULT NOW() NOT NULL,
 
     CONSTRAINT uq_match_user UNIQUE (match_id, user_id),
     CONSTRAINT uq_match_player_number UNIQUE (match_id, player_number),
@@ -263,7 +263,7 @@ CREATE TABLE IF NOT EXISTS moves
     move_data         JSONB                     NOT NULL,
     game_state_after  JSONB,
     is_game_affecting BOOLEAN     DEFAULT TRUE  NOT NULL,
-    timestamp         TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    created_at        TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     time_taken_ms    INTEGER,
 
     CONSTRAINT uq_match_move_number UNIQUE (match_id, move_number),
@@ -277,8 +277,8 @@ CREATE TABLE IF NOT EXISTS moves
 
 -- Index for sequential move replay
 CREATE INDEX IF NOT EXISTS idx_moves_match_sequence ON moves (match_id, move_number ASC);
-CREATE INDEX IF NOT EXISTS idx_moves_user ON moves (user_id, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_moves_timestamp ON moves (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_moves_user ON moves (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_moves_created_at ON moves (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_moves_game_affecting ON moves (is_game_affecting)
     WHERE is_game_affecting = TRUE;
 
@@ -298,7 +298,7 @@ CREATE TABLE IF NOT EXISTS analytics_events
 (
     event_id   BIGSERIAL PRIMARY KEY,
     event_type VARCHAR(100)              NOT NULL,
-    timestamp  TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     user_id    BIGINT,
     guild_id   BIGINT,
     game_id    INTEGER,
@@ -316,12 +316,12 @@ CREATE TABLE IF NOT EXISTS analytics_events
 );
 
 -- Indexes for analytics queries
-CREATE INDEX IF NOT EXISTS idx_analytics_type_time ON analytics_events (event_type, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_analytics_user ON analytics_events (user_id, timestamp DESC)
+CREATE INDEX IF NOT EXISTS idx_analytics_type_time ON analytics_events (event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_analytics_user ON analytics_events (user_id, created_at DESC)
     WHERE user_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_analytics_guild ON analytics_events (guild_id, timestamp DESC)
+CREATE INDEX IF NOT EXISTS idx_analytics_guild ON analytics_events (guild_id, created_at DESC)
     WHERE guild_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_analytics_timestamp ON analytics_events (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_analytics_created_at ON analytics_events (created_at DESC);
 
 COMMENT ON TABLE analytics_events IS 'Event tracking for analytics and monitoring';
 COMMENT ON COLUMN analytics_events.event_type IS 'Event types: game_started, game_completed, matchmaking_*, etc.';
@@ -336,19 +336,19 @@ CREATE TABLE IF NOT EXISTS rating_history
 (
     history_id   BIGSERIAL PRIMARY KEY,
     user_id      BIGINT                    NOT NULL,
-    guild_id     BIGINT                    NOT NULL,
+    guild_id     BIGINT,
     game_id      INTEGER                   NOT NULL,
     match_id     BIGINT                    NOT NULL,
     mu_before    DOUBLE PRECISION          NOT NULL,
     sigma_before DOUBLE PRECISION          NOT NULL,
     mu_after     DOUBLE PRECISION          NOT NULL,
     sigma_after  DOUBLE PRECISION          NOT NULL,
-    timestamp    TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    created_at   TIMESTAMPTZ DEFAULT NOW() NOT NULL,
 
     CONSTRAINT fk_history_user FOREIGN KEY (user_id)
         REFERENCES users (user_id) ON DELETE CASCADE,
     CONSTRAINT fk_history_guild FOREIGN KEY (guild_id)
-        REFERENCES guilds (guild_id) ON DELETE CASCADE,
+        REFERENCES guilds (guild_id) ON DELETE SET NULL,
     CONSTRAINT fk_history_game FOREIGN KEY (game_id)
         REFERENCES games (game_id) ON DELETE CASCADE,
     CONSTRAINT fk_history_match FOREIGN KEY (match_id)
@@ -357,52 +357,45 @@ CREATE TABLE IF NOT EXISTS rating_history
 
 -- Indexes for rating history queries
 CREATE INDEX IF NOT EXISTS idx_history_user_game ON rating_history (
-                                                                    user_id, game_id, timestamp DESC
+                                                                    user_id, game_id, created_at DESC
     );
 CREATE INDEX IF NOT EXISTS idx_history_match ON rating_history (match_id);
 CREATE INDEX IF NOT EXISTS idx_history_guild_game ON rating_history (
-                                                                     guild_id, game_id, timestamp DESC
+                                                                     guild_id, game_id, created_at DESC
     );
 
 COMMENT ON TABLE rating_history IS 'Historical rating changes for progress tracking';
 
 
 -- ============================================================================
--- TABLE: game_seasons
--- Seasonal competitions and leaderboards
+-- TABLE: replay_events
+-- Structured replay / RNG event log (canonical replay storage)
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS game_seasons
+CREATE TABLE IF NOT EXISTS replay_events
 (
-    season_id     SERIAL PRIMARY KEY,
-    season_name   VARCHAR(100)              NOT NULL,
-    game_id       INTEGER                   NOT NULL,
-    guild_id      BIGINT,
-    start_date    TIMESTAMPTZ               NOT NULL,
-    end_date      TIMESTAMPTZ               NOT NULL,
-    is_active     BOOLEAN     DEFAULT TRUE  NOT NULL,
-    season_config JSONB       DEFAULT '{}'::jsonb,
-    created_at    TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    event_id         BIGSERIAL PRIMARY KEY,
+    match_id         BIGINT                    NOT NULL,
+    sequence_number  INTEGER                   NOT NULL,
+    event_type       VARCHAR(100)              NOT NULL,
+    actor_user_id    BIGINT,
+    payload          JSONB       DEFAULT '{}'::jsonb NOT NULL,
+    created_at       TIMESTAMPTZ DEFAULT NOW() NOT NULL,
 
-    CONSTRAINT fk_season_game FOREIGN KEY (game_id)
-        REFERENCES games (game_id) ON DELETE CASCADE,
-    CONSTRAINT fk_season_guild FOREIGN KEY (guild_id)
-        REFERENCES guilds (guild_id) ON DELETE CASCADE,
-    CONSTRAINT uq_season_name UNIQUE (game_id, guild_id, season_name),
-    CONSTRAINT chk_season_dates CHECK (end_date > start_date)
+    CONSTRAINT fk_replay_match FOREIGN KEY (match_id)
+        REFERENCES matches (match_id) ON DELETE CASCADE,
+    CONSTRAINT fk_replay_actor FOREIGN KEY (actor_user_id)
+        REFERENCES users (user_id) ON DELETE SET NULL,
+    CONSTRAINT uq_replay_sequence UNIQUE (match_id, sequence_number),
+    CONSTRAINT chk_replay_sequence CHECK (sequence_number >= 1)
 );
 
--- Indexes for season queries
-CREATE INDEX IF NOT EXISTS idx_seasons_active ON game_seasons (
-                                                               game_id, guild_id, is_active
-    ) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_replay_match_sequence ON replay_events (match_id, sequence_number ASC);
+CREATE INDEX IF NOT EXISTS idx_replay_actor ON replay_events (actor_user_id, created_at DESC)
+    WHERE actor_user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_replay_type ON replay_events (event_type, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_seasons_dates ON game_seasons (
-                                                              start_date, end_date
-    );
-
-COMMENT ON TABLE game_seasons IS 'Seasonal competitions with time-bound leaderboards';
-COMMENT ON COLUMN game_seasons.guild_id IS 'NULL for global seasons, specific guild_id for guild-only seasons';
-COMMENT ON COLUMN game_seasons.season_config IS 'Season-specific rules: {"min_matches": 10, "prizes": [...], ...}';
+COMMENT ON TABLE replay_events IS 'Canonical structured replay log, including moves and stochastic/system events';
+COMMENT ON COLUMN replay_events.payload IS 'Arbitrary replay event payload. event_type carries the stable discriminator.';
 
 
 -- ============================================================================
@@ -461,6 +454,18 @@ EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER tr_ratings_updated_at
     BEFORE UPDATE
     ON user_game_ratings
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER tr_matches_updated_at
+    BEFORE UPDATE
+    ON matches
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER tr_match_participants_updated_at
+    BEFORE UPDATE
+    ON match_participants
     FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
 

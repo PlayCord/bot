@@ -11,6 +11,9 @@ analytics. The database is designed for:
 - **Auditability**: Full move history and rating changes
 - **Scalability**: Connection pooling and optimized queries
 
+See [DATABASE_DECISIONS.md](DATABASE_DECISIONS.md) for the current authority decisions around replay storage,
+TrueSkill configuration, and preset/variant leaderboard modeling.
+
 ## Architecture
 
 ### Database Schema Version: 2.4

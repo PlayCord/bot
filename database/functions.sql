@@ -126,7 +126,7 @@ DECLARE
     deleted_count BIGINT;
 BEGIN
     DELETE FROM analytics_events
-    WHERE timestamp < NOW() - (days_to_keep || ' days')::INTERVAL;
+    WHERE created_at < NOW() - (days_to_keep || ' days')::INTERVAL;
     
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
@@ -164,8 +164,6 @@ $$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION archive_old_matches IS 'Mark old matches as archived in metadata';
 
-
-
 -- ============================================================================
 -- FUNCTION: validate_move_sequence
 -- Check if moves in a match have a valid sequence (no gaps)
@@ -182,70 +180,12 @@ BEGIN
     INTO move_count, max_move_number
     FROM moves
     WHERE match_id = p_match_id;
-    
-    -- If move count equals max move number, sequence is valid (1, 2, 3, ..., n)
+
     RETURN (move_count = max_move_number) OR (move_count = 0);
 END;
 $$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION validate_move_sequence IS 'Check for gaps in move sequence';
-
-
--- ============================================================================
--- FUNCTION: get_match_replay_data
--- Get all data needed to replay a match
--- ============================================================================
-CREATE OR REPLACE FUNCTION get_match_replay_data(
-    p_match_id BIGINT
-)
-RETURNS TABLE (
-    match_info JSONB,
-    participants JSONB,
-    moves JSONB
-) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT 
-        to_jsonb(m.*) as match_info,
-        (
-            SELECT jsonb_agg(to_jsonb(mp.*) ORDER BY mp.player_number)
-            FROM match_participants mp
-            WHERE mp.match_id = p_match_id
-        ) as participants,
-        (
-            SELECT jsonb_agg(to_jsonb(mv.*) ORDER BY mv.move_number)
-            FROM moves mv
-            WHERE mv.match_id = p_match_id
-        ) as moves
-    FROM matches m
-    WHERE m.match_id = p_match_id;
-END;
-$$ LANGUAGE plpgsql;
-
-COMMENT ON FUNCTION get_match_replay_data IS 'Get complete match data for replay';
-
-
--- ============================================================================
--- TRIGGER FUNCTION: prevent_rating_manipulation
--- Prevent manual rating manipulation (must go through proper channels)
--- ============================================================================
-CREATE OR REPLACE FUNCTION prevent_direct_rating_updates()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Allow updates if they come from the application (check if updated_at changed)
-    -- This is a soft check - in production, use application-level permissions
-    IF TG_OP = 'UPDATE' AND OLD.updated_at = NEW.updated_at THEN
-        RAISE EXCEPTION 'Direct rating updates not allowed. Use match completion workflow.';
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Note: Commented out to allow flexibility during development
--- CREATE TRIGGER tr_prevent_rating_manipulation
---     BEFORE UPDATE ON user_game_ratings
---     FOR EACH ROW
---     EXECUTE FUNCTION prevent_direct_rating_updates();
 
 
 -- ============================================================================
@@ -272,12 +212,12 @@ BEGIN
     RETURN QUERY
     WITH match_stats AS (
         SELECT 
-            COUNT(*) as match_count,
-            SUM(CASE WHEN mp.final_ranking = 1 THEN 1 ELSE 0 END) as wins,
-            SUM(CASE WHEN mp.final_ranking > 1 THEN 1 ELSE 0 END) as losses,
-            SUM(CASE WHEN mp.final_ranking IS NULL THEN 1 ELSE 0 END) as draws,
-            COUNT(DISTINCT m.game_id) as game_count,
-            COUNT(DISTINCT m.guild_id) as guild_count,
+            COUNT(*)::BIGINT as match_count,
+            SUM(CASE WHEN mp.final_ranking = 1 THEN 1 ELSE 0 END)::BIGINT as wins,
+            SUM(CASE WHEN mp.final_ranking > 1 THEN 1 ELSE 0 END)::BIGINT as losses,
+            SUM(CASE WHEN mp.final_ranking IS NULL THEN 1 ELSE 0 END)::BIGINT as draws,
+            COUNT(DISTINCT m.game_id)::INTEGER as game_count,
+            COUNT(DISTINCT m.guild_id)::INTEGER as guild_count,
             COUNT(*)::NUMERIC / NULLIF(p_days, 0) as matches_per_day
         FROM match_participants mp
         JOIN matches m ON mp.match_id = m.match_id
@@ -319,20 +259,21 @@ BEGIN
         LIMIT 1
     )
     SELECT 
-        ms.match_count,
-        ms.wins,
-        ms.losses,
-        ms.draws,
-        ms.game_count,
-        ms.guild_count,
-        ROUND(ms.matches_per_day, 2),
+        COALESCE(ms.match_count, 0),
+        COALESCE(ms.wins, 0),
+        COALESCE(ms.losses, 0),
+        COALESCE(ms.draws, 0),
+        COALESCE(ms.game_count, 0),
+        COALESCE(ms.guild_count, 0),
+        COALESCE(ROUND(ms.matches_per_day, 2), 0.0),
         gs.fav_game,
         bgs.best_game_name,
         glds.most_active_guild_id
-    FROM match_stats ms
-    CROSS JOIN game_stats gs
-    CROSS JOIN best_game_stats bgs
-    CROSS JOIN guild_stats glds;
+    FROM (SELECT 1 AS anchor) seed
+    LEFT JOIN match_stats ms ON true
+    LEFT JOIN LATERAL (SELECT fav_game FROM game_stats) gs ON true
+    LEFT JOIN LATERAL (SELECT best_game_name FROM best_game_stats) bgs ON true
+    LEFT JOIN LATERAL (SELECT most_active_guild_id FROM guild_stats) glds ON true;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -397,6 +338,35 @@ $$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION sync_games_played_counts IS
 'Recompute matches_played from completed matches (repair drift).';
+
+
+-- ============================================================================
+-- TRIGGER: increment matches_played when a match completes
+-- ============================================================================
+CREATE OR REPLACE FUNCTION apply_completed_match_to_rating_counts()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.status = 'completed' AND COALESCE(OLD.status, '') <> 'completed' THEN
+        UPDATE user_game_ratings ugr
+        SET
+            matches_played = matches_played + 1,
+            last_played = COALESCE(NEW.ended_at, NOW()),
+            updated_at = NOW()
+        FROM match_participants mp
+        WHERE mp.match_id = NEW.match_id
+          AND ugr.user_id = mp.user_id
+          AND ugr.game_id = NEW.game_id;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_matches_completed_counts ON matches;
+CREATE TRIGGER trg_matches_completed_counts
+    AFTER UPDATE OF status ON matches
+    FOR EACH ROW
+    EXECUTE FUNCTION apply_completed_match_to_rating_counts();
 
 
 -- ============================================================================

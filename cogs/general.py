@@ -949,8 +949,8 @@ class GeneralCog(commands.Cog):
         if rating_history and page == 1:
             ascending = list(reversed(rating_history))
             points = [ascending[0].get('mu_before', MU)] + [row.get('mu_after', MU) for row in ascending]
-            timestamps = [datetime.fromisoformat(str(ascending[0].get('timestamp')))] + \
-                         [datetime.fromisoformat(str(row.get('timestamp'))) for row in ascending]
+            timestamps = [datetime.fromisoformat(str(ascending[0].get('created_at')))] + \
+                         [datetime.fromisoformat(str(row.get('created_at'))) for row in ascending]
 
             rating_data = list(zip(timestamps, points))
 

@@ -28,6 +28,8 @@ class MatchmakingCog(commands.Cog):
 
         if custom_id.startswith(BUTTON_PREFIX_LOBBY_OPT):
             await self.lobby_select_callback(ctx)
+        elif custom_id.startswith(BUTTON_PREFIX_LOBBY_ROLE):
+            await self.lobby_role_select_callback(ctx)
         elif (
                 custom_id.startswith(BUTTON_PREFIX_JOIN)
                 or custom_id.startswith(BUTTON_PREFIX_LEAVE)
@@ -62,6 +64,33 @@ class MatchmakingCog(commands.Cog):
         f_log.debug("lobby option key=%r lobby=%s user=%s", key, matchmaking_id, ctx.user.id)
         matchmaker = CURRENT_MATCHMAKING[matchmaking_id]
         await matchmaker.callback_lobby_option(ctx, key)
+
+    async def lobby_role_select_callback(self, ctx: discord.Interaction) -> None:
+        """Per-player role select for CHOSEN :attr:`role_mode` (handled by MatchmakingInterface)."""
+        await ctx.response.defer(ephemeral=True)
+        f_log = log.getChild("callback.lobby_role_select")
+        data = ctx.data if ctx.data is not None else {}
+        cid = data.get("custom_id")
+        if not cid or not cid.startswith(BUTTON_PREFIX_LOBBY_ROLE):
+            await ctx.followup.send(content=get("matchmaking.invalid_interaction"), ephemeral=True)
+            return
+        rest = cid[len(BUTTON_PREFIX_LOBBY_ROLE):]
+        mid_str, _, pid_str = rest.partition("/")
+        if not mid_str or not pid_str:
+            await ctx.followup.send(content=get("matchmaking.invalid_button"), ephemeral=True)
+            return
+        try:
+            matchmaking_id = int(mid_str)
+            player_id = int(pid_str)
+        except ValueError:
+            await ctx.followup.send(content=get("matchmaking.invalid_button"), ephemeral=True)
+            return
+        if matchmaking_id not in CURRENT_MATCHMAKING:
+            await ctx.followup.send(content=get("matchmaking.session_expired"), ephemeral=True)
+            return
+        f_log.debug("lobby role pick lobby=%s player_id=%s user=%s", matchmaking_id, player_id, ctx.user.id)
+        matchmaker = CURRENT_MATCHMAKING[matchmaking_id]
+        await matchmaker.callback_role_select(ctx, player_id)
 
     async def matchmaking_button_callback(self, ctx: discord.Interaction) -> None:
         """

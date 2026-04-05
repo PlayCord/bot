@@ -181,10 +181,10 @@ class Match:
     is_rated: bool = True
     game_config: Dict[str, Any] = field(default_factory=dict)
     match_code: Optional[str] = None
-    replay_log: Optional[str] = None
     final_state: Optional[Dict[str, Any]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     @property
     def duration_seconds(self) -> Optional[int]:
@@ -218,6 +218,7 @@ class Participant:
     mu_delta: float = 0.0
     sigma_delta: float = 0.0
     joined_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     @property
     def mu_after(self) -> Optional[float]:
@@ -249,7 +250,7 @@ class Move:
     move_data: Dict[str, Any]
     game_state_after: Optional[Dict[str, Any]] = None
     is_game_affecting: bool = True
-    timestamp: Optional[datetime] = None
+    created_at: Optional[datetime] = None
     time_taken_ms: Optional[int] = None
 
     @property
@@ -270,7 +271,7 @@ class AnalyticsEvent:
     """Represents an analytics event"""
     event_id: int
     event_type: EventType
-    timestamp: datetime
+    created_at: datetime
     user_id: Optional[int] = None
     guild_id: Optional[int] = None
     game_id: Optional[int] = None
@@ -290,7 +291,7 @@ class RatingHistory:
     sigma_before: float
     mu_after: float
     sigma_after: float
-    timestamp: datetime
+    created_at: datetime
 
     @property
     def mu_delta(self) -> float:
@@ -319,7 +320,7 @@ def row_to_user(row: Dict[str, Any]) -> User:
     return User(
         user_id=row['user_id'],
         username=row['username'],
-        joined_at=row['joined_at'],
+        joined_at=row.get('joined_at') or row.get('created_at'),
         preferences=row.get('preferences', {}),
         is_bot=row.get('is_bot', False),
         is_active=row.get('is_active', True),
@@ -332,7 +333,7 @@ def row_to_guild(row: Dict[str, Any]) -> Guild:
     """Convert database row to Guild object"""
     return Guild(
         guild_id=row['guild_id'],
-        joined_at=row['joined_at'],
+        joined_at=row.get('joined_at') or row.get('created_at'),
         settings=row.get('settings', {}),
         is_active=row.get('is_active', True),
         created_at=row.get('created_at'),
@@ -387,10 +388,10 @@ def row_to_match(row: Dict[str, Any]) -> Match:
         is_rated=row.get('is_rated', True),
         game_config=row.get('game_config', {}),
         match_code=row.get('match_code'),
-        replay_log=row.get('replay_log'),
         final_state=row.get('final_state'),
         metadata=row.get('metadata', {}),
-        created_at=row.get('created_at')
+        created_at=row.get('created_at'),
+        updated_at=row.get('updated_at'),
     )
 
 
@@ -407,7 +408,8 @@ def row_to_participant(row: Dict[str, Any]) -> Participant:
         sigma_before=row.get('sigma_before'),
         mu_delta=row.get('mu_delta', 0.0),
         sigma_delta=row.get('sigma_delta', 0.0),
-        joined_at=row.get('joined_at')
+        joined_at=row.get('joined_at'),
+        updated_at=row.get('updated_at'),
     )
 
 
@@ -421,6 +423,6 @@ def row_to_move(row: Dict[str, Any]) -> Move:
         move_data=row['move_data'],
         game_state_after=row.get('game_state_after'),
         is_game_affecting=row.get('is_game_affecting', True),
-        timestamp=row.get('timestamp'),
+        created_at=row.get('created_at'),
         time_taken_ms=row.get('time_taken_ms')
     )

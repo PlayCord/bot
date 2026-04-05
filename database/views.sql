@@ -2,6 +2,40 @@
 -- Common query patterns as materialized views for performance
 
 -- ============================================================================
+-- VIEW: v_match_outcomes
+-- Shared win/loss/draw aggregation used by leaderboard/stats views
+-- ============================================================================
+CREATE OR REPLACE VIEW v_match_outcomes AS
+SELECT
+    mp.user_id,
+    m.game_id,
+    SUM(
+        CASE
+            WHEN mp.final_ranking = 1 AND COALESCE(r1.rank1_count, 0) = 1 THEN 1
+            ELSE 0
+        END
+    )::INTEGER AS wins,
+    SUM(
+        CASE
+            WHEN mp.final_ranking = 1 AND COALESCE(r1.rank1_count, 0) > 1 THEN 1
+            ELSE 0
+        END
+    )::INTEGER AS draws,
+    SUM(CASE WHEN mp.final_ranking > 1 THEN 1 ELSE 0 END)::INTEGER AS losses
+FROM match_participants mp
+JOIN matches m ON m.match_id = mp.match_id AND m.status = 'completed'
+LEFT JOIN (
+    SELECT match_id, COUNT(*)::INTEGER AS rank1_count
+    FROM match_participants
+    WHERE final_ranking = 1
+    GROUP BY match_id
+) r1 ON r1.match_id = mp.match_id
+GROUP BY mp.user_id, m.game_id;
+
+COMMENT ON VIEW v_match_outcomes IS 'Aggregated win/loss/draw totals derived from final_ranking and ties';
+
+
+-- ============================================================================
 -- VIEW: v_active_leaderboard
 -- Active leaderboard with win rates and conservative ratings
 -- ============================================================================
@@ -32,33 +66,7 @@ SELECT
 FROM user_game_ratings ugr
 JOIN users u ON ugr.user_id = u.user_id
 JOIN games g ON ugr.game_id = g.game_id
-LEFT JOIN (
-    SELECT
-        mp.user_id,
-        m.game_id,
-        SUM(
-            CASE
-                WHEN mp.final_ranking = 1 AND COALESCE(r1.rank1_count, 0) = 1 THEN 1
-                ELSE 0
-            END
-        )::INTEGER AS wins,
-        SUM(
-            CASE
-                WHEN mp.final_ranking = 1 AND COALESCE(r1.rank1_count, 0) > 1 THEN 1
-                ELSE 0
-            END
-        )::INTEGER AS draws,
-        SUM(CASE WHEN mp.final_ranking > 1 THEN 1 ELSE 0 END)::INTEGER AS losses
-    FROM match_participants mp
-    JOIN matches m ON m.match_id = mp.match_id AND m.status = 'completed'
-    LEFT JOIN (
-        SELECT match_id, COUNT(*)::INTEGER AS rank1_count
-        FROM match_participants
-        WHERE final_ranking = 1
-        GROUP BY match_id
-    ) r1 ON r1.match_id = mp.match_id
-    GROUP BY mp.user_id, m.game_id
-) mo ON mo.user_id = ugr.user_id AND mo.game_id = ugr.game_id
+LEFT JOIN v_match_outcomes mo ON mo.user_id = ugr.user_id AND mo.game_id = ugr.game_id
 WHERE ugr.matches_played >= 5  -- Minimum matches for ranking
 AND u.is_active = TRUE
 AND g.is_active = TRUE
@@ -133,40 +141,14 @@ SELECT
         THEN TRUE
         ELSE FALSE
     END as is_uncertain,
-    rh.timestamp as last_rating_change,
+    rh.created_at as last_rating_change,
     rh.mu_before as previous_mu,
     rh.sigma_before as previous_sigma,
     (rh.mu_after - rh.mu_before) as last_mu_change
 FROM users u
 JOIN user_game_ratings ugr ON u.user_id = ugr.user_id
 JOIN games g ON ugr.game_id = g.game_id
-LEFT JOIN (
-    SELECT
-        mp.user_id,
-        m.game_id,
-        SUM(
-            CASE
-                WHEN mp.final_ranking = 1 AND COALESCE(r1.rank1_count, 0) = 1 THEN 1
-                ELSE 0
-            END
-        )::INTEGER AS wins,
-        SUM(
-            CASE
-                WHEN mp.final_ranking = 1 AND COALESCE(r1.rank1_count, 0) > 1 THEN 1
-                ELSE 0
-            END
-        )::INTEGER AS draws,
-        SUM(CASE WHEN mp.final_ranking > 1 THEN 1 ELSE 0 END)::INTEGER AS losses
-    FROM match_participants mp
-    JOIN matches m ON m.match_id = mp.match_id AND m.status = 'completed'
-    LEFT JOIN (
-        SELECT match_id, COUNT(*)::INTEGER AS rank1_count
-        FROM match_participants
-        WHERE final_ranking = 1
-        GROUP BY match_id
-    ) r1 ON r1.match_id = mp.match_id
-    GROUP BY mp.user_id, m.game_id
-) mo ON mo.user_id = ugr.user_id AND mo.game_id = ugr.game_id
+LEFT JOIN v_match_outcomes mo ON mo.user_id = ugr.user_id AND mo.game_id = ugr.game_id
 LEFT JOIN LATERAL (
     SELECT 
         history_id,
@@ -174,11 +156,11 @@ LEFT JOIN LATERAL (
         sigma_before,
         mu_after,
         sigma_after,
-        timestamp 
+        created_at 
     FROM rating_history
     WHERE user_id = u.user_id 
       AND game_id = ugr.game_id
-    ORDER BY timestamp DESC 
+    ORDER BY created_at DESC 
     LIMIT 1
 ) rh ON true
 WHERE u.is_active = TRUE;
@@ -288,10 +270,11 @@ SELECT
     mp.sigma_delta,
     (mp.mu_before + mp.mu_delta) as mu_after,
     (mp.sigma_before + mp.sigma_delta) as sigma_after,
-    CASE 
+    CASE
+        WHEN mp.final_ranking = 1 AND COALESCE(r1.rank1_count, 0) > 1 THEN 'draw'
         WHEN mp.final_ranking = 1 THEN 'win'
         WHEN mp.final_ranking > 1 THEN 'loss'
-        ELSE 'draw'
+        ELSE 'unknown'
     END as outcome,
     COUNT(*) OVER (
         PARTITION BY mp.user_id, m.game_id 
@@ -301,6 +284,12 @@ FROM match_participants mp
 JOIN matches m ON mp.match_id = m.match_id
 JOIN users u ON mp.user_id = u.user_id
 JOIN games g ON m.game_id = g.game_id
+LEFT JOIN (
+    SELECT match_id, COUNT(*)::INTEGER AS rank1_count
+    FROM match_participants
+    WHERE final_ranking = 1
+    GROUP BY match_id
+) r1 ON r1.match_id = m.match_id
 WHERE m.status = 'completed'
 ORDER BY mp.user_id, m.ended_at DESC;
 

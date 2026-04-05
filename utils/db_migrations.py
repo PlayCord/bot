@@ -3,6 +3,7 @@ Apply versioned database migrations tracked in database_migrations.
 Each migration is a list of SQL statements executed in one transaction.
 """
 
+import hashlib
 import logging
 import re
 from typing import List, Tuple
@@ -127,7 +128,8 @@ MIGRATIONS: List[Tuple[str, str, List[str]]] = [
             DROP FUNCTION IF EXISTS apply_skill_decay(integer, double precision) CASCADE
             """,
             """
-            CREATE OR REPLACE FUNCTION apply_skill_decay(
+            CREATE
+            OR REPLACE FUNCTION apply_skill_decay(
                 days_inactive INTEGER DEFAULT 30,
                 sigma_increase_factor DOUBLE PRECISION DEFAULT 0.1
             )
@@ -137,18 +139,17 @@ MIGRATIONS: List[Tuple[str, str, List[str]]] = [
                 old_sigma DOUBLE PRECISION,
                 new_sigma DOUBLE PRECISION,
                 days_since_play INTEGER
-            ) AS $f$
+            ) AS
+            $f$
             BEGIN
-                RETURN QUERY
-                UPDATE user_game_ratings ugr
-                SET
-                    sigma = GREATEST(
-                        decay_data.new_sig,
-                        COALESCE((g.rating_config->>'min_sigma')::DOUBLE PRECISION, 0.001)
-                    ),
-                    last_sigma_increase = NOW(),
-                    updated_at = NOW()
-                FROM (
+            RETURN QUERY
+            UPDATE user_game_ratings ugr
+            SET sigma               = GREATEST(
+                    decay_data.new_sig,
+                    COALESCE((g.rating_config ->>'min_sigma') ::DOUBLE PRECISION, 0.001)
+                                      ),
+                last_sigma_increase = NOW(),
+                updated_at          = NOW() FROM (
                     SELECT
                         r.rating_id,
                         r.user_id AS uid,
@@ -161,16 +162,18 @@ MIGRATIONS: List[Tuple[str, str, List[str]]] = [
                       AND (r.last_sigma_increase IS NULL
                            OR r.last_sigma_increase < NOW() - (days_inactive || ' days')::INTERVAL)
                 ) decay_data
-                JOIN games g ON g.game_id = ugr.game_id
-                WHERE ugr.rating_id = decay_data.rating_id
+                JOIN games g
+            ON g.game_id = ugr.game_id
+            WHERE ugr.rating_id = decay_data.rating_id
                 RETURNING
-                    decay_data.uid,
-                    decay_data.gid,
-                    decay_data.old_sig,
-                    ugr.sigma,
-                    decay_data.days_inactive_calc;
+                decay_data.uid
+                , decay_data.gid
+                , decay_data.old_sig
+                , ugr.sigma
+                , decay_data.days_inactive_calc;
             END;
-            $f$ LANGUAGE plpgsql
+            $f$
+            LANGUAGE plpgsql
             """,
             """
             COMMENT ON FUNCTION apply_skill_decay IS 'Apply skill decay to inactive players by increasing sigma'
@@ -184,9 +187,224 @@ MIGRATIONS: List[Tuple[str, str, List[str]]] = [
             "ALTER TABLE matches ADD COLUMN IF NOT EXISTS match_code VARCHAR(8)",
             """
             CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_match_code
-            ON matches (match_code)
-            WHERE match_code IS NOT NULL
+                ON matches (match_code)
+                WHERE match_code IS NOT NULL
             """,
+        ],
+    ),
+    (
+        "2.7.0",
+        "Replay events table, normalized timestamps, rating-history retention, and schema cleanup",
+        [
+            "DROP VIEW IF EXISTS v_active_leaderboard CASCADE",
+            "DROP VIEW IF EXISTS v_match_outcomes CASCADE",
+            "DROP VIEW IF EXISTS v_player_stats CASCADE",
+            "DROP VIEW IF EXISTS v_global_leaderboard CASCADE",
+            "DROP VIEW IF EXISTS v_recent_activity CASCADE",
+            "DROP VIEW IF EXISTS v_match_summary CASCADE",
+            "DROP VIEW IF EXISTS v_user_match_history CASCADE",
+            "DROP VIEW IF EXISTS v_inactive_players CASCADE",
+            "DROP VIEW IF EXISTS v_guild_activity_summary CASCADE",
+            "DROP VIEW IF EXISTS v_game_popularity CASCADE",
+            "DROP TRIGGER IF EXISTS tr_matches_updated_at ON matches",
+            "DROP TRIGGER IF EXISTS tr_match_participants_updated_at ON match_participants",
+            "DROP TRIGGER IF EXISTS trg_matches_completed_counts ON matches",
+            "DROP FUNCTION IF EXISTS get_match_replay_data(BIGINT) CASCADE",
+            "DROP FUNCTION IF EXISTS prevent_direct_rating_updates() CASCADE",
+            "DROP TABLE IF EXISTS game_seasons CASCADE",
+            "ALTER TABLE guilds DROP COLUMN IF EXISTS joined_at",
+            "DROP INDEX IF EXISTS idx_guilds_active",
+            "CREATE INDEX IF NOT EXISTS idx_guilds_active ON guilds (is_active, created_at DESC)",
+            "ALTER TABLE users DROP COLUMN IF EXISTS joined_at",
+            "DROP INDEX IF EXISTS idx_users_active",
+            "CREATE INDEX IF NOT EXISTS idx_users_active ON users (is_active, created_at DESC)",
+            "ALTER TABLE matches ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()",
+            "ALTER TABLE match_participants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()",
+            """
+            CREATE TRIGGER tr_matches_updated_at
+                BEFORE UPDATE
+                ON matches
+                FOR EACH ROW
+                EXECUTE FUNCTION update_updated_at_column()
+            """,
+            """
+            CREATE TRIGGER tr_match_participants_updated_at
+                BEFORE UPDATE
+                ON match_participants
+                FOR EACH ROW
+                EXECUTE FUNCTION update_updated_at_column()
+            """,
+            """
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'moves' AND column_name = 'timestamp'
+                ) THEN
+                    ALTER TABLE moves RENAME COLUMN timestamp TO created_at;
+                END IF;
+            END$$
+            """,
+            "DROP INDEX IF EXISTS idx_moves_user",
+            "DROP INDEX IF EXISTS idx_moves_timestamp",
+            "DROP INDEX IF EXISTS idx_moves_created_at",
+            "CREATE INDEX IF NOT EXISTS idx_moves_user ON moves (user_id, created_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_moves_created_at ON moves (created_at DESC)",
+            """
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'analytics_events' AND column_name = 'timestamp'
+                ) THEN
+                    ALTER TABLE analytics_events RENAME COLUMN timestamp TO created_at;
+                END IF;
+            END$$
+            """,
+            "DROP INDEX IF EXISTS idx_analytics_type_time",
+            "DROP INDEX IF EXISTS idx_analytics_user",
+            "DROP INDEX IF EXISTS idx_analytics_guild",
+            "DROP INDEX IF EXISTS idx_analytics_timestamp",
+            "DROP INDEX IF EXISTS idx_analytics_created_at",
+            "CREATE INDEX IF NOT EXISTS idx_analytics_type_time ON analytics_events (event_type, created_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_analytics_user ON analytics_events (user_id, created_at DESC) WHERE user_id IS NOT NULL",
+            "CREATE INDEX IF NOT EXISTS idx_analytics_guild ON analytics_events (guild_id, created_at DESC) WHERE guild_id IS NOT NULL",
+            "CREATE INDEX IF NOT EXISTS idx_analytics_created_at ON analytics_events (created_at DESC)",
+            """
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'rating_history' AND column_name = 'timestamp'
+                ) THEN
+                    ALTER TABLE rating_history RENAME COLUMN timestamp TO created_at;
+                END IF;
+            END$$
+            """,
+            "ALTER TABLE rating_history ALTER COLUMN guild_id DROP NOT NULL",
+            "ALTER TABLE rating_history DROP CONSTRAINT IF EXISTS fk_history_guild",
+            "ALTER TABLE rating_history ADD CONSTRAINT fk_history_guild FOREIGN KEY (guild_id) REFERENCES guilds (guild_id) ON DELETE SET NULL",
+            "DROP INDEX IF EXISTS idx_history_user_game",
+            "DROP INDEX IF EXISTS idx_history_guild_game",
+            "CREATE INDEX IF NOT EXISTS idx_history_user_game ON rating_history (user_id, game_id, created_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_history_guild_game ON rating_history (guild_id, game_id, created_at DESC)",
+            """
+            CREATE TABLE IF NOT EXISTS replay_events
+            (
+                event_id
+                BIGSERIAL
+                PRIMARY
+                KEY,
+                match_id
+                BIGINT
+                NOT
+                NULL
+                REFERENCES
+                matches
+            (
+                match_id
+            ) ON DELETE CASCADE,
+                sequence_number INTEGER NOT NULL,
+                event_type VARCHAR
+            (
+                100
+            ) NOT NULL,
+                actor_user_id BIGINT REFERENCES users
+            (
+                user_id
+            )
+              ON DELETE SET NULL,
+                payload JSONB DEFAULT '{}'::jsonb NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW
+            (
+            ) NOT NULL,
+                CONSTRAINT uq_replay_sequence UNIQUE
+            (
+                match_id,
+                sequence_number
+            ),
+                CONSTRAINT chk_replay_sequence CHECK
+            (
+                sequence_number
+                >=
+                1
+            )
+                )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_replay_match_sequence ON replay_events (match_id, sequence_number ASC)",
+            "CREATE INDEX IF NOT EXISTS idx_replay_actor ON replay_events (actor_user_id, created_at DESC) WHERE actor_user_id IS NOT NULL",
+            "CREATE INDEX IF NOT EXISTS idx_replay_type ON replay_events (event_type, created_at DESC)",
+            """
+            DO $$
+            DECLARE
+                m RECORD;
+                raw_line TEXT;
+                seq INTEGER;
+                evt JSONB;
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'matches' AND column_name = 'replay_log'
+                ) THEN
+                    FOR m IN
+                        SELECT match_id, COALESCE(replay_log, '') AS replay_log, created_at
+                        FROM matches
+                    LOOP
+                        seq := 0;
+                        FOREACH raw_line IN ARRAY string_to_array(m.replay_log, E'\\n')
+                        LOOP
+                            raw_line := btrim(raw_line);
+                            IF raw_line = '' THEN
+                                CONTINUE;
+                            END IF;
+                            BEGIN
+                                evt := raw_line::jsonb;
+                            EXCEPTION WHEN others THEN
+                                CONTINUE;
+                            END;
+                            seq := seq + 1;
+                            INSERT INTO replay_events (
+                                match_id,
+                                sequence_number,
+                                event_type,
+                                actor_user_id,
+                                payload,
+                                created_at
+                            )
+                            VALUES (
+                                m.match_id,
+                                seq,
+                                COALESCE(evt->>'type', 'event'),
+                                CASE
+                                    WHEN jsonb_typeof(evt->'user_id') = 'number' THEN (evt->>'user_id')::BIGINT
+                                    ELSE NULL
+                                END,
+                                evt - 'type' - 'user_id',
+                                m.created_at
+                            )
+                            ON CONFLICT (match_id, sequence_number) DO NOTHING;
+                        END LOOP;
+                    END LOOP;
+                END IF;
+            END$$
+            """,
+            """
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_name = 'matches' AND column_name = 'replay_log'
+                ) THEN
+                    ALTER TABLE matches DROP COLUMN replay_log;
+                END IF;
+            END$$
+            """,
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_match_code_ci ON matches ((lower(match_code))) WHERE match_code IS NOT NULL",
         ],
     ),
 ]
@@ -205,19 +423,20 @@ def apply_migrations(database) -> None:
         )
         if row:
             continue
-        logger.info("Applying database migration %s", version)
+        logger.warning("Applying database migration %s", version)
+        checksum = hashlib.sha256("\n".join(stmt.strip() for stmt in statements).encode("utf-8")).hexdigest()
         try:
             with database.transaction() as cur:
                 for stmt in statements:
                     cur.execute(stmt.strip())
                 cur.execute(
                     """
-                    INSERT INTO database_migrations (version, description)
-                    VALUES (%s, %s);
+                    INSERT INTO database_migrations (version, description, checksum)
+                    VALUES (%s, %s, %s);
                     """,
-                    (version, description),
+                    (version, description, checksum),
                 )
         except Exception:
             logger.exception("Migration %s failed", version)
             raise
-        logger.info("Migration %s applied successfully", version)
+        logger.warning("Migration %s applied successfully", version)

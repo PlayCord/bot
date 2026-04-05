@@ -1,7 +1,7 @@
 import discord
 from discord import SelectOption
 
-from configuration.constants import BUTTON_PREFIX_LOBBY_OPT
+from configuration.constants import BUTTON_PREFIX_LOBBY_OPT, BUTTON_PREFIX_LOBBY_ROLE
 from utils.emojis import get_button_emoji
 from utils.locale import get
 
@@ -93,7 +93,8 @@ class MatchmakingView(DynamicButtonView):
 
 class MatchmakingLobbyView(discord.ui.View):
     """
-    Join / leave / start plus optional string selects for per-game lobby settings (creator-only).
+    Join / leave / start, optional string selects for per-game lobby settings (creator-only),
+    and optional per-player role selects for games with CHOSEN role mode.
     """
 
     async def _route_to_cog(self, interaction: discord.Interaction) -> None:
@@ -107,10 +108,15 @@ class MatchmakingLobbyView(discord.ui.View):
         start_button_id: str,
         can_start: bool,
         lobby_message_id: int,
-        option_specs: tuple,
-        current_values: dict[str, str | int],
+        option_specs: tuple = (),
+        current_values: dict[str, str | int] | None = None,
+        role_specs: list[tuple[int, str, tuple[str, ...]]] | None = None,
+        current_role_values: dict[int, str] | None = None,
     ) -> None:
         super().__init__(timeout=None)
+        current_values = dict(current_values) if current_values else {}
+        current_role_values = dict(current_role_values) if current_role_values else {}
+        role_specs = role_specs or []
 
         join_btn = discord.ui.Button(
             label=get("buttons.join"),
@@ -143,7 +149,8 @@ class MatchmakingLobbyView(discord.ui.View):
         start_btn.callback = self._route_to_cog
         self.add_item(start_btn)
 
-        for row, spec in enumerate(option_specs, start=1):
+        row = 1
+        for spec in option_specs:
             if row > 4:
                 break
             cur = current_values.get(spec.key, spec.default)
@@ -166,6 +173,34 @@ class MatchmakingLobbyView(discord.ui.View):
             )
             sel.callback = self._route_to_cog
             self.add_item(sel)
+            row += 1
+
+        for player_id, display_name, avail_roles in role_specs:
+            if row > 4:
+                break
+            cur = current_role_values.get(player_id)
+            roptions: list[SelectOption] = []
+            for r in avail_roles:
+                rv = str(r)[:100]
+                roptions.append(
+                    SelectOption(
+                        label=str(r).replace("_", " ").title()[:100],
+                        value=rv,
+                        default=(cur is not None and str(cur) == str(r)),
+                    )
+                )
+            placeholder = f"{display_name[:80]}: role"
+            rsel = discord.ui.Select(
+                custom_id=f"{BUTTON_PREFIX_LOBBY_ROLE}{lobby_message_id}/{player_id}",
+                placeholder=placeholder[:150],
+                min_values=1,
+                max_values=1,
+                options=roptions,
+                row=row,
+            )
+            rsel.callback = self._route_to_cog
+            self.add_item(rsel)
+            row += 1
 
 
 class InviteView(DynamicButtonView):

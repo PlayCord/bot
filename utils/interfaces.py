@@ -8,7 +8,7 @@ from typing import Any
 
 import trueskill
 
-from api.Game import PlayerOrder, resolve_player_count
+from api.Game import PlayerOrder, RoleMode, resolve_player_count
 from api.Player import Player
 from api.Response import Response
 from configuration.constants import *
@@ -51,7 +51,8 @@ class GameInterface:
     def __init__(self, game_type: str, status_message: discord.InteractionMessage, creator: discord.User,
                  players: list[InternalPlayer | Player], rated: bool, game_id: int,
                  match_options: dict[str, typing.Any] | None = None,
-                 match_public_code: str | None = None) -> None:
+                 match_public_code: str | None = None,
+                 role_selections: dict[int, str] | None = None) -> None:
         """
         Create the GameInterface
         :param game_type: The game type as defined in constants.py
@@ -101,7 +102,11 @@ class GameInterface:
         elif player_order == PlayerOrder.REVERSE:
             players = list(reversed(players))
 
-        players = game_class.seat_players(players, game_type)
+        players = game_class.seat_players(
+            players,
+            game_type,
+            selections=dict(role_selections) if role_selections else None,
+        )
 
         # All players in the game
         self.players = players
@@ -1017,6 +1022,7 @@ class MatchmakingInterface:
         self.rated_requested = self.rated
         self._specs = tuple(getattr(self.game, "customizable_options", ()) or ())
         self.match_settings: dict[str, str | int] = {s.key: s.default for s in self._specs}
+        self.role_selections: dict[int, str] = {}
         self._sync_rated_flag()
 
         # Required and maximum players for game TODO: more complex requirements for start/stop
@@ -1103,6 +1109,21 @@ class MatchmakingInterface:
         await self.update_embed()
         await ctx.followup.send(get("queue.lobby_option_updated"), ephemeral=True)
 
+    async def callback_role_select(self, ctx: discord.Interaction, player_id: int) -> None:
+        """Handle per-player role string select for CHOSEN :attr:`role_mode`."""
+        log = self.logger.getChild("lobby_role_select")
+        if ctx.user.id != player_id:
+            await ctx.followup.send(get("queue.role_select_not_yours"), ephemeral=True)
+            return
+        if getattr(self.game, "role_mode", RoleMode.NONE) != RoleMode.CHOSEN:
+            log.warning("role select on non-CHOSEN lobby lobby=%s", self.message.id)
+            await ctx.followup.send(get("matchmaking.invalid_interaction"), ephemeral=True)
+            return
+        raw = (ctx.data.get("values") or [""])[0]
+        self.role_selections[player_id] = str(raw)
+        await self.update_embed()
+        await ctx.followup.send(get("queue.role_select_updated"), ephemeral=True)
+
     async def update_embed(self) -> None:
         """
         Update the embed based on the players in self.players
@@ -1181,6 +1202,51 @@ class MatchmakingInterface:
                 inline=False,
             )
 
+        role_mode = getattr(self.game, "role_mode", RoleMode.NONE)
+        pr_roles = getattr(self.game, "player_roles", None)
+        layout_ok_chosen = len(self._specs) + len(self.all_players()) <= 4
+        show_role_selects = (
+            role_mode == RoleMode.CHOSEN
+            and not self.has_bots
+            and pr_roles is not None
+            and len(pr_roles) == len(self.all_players())
+            and layout_ok_chosen
+        )
+        if role_mode == RoleMode.CHOSEN:
+            if self.has_bots:
+                embed.add_field(
+                    name=get("queue.role_picks_field"),
+                    value=get("queue.role_chosen_no_bots"),
+                    inline=False,
+                )
+            elif pr_roles and len(pr_roles) == len(self.all_players()):
+                if not layout_ok_chosen:
+                    embed.add_field(
+                        name=get("queue.role_picks_field"),
+                        value=get("queue.role_chosen_ui_overflow"),
+                        inline=False,
+                    )
+                else:
+                    pick_lines = []
+                    for p in sorted(self.queued_players, key=lambda x: x.id):
+                        picked = self.role_selections.get(p.id)
+                        label = getattr(p, "name", None) or str(p.id)
+                        if picked:
+                            pick_lines.append(f"**{label}** → `{picked}`")
+                        else:
+                            pick_lines.append(f"**{label}** → {get('queue.role_picks_none')}")
+                    embed.add_field(
+                        name=get("queue.role_picks_field"),
+                        value="\n".join(pick_lines) if pick_lines else get("queue.role_picks_none"),
+                        inline=False,
+                    )
+            elif pr_roles:
+                embed.add_field(
+                    name=get("queue.role_picks_field"),
+                    value=get("queue.role_chosen_lobby_not_full"),
+                    inline=False,
+                )
+
         # Can the start button be pressed?
         start_enabled = self.player_verification_function(len(self.queued_players))
         player_count = resolve_player_count(self.game)
@@ -1193,7 +1259,14 @@ class MatchmakingInterface:
         join_id = f"join/{self.message.id}"
         leave_id = f"leave/{self.message.id}"
         start_id = f"start/{self.message.id}"
-        if self._specs:
+        role_specs_list: list[tuple[int, str, tuple[str, ...]]] = []
+        if show_role_selects and pr_roles is not None:
+            avail = tuple(pr_roles)
+            for p in sorted(self.queued_players, key=lambda x: x.id):
+                disp = getattr(p, "name", None) or str(p.id)
+                role_specs_list.append((p.id, disp, avail))
+        use_lobby_view = bool(self._specs) or show_role_selects
+        if use_lobby_view:
             view = MatchmakingLobbyView(
                 join_button_id=join_id,
                 leave_button_id=leave_id,
@@ -1202,6 +1275,8 @@ class MatchmakingInterface:
                 lobby_message_id=self.message.id,
                 option_specs=self._specs,
                 current_values=dict(self.match_settings),
+                role_specs=role_specs_list,
+                current_role_values=dict(self.role_selections),
             )
         else:
             view = MatchmakingView(
@@ -1305,6 +1380,7 @@ class MatchmakingInterface:
             kicked = True
             self.queued_players.remove(new_player)
             IN_MATCHMAKING.pop(new_player)
+            self.role_selections.pop(new_player.id, None)
 
         # end game if necessary
         if not len(self.queued_players):
@@ -1356,6 +1432,7 @@ class MatchmakingInterface:
             kicked = True
             self.queued_players.remove(new_player)
             IN_MATCHMAKING.pop(new_player)
+            self.role_selections.pop(new_player.id, None)
             await self.update_embed()
 
         # end game if necessary
@@ -1441,6 +1518,7 @@ class MatchmakingInterface:
                 if p.id == player.id:
                     self.queued_players.remove(player)
                     IN_MATCHMAKING.pop(player)
+                    self.role_selections.pop(player.id, None)
                     break
             # Nobody is left lol
             if not len(self.queued_players):
@@ -1498,6 +1576,27 @@ class MatchmakingInterface:
         elif isinstance(player_count, int) and total_players != player_count:
             await ctx.followup.send(get("queue.bot_too_many_for_game"), ephemeral=True)
             return
+
+        role_mode = getattr(self.game, "role_mode", RoleMode.NONE)
+        if role_mode == RoleMode.CHOSEN:
+            if self.has_bots:
+                await ctx.followup.send(get("queue.role_chosen_no_bots"), ephemeral=True)
+                return
+            if len(self._specs) + len(self.all_players()) > 4:
+                await ctx.followup.send(get("queue.role_chosen_ui_overflow"), ephemeral=True)
+                return
+            pr = getattr(self.game, "player_roles", None)
+            if not pr or len(pr) != len(self.all_players()):
+                await ctx.followup.send(get("queue.bot_too_many_for_game"), ephemeral=True)
+                return
+            for p in self.queued_players:
+                if p.id not in self.role_selections:
+                    await ctx.followup.send(get("queue.role_all_must_select"), ephemeral=True)
+                    return
+            vr = self.game.validate_role_selection(self.role_selections)
+            if vr is not True:
+                await ctx.followup.send(str(vr), ephemeral=True)
+                return
 
         # The matchmaking was successful!
         self.outcome = True
@@ -1583,6 +1682,9 @@ async def _successful_matchmaking_impl(interface: MatchmakingInterface) -> None:
         match_id=new_game_id,
         metadata={"player_count": len(all_players), "rated": rated and not has_bots},
     )
+    role_sel = None
+    if getattr(game_class, "role_mode", RoleMode.NONE) == RoleMode.CHOSEN:
+        role_sel = dict(interface.role_selections)
     game = GameInterface(
         game_type,
         message,
@@ -1592,6 +1694,7 @@ async def _successful_matchmaking_impl(interface: MatchmakingInterface) -> None:
         new_game_id,
         match_options=match_opts_payload,
         match_public_code=match_public_code,
+        role_selections=role_sel,
     )
     try:
         await game.setup()  # Setup thread and other stuff
@@ -1778,7 +1881,7 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
     players = interface.players
     game_id = interface.game_id
 
-    # TrueSkill environment from the live game class (merges trueskill_scale + GAME_TRUESKILL)
+    # TrueSkill environment from the DB-backed game registry (bootstrapped from the live game class at startup)
     ts = type(interface.game).trueskill_parameters(game_type)
     sigma = MU * ts["sigma"]
     beta = MU * ts["beta"]
