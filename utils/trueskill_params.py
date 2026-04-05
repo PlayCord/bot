@@ -1,8 +1,8 @@
 """
 Resolve TrueSkill sigma/beta/tau/draw fractions for a game type key.
 
-Uses the concrete :class:`api.Game.Game` subclass when registered in ``GAME_TYPES``,
-otherwise falls back to :data:`configuration.constants.GAME_TRUESKILL`.
+Uses the concrete :class:`api.Game.Game` subclass (via :meth:`api.Game.Game.trueskill_parameters`)
+when registered in ``GAME_TYPES``, otherwise falls back to :data:`configuration.constants.GAME_TRUESKILL`.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def get_trueskill_fractions(game_type_key: str) -> dict[str, float]:
             mod = importlib.import_module(mod_name)
             cls = getattr(mod, cls_name)
             if isinstance(cls, type) and issubclass(cls, Game):
-                return cls.trueskill_fractions(game_type_key)
+                return cls.trueskill_parameters(game_type_key)
         except Exception:
             pass
     base = GAME_TRUESKILL.get(game_type_key, GAME_TRUESKILL["tictactoe"])

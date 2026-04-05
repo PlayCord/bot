@@ -99,8 +99,8 @@ class EventsCog(commands.Cog):
         f_log = log.getChild("event.thread_policy")
         f_log.debug(f"Non-participant {message.author.id} sent message in game thread {message.channel.id}")
 
-        # Delete message if configured to do so
-        if THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES:
+        # Delete message if configured to do so (spectator-silent is independent of the generic delete flag)
+        if THREAD_POLICY_SPECTATORS_SILENT or THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES:
             try:
                 await message.delete()
                 f_log.info(f"Deleted message from non-participant {message.author.id} in thread {message.channel.id}")

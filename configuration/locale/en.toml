@@ -68,9 +68,9 @@ db_failed = "Could not load player data for rematch."
 
 [commands.replay]
 description = "View a paginated move replay for a completed match in this server"
-param_match_id = "Match ID (shown in /playcord history)"
-title = "Replay · match {id} · {game}"
-no_data = "No replay log was stored for match `{match_id}`."
+param_match_ref = "Public match code (thread title) or legacy numeric match id"
+title = "Replay · {id} · {game}"
+no_data = "No replay log was stored for `{match_display}`."
 empty_page = "Empty page."
 
 [commands.feedback]
@@ -763,7 +763,7 @@ invalid_interaction = "This interaction could not be processed."
 
 [queue]
 thread_rated_prefix = "Rated "
-thread_name = "{prefix}{game} game ({match_id})"
+thread_name = "{prefix}{game} game [{match_code}]"
 db_connect_failed_what = "Couldn't connect to database!"
 db_connect_failed_reason = "The bot failed to connect to the database. This is likely a temporary error, try again later!"
 any_players = "Any"
@@ -780,7 +780,7 @@ field_blacklist = "Blacklist:"
 field_game_info = "Game Info:"
 field_game_by = "Game by:"
 field_ids_name = "IDs"
-field_ids_value = "Lobby message `{lobby_id}` · game `{game}` — match ID appears in the private game thread title."
+field_ids_value = "Lobby message `{lobby_id}` · game `{game}` — an 8-character match code appears in the private game thread title and works with `/playcord replay`."
 source = "Source"
 already_in_game = "You are already in the game!"
 already_in_active_game_other_server = "You are already in an active game in another server. Finish that game before joining this lobby."
@@ -802,6 +802,10 @@ bot_not_supported = "This game does not support bots."
 bot_invalid_difficulty = "Invalid bot difficulty '{difficulty}'."
 bot_too_many_for_game = "Cannot add bot: this game does not allow that many players."
 bot_display_rating = "Bot"
+field_match_options = "Match options"
+only_creator_lobby_options = "Only the lobby creator can change these settings."
+lobby_option_updated = "Match settings updated."
+customization_unrated_note = "Non-default options disable rated play for this match."
 
 # =============================================================================
 # INTERACTION MESSAGES

@@ -167,6 +167,7 @@ CREATE TABLE IF NOT EXISTS matches
     status      VARCHAR(20) DEFAULT 'in_progress' NOT NULL,
     is_rated    BOOLEAN     DEFAULT TRUE          NOT NULL,
     game_config JSONB       DEFAULT '{}'::jsonb,
+    match_code  VARCHAR(8),
     replay_log  TEXT,
     final_state JSONB,
     metadata    JSONB       DEFAULT '{}'::jsonb,
@@ -183,6 +184,9 @@ CREATE TABLE IF NOT EXISTS matches
         ended_at IS NULL OR ended_at > started_at
         )
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_match_code ON matches (match_code)
+    WHERE match_code IS NOT NULL;
 
 -- Indexes for match queries
 CREATE INDEX IF NOT EXISTS idx_matches_guild_game ON matches (

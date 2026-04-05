@@ -1,22 +1,13 @@
 import html
 import random
 
-try:
-    import cairosvg
-except ImportError:
-    cairosvg = None
 from api.Arguments import Integer
 from api.Command import Command
 from api.Game import Game
 from api.MessageComponents import DataTable, Description, Image
 from api.Player import Player
 from api.Response import Response
-
-
-def _svg_to_png(svg_markup: str) -> bytes | None:
-    if cairosvg is None:
-        return None
-    return cairosvg.svg2png(bytestring=svg_markup.encode("utf-8"))
+from utils.svg_utils import svg_to_png
 
 
 def _battleship_cell_palette(value: str) -> tuple[str, str]:
@@ -102,7 +93,7 @@ def render_battleship_peek_png(own_grid: list[list[str]], shots_grid: list[list[
     _append_battleship_grid(parts, shots_grid, "Your shots", right_origin_x, origin_y, cell)
 
     parts.append("</svg>")
-    return _svg_to_png("".join(parts))
+    return svg_to_png("".join(parts))
 
 
 class BattleshipGame(Game):

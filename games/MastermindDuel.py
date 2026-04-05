@@ -1,6 +1,6 @@
 from api.Arguments import Integer
 from api.Command import Command
-from api.Game import Game, PlayerOrder
+from api.Game import Game, PlayerOrder, SeatingMode
 from api.MessageComponents import DataTable, Description
 from api.Player import Player
 from api.Response import Response
@@ -13,6 +13,8 @@ class MastermindDuelGame(Game):
     name = "Mastermind Duel"
     player_count = 2
     player_order = PlayerOrder.PRESERVE
+    player_roles = ("setter", "breaker")
+    seating_mode = SeatingMode.RANDOM_ROLE_ASSIGNMENT
     moves = [
         Command(
             name="code",

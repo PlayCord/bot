@@ -1,6 +1,8 @@
+import random
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from enum import Enum
+from typing import Any, ClassVar
 
 from api.Bot import Bot
 from api.Command import Command
@@ -39,6 +41,14 @@ class PlayerOrder(Enum):
     PRESERVE = "preserve"  # Keep the order players joined
     CREATOR_FIRST = "creator_first"  # Creator always goes first, rest randomized
     REVERSE = "reverse"  # Reverse the join order
+
+
+class SeatingMode(Enum):
+    """How to assign asymmetric roles after :attr:`player_order` is applied."""
+
+    DEFAULT = "default"  # No extra reordering
+    RANDOM_ROLE_ASSIGNMENT = "random_roles"  # Shuffle seats (fair random roles for asymmetric games)
+    BALANCE_ROLES_BY_RATING = "balance_roles"  # 2-player: put weaker player in harder seat (see advantaged_role_index)
 
 
 class Game(ABC):
@@ -80,6 +90,24 @@ class Game(ABC):
     game_schema_version: int = 1
     # Optional per-game TrueSkill scale (sigma/beta/tau/draw as fractions of MU); None uses global GAME_TRUESKILL
     trueskill_scale: dict | None = None
+    # Asymmetric games: role labels (one per seat); length must match player count when using seating_mode
+    player_roles: ClassVar[tuple[str, ...] | None] = None
+    seating_mode: ClassVar[SeatingMode] = SeatingMode.DEFAULT
+    # For BALANCE_ROLES_BY_RATING (2p): seat index that is easier / advantaged (higher mu placed here)
+    advantaged_role_index: ClassVar[int] = 1
+    # Lobby selects before start; tuple of MatchOptionSpec (see api.MatchOptions)
+    customizable_options: ClassVar[tuple[Any, ...]] = ()
+    # When True, any option differing from its default forces an unrated match (like adding bots)
+    customization_forces_unrated_when_non_default: ClassVar[bool] = True
+
+    @classmethod
+    def trueskill_parameters(cls, game_type_key: str) -> dict[str, float]:
+        """
+        Canonical TrueSkill fractions (sigma, beta, tau, draw) for this game class.
+
+        Same values as :meth:`trueskill_fractions`; use this name when reading parameters for rating / environments.
+        """
+        return cls.trueskill_fractions(game_type_key)
 
     @classmethod
     def trueskill_fractions(cls, game_type_key: str) -> dict[str, float]:
@@ -95,6 +123,47 @@ class Game(ABC):
         if over:
             base.update(over)
         return base
+
+    @classmethod
+    def seat_players(cls, players: list[Any], game_type_key: str) -> list[Any]:
+        """
+        Reorder lobby participants for asymmetric roles after :attr:`player_order` was applied.
+
+        Operates on :class:`~utils.database.InternalPlayer` / :class:`api.Player.Player` objects before the game instance exists.
+        """
+        ordered = list(players)
+        roles = getattr(cls, "player_roles", None)
+        mode = getattr(cls, "seating_mode", SeatingMode.DEFAULT)
+        if (
+            mode == SeatingMode.DEFAULT
+            or not roles
+            or len(roles) != len(ordered)
+        ):
+            return ordered
+
+        if mode == SeatingMode.RANDOM_ROLE_ASSIGNMENT:
+            random.shuffle(ordered)
+            return ordered
+
+        if mode == SeatingMode.BALANCE_ROLES_BY_RATING and len(ordered) == 2:
+            from configuration.constants import MU
+
+            def _mu(p: Any) -> float:
+                if isinstance(p, Player):
+                    return float(p.mu)
+                stat = getattr(p, game_type_key, None)
+                if stat is not None and hasattr(stat, "mu"):
+                    return float(stat.mu)
+                return float(MU)
+
+            weak, strong = sorted(ordered, key=_mu)
+            adv = int(getattr(cls, "advantaged_role_index", 1))
+            if adv == 0:
+                return [strong, weak]
+            return [weak, strong]
+
+        random.shuffle(ordered)
+        return ordered
 
     @abstractmethod
     def __init__(self, players: list[Player]) -> None:

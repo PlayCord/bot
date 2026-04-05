@@ -180,6 +180,7 @@ class Match:
     status: MatchStatus
     is_rated: bool = True
     game_config: Dict[str, Any] = field(default_factory=dict)
+    match_code: Optional[str] = None
     replay_log: Optional[str] = None
     final_state: Optional[Dict[str, Any]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -309,128 +310,6 @@ class RatingHistory:
         return after - before
 
 
-@dataclass
-class GlobalRating:
-    """Represents aggregated cross-guild rating"""
-    global_rating_id: int
-    user_id: int
-    game_id: int
-    global_mu: float
-    global_sigma: float
-    total_matches: int = 0
-    guilds_played_in: List[int] = field(default_factory=list)
-    last_updated: Optional[datetime] = None
-
-    @property
-    def conservative_rating(self) -> float:
-        """Global conservative rating"""
-        return self.global_mu - (3.0 * self.global_sigma)
-
-    @property
-    def guild_count(self) -> int:
-        """Number of guilds played in"""
-        return len(self.guilds_played_in)
-
-
-@dataclass
-class Season:
-    """Represents a game season"""
-    season_id: int
-    season_name: str
-    game_id: int
-    guild_id: Optional[int]  # None for global seasons
-    start_date: datetime
-    end_date: datetime
-    is_active: bool = True
-    season_config: Dict[str, Any] = field(default_factory=dict)
-    created_at: Optional[datetime] = None
-
-    @property
-    def is_global(self) -> bool:
-        """Check if season is global"""
-        return self.guild_id is None
-
-    @property
-    def is_ongoing(self) -> bool:
-        """Check if season is currently ongoing"""
-        now = datetime.now()
-        return self.start_date <= now <= self.end_date and self.is_active
-
-    @property
-    def has_ended(self) -> bool:
-        """Check if season has ended"""
-        return datetime.now() > self.end_date
-
-    @property
-    def duration_days(self) -> int:
-        """Season duration in days"""
-        return (self.end_date - self.start_date).days
-
-
-# ============================================================================
-# COMPOSITE DATA STRUCTURES
-# ============================================================================
-
-@dataclass
-class LeaderboardEntry:
-    """Entry in a leaderboard"""
-    rank: int
-    user_id: int
-    username: str
-    rating: Rating
-    conservative_rating: float
-
-
-@dataclass
-class MatchSummary:
-    """Summary of a match with participants"""
-    match: Match
-    game: Game
-    participants: List[Participant]
-    move_count: int
-
-
-@dataclass
-class PlayerStats:
-    """Comprehensive player statistics"""
-    user: User
-    rating: Rating
-    total_matches: int
-    total_wins: int
-    total_losses: int
-    total_draws: int
-    win_rate: float
-    current_rank: Optional[int] = None
-    rating_trend: Optional[List[RatingHistory]] = None
-
-
-@dataclass
-class H2HStats:
-    """Head-to-head statistics between two players"""
-    user1_id: int
-    user2_id: int
-    game_id: int
-    total_matches: int
-    user1_wins: int
-    user2_wins: int
-    draws: int
-    last_match_date: Optional[datetime] = None
-
-    @property
-    def user1_win_rate(self) -> float:
-        """User 1 win rate"""
-        if self.total_matches == 0:
-            return 0.0
-        return (self.user1_wins / self.total_matches) * 100.0
-
-    @property
-    def user2_win_rate(self) -> float:
-        """User 2 win rate"""
-        if self.total_matches == 0:
-            return 0.0
-        return (self.user2_wins / self.total_matches) * 100.0
-
-
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -507,6 +386,7 @@ def row_to_match(row: Dict[str, Any]) -> Match:
         status=MatchStatus(row['status']),
         is_rated=row.get('is_rated', True),
         game_config=row.get('game_config', {}),
+        match_code=row.get('match_code'),
         replay_log=row.get('replay_log'),
         final_state=row.get('final_state'),
         metadata=row.get('metadata', {}),

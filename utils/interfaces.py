@@ -19,10 +19,9 @@ from utils.conversion import column_creator, column_elo, column_names, column_tu
 from utils.database import InternalPlayer, get_shallow_player, internal_player_to_player
 from utils import embeds as _embeds
 from utils.bot_names import generate_bot_name
-from utils.trueskill_params import get_trueskill_fractions
 from utils.emojis import get_emoji_string
 from utils.locale import get, fmt
-from utils.views import MatchmakingView, RematchView, SpectateView
+from utils.views import MatchmakingLobbyView, MatchmakingView, RematchView, SpectateView
 
 CustomEmbed = _embeds.CustomEmbed
 ErrorEmbed = _embeds.ErrorEmbed
@@ -50,7 +49,9 @@ class GameInterface:
     """
 
     def __init__(self, game_type: str, status_message: discord.InteractionMessage, creator: discord.User,
-                 players: list[InternalPlayer | Player], rated: bool, game_id: int) -> None:
+                 players: list[InternalPlayer | Player], rated: bool, game_id: int,
+                 match_options: dict[str, typing.Any] | None = None,
+                 match_public_code: str | None = None) -> None:
         """
         Create the GameInterface
         :param game_type: The game type as defined in constants.py
@@ -58,11 +59,14 @@ class GameInterface:
         :param creator: the User (discord) who created the lobby TODO: change to Player
         :param players: A list of Player.py objects representing the players
         :param rated: Whether the game is rated (ratings change based on outcome)
-        :param game_id: The game ID in the database
+        :param game_id: The match row ID in the database (internal)
+        :param match_public_code: Short public code for thread title and replay (defaults to str(game_id))
         """
         # The message created by the bot outside the not-yet-existent thread
         self.game_id = game_id
+        self.match_public_code = match_public_code if match_public_code else str(game_id)
         self.status_message = status_message
+        self.match_options = dict(match_options) if match_options else {}
         # The game type
         self.game_type = game_type
         self.logger = logging.getLogger(f"GameInterface[{game_type}]")
@@ -97,6 +101,8 @@ class GameInterface:
         elif player_order == PlayerOrder.REVERSE:
             players = list(reversed(players))
 
+        players = game_class.seat_players(players, game_type)
+
         # All players in the game
         self.players = players
         self.rated = rated  # Is the game rated?
@@ -115,7 +121,7 @@ class GameInterface:
                 game_players.append(
                     Player(
                         mu=MU,
-                        sigma=MU * get_trueskill_fractions(self.game_type)["sigma"],
+                        sigma=MU * game_class.trueskill_parameters(self.game_type)["sigma"],
                         ranking=None,
                         id=participant.id,
                         name=getattr(participant, "name", synthetic_bot_name_from_id(participant.id)),
@@ -138,7 +144,10 @@ class GameInterface:
                 )
             )
 
-        self.game = game_class(game_players)
+        if "match_options" in inspect.signature(game_class.__init__).parameters:
+            self.game = game_class(game_players, match_options=self.match_options)
+        else:
+            self.game = game_class(game_players)
         self.game.attach_replay_logger(self._replay_sink_from_game)
         _replay_hook = getattr(self.game, "on_replay_logger_attached", None)
         if callable(_replay_hook):
@@ -195,7 +204,12 @@ class GameInterface:
         rated_prefix = get("queue.thread_rated_prefix") if self.rated else ""
 
         game_thread = await self.status_message.channel.create_thread(  # Create the private thread.
-            name=fmt("queue.thread_name", prefix=rated_prefix, game=self.game.name, match_id=self.game_id),
+            name=fmt(
+                "queue.thread_name",
+                prefix=rated_prefix,
+                game=self.game.name,
+                match_code=self.match_public_code,
+            ),
             type=discord.ChannelType.private_thread, invitable=False)  # Don't allow people to add themselves
 
         for player in self.players:
@@ -252,10 +266,9 @@ class GameInterface:
                 message = await ctx.followup.send(content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=5)
                 return
+            function_to_call = self._resolve_move_callable(name)
             try:
                 # Call the move function with arguments (player, <expanded arguments>
-                function_to_call = self._resolve_move_callable(name)
-
                 move_response: Response = getattr(self.game, function_to_call)(
                     internal_player_to_player(db.database.get_player(ctx.user, ctx.guild.id), self.game_type),
                     **arguments)
@@ -274,31 +287,78 @@ class GameInterface:
                 await ctx.followup.send(embed=error_embed, ephemeral=True)
                 return
 
-            if move_response is not None:
-                send_move, set_delete_hook = move_response.generate_message(ctx.followup.send, self.thread.id,
-                                                                            enable_view_components=False)
-                sent_message = await send_move
-                if sent_message is False:  # This means there was a null Response, so delete
-                    await ctx.delete_original_response()
-                hook = set_delete_hook(sent_message)
-                if hook:
-                    await hook
-            else:
-                await ctx.delete_original_response()
+            try:
+                if move_response is not None:
+                    send_move, set_delete_hook = move_response.generate_message(ctx.followup.send, self.thread.id,
+                                                                                enable_view_components=False)
+                    sent_message = await send_move
+                    if sent_message is False:  # This means there was a null Response, so delete
+                        try:
+                            await ctx.delete_original_response()
+                        except Exception:
+                            log.warning(
+                                "delete_original_response failed (slash move) name=%r context=%s",
+                                name,
+                                contextify(ctx),
+                                exc_info=True,
+                            )
+                    hook = set_delete_hook(sent_message)
+                    if hook:
+                        await hook
+                else:
+                    try:
+                        await ctx.delete_original_response()
+                    except Exception:
+                        log.warning(
+                            "delete_original_response failed (slash move) name=%r context=%s",
+                            name,
+                            contextify(ctx),
+                            exc_info=True,
+                        )
+            except Exception:
+                log.exception(
+                    "move_by_command UI phase failed name=%r context=%s",
+                    name,
+                    contextify(ctx),
+                )
+                try:
+                    await ctx.followup.send(
+                        embed=ErrorEmbed(
+                            ctx,
+                            what_failed=get("move.unexpected_processing_error"),
+                            reason=None,
+                        ),
+                        ephemeral=True,
+                    )
+                except Exception:
+                    pass
 
-            await self.display_game_state()  # Update game state
-
-            _cmd = self._lookup_move_command(function_to_call)
-            if self._should_persist_move_replay(move_response, _cmd):
-                self._persist_move_and_replay(function_to_call, ctx.user.id, arguments, "slash_command")
-
-            if (outcome := self.game.outcome()) is not None:  # Game is over
-                log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
-                          f" context: {contextify(ctx)}")
-                message = await ctx.followup.send(content=get("game.over_short"), ephemeral=True)
-                await message.delete(delay=5)
-                await game_over(self, outcome)
-                return
+            try:
+                await self._move_postamble(
+                    ctx=ctx,
+                    move_response=move_response,
+                    python_callback_name=function_to_call,
+                    persist_user_id=ctx.user.id,
+                    persist_args=dict(arguments),
+                    interaction_kind="slash_command",
+                )
+            except Exception:
+                log.exception(
+                    "move_by_command postamble failed name=%r context=%s",
+                    name,
+                    contextify(ctx),
+                )
+                try:
+                    await ctx.followup.send(
+                        embed=ErrorEmbed(
+                            ctx,
+                            what_failed=get("move.unexpected_processing_error"),
+                            reason=None,
+                        ),
+                        ephemeral=True,
+                    )
+                except Exception:
+                    pass
 
     def _resolve_move_callable(self, command_name: str) -> str:
         callback = None
@@ -324,6 +384,33 @@ class GameInterface:
             if effective == python_callback_name:
                 return cmd
         return None
+
+    async def _move_postamble(
+        self,
+        *,
+        ctx: discord.Interaction,
+        move_response: Any,
+        python_callback_name: str,
+        persist_user_id: int,
+        persist_args: dict[str, Any],
+        interaction_kind: str,
+    ) -> None:
+        log = self.logger.getChild("move[postamble]")
+        await self.display_game_state()
+        _cmd = self._lookup_move_command(python_callback_name)
+        if self._should_persist_move_replay(move_response, _cmd):
+            self._persist_move_and_replay(
+                python_callback_name, persist_user_id, persist_args, interaction_kind
+            )
+        if (outcome := self.game.outcome()) is not None:
+            log.debug(
+                "Received not-null game outcome: %r context: %s",
+                outcome,
+                contextify(ctx),
+            )
+            message = await ctx.followup.send(content=get("game.over_short"), ephemeral=True)
+            await message.delete(delay=5)
+            await game_over(self, outcome)
 
     @staticmethod
     def _should_persist_move_replay(move_response: Any, cmd) -> bool:
@@ -494,7 +581,18 @@ class GameInterface:
         except Exception as err:
             log.error(f"Bot turn failed with error {err!r}", exc_info=True)
             if self.thread is not None:
-                await self.thread.send(fmt("game.bot_failed_move", player=getattr(self.current_turn, "mention", "Bot")))
+                try:
+                    await self.thread.send(
+                        embed=ErrorEmbed(
+                            ctx=None,
+                            what_failed=get("move.unexpected_processing_error"),
+                            reason=None,
+                        )
+                    )
+                except Exception:
+                    await self.thread.send(
+                        fmt("game.bot_failed_move", player=getattr(self.current_turn, "mention", "Bot"))
+                    )
         finally:
             self.processing_bot_turn = False
 
@@ -572,31 +670,58 @@ class GameInterface:
                 await ctx.followup.send(embed=error_embed, ephemeral=True)
                 return
 
-            if move_response is not None:
-                send_move, set_delete_hook = move_response.generate_message(ctx.followup.send, self.thread.id,
-                                                                            enable_view_components=False)
-                sent_message = await send_move
-                hook = set_delete_hook(sent_message)
-                if hook:
-                    await hook
+            try:
+                if move_response is not None:
+                    send_move, set_delete_hook = move_response.generate_message(ctx.followup.send, self.thread.id,
+                                                                                enable_view_components=False)
+                    sent_message = await send_move
+                    hook = set_delete_hook(sent_message)
+                    if hook:
+                        await hook
+            except Exception:
+                log.exception(
+                    "move_by_button UI phase failed name=%r context=%s",
+                    name,
+                    contextify(ctx),
+                )
+                try:
+                    await ctx.followup.send(
+                        embed=ErrorEmbed(
+                            ctx,
+                            what_failed=get("move.unexpected_processing_error"),
+                            reason=None,
+                        ),
+                        ephemeral=True,
+                    )
+                except Exception:
+                    pass
 
-            # NOTE: move_by_button does not need the delete_original_response call because it doesn't show
-            # Thinking...   This means we can effectively ignore a null response value
-
-            # Update display painting
-            await self.display_game_state()
-
-            _bcmd = self._lookup_move_command(name)
-            if self._should_persist_move_replay(move_response, _bcmd):
-                self._persist_move_and_replay(name, ctx.user.id, type_converted_arguments, "button")
-
-            if (outcome := self.game.outcome()) is not None:  # Game is over
-                log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
-                          f" context: {contextify(ctx)}")
-                message = await ctx.followup.send(content=get("game.over_short"), ephemeral=True)
-                await message.delete(delay=5)
-                await game_over(self, outcome)
-                return
+            try:
+                await self._move_postamble(
+                    ctx=ctx,
+                    move_response=move_response,
+                    python_callback_name=name,
+                    persist_user_id=ctx.user.id,
+                    persist_args=dict(type_converted_arguments),
+                    interaction_kind="button",
+                )
+            except Exception:
+                log.exception(
+                    "move_by_button postamble failed name=%r context=%s",
+                    name,
+                    contextify(ctx),
+                )
+                try:
+                    await ctx.followup.send(
+                        embed=ErrorEmbed(
+                            ctx,
+                            what_failed=get("move.unexpected_processing_error"),
+                            reason=None,
+                        ),
+                        ephemeral=True,
+                    )
+                except Exception:
+                    pass
 
     async def move_by_select(self, ctx: discord.Interaction, name: str, current_turn_required: bool = True):
         """
@@ -650,33 +775,58 @@ class GameInterface:
                 await ctx.followup.send(embed=error_embed, ephemeral=True)
                 return
 
-            if move_response is not None:
-                send_move, set_delete_hook = move_response.generate_message(ctx.followup.send, self.thread.id,
-                                                                            enable_view_components=False)
-                sent_message = await send_move
-                hook = set_delete_hook(sent_message)
-                if hook:
-                    await hook
-
-            # NOTE: move_by_select does not need the delete_original_response call because it doesn't show
-            # Thinking...   This means we can effectively ignore a null response value
-
-            # Update display painting
-            await self.display_game_state()
-
-            _scmd = self._lookup_move_command(name)
-            if self._should_persist_move_replay(move_response, _scmd):
-                self._persist_move_and_replay(
-                    name, ctx.user.id, {"values": ctx.data.get("values", [])}, "select"
+            try:
+                if move_response is not None:
+                    send_move, set_delete_hook = move_response.generate_message(ctx.followup.send, self.thread.id,
+                                                                                enable_view_components=False)
+                    sent_message = await send_move
+                    hook = set_delete_hook(sent_message)
+                    if hook:
+                        await hook
+            except Exception:
+                log.exception(
+                    "move_by_select UI phase failed name=%r context=%s",
+                    name,
+                    contextify(ctx),
                 )
+                try:
+                    await ctx.followup.send(
+                        embed=ErrorEmbed(
+                            ctx,
+                            what_failed=get("move.unexpected_processing_error"),
+                            reason=None,
+                        ),
+                        ephemeral=True,
+                    )
+                except Exception:
+                    pass
 
-            if (outcome := self.game.outcome()) is not None:  # Game is over
-                log.debug(f"Received not-null game outcome: {outcome!r}. Now ending game"
-                          f" context: {contextify(ctx)}")
-                message = await ctx.followup.send(content=get("game.over_short"), ephemeral=True)
-                await message.delete(delay=5)
-                await game_over(self, outcome)
-                return
+            try:
+                await self._move_postamble(
+                    ctx=ctx,
+                    move_response=move_response,
+                    python_callback_name=name,
+                    persist_user_id=ctx.user.id,
+                    persist_args={"values": ctx.data.get("values", [])},
+                    interaction_kind="select",
+                )
+            except Exception:
+                log.exception(
+                    "move_by_select postamble failed name=%r context=%s",
+                    name,
+                    contextify(ctx),
+                )
+                try:
+                    await ctx.followup.send(
+                        embed=ErrorEmbed(
+                            ctx,
+                            what_failed=get("move.unexpected_processing_error"),
+                            reason=None,
+                        ),
+                        ephemeral=True,
+                    )
+                except Exception:
+                    pass
 
     async def display_game_state(self) -> None:
         """
@@ -864,6 +1014,11 @@ class MatchmakingInterface:
         # Game class
         self.game = getattr(self.module, GAME_TYPES[game_type][1])
 
+        self.rated_requested = self.rated
+        self._specs = tuple(getattr(self.game, "customizable_options", ()) or ())
+        self.match_settings: dict[str, str | int] = {s.key: s.default for s in self._specs}
+        self._sync_rated_flag()
+
         # Required and maximum players for game TODO: more complex requirements for start/stop
 
         player_count = resolve_player_count(self.game)
@@ -880,6 +1035,25 @@ class MatchmakingInterface:
     @property
     def has_bots(self) -> bool:
         return len(self.bots) > 0
+
+    def _match_settings_are_default(self) -> bool:
+        for spec in self._specs:
+            if self.match_settings.get(spec.key, spec.default) != spec.default:
+                return False
+        return True
+
+    def _sync_rated_flag(self) -> None:
+        if self.has_bots:
+            self.rated = False
+            return
+        if (
+            self._specs
+            and getattr(self.game, "customization_forces_unrated_when_non_default", True)
+            and not self._match_settings_are_default()
+        ):
+            self.rated = False
+            return
+        self.rated = self.rated_requested
 
     def all_players(self) -> list[InternalPlayer | Player]:
         return [*sorted(self.queued_players, key=lambda p: p.id), *self.bots]
@@ -909,8 +1083,25 @@ class MatchmakingInterface:
             bot_index=len(self.bots),
         )
         self.bots.append(bot_player)
-        self.rated = False
+        self._sync_rated_flag()
         return None
+
+    async def callback_lobby_option(self, ctx: discord.Interaction, key: str) -> None:
+        """Handle string select for a lobby :attr:`customizable_options` key (creator only)."""
+        log = self.logger.getChild("lobby_option")
+        if ctx.user.id != self.creator.id:
+            await ctx.followup.send(get("queue.only_creator_lobby_options"), ephemeral=True)
+            return
+        spec = next((s for s in self._specs if s.key == key), None)
+        if spec is None:
+            log.warning("unknown lobby option key=%r lobby=%s", key, self.message.id)
+            await ctx.followup.send(get("matchmaking.invalid_interaction"), ephemeral=True)
+            return
+        raw = (ctx.data.get("values") or [""])[0]
+        self.match_settings[key] = spec.coerce(raw)
+        self._sync_rated_flag()
+        await self.update_embed()
+        await ctx.followup.send(get("queue.lobby_option_updated"), ephemeral=True)
 
     async def update_embed(self) -> None:
         """
@@ -923,6 +1114,17 @@ class MatchmakingInterface:
 
         game_rated_text = get("queue.rated") if self.rated else get("queue.not_rated")
         private_text = get("queue.private_status") if self.private else get("queue.public_status")
+
+        desc_suffix = ""
+        if (
+            self._specs
+            and self.rated_requested
+            and not self.rated
+            and not self.has_bots
+            and not self._match_settings_are_default()
+            and getattr(self.game, "customization_forces_unrated_when_non_default", True)
+        ):
+            desc_suffix = f"\n\n{get('queue.customization_unrated_note')}"
 
         # Parameters in embed title:
         # Time
@@ -944,7 +1146,7 @@ class MatchmakingInterface:
                                         f"👤{self.allowed_players}{LONG_SPACE_EMBED * 2}"
                                         f"📈{game_metadata['difficulty']}{LONG_SPACE_EMBED * 2}"
                                         f"📊{game_rated_text}{LONG_SPACE_EMBED * 2}"
-                                        f"{private_text}")
+                                        f"{private_text}{desc_suffix}")
 
         # Add columns for names, elo, and creator status
         all_players = self.all_players()
@@ -968,6 +1170,17 @@ class MatchmakingInterface:
             inline=False,
         )
 
+        if self._specs:
+            opt_lines = []
+            for spec in self._specs:
+                v = self.match_settings.get(spec.key, spec.default)
+                opt_lines.append(f"**{spec.label}** → `{v}`")
+            embed.add_field(
+                name=get("queue.field_match_options"),
+                value="\n".join(opt_lines),
+                inline=False,
+            )
+
         # Can the start button be pressed?
         start_enabled = self.player_verification_function(len(self.queued_players))
         player_count = resolve_player_count(self.game)
@@ -977,10 +1190,26 @@ class MatchmakingInterface:
             start_enabled = len(self.all_players()) == player_count
 
         # Create matchmaking button view (with callbacks and can_start)
-        view = MatchmakingView(join_button_id=f"join/{self.message.id}",
-                               leave_button_id=f"leave/{self.message.id}",
-                               start_button_id=f"start/{self.message.id}",
-                               can_start=start_enabled)
+        join_id = f"join/{self.message.id}"
+        leave_id = f"leave/{self.message.id}"
+        start_id = f"start/{self.message.id}"
+        if self._specs:
+            view = MatchmakingLobbyView(
+                join_button_id=join_id,
+                leave_button_id=leave_id,
+                start_button_id=start_id,
+                can_start=start_enabled,
+                lobby_message_id=self.message.id,
+                option_specs=self._specs,
+                current_values=dict(self.match_settings),
+            )
+        else:
+            view = MatchmakingView(
+                join_button_id=join_id,
+                leave_button_id=leave_id,
+                start_button_id=start_id,
+                can_start=start_enabled,
+            )
 
         # Update the embed in Discord
         await self.message.edit(embed=embed, view=view)
@@ -1335,12 +1564,14 @@ async def _successful_matchmaking_impl(interface: MatchmakingInterface) -> None:
     CURRENT_MATCHMAKING.pop(message.id, None)  # Remove the MatchmakingInterface from the CURRENT_MATCHMAKING tracker
 
     # Set up a new GameInterface
-    new_game_id = db.database.create_game(
+    match_opts_payload = dict(interface.match_settings)
+    new_game_id, match_public_code = db.database.create_game(
         game_name=game_type,
         guild_id=message.guild.id,
         participants=[player.id for player in all_players],
         is_rated=(rated and not has_bots),
-        channel_id=message.channel.id
+        channel_id=message.channel.id,
+        game_config={"match_options": match_opts_payload},
     )
     from utils.analytics import EventType, register_event
 
@@ -1352,7 +1583,16 @@ async def _successful_matchmaking_impl(interface: MatchmakingInterface) -> None:
         match_id=new_game_id,
         metadata={"player_count": len(all_players), "rated": rated and not has_bots},
     )
-    game = GameInterface(game_type, message, creator, list(all_players), rated and not has_bots, new_game_id)
+    game = GameInterface(
+        game_type,
+        message,
+        creator,
+        list(all_players),
+        rated and not has_bots,
+        new_game_id,
+        match_options=match_opts_payload,
+        match_public_code=match_public_code,
+    )
     try:
         await game.setup()  # Setup thread and other stuff
 
@@ -1538,8 +1778,8 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
     players = interface.players
     game_id = interface.game_id
 
-    # TrueSkill environment (via Game.trueskill_fractions / GAME_TRUESKILL)
-    ts = get_trueskill_fractions(game_type)
+    # TrueSkill environment from the live game class (merges trueskill_scale + GAME_TRUESKILL)
+    ts = type(interface.game).trueskill_parameters(game_type)
     sigma = MU * ts["sigma"]
     beta = MU * ts["beta"]
     tau = MU * ts["tau"]

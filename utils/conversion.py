@@ -110,7 +110,7 @@ def player_representative(possible_players: list[int]):
     :param possible_players:
     :return: string representing the the amount
     """
-    if type(possible_players) == int:
+    if isinstance(possible_players, int):
         return str(possible_players)
     nums = sorted(set(possible_players))
 
@@ -137,7 +137,7 @@ def player_verification_function(possible_players: list[int] | int):
     :param possible_players: either an integer or a list of integers representing the possible player count
     :return: a function that checks if an argument is in the list of possible player counts
     """
-    if type(possible_players) == int:  # One number
+    if isinstance(possible_players, int):  # One number
         return lambda x: x == possible_players
     else:  # Many numbers
         return lambda x: x in set(possible_players)
@@ -155,7 +155,7 @@ def contextify(ctx: discord.Interaction | discord.Member):
     guild_id = ctx.guild.id if is_guild_command else None
     guild_name = ctx.guild.name if is_guild_command else None
 
-    if type(ctx) == discord.Interaction:
+    if isinstance(ctx, discord.Interaction):
         return f"guild_id={guild_id} guild_name={guild_name!r} user_id={ctx.user.id}, user_name={ctx.user.name}, is_bot={ctx.user.bot}, data={ctx.data}, type={ctx.type!r}"
     elif isinstance(ctx, discord.Member):
         return (

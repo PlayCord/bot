@@ -12,6 +12,7 @@ from typing import Optional, Dict, Any, List, Tuple
 import discord
 try:
     import psycopg  # psycopg3
+    from psycopg import errors as pg_errors
     from psycopg.rows import dict_row
     from psycopg_pool import ConnectionPool
 except ImportError:
@@ -24,10 +25,10 @@ from api.Player import Player
 from configuration import constants
 from configuration.constants import GAME_TRUESKILL, GAME_TYPES, MU
 from utils.trueskill_params import get_trueskill_fractions
+from utils.match_codes import generate_match_code
 from utils import db_migrations
 from utils.models import (
     User, Guild, Game, Rating, Match, Participant, Move,
-    AnalyticsEvent, RatingHistory, GlobalRating, Season,
     MatchStatus, EventType,
     row_to_user, row_to_guild, row_to_game, row_to_rating,
     row_to_match, row_to_participant, row_to_move
@@ -144,7 +145,7 @@ class InternalPlayer:
         if rating is None or rating.mu is None:
             return "No Rating"
         
-        # Use 20% threshold (from constants.SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD)
+        # Use 20% uncertainty threshold (sigma vs mu)
         if rating.sigma > 0.20 * rating.mu:
             base_rating = str(round(rating.mu)) + "?"
         else:
@@ -884,13 +885,13 @@ class Database:
         participants: List[int],  # List of user IDs
         is_rated: bool = True,
         game_config: Optional[Dict[str, Any]] = None
-    ) -> int:
+    ) -> Tuple[int, str]:
         """
         Create a new match and initialize participants.
-        Returns match_id.
+        Returns (match_id, match_code) with a unique 8-character public ``match_code``.
         """
         self.create_guild(guild_id)
-        
+
         # Ensure all users exist and have ratings
         for user_id in participants:
             self.create_user(user_id)
@@ -898,37 +899,60 @@ class Database:
 
         config_json = json.dumps(game_config or {})
 
-        with self.transaction() as cur:
-            # Insert match
-            cur.execute(
-                """
-                INSERT INTO matches (game_id, guild_id, channel_id, thread_id,
-                                   is_rated, game_config, status)
-                VALUES (%s, %s, %s, %s, %s, %s::jsonb, 'in_progress')
-                RETURNING match_id;
-                """,
-                (game_id, guild_id, channel_id, thread_id, is_rated, config_json)
-            )
-            result = cur.fetchone()
-            match_id = result['match_id']
+        last_err: Optional[Exception] = None
+        for _ in range(48):
+            match_code = generate_match_code()
+            try:
+                with self.transaction() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO matches (game_id, guild_id, channel_id, thread_id,
+                            is_rated, game_config, status, match_code)
+                        VALUES (%s, %s, %s, %s, %s, %s::jsonb, 'in_progress', %s)
+                        RETURNING match_id;
+                        """,
+                        (
+                            game_id,
+                            guild_id,
+                            channel_id,
+                            thread_id,
+                            is_rated,
+                            config_json,
+                            match_code,
+                        ),
+                    )
+                    result = cur.fetchone()
+                    match_id = result["match_id"]
 
-            # Add participants
-            for idx, user_id in enumerate(participants, start=1):
-                # Get current rating for history
-                rating = self.get_user_rating(user_id, game_id)
-                mu_before = rating.mu if rating else MU
-                sigma_before = rating.sigma if rating else (MU / 3)
+                    for idx, user_id in enumerate(participants, start=1):
+                        rating = self.get_user_rating(user_id, game_id)
+                        mu_before = rating.mu if rating else MU
+                        sigma_before = rating.sigma if rating else (MU / 3)
 
-                cur.execute(
-                    """
-                    INSERT INTO match_participants 
-                        (match_id, user_id, player_number, mu_before, sigma_before)
-                    VALUES (%s, %s, %s, %s, %s);
-                    """,
-                    (match_id, user_id, idx, mu_before, sigma_before)
-                )
+                        cur.execute(
+                            """
+                            INSERT INTO match_participants
+                                (match_id, user_id, player_number, mu_before, sigma_before)
+                            VALUES (%s, %s, %s, %s, %s);
+                            """,
+                            (match_id, user_id, idx, mu_before, sigma_before),
+                        )
 
-        return match_id
+                return match_id, match_code
+            except pg_errors.UniqueViolation as e:
+                last_err = e
+                continue
+
+        raise RuntimeError("Could not allocate a unique match_code") from last_err
+
+    def get_match_by_code(self, code: str) -> Optional[Match]:
+        """Resolve a match by its public ``match_code`` (case-insensitive)."""
+        c = (code or "").strip().lower()
+        if not c:
+            return None
+        query = "SELECT * FROM matches WHERE lower(match_code) = lower(%s);"
+        result = self._execute_query(query, (c,), fetchone=True)
+        return row_to_match(result) if result else None
 
     def get_match(self, match_id: int) -> Optional[Match]:
         """Get match by ID"""
@@ -1324,6 +1348,7 @@ class Database:
         query = """
             SELECT 
                 m.match_id,
+                m.match_code,
                 m.game_id,
                 g.game_name as game_key,
                 g.display_name as game_name,
@@ -2015,6 +2040,7 @@ class Database:
         # Return dict format for compatibility
         return {
             'match_id': match.match_id,
+            'match_code': match.match_code,
             'game_id': match.game_id,
             'guild_id': match.guild_id,
             'started': match.started_at,
@@ -2030,8 +2056,8 @@ class Database:
         started_at: datetime,
         is_rated: bool,
         game_data: Dict[str, Any]
-    ) -> int:
-        """Legacy method - record new game with game_name."""
+    ) -> Tuple[int, str]:
+        """Legacy method - record new game with game_name. Returns ``(match_id, match_code)``."""
         game = self.get_game(game_name)
         if not game:
             raise ValueError(f"Game {game_name} not found")
@@ -2044,31 +2070,41 @@ class Database:
 
         game_data_json = json.dumps(game_data or {})
 
-        with self.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO matches
-                        (game_id, guild_id, channel_id, thread_id, started_at, status, is_rated,
-                         game_config, metadata)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb)
-                    RETURNING match_id;
-                    """,
-                    (
-                        game.game_id,
-                        guild_id,
-                        0,
-                        None,
-                        started_at,
-                        status,
-                        is_rated,
-                        game_data_json,
-                        game_data_json,
-                    )
-                )
-                result = cur.fetchone()
-                conn.commit()
-                return result["match_id"]
+        last_err: Optional[Exception] = None
+        for _ in range(48):
+            code = generate_match_code()
+            try:
+                with self.get_connection() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            """
+                            INSERT INTO matches
+                                (game_id, guild_id, channel_id, thread_id, started_at, status, is_rated,
+                                 game_config, metadata, match_code)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s)
+                            RETURNING match_id;
+                            """,
+                            (
+                                game.game_id,
+                                guild_id,
+                                0,
+                                None,
+                                started_at,
+                                status,
+                                is_rated,
+                                game_data_json,
+                                game_data_json,
+                                code,
+                            ),
+                        )
+                        result = cur.fetchone()
+                    conn.commit()
+                    return result["match_id"], code
+            except pg_errors.UniqueViolation as e:
+                last_err = e
+                continue
+
+        raise RuntimeError("Could not allocate a unique match_code") from last_err
 
     def create_game(
         self,
@@ -2079,10 +2115,10 @@ class Database:
         channel_id: Optional[int] = None,
         thread_id: Optional[int] = None,
         game_config: Optional[Dict[str, Any]] = None
-    ) -> int:
+    ) -> Tuple[int, str]:
         """
         Legacy compatibility method - create game with game_name instead of game_id.
-        Maps to new create_match method.
+        Maps to new create_match method. Returns (match_id, match_code).
         """
         game = self.get_game(game_name)
         if not game:
@@ -2097,7 +2133,7 @@ class Database:
             thread_id=thread_id,
             participants=participants,
             is_rated=is_rated,
-            game_config=game_config or {}
+            game_config=game_config or {},
         )
 
     def end_game(

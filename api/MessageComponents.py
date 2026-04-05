@@ -21,24 +21,6 @@ class MessageComponent:
         """
         pass
 
-    # This code causes hasattr(_embed_transform) to return True even when it is not defined for that subclass
-
-    # def _embed_transform(self, embed: discord.Embed) -> None:
-    #     """
-    #     Transform the embed to add whatever parameter to it
-    #     :param embed: the embed to transform
-    #     :return: Nothing
-    #     """
-    #     pass
-    #
-    # def _view_transform(self, view: discord.ui.View, game_id: int) -> None:
-    #     """
-    #     Transform the view to add whatever parameter to it
-    #     :param view: the view to transform
-    #     :return: Nothing
-    #     """
-    #     pass
-
 
 class Description(MessageComponent):
     """
@@ -248,8 +230,6 @@ class ButtonStyle(Enum):
     success = 3
     danger = 4
     link = 5
-    # Disable premium buttons for obvious reasons
-    # premium = 6
 
     # Aliases
     blurple = 1

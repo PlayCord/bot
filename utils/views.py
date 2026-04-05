@@ -1,5 +1,7 @@
 import discord
+from discord import SelectOption
 
+from configuration.constants import BUTTON_PREFIX_LOBBY_OPT
 from utils.emojis import get_button_emoji
 from utils.locale import get
 
@@ -87,6 +89,83 @@ class MatchmakingView(DynamicButtonView):
             {"label": get("buttons.start"), "style": discord.ButtonStyle.blurple, "id": start_button_id,
              "emoji": get_button_emoji("start"), "callback": "none", "disabled": not can_start}
         ])
+
+
+class MatchmakingLobbyView(discord.ui.View):
+    """
+    Join / leave / start plus optional string selects for per-game lobby settings (creator-only).
+    """
+
+    async def _route_to_cog(self, interaction: discord.Interaction) -> None:
+        """Persistent components are handled in MatchmakingCog.on_interaction."""
+        pass
+
+    def __init__(
+        self,
+        join_button_id: str,
+        leave_button_id: str,
+        start_button_id: str,
+        can_start: bool,
+        lobby_message_id: int,
+        option_specs: tuple,
+        current_values: dict[str, str | int],
+    ) -> None:
+        super().__init__(timeout=None)
+
+        join_btn = discord.ui.Button(
+            label=get("buttons.join"),
+            style=discord.ButtonStyle.gray,
+            custom_id=join_button_id,
+            emoji=get_button_emoji("join"),
+            row=0,
+        )
+        join_btn.callback = self._route_to_cog
+        self.add_item(join_btn)
+
+        leave_btn = discord.ui.Button(
+            label=get("buttons.leave"),
+            style=discord.ButtonStyle.gray,
+            custom_id=leave_button_id,
+            emoji=get_button_emoji("leave"),
+            row=0,
+        )
+        leave_btn.callback = self._route_to_cog
+        self.add_item(leave_btn)
+
+        start_btn = discord.ui.Button(
+            label=get("buttons.start"),
+            style=discord.ButtonStyle.blurple,
+            custom_id=start_button_id,
+            emoji=get_button_emoji("start"),
+            disabled=not can_start,
+            row=0,
+        )
+        start_btn.callback = self._route_to_cog
+        self.add_item(start_btn)
+
+        for row, spec in enumerate(option_specs, start=1):
+            if row > 4:
+                break
+            cur = current_values.get(spec.key, spec.default)
+            options: list[SelectOption] = []
+            for label, value, is_def in spec.select_options():
+                options.append(
+                    SelectOption(
+                        label=label[:100],
+                        value=value[:100],
+                        default=(str(value) == str(cur)),
+                    )
+                )
+            sel = discord.ui.Select(
+                custom_id=f"{BUTTON_PREFIX_LOBBY_OPT}{lobby_message_id}/{spec.key}",
+                placeholder=spec.label[:150],
+                min_values=1,
+                max_values=1,
+                options=options,
+                row=row,
+            )
+            sel.callback = self._route_to_cog
+            self.add_item(sel)
 
 
 class InviteView(DynamicButtonView):

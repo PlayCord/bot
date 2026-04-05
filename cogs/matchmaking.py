@@ -26,7 +26,9 @@ class MatchmakingCog(commands.Cog):
         if custom_id is None:
             return
 
-        if (
+        if custom_id.startswith(BUTTON_PREFIX_LOBBY_OPT):
+            await self.lobby_select_callback(ctx)
+        elif (
                 custom_id.startswith(BUTTON_PREFIX_JOIN)
                 or custom_id.startswith(BUTTON_PREFIX_LEAVE)
                 or custom_id.startswith(BUTTON_PREFIX_START)
@@ -34,6 +36,32 @@ class MatchmakingCog(commands.Cog):
             await self.matchmaking_button_callback(ctx)
         elif custom_id.startswith(BUTTON_PREFIX_INVITE):
             await self.invite_accept_callback(ctx)
+
+    async def lobby_select_callback(self, ctx: discord.Interaction) -> None:
+        """Lobby string-select for per-game match options (handled by MatchmakingInterface)."""
+        await ctx.response.defer(ephemeral=True)
+        f_log = log.getChild("callback.lobby_select")
+        data = ctx.data if ctx.data is not None else {}
+        cid = data.get("custom_id")
+        if not cid or not cid.startswith(BUTTON_PREFIX_LOBBY_OPT):
+            await ctx.followup.send(content=get("matchmaking.invalid_interaction"), ephemeral=True)
+            return
+        rest = cid[len(BUTTON_PREFIX_LOBBY_OPT):]
+        mid_str, _, key = rest.partition("/")
+        if not mid_str or not key:
+            await ctx.followup.send(content=get("matchmaking.invalid_button"), ephemeral=True)
+            return
+        try:
+            matchmaking_id = int(mid_str)
+        except ValueError:
+            await ctx.followup.send(content=get("matchmaking.invalid_button"), ephemeral=True)
+            return
+        if matchmaking_id not in CURRENT_MATCHMAKING:
+            await ctx.followup.send(content=get("matchmaking.session_expired"), ephemeral=True)
+            return
+        f_log.debug("lobby option key=%r lobby=%s user=%s", key, matchmaking_id, ctx.user.id)
+        matchmaker = CURRENT_MATCHMAKING[matchmaking_id]
+        await matchmaker.callback_lobby_option(ctx, key)
 
     async def matchmaking_button_callback(self, ctx: discord.Interaction) -> None:
         """

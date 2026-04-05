@@ -28,6 +28,27 @@ HelpGameInfoEmbed = getattr(_embeds, "HelpGameInfoEmbed", _embeds.CustomEmbed)
 
 log = logging.getLogger(LOGGING_ROOT)
 
+_GAME_METADATA: dict[str, dict] = {}
+
+
+def _load_game_metadata() -> None:
+    """Populate game class metadata once at import (avoids importlib per autocomplete keystroke)."""
+    global _GAME_METADATA
+    _GAME_METADATA = {}
+    for gid, (mod_name, cls_name) in GAME_TYPES.items():
+        game_class = getattr(importlib.import_module(mod_name), cls_name)
+        _GAME_METADATA[gid] = {
+            "class": game_class,
+            "name": getattr(game_class, "name", gid),
+            "summary": getattr(game_class, "summary", None),
+            "description": getattr(game_class, "description", ""),
+            "time": getattr(game_class, "time", None),
+            "difficulty": getattr(game_class, "difficulty", None),
+        }
+
+
+_load_game_metadata()
+
 
 def _ordinal(value: int) -> str:
     if value is None:
@@ -39,18 +60,39 @@ def _ordinal(value: int) -> str:
     return f"{value}{suffix}"
 
 
+def resolve_match_for_replay(raw: str, guild_id: int):
+    """Resolve a match from an 8-char public code or a numeric ``match_id`` (guild-scoped)."""
+    from utils.match_codes import is_match_code_token
+
+    s = (raw or "").strip().lower()
+    if not s:
+        return None
+    if is_match_code_token(s):
+        m = db.database.get_match_by_code(s)
+        if m is not None and m.guild_id == guild_id:
+            return m
+        if s.isdigit():
+            m2 = db.database.get_match(int(s))
+            if m2 is not None and m2.guild_id == guild_id:
+                return m2
+        return None
+    if s.isdigit():
+        m = db.database.get_match(int(s))
+        if m is not None and m.guild_id == guild_id:
+            return m
+    return None
+
+
 async def autocomplete_game_id(ctx: discord.Interaction, current: str) -> list[Choice[str]]:
     query = current.lower().strip()
     matches = []
 
-    for game_id, (module_name, class_name) in GAME_TYPES.items():
-        game_class = getattr(importlib.import_module(module_name), class_name)
-        description = str(getattr(game_class, "summary", None))
-        if description is not None:
+    for game_id, meta in _GAME_METADATA.items():
+        summary = meta["summary"]
+        description = str(summary) if summary is not None else ""
+        if description:
             description = " (" + description + ")"
-        else:
-            description = ""
-        display_name = str(getattr(game_class, "name", game_id)) + description
+        display_name = str(meta["name"]) + description
 
         searchable = f"{game_id} {display_name}".lower()
         if query and query not in searchable:
@@ -422,9 +464,8 @@ class GeneralCog(commands.Cog):
         )
 
         games_text = []
-        for game_id, (module_name, class_name) in list(GAME_TYPES.items())[:8]:
-            game_class = getattr(importlib.import_module(module_name), class_name)
-            game_name = getattr(game_class, 'name', game_id)
+        for game_id in list(GAME_TYPES.keys())[:8]:
+            game_name = _GAME_METADATA[game_id]["name"]
             games_text.append(f"• **{game_name}** (`/play {game_id}`)")
 
         if len(GAME_TYPES) > 8:
@@ -458,8 +499,7 @@ class GeneralCog(commands.Cog):
             )
             return
 
-        game_info = GAME_TYPES[game]
-        game_class = getattr(importlib.import_module(game_info[0]), game_info[1])
+        game_class = _GAME_METADATA[game]["class"]
 
         embed = HelpGameInfoEmbed(game, game_class)
         await ctx.response.send_message(embed=embed)
@@ -487,8 +527,7 @@ class GeneralCog(commands.Cog):
         # Defer response for database query (shows "thinking...")
         await ctx.response.defer()
 
-        game_class = getattr(importlib.import_module(GAME_TYPES[game][0]), GAME_TYPES[game][1])
-        game_name = game_class.name
+        game_name = _GAME_METADATA[game]["name"]
         game_db = db.database.get_game(game)
         if not game_db:
             await ctx.followup.send(get("errors.game_not_registered.value"), ephemeral=True)
@@ -647,12 +686,12 @@ class GeneralCog(commands.Cog):
         embed.description = fmt("embeds.catalog.description", count=len(GAME_TYPES))
 
         for game_id in page_games:
-            game_info = GAME_TYPES[game_id]
-            game_class = getattr(importlib.import_module(game_info[0]), game_info[1])
-            game_name = getattr(game_class, 'name', game_id)
-            game_desc = getattr(game_class, 'description', get("help.game_info.no_description"))
-            game_time = getattr(game_class, 'time', get("help.game_info.unknown"))
-            game_difficulty = getattr(game_class, 'difficulty', get("help.game_info.unknown"))
+            meta = _GAME_METADATA[game_id]
+            game_class = meta["class"]
+            game_name = meta["name"]
+            game_desc = meta["description"] or get("help.game_info.no_description")
+            game_time = meta["time"] or get("help.game_info.unknown")
+            game_difficulty = meta["difficulty"] or get("help.game_info.unknown")
             game_players = resolve_player_count(game_class)
             if game_players is None:
                 game_players = get("help.game_info.unknown")
@@ -715,9 +754,7 @@ class GeneralCog(commands.Cog):
 
         game_stats = []
         for game_id in GAME_TYPES:
-            game_info = GAME_TYPES[game_id]
-            game_class = getattr(importlib.import_module(game_info[0]), game_info[1])
-            game_name = getattr(game_class, 'name', game_id)
+            game_name = _GAME_METADATA[game_id]["name"]
             rating_info = db.database.get_user_game_ratings(user.id, game_id)
             if rating_info and rating_info.get('matches_played', 0) > 0:
                 mu = rating_info.get('mu', 1000)
@@ -825,8 +862,7 @@ class GeneralCog(commands.Cog):
             await ctx.response.send_message(get("errors.game_not_registered.value"), ephemeral=True)
             return
 
-        game_class = getattr(importlib.import_module(GAME_TYPES[game][0]), GAME_TYPES[game][1])
-        game_name = getattr(game_class, 'name', game)
+        game_name = _GAME_METADATA[game]["name"]
 
         embed, chart_file, has_data, is_last_page = self._build_history_embed(
             user, game_name, game_db.game_id, ctx.guild.id, page, days, f_log
@@ -894,7 +930,7 @@ class GeneralCog(commands.Cog):
                     if len(s) > 72:
                         s = s[:69] + "..."
                     summ_txt = f" — {s}"
-                mid = row.get("match_id", "?")
+                mid = row.get("match_code") or row.get("match_id", "?")
                 gkey = row.get("game_key") or "?"
                 lines.append(
                     f"`{mid}` `{gkey}` · {rank_text}/{row.get('player_count', '?')} | "
@@ -987,6 +1023,8 @@ class GeneralCog(commands.Cog):
         pages: list[str],
         page_1based: int,
         global_summary: str | None = None,
+        *,
+        replay_display: str | None = None,
     ) -> CustomEmbed:
         total = max(1, len(pages))
         p = max(1, min(page_1based, total))
@@ -996,8 +1034,9 @@ class GeneralCog(commands.Cog):
         if global_summary and str(global_summary).strip():
             head = f"{str(global_summary).strip()}\n\n"
         desc = (head + code)[:4000]
+        disp = replay_display if replay_display is not None else str(match_id)
         emb = CustomEmbed(
-            title=fmt("commands.replay.title", id=match_id, game=game_label),
+            title=fmt("commands.replay.title", id=disp, game=game_label),
             description=desc,
         )
         emb.set_footer(text=fmt("pagination.page_footer", page=p, max=total))
@@ -1011,9 +1050,15 @@ class GeneralCog(commands.Cog):
         match_id: int,
         game_label: str,
         global_summary: str | None,
+        replay_display: str,
     ):
         embed = self._build_replay_embed(
-            match_id, game_label, pages, new_page, global_summary=global_summary
+            match_id,
+            game_label,
+            pages,
+            new_page,
+            global_summary=global_summary,
+            replay_display=replay_display,
         )
         view = PaginationView(
             guild_id=interaction.guild.id if interaction.guild else 0,
@@ -1021,31 +1066,34 @@ class GeneralCog(commands.Cog):
             current_page=new_page,
             max_pages=len(pages),
             callback_handler=lambda inter, np: self._replay_page_callback(
-                inter, np, pages, match_id, game_label, global_summary
+                inter, np, pages, match_id, game_label, global_summary, replay_display
             ),
         )
         await interaction.edit_original_response(embed=embed, view=view)
 
     @command_root.command(name="replay", description=get("commands.replay.description"))
-    @app_commands.describe(match_id=get("commands.replay.param_match_id"))
+    @app_commands.describe(match_ref=get("commands.replay.param_match_ref"))
     @app_commands.guild_only()
     @app_commands.check(interaction_check)
-    async def command_replay(self, ctx: discord.Interaction, match_id: int):
+    async def command_replay(self, ctx: discord.Interaction, match_ref: app_commands.Range[str, 1, 32]):
         await ctx.response.defer(ephemeral=True)
         if ctx.guild is None:
             await ctx.followup.send(content=get("commands.set_channel.guild_only"), ephemeral=True)
             return
-        match = db.database.get_match(match_id)
-        if match is None or match.guild_id != ctx.guild.id:
+        raw = (match_ref or "").strip()
+        match = resolve_match_for_replay(raw, ctx.guild.id)
+        if match is None:
             await ctx.followup.send(
                 content=format_user_error_message("replay_not_found"),
                 ephemeral=True,
             )
             return
+        match_id = match.match_id
+        replay_display = (match.match_code or "").strip() or str(match_id)
         events = db.database.get_replay_events(match_id)
         if not events:
             await ctx.followup.send(
-                content=fmt("commands.replay.no_data", match_id=match_id),
+                content=fmt("commands.replay.no_data", match_display=replay_display),
                 ephemeral=True,
             )
             return
@@ -1059,7 +1107,12 @@ class GeneralCog(commands.Cog):
             if replay_global is not None:
                 replay_global = str(replay_global).strip() or None
         embed = self._build_replay_embed(
-            match_id, game_label, pages, 1, global_summary=replay_global
+            match_id,
+            game_label,
+            pages,
+            1,
+            global_summary=replay_global,
+            replay_display=replay_display,
         )
         view = PaginationView(
             guild_id=ctx.guild.id,
@@ -1067,7 +1120,7 @@ class GeneralCog(commands.Cog):
             current_page=1,
             max_pages=len(pages),
             callback_handler=lambda inter, np: self._replay_page_callback(
-                inter, np, pages, match_id, game_label, replay_global
+                inter, np, pages, match_id, game_label, replay_global, replay_display
             ),
         )
         await ctx.followup.send(embed=embed, view=view, ephemeral=True)

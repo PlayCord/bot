@@ -8,23 +8,13 @@ import html
 from enum import Enum
 from typing import Any, Optional
 
-try:
-    import cairosvg
-except ImportError:
-    cairosvg = None
-
 from api.Arguments import String
 from api.Command import Command
 from api.Game import Game
 from api.MessageComponents import Button, ButtonStyle, CodeBlock, Description, Image, MessageComponent
 from api.Player import Player
 from api.Response import Response
-
-
-def _svg_to_png(svg_markup: str) -> bytes | None:
-    if cairosvg is None:
-        return None
-    return cairosvg.svg2png(bytestring=svg_markup.encode("utf-8"))
+from utils.svg_utils import svg_to_png
 
 
 def render_chess_board_png(board: list[list[Any | None]]) -> bytes | None:
@@ -93,7 +83,7 @@ def render_chess_board_png(board: list[list[Any | None]]) -> bytes | None:
         )
 
     parts.append("</svg>")
-    return _svg_to_png("".join(parts))
+    return svg_to_png("".join(parts))
 
 
 class PieceType(Enum):

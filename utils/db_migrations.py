@@ -177,6 +177,18 @@ MIGRATIONS: List[Tuple[str, str, List[str]]] = [
             """,
         ],
     ),
+    (
+        "2.6.0",
+        "Public match_code (8-char) for thread titles and replay lookup",
+        [
+            "ALTER TABLE matches ADD COLUMN IF NOT EXISTS match_code VARCHAR(8)",
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_match_code
+            ON matches (match_code)
+            WHERE match_code IS NOT NULL
+            """,
+        ],
+    ),
 ]
 
 

@@ -9,10 +9,15 @@ import time
 from datetime import datetime
 from typing import Any
 
-from utils.database import database as db
+import utils.database as _db_module
 from utils.models import EventType
 
 logger = logging.getLogger("playcord.analytics")
+
+
+def _db():
+    """Live Database instance (importing ``database`` by value would freeze ``None`` at import time)."""
+    return _db_module.database
 
 
 # Fallback buffer when DB write fails (retry on flush)
@@ -33,7 +38,8 @@ def register_event(
     et = event_type.value if isinstance(event_type, EventType) else str(event_type)
     meta = dict(metadata or {})
 
-    if db:
+    db = _db()
+    if db is not None:
         try:
             db.record_analytics_event(
                 event_type=et,
@@ -77,9 +83,12 @@ def flush_events() -> int:
     count = len(_event_buffer)
     events_to_flush = _event_buffer.copy()
 
-    if not db:
-        logger.warning("Database not connected, dropping %s buffered analytics events.", count)
-        _event_buffer = []
+    db = _db()
+    if db is None:
+        logger.debug(
+            "Database not connected; keeping %s buffered analytics events for a later flush.",
+            count,
+        )
         return 0
 
     flushed = 0

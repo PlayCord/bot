@@ -26,7 +26,7 @@ class TicTacToeGame(Game):
     author = "@quantumbagel"
     version = "1.0"
     author_link = "https://github.com/quantumbagel"
-    source_link = "https://github.com/PlayCord/bot/blob/main/games/TicTacToeV2.py"
+    source_link = "https://github.com/PlayCord/bot/blob/main/games/TicTacToe.py"
     time = "2min"
     difficulty = "Literally Braindead"
 

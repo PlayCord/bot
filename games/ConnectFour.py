@@ -1,22 +1,12 @@
 from typing import Any
 
-try:
-    import cairosvg
-except ImportError:
-    cairosvg = None
-
 from api.Arguments import Integer
 from api.Command import Command
 from api.Game import Game
 from api.MessageComponents import Button, ButtonStyle, DataTable, Description, Image, CodeBlock
 from api.Player import Player
 from api.Response import Response
-
-
-def _svg_to_png(svg_markup: str) -> bytes | None:
-    if cairosvg is None:
-        return None
-    return cairosvg.svg2png(bytestring=svg_markup.encode("utf-8"))
+from utils.svg_utils import svg_to_png
 
 
 def render_connect_four_board_png(
@@ -69,7 +59,7 @@ def render_connect_four_board_png(
         )
 
     parts.append("</svg>")
-    return _svg_to_png("".join(parts))
+    return svg_to_png("".join(parts))
 
 
 class ConnectFourGame(Game):

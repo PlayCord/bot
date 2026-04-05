@@ -8,13 +8,13 @@ from discord.ext import commands
 
 from configuration.constants import *
 from utils import database as db, embeds as _embeds
-from utils.analytics import Timer
 from utils.discord_utils import decode_discord_arguments, format_user_error_message, send_simple_embed
 from utils.emojis import get_emoji_string
 from utils.interfaces import MatchmakingInterface, user_in_active_game
 from utils.locale import fmt, get
 
 CustomEmbed = _embeds.CustomEmbed
+ErrorEmbed = _embeds.ErrorEmbed
 
 log = logging.getLogger(LOGGING_ROOT)
 
@@ -96,7 +96,6 @@ class GamesCog(commands.Cog):
 
     async def game_button_callback(self, ctx: discord.Interaction, current_turn_required: bool = True) -> None:
         await ctx.response.defer()
-        f_log = log.getChild("callback.game_button")
         leading_str = BUTTON_PREFIX_CURRENT_TURN if current_turn_required else BUTTON_PREFIX_NO_TURN
         try:
             raw = ctx.data["custom_id"].replace(leading_str, "")
@@ -129,7 +128,6 @@ class GamesCog(commands.Cog):
 
     async def game_select_callback(self, ctx: discord.Interaction, current_turn_required: bool = True) -> None:
         await ctx.response.defer()
-        f_log = log.getChild("callback.game_select")
         leading_str = BUTTON_PREFIX_SELECT_CURRENT if current_turn_required else BUTTON_PREFIX_SELECT_NO_TURN
         try:
             raw = ctx.data["custom_id"].replace(leading_str, "")
@@ -161,7 +159,6 @@ class GamesCog(commands.Cog):
 
     async def spectate_callback(self, ctx: discord.Interaction) -> None:
         await ctx.response.defer()
-        f_log = log.getChild("callback.spectate")
         try:
             game_id = int(ctx.data["custom_id"].replace(BUTTON_PREFIX_SPECTATE, ""))
         except (KeyError, ValueError):
@@ -262,7 +259,6 @@ async def setup(bot: commands.Bot):
 
 async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = True,
                      private: bool = False) -> MatchmakingInterface | None:
-    matchmaking_timer = Timer().start()
     f_log = log.getChild("command.matchmaking")
     if user_in_active_game(ctx.user.id):
         await send_simple_embed(
@@ -304,21 +300,36 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
 
     await ctx.response.send_message(embed=CustomEmbed(description=get_emoji_string("loading")).remove_footer())
     game_overview_message = await ctx.original_response()
-    interface = MatchmakingInterface(ctx.user, game_type, game_overview_message, rated=rated, private=private)
-    if interface.failed is not None:
-        await game_overview_message.edit(embed=interface.failed)
-        return None
-    await interface.update_embed()
-    from utils.analytics import EventType, register_event
+    try:
+        interface = MatchmakingInterface(ctx.user, game_type, game_overview_message, rated=rated, private=private)
+        if interface.failed is not None:
+            await game_overview_message.edit(embed=interface.failed)
+            return None
+        await interface.update_embed()
+        from utils.analytics import EventType, register_event
 
-    register_event(
-        EventType.MATCHMAKING_STARTED,
-        user_id=ctx.user.id,
-        guild_id=ctx.guild.id if ctx.guild else None,
-        game_type=game_type,
-        metadata={"lobby_message_id": game_overview_message.id},
-    )
-    return interface
+        register_event(
+            EventType.MATCHMAKING_STARTED,
+            user_id=ctx.user.id,
+            guild_id=ctx.guild.id if ctx.guild else None,
+            game_type=game_type,
+            metadata={"lobby_message_id": game_overview_message.id},
+        )
+        return interface
+    except Exception:
+        f_log.exception("begin_game failed for game_type=%r", game_type)
+        try:
+            await game_overview_message.edit(
+                embed=ErrorEmbed(
+                    ctx=None,
+                    what_failed=get("system_error.internal_what_failed"),
+                    reason=None,
+                ),
+                view=None,
+            )
+        except Exception:
+            pass
+        return None
 
 
 async def add_matchmaking_bot(ctx: discord.Interaction, difficulty: str) -> bool:
@@ -360,7 +371,7 @@ async def handle_move(ctx: discord.Interaction, name, arguments, current_turn_re
             responded=True
         )
         return
-    if ctx.channel.id not in CURRENT_GAMES.keys():
+    if ctx.channel.id not in CURRENT_GAMES:
         await send_simple_embed(
             ctx,
             get("move.invalid_context_title"),

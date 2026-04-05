@@ -7,8 +7,6 @@ IS_ACTIVE = True
 NAME = get("brand.name")
 MANAGED_BY = get("meta.author")
 LOGGING_ROOT = "playcord"
-SERVER_TIMEOUT = 5000
-
 MESSAGE_COMMAND_FAILED = "⛔"
 MESSAGE_COMMAND_SUCCEEDED = "✅"
 MESSAGE_COMMAND_PENDING = "⏳"
@@ -110,8 +108,6 @@ TEXTIFY_GAME_OVER = get_dict("game.over")
 # Textify options for draw messages
 TEXTIFY_GAME_DRAW = get_dict("game.draw")
 
-SIGMA_RELATIVE_UNCERTAINTY_THRESHOLD = 0.20
-
 # Current ongoing games
 # Format:
 # {game thread id: GameInterface object}
@@ -127,21 +123,13 @@ AUTOCOMPLETE_CACHE = {}
 # - user_id
 # - - current: autocompletes
 
-DATABASE_GAME_IDS = {}
-
-# Cross-server matchmaking queue
-# Format: {game_type: {matchmaker_id: MatchmakingInterface}}
-GLOBAL_MATCHMAKING_QUEUE = {}
-
-# Whether to allow cross-server matchmaking (can be toggled)
-CROSS_SERVER_MATCHMAKING_ENABLED = False
-
 LONG_SPACE_EMBED = "\u2800"  # discord hides spaces when there is more than one in a row, this fixes it
 
 # Button custom_id prefixes
 BUTTON_PREFIX_JOIN = "join/"
 BUTTON_PREFIX_LEAVE = "leave/"
 BUTTON_PREFIX_START = "start/"
+BUTTON_PREFIX_LOBBY_OPT = "lobbyopt/"
 BUTTON_PREFIX_SELECT_CURRENT = "select_c/"
 BUTTON_PREFIX_SELECT_NO_TURN = "select_n/"
 BUTTON_PREFIX_CURRENT_TURN = "c/"
@@ -151,7 +139,6 @@ BUTTON_PREFIX_SPECTATE = "spectate/"
 BUTTON_PREFIX_PEEK = "peek/"
 
 # Pagination button custom_id prefixes
-BUTTON_PREFIX_PAGINATION = "pagination/"
 BUTTON_PREFIX_PAGINATION_FIRST = "pagination_first/"
 BUTTON_PREFIX_PAGINATION_PREV = "pagination_prev/"
 BUTTON_PREFIX_PAGINATION_NEXT = "pagination_next/"
@@ -178,3 +165,6 @@ THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES = False  # Delete messages from no
 THREAD_POLICY_WARNING_MESSAGE = get("thread_policy.warning")
 # If True, participants may only send messages that look like slash usage (start with '/') in active game threads
 THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY = False
+# When True, always delete messages from users who are not match participants (e.g. spectators), even if
+# THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES is False.
+THREAD_POLICY_SPECTATORS_SILENT = False
