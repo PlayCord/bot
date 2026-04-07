@@ -43,6 +43,14 @@ def user_in_active_game(user_id: int) -> bool:
     return False
 
 
+def user_in_active_matchmaking(user_id: int) -> bool:
+    """Return True when the user is currently queued in any active matchmaking lobby."""
+    for player in IN_MATCHMAKING.keys():
+        if getattr(player, "id", None) == user_id:
+            return True
+    return False
+
+
 def synthetic_bot_name_from_id(user_id: int) -> str:
     return f"Bot {str(user_id)[-4:]} (Bot)"
 
@@ -234,7 +242,6 @@ class GameInterface:
         loading_message = Message(
             Container(
                 TextDisplay(get_emoji_string("loading")),
-                accent_color=EMBED_COLOR,
             )
         )
 
@@ -1360,6 +1367,16 @@ class MatchmakingInterface:
                 ephemeral=True
             )
             return False
+        if user_in_active_matchmaking(player.id):
+            log.info(
+                f"Player.py {player} attempted to accept invite while already queued in another lobby."
+                f" {contextify(ctx)}"
+            )
+            await ctx.followup.send(
+                get("queue.already_in_another_queue"),
+                ephemeral=True,
+            )
+            return False
         else:
             if player is None:  # Couldn't retrieve information, so don't join them
                 log.warning(
@@ -1499,6 +1516,13 @@ class MatchmakingInterface:
                 ephemeral=True
             )
             return
+        elif user_in_active_matchmaking(new_player.id):
+            log.info(
+                f"Attempted to join player {new_player} but failed because they are already queued elsewhere."
+                f" {contextify(ctx)}"
+            )
+            await ctx.followup.send(get("queue.already_in_another_queue"), ephemeral=True)
+            return
         else:
             if not self.private:
                 if new_player in self.blacklist:
@@ -1633,7 +1657,6 @@ class MatchmakingInterface:
         loading_message = Message(
             Container(
                 TextDisplay(get_emoji_string("loading")),
-                accent_color=EMBED_COLOR,
             )
         )
         await self.message.edit(**loading_message.to_edit_kwargs())

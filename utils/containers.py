@@ -7,7 +7,6 @@ import discord
 
 from api.Game import resolve_player_count
 from configuration.constants import (
-    EMBED_COLOR,
     ERROR_COLOR,
     GAME_COLOR,
     INFO_COLOR,
@@ -85,7 +84,7 @@ def container_send_kwargs(
         media = card.media_urls()
     else:
         body = container_to_markdown(card)
-        accent = EMBED_COLOR
+        accent = None
         media = []
     kwargs: dict[str, Any] = {"view": _build_container_view(body, accent_color=accent, media_urls=media)}
     if files:
@@ -107,7 +106,7 @@ def container_edit_kwargs(
         media = card.media_urls()
     else:
         body = container_to_markdown(card)
-        accent = EMBED_COLOR
+        accent = None
         media = []
     kwargs: dict[str, Any] = {"view": _build_container_view(body, accent_color=accent, media_urls=media)}
     if attachments is not None:
@@ -178,7 +177,7 @@ class CustomContainer:
     def __init__(self, **kwargs):
         self.title: str | None = kwargs.get("title")
         self.description: str | None = kwargs.get("description")
-        self.color: discord.Color | int = kwargs.get("color", EMBED_COLOR)
+        self.color: discord.Color | int | None = kwargs.get("color")
         self.fields: list[ContainerField] = []
         self.footer_text: str | None = None
         self.footer_icon_url: str | None = None
@@ -337,7 +336,6 @@ class GameOverviewContainer(CustomContainer):
         super().__init__(
             title=fmt(title_key, game_name=game_name),
             description=get("embeds.game_overview.description"),
-            color=EMBED_COLOR,
         )
         self.add_field(name=get("embeds.game_overview.field_players"), value=column_names(players), inline=True)
         self.add_field(name=get("embeds.game_overview.field_ratings"), value=column_elo(players, game_type), inline=True)
@@ -393,7 +391,6 @@ class InviteContainer(CustomContainer):
                 game_type=game_type,
                 guild_name=guild_name,
             ),
-            color=EMBED_COLOR,
         )
         self.add_field(
             name=get("embeds.invite.field_how_to_join"),

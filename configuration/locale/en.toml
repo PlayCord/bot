@@ -784,6 +784,7 @@ field_ids_value = "Lobby message `{lobby_id}` · game `{game}` — an 8-characte
 source = "Source"
 already_in_game = "You are already in the game!"
 already_in_active_game_other_server = "You are already in an active game in another server. Finish that game before joining this lobby."
+already_in_another_queue = "You are already queued in another lobby. Leave that queue before joining this one."
 couldnt_connect_db = "Couldn't connect to DB!"
 self_ban_only_player = "idk why you banned yourself when you are the only one in the lobby, lol"
 cant_ban_not_whitelisted = "Can't ban someone who isn't on the whitelist anyway!"

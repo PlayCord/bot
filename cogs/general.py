@@ -2,11 +2,11 @@ import importlib
 import logging
 from datetime import datetime
 
-import discord
 from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
 
+from api.Game import resolve_player_count
 from configuration.constants import *
 from utils import database as db, ramcheck
 from utils.containers import (
@@ -23,7 +23,6 @@ from utils.conversion import contextify
 from utils.discord_utils import format_user_error_message, interaction_check
 from utils.emojis import get_emoji_string, get_game_emoji
 from utils.graphs import generate_elo_chart
-from api.Game import resolve_player_count
 from utils.interfaces import MatchmakingInterface, user_in_active_game
 from utils.locale import fmt, get, plural
 from utils.replay_format import chunk_replay_lines, format_replay_event_line
@@ -385,7 +384,7 @@ class GeneralCog(commands.Cog):
         server_count = len(self.bot.guilds)
         member_count = len(set(self.bot.get_all_members()))
 
-        shard_id = ctx.guild.shard_id
+        shard_id = ctx.guild.shard_id if ctx.guild else 0
         shard_ping = self.bot.latency
         shard_servers = len([guild for guild in self.bot.guilds if guild.shard_id == shard_id])
 
@@ -395,19 +394,27 @@ class GeneralCog(commands.Cog):
             color=INFO_COLOR
         )
 
-        container.add_field(name=get("embeds.stats.field_version"), value=VERSION)
-        container.add_field(name=get("embeds.stats.field_discordpy"), value=discord.__version__)
-        container.add_field(name=get("embeds.stats.field_games_loaded"), value=len(GAME_TYPES))
-        container.add_field(name=get("embeds.stats.field_total_servers"), value=server_count)
-        container.add_field(name=get("embeds.stats.field_owners"), value=len(OWNERS))
-        container.add_field(name=get("embeds.stats.field_ram"), value=ramcheck.get_ram_usage_mb())
-        container.add_field(name=get("embeds.stats.field_shard_id"), value=shard_id)
-        container.add_field(name=get("embeds.stats.field_shard_ping"),
-                        value=fmt("format.ping_ms", ping=round(shard_ping * 100, 2)))
-        container.add_field(name=get("embeds.stats.field_shard_servers"), value=shard_servers)
-        container.add_field(name=f'{get_emoji_string("user")} {get("embeds.stats.field_users")}', value=member_count)
-        container.add_field(name=get("embeds.stats.field_in_matchmaking"), value=len(IN_MATCHMAKING))
-        container.add_field(name=get("embeds.stats.field_in_game"), value=len(IN_GAME))
+        container.add_field(
+            name="Bot",
+            value=f"v{VERSION} · discord.py {discord.__version__}",
+        )
+        container.add_field(
+            name="Servers",
+            value=f"{server_count} servers · {len(GAME_TYPES)} games · {len(OWNERS)} owners",
+        )
+        container.add_field(
+            name="Shard",
+            value=f"#{shard_id} · {round(shard_ping * 100, 2)}ms · {shard_servers} servers",
+        )
+        container.add_field(
+            name="System",
+            value=f"{ramcheck.get_ram_usage_mb()} RAM",
+        )
+        container.add_field(
+            name="Activity",
+            value=f"{member_count} members · {len(IN_MATCHMAKING)} queuing · {len(IN_GAME)} in game",
+            inline=False,
+        )
 
         await ctx.response.send_message(**container_send_kwargs(container))
 
@@ -418,22 +425,28 @@ class GeneralCog(commands.Cog):
         f_log.debug(f"/about called: {contextify(ctx)}")
 
         container = CustomContainer(title=get("embeds.about.title"), color=INFO_COLOR)
-        container.add_field(name=get("embeds.about.field_bot_by"), value="[@quantumbagel](https://github.com/quantumbagel)")
-        container.add_field(name=get("embeds.about.field_source"), value="[here](https://github.com/PlayCord/bot)")
-        container.add_field(name=get("embeds.about.field_pfp"), value="[@soldship](https://github.com/quantumsoldship)")
         container.add_field(
-            name=get("embeds.about.field_inspiration"),
-            value="[LoRiggio (Liar's Dice Bot)](https://github.com/Pixelz22/LoRiggioDev) by [@Pixelz22](https://github.com/Pixelz22)",
-            inline=True,
-        )
-        container.add_field(
-            name=get("embeds.about.field_libraries"),
-            value="\n".join([f"[{lib}](https://pypi.org/project/{lib})" for lib in libraries]),
+            name="Credits",
+            value=(
+                "Bot by [@quantumbagel](https://github.com/quantumbagel) · "
+                "Art by [@soldship](https://github.com/quantumsoldship) · "
+                "Inspired by [LoRiggio](https://github.com/Pixelz22/LoRiggioDev)"
+            ),
             inline=False,
         )
         container.add_field(
-            name=get("embeds.about.field_dev_time"),
-            value="October 2024 - March 2025\nMarch 2026 - Present",
+            name="Source",
+            value="[GitHub](https://github.com/PlayCord/bot)",
+            inline=False,
+        )
+        container.add_field(
+            name="Libraries",
+            value=" · ".join([f"[{lib}](https://pypi.org/project/{lib})" for lib in libraries]),
+            inline=False,
+        )
+        container.add_field(
+            name="Dev Timeline",
+            value="October 2024 - March 2025 · March 2026 - Present",
         )
         container.set_footer(text=get("embeds.about.footer"), icon_url=get("brand.footer_icon"))
 
@@ -697,7 +710,8 @@ class GeneralCog(commands.Cog):
         )
         await ctx.response.send_message(view=view)
 
-    def _build_catalog_container(self, page: int, total_pages: int, all_games: list, games_per_page: int) -> CustomContainer:
+    def _build_catalog_container(self, page: int, total_pages: int, all_games: list,
+                                 games_per_page: int) -> CustomContainer:
         """Build the catalog container for a specific page."""
         start_idx = (page - 1) * games_per_page
         page_games = all_games[start_idx:start_idx + games_per_page]
@@ -931,7 +945,8 @@ class GeneralCog(commands.Cog):
         )
         rating_history = db.database.get_rating_history(user.id, guild_id, game_id, days=days)
 
-        container = CustomContainer(title=fmt("history.embed_title", user=user.display_name, game=game_name), color=INFO_COLOR)
+        container = CustomContainer(title=fmt("history.embed_title", user=user.display_name, game=game_name),
+                                    color=INFO_COLOR)
         container.set_thumbnail(url=user.display_avatar.url)
 
         has_data = bool(match_history)
@@ -1054,14 +1069,14 @@ class GeneralCog(commands.Cog):
         return getattr(g, "display_name", None) or getattr(g, "game_name", str(game_id))
 
     def _build_replay_container(
-        self,
-        match_id: int,
-        game_label: str,
-        pages: list[str],
-        page_1based: int,
-        global_summary: str | None = None,
-        *,
-        replay_display: str | None = None,
+            self,
+            match_id: int,
+            game_label: str,
+            pages: list[str],
+            page_1based: int,
+            global_summary: str | None = None,
+            *,
+            replay_display: str | None = None,
     ) -> CustomContainer:
         total = max(1, len(pages))
         p = max(1, min(page_1based, total))
@@ -1080,14 +1095,14 @@ class GeneralCog(commands.Cog):
         return container
 
     async def _replay_page_callback(
-        self,
-        interaction: discord.Interaction,
-        new_page: int,
-        pages: list[str],
-        match_id: int,
-        game_label: str,
-        global_summary: str | None,
-        replay_display: str,
+            self,
+            interaction: discord.Interaction,
+            new_page: int,
+            pages: list[str],
+            match_id: int,
+            game_label: str,
+            global_summary: str | None,
+            replay_display: str,
     ):
         container = self._build_replay_container(
             match_id,
@@ -1164,6 +1179,36 @@ class GeneralCog(commands.Cog):
         )
         await ctx.followup.send(view=view, ephemeral=True)
 
+    @command_replay.autocomplete("match_ref")
+    async def replay_autocomplete(self, ctx: discord.Interaction, current: str) -> list[Choice[str]]:
+        if ctx.guild is None:
+            return []
+
+        needle = (current or "").strip().lower()
+        rows = db.database.get_user_match_history(
+            user_id=ctx.user.id,
+            guild_id=ctx.guild.id,
+            limit=25,
+        )
+
+        choices: list[Choice[str]] = []
+        seen: set[str] = set()
+        for row in rows:
+            code = str(row.get("match_code") or row.get("match_id") or "").strip()
+            if not code or code in seen:
+                continue
+
+            game = str(row.get("game_name") or row.get("game_key") or "?").strip()
+            haystack = f"{game} {code}".lower()
+            if needle and needle not in haystack:
+                continue
+
+            seen.add(code)
+            choices.append(Choice(name=f"{game} - {code}"[:100], value=code))
+            if len(choices) >= 25:
+                break
+        return choices
+
     @command_root.command(name="feedback", description=get("commands.feedback.description"))
     @app_commands.describe(message=get("commands.feedback.param_message"))
     @app_commands.check(interaction_check)
@@ -1219,9 +1264,9 @@ class GeneralCog(commands.Cog):
     @app_commands.default_permissions(administrator=True)
     @app_commands.describe(channel=get("commands.set_channel.param_channel"))
     async def command_set_channel(
-        self,
-        ctx: discord.Interaction,
-        channel: discord.TextChannel | None = None,
+            self,
+            ctx: discord.Interaction,
+            channel: discord.TextChannel | None = None,
     ):
         if ctx.guild is None:
             await ctx.response.send_message(get("commands.set_channel.guild_only"), ephemeral=True)

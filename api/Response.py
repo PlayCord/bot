@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any
 
 from api.MessageComponents import Container, Message
-from configuration.constants import EMBED_COLOR, ERROR_COLOR, INFO_COLOR
+from configuration.constants import ERROR_COLOR, INFO_COLOR
 
 
 class ResponseType(Enum):
@@ -38,13 +38,13 @@ class Response:
         """
 
         if style == ResponseType.normal:
-            color = EMBED_COLOR
+            color = None
         elif style == ResponseType.info:
             color = INFO_COLOR
         elif style == ResponseType.error:
             color = ERROR_COLOR
         else:
-            color = EMBED_COLOR  # Default color
+            color = None
 
         self.style = style or ResponseType.normal
         self.color = color

@@ -9,6 +9,7 @@ dependencies = [
     "trueskill",
     "mpmath",
     "emoji",
+    "pillow",
     "psycopg[binary,pool]",
     "psutil",
     "matplotlib"

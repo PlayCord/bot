@@ -41,7 +41,7 @@ class EventsCog(commands.Cog):
         f_log = log.getChild("event.guild_join")
         f_log.info(f"Added to guild {guild.name!r} ! (id={guild.id})")
 
-        container = CustomContainer(title=WELCOME_MESSAGE[0][0], description=WELCOME_MESSAGE[0][1], color=EMBED_COLOR)
+        container = CustomContainer(title=WELCOME_MESSAGE[0][0], description=WELCOME_MESSAGE[0][1])
         for line in WELCOME_MESSAGE[1:]:
             container.add_field(name=line[0], value=line[1])
         container.add_field(

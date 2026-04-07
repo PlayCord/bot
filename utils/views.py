@@ -1,7 +1,7 @@
 import discord
 from discord import SelectOption
 
-from configuration.constants import BUTTON_PREFIX_LOBBY_OPT, BUTTON_PREFIX_LOBBY_ROLE, EMBED_COLOR
+from configuration.constants import BUTTON_PREFIX_LOBBY_OPT, BUTTON_PREFIX_LOBBY_ROLE
 from utils.containers import (
     CustomContainer,
     HelpCommandsContainer,
@@ -9,7 +9,6 @@ from utils.containers import (
     HelpMainContainer,
     container_to_markdown,
 )
-from utils.emojis import get_button_emoji
 from utils.locale import get
 
 
@@ -34,26 +33,24 @@ class DynamicButtonView(discord.ui.LayoutView):
         look at class D
         """
         super().__init__(timeout=None)
-        container = None
-        if summary_text or table_image_url:
-            container = discord.ui.Container()
+        container = discord.ui.Container()
+        if summary_text:
+            container.add_item(discord.ui.TextDisplay(summary_text[:4000]))
+        if table_image_url:
             if summary_text:
-                container.add_item(discord.ui.TextDisplay(summary_text[:4000]))
-            if table_image_url:
-                if summary_text:
-                    container.add_item(discord.ui.Separator())
-                container.add_item(
-                    discord.ui.MediaGallery(
-                        discord.MediaGalleryItem(table_image_url),
-                    )
+                container.add_item(discord.ui.Separator())
+            container.add_item(
+                discord.ui.MediaGallery(
+                    discord.MediaGalleryItem(table_image_url),
                 )
-            # Keep buttons inside the container when present
-            self.add_item(container)
+            )
+        if summary_text or table_image_url:
+            container.add_item(discord.ui.Separator())
 
         row = discord.ui.ActionRow()
         count = 0
         for button in buttons:
-            for argument in ["label", "style", "id", "emoji", "disabled", "callback", "link"]:
+            for argument in ["label", "style", "id", "disabled", "callback", "link"]:
                 if argument not in button.keys():
                     if argument == "disabled":
                         button[argument] = False
@@ -64,7 +61,6 @@ class DynamicButtonView(discord.ui.LayoutView):
                 label=button["label"],
                 style=button["style"],
                 custom_id=button["id"],
-                emoji=button["emoji"],
                 disabled=button["disabled"],
                 url=button["link"],
             )
@@ -77,15 +73,12 @@ class DynamicButtonView(discord.ui.LayoutView):
             row.add_item(item)
             count += 1
             if count == 5:
-                self.add_item(row)
+                container.add_item(row)
                 row = discord.ui.ActionRow()
                 count = 0
         if count:
-            # If a container exists, add the action row to it so buttons appear inside the container
-            if container is not None:
-                container.add_item(row)
-            else:
-                self.add_item(row)
+            container.add_item(row)
+        self.add_item(container)
 
     async def _null_callback(self, interaction: discord.Interaction) -> None:
         """
@@ -136,11 +129,11 @@ class MatchmakingView(DynamicButtonView):
         """
         super().__init__([
             {"label": get("buttons.join"), "style": discord.ButtonStyle.gray, "id": join_button_id,
-             "emoji": get_button_emoji("join"), "callback": "none"},
+             "callback": "none"},
             {"label": get("buttons.leave"), "style": discord.ButtonStyle.gray, "id": leave_button_id,
-             "emoji": get_button_emoji("leave"), "callback": "none"},
+             "callback": "none"},
             {"label": get("buttons.start"), "style": discord.ButtonStyle.blurple, "id": start_button_id,
-             "emoji": get_button_emoji("start"), "callback": "none", "disabled": not can_start}
+             "callback": "none", "disabled": not can_start}
         ], summary_text=summary_text, table_image_url=table_image_url)
 
 
@@ -192,7 +185,6 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
             label=get("buttons.join"),
             style=discord.ButtonStyle.gray,
             custom_id=join_button_id,
-            emoji=get_button_emoji("join"),
         )
         join_btn.callback = self._route_to_cog
         action_row.add_item(join_btn)
@@ -201,7 +193,6 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
             label=get("buttons.leave"),
             style=discord.ButtonStyle.gray,
             custom_id=leave_button_id,
-            emoji=get_button_emoji("leave"),
         )
         leave_btn.callback = self._route_to_cog
         action_row.add_item(leave_btn)
@@ -210,7 +201,6 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
             label=get("buttons.start"),
             style=discord.ButtonStyle.blurple,
             custom_id=start_button_id,
-            emoji=get_button_emoji("start"),
             disabled=not can_start,
         )
         start_btn.callback = self._route_to_cog
@@ -288,7 +278,7 @@ class InviteView(DynamicButtonView):
         """
         super().__init__([
             {"label": get("buttons.join_game"), "style": discord.ButtonStyle.blurple,
-             "id": join_button_id, "emoji": get_button_emoji("join"), "callback": "none"},
+             "id": join_button_id, "callback": "none"},
             {"label": get("buttons.go_to_game"),
              "style": discord.ButtonStyle.gray, "link": game_link}
         ], summary_text=summary_text)
@@ -308,9 +298,9 @@ class SpectateView(DynamicButtonView):
         """
         super().__init__([
             {"label": get("buttons.spectate"), "style": discord.ButtonStyle.blurple,
-             "id": spectate_button_id, "emoji": get_button_emoji("spectate"), "callback": "none"},
+             "id": spectate_button_id, "callback": "none"},
             {"label": get("buttons.peek"), "style": discord.ButtonStyle.gray, "id": peek_button_id,
-             "emoji": get_button_emoji("peek"), "callback": "none"},
+             "callback": "none"},
             {"label": get("buttons.go_to_game"), "style": discord.ButtonStyle.gray,
              "link": game_link}
         ], summary_text=summary_text)
@@ -338,13 +328,10 @@ class PaginationView(discord.ui.LayoutView):
         self.current_page = current_page
         self.max_pages = max_pages
         self.callback_handler = callback_handler
+        container = discord.ui.Container()
         if body_text:
-            self.add_item(
-                discord.ui.Container(
-                    discord.ui.TextDisplay(body_text[:4000]),
-                    accent_color=EMBED_COLOR,
-                )
-            )
+            container.add_item(discord.ui.TextDisplay(body_text[:4000]))
+            container.add_item(discord.ui.Separator())
 
         from configuration.constants import (
             BUTTON_PREFIX_PAGINATION_FIRST,
@@ -353,13 +340,12 @@ class PaginationView(discord.ui.LayoutView):
             BUTTON_PREFIX_PAGINATION_LAST
         )
 
-        self.add_item(discord.ui.TextDisplay(f"Page {current_page} of {max_pages}"))
+        container.add_item(discord.ui.TextDisplay(f"Page {current_page} of {max_pages}"))
         base = f"{guild_id}/{user_id}"
         row = discord.ui.ActionRow()
         buttons = [
             (
                 get("buttons.first"),
-                "⏮️",
                 discord.ButtonStyle.gray,
                 f"{BUTTON_PREFIX_PAGINATION_FIRST}{base}",
                 current_page == 1,
@@ -367,7 +353,6 @@ class PaginationView(discord.ui.LayoutView):
             ),
             (
                 get("buttons.previous"),
-                "◀️",
                 discord.ButtonStyle.primary,
                 f"{BUTTON_PREFIX_PAGINATION_PREV}{base}",
                 current_page == 1,
@@ -375,7 +360,6 @@ class PaginationView(discord.ui.LayoutView):
             ),
             (
                 get("buttons.next"),
-                "▶️",
                 discord.ButtonStyle.primary,
                 f"{BUTTON_PREFIX_PAGINATION_NEXT}{base}",
                 current_page >= max_pages,
@@ -383,24 +367,23 @@ class PaginationView(discord.ui.LayoutView):
             ),
             (
                 get("buttons.last"),
-                "⏭️",
                 discord.ButtonStyle.gray,
                 f"{BUTTON_PREFIX_PAGINATION_LAST}{base}",
                 current_page >= max_pages,
                 self._last_callback,
             ),
         ]
-        for label, emoji, style, custom_id, disabled, callback in buttons:
+        for label, style, custom_id, disabled, callback in buttons:
             button = discord.ui.Button(
                 label=label,
-                emoji=emoji,
                 style=style,
                 custom_id=custom_id,
                 disabled=disabled,
             )
             button.callback = callback
             row.add_item(button)
-        self.add_item(row)
+        container.add_item(row)
+        self.add_item(container)
 
     def _validate_interaction(self, interaction: discord.Interaction) -> bool:
         """Validate that the interaction is from the command invoker."""
@@ -472,7 +455,6 @@ class RematchView(DynamicButtonView):
                 "label": get("buttons.rematch"),
                 "style": discord.ButtonStyle.success,
                 "id": f"{BUTTON_PREFIX_REMATCH}{match_id}",
-                "emoji": get_button_emoji("rematch"),
                 "disabled": False,
                 "callback": "none",
             },
@@ -495,7 +477,6 @@ class HelpView(discord.ui.LayoutView):
         """Set up navigation buttons based on current section."""
         container = discord.ui.Container(
             discord.ui.TextDisplay("### Help Navigation"),
-            accent_color=EMBED_COLOR,
         )
         if self.body_text:
             container.add_item(discord.ui.TextDisplay(self.body_text[:4000]))
@@ -504,21 +485,18 @@ class HelpView(discord.ui.LayoutView):
         if self.current_section == "main":
             row.add_item(HelpButton(
                 label=get("help.buttons.getting_started"),
-                emoji="🚀",
                 section="getting_started",
                 style=discord.ButtonStyle.green,
                 user_id=self.user_id
             ))
             row.add_item(HelpButton(
                 label=get("help.buttons.game_list"),
-                emoji="🎮",
                 section="games",
                 style=discord.ButtonStyle.primary,
                 user_id=self.user_id
             ))
             row.add_item(HelpButton(
                 label=get("help.buttons.commands"),
-                emoji="⚙️",
                 section="commands",
                 style=discord.ButtonStyle.primary,
                 user_id=self.user_id
@@ -526,7 +504,6 @@ class HelpView(discord.ui.LayoutView):
         else:
             row.add_item(HelpButton(
                 label=get("help.buttons.back_to_help"),
-                emoji="🏠",
                 section="main",
                 style=discord.ButtonStyle.gray,
                 user_id=self.user_id
@@ -535,7 +512,6 @@ class HelpView(discord.ui.LayoutView):
             if self.current_section == "games":
                 row.add_item(HelpButton(
                     label=get("help.buttons.view_catalog"),
-                    emoji="📖",
                     section="catalog",
                     style=discord.ButtonStyle.primary,
                     user_id=self.user_id
@@ -547,9 +523,9 @@ class HelpView(discord.ui.LayoutView):
 class HelpButton(discord.ui.Button):
     """Button for help menu navigation."""
     
-    def __init__(self, label: str, emoji: str, section: str, 
+    def __init__(self, label: str, section: str,
                  style: discord.ButtonStyle, user_id: int):
-        super().__init__(label=label, emoji=emoji, style=style)
+        super().__init__(label=label, style=style)
         self.section = section
         self.user_id = user_id
     
@@ -639,15 +615,16 @@ class ContextualHelpView(discord.ui.LayoutView):
         """
         super().__init__(timeout=timeout)
         self.help_topic = help_topic
+        container = discord.ui.Container(discord.ui.TextDisplay("### Help"))
         row = discord.ui.ActionRow()
         button = discord.ui.Button(
             label=get("buttons.need_help"),
-            emoji="❓",
             style=discord.ButtonStyle.secondary,
         )
         button.callback = self.help_button
         row.add_item(button)
-        self.add_item(row)
+        container.add_item(row)
+        self.add_item(container)
 
     async def help_button(self, interaction: discord.Interaction):
         """Show contextual help based on the topic."""
@@ -669,11 +646,11 @@ class QuickActionsView(discord.ui.LayoutView):
     
     def __init__(self, show_catalog: bool = True, show_help: bool = True, timeout: int = 180):
         super().__init__(timeout=timeout)
+        container = discord.ui.Container(discord.ui.TextDisplay("### Quick Actions"))
         row = discord.ui.ActionRow()
         if show_catalog:
             row.add_item(discord.ui.Button(
                 label=get("buttons.view_catalog"),
-                emoji="📖",
                 style=discord.ButtonStyle.primary,
                 custom_id="quick_catalog",
             ))
@@ -681,8 +658,8 @@ class QuickActionsView(discord.ui.LayoutView):
         if show_help:
             row.add_item(discord.ui.Button(
                 label=get("buttons.get_help"),
-                emoji="❓",
                 style=discord.ButtonStyle.secondary,
                 custom_id="quick_help",
             ))
-        self.add_item(row)
+        container.add_item(row)
+        self.add_item(container)

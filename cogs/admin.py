@@ -207,7 +207,6 @@ class AdminCog(commands.Cog):
                 **container_send_kwargs(CustomContainer(
                     title=fmt("commands.analytics.embed_title", hours=hours),
                     description=fmt("commands.analytics.message_empty", hours=hours),
-                    color=EMBED_COLOR,
                 ))
             )
             return True
@@ -222,7 +221,6 @@ class AdminCog(commands.Cog):
                 if chart_buf is not None
                 else get("commands.analytics.embed_no_chart")
             ),
-            color=EMBED_COLOR,
         )
         if chart_buf is not None:
             chart_buf.seek(0)
@@ -305,7 +303,7 @@ class AdminCog(commands.Cog):
             return False
         diff_container = drift_to_container(
             drift,
-            color=EMBED_COLOR,
+            color=None,
             title=get("commands.treediff.embed_title"),
         )
         await msg.reply(**container_send_kwargs(diff_container))

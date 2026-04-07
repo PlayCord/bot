@@ -237,7 +237,6 @@ class Button:
         return discord.ui.Button(
             style=self.style,
             label=self.label or "\u200b",
-            emoji=parse_discord_emoji(self.emoji),
             custom_id=f"{prefix}/{ctx.game_id}/{_callback_name(self.callback)}/{args}",
             disabled=self.disabled,
         )
