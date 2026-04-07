@@ -133,6 +133,11 @@ class InternalPlayer:
         """Discord mention string"""
         return f"<@{self.id}>"
 
+    @property
+    def display_name(self) -> str:
+        """Human-readable player name for table rendering."""
+        return self.name or f"@{self.id}"
+
     def get_formatted_elo(
         self,
         game_type: str,
@@ -181,10 +186,7 @@ class InternalPlayer:
         return hash(self.id)
 
     def __str__(self):
-        if self.user is not None:
-            return f"{self.id} ({self.name}) bot={self.user.bot} ratings={self.ratings}"
-        else:
-            return f"{self.id} ({self.name}) bot=no-user-provided, ratings={self.ratings}"
+        return self.mention
 
     def __repr__(self):
         if self.user is not None:

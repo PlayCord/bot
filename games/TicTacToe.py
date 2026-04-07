@@ -4,7 +4,7 @@ from api.Arguments import String
 from api.Bot import Bot
 from api.Command import Command
 from api.Game import Game
-from api.MessageComponents import Button, ButtonStyle, DataTable
+from api.MessageComponents import Button, ButtonStyle, Container, MediaGallery, Message, TextDisplay, format_data_table_image
 from api.Player import Player
 from api.Response import Response, ResponseType
 
@@ -47,7 +47,7 @@ class TicTacToeGame(Game):
         self.diagonal_count = 0
         self.anti_diagonal_count = 0
 
-    def state(self):
+    def state(self) -> Message:
         buttons = []
         for col in range(3):
             for row in range(3):
@@ -68,10 +68,12 @@ class TicTacToeGame(Game):
                 button = Button(label=name, emoji=emoji, callback=self.move, row=row, style=color,
                                 arguments={"move": str(col) + str(row)})
                 buttons.append(button)
-        return_this = [DataTable({self.x: {"Team:": ":x:"}, self.o: {"Team:": ":o:"}})]
-        return_this.extend(buttons)
-
-        return return_this
+        return Message(
+            Container(
+                MediaGallery(format_data_table_image({self.x: {"Team:": ":x:"}, self.o: {"Team:": ":o:"}})),
+            ),
+            *buttons,
+        )
 
     def current_turn(self):
         return self.players[self.turn]

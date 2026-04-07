@@ -60,17 +60,8 @@ ERROR_INCORRECT_SETUP = ("This is likely due to:\n"
 
 GAME_TYPES = {
     "tictactoe": ["games.TicTacToe", "TicTacToeGame"],
-    "liars": ["games.LiarsDice", "LiarsDiceGame"],
-    "test": ["games.TestGame", "TestGame"],
     "connectfour": ["games.ConnectFour", "ConnectFourGame"],
-    "reversi": ["games.Reversi", "ReversiGame"],
-    "nim": ["games.Nim", "NimGame"],
-    "mastermind": ["games.MastermindDuel", "MastermindDuelGame"],
-    "battleship": ["games.Battleship", "BattleshipGame"],
-    "nothanks": ["games.NoThanks", "NoThanksGame"],
-    "blackjack": ["games.BlackjackTable", "BlackjackTableGame"],
-    "poker": ["games.Poker", "PokerGame"],
-    "chess": ["games.Chess", "ChessGame"],
+    "nim": ["games.Nim", "NimGame"]
 }
 
 MU = 1000

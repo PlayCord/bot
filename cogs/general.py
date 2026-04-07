@@ -8,7 +8,17 @@ from discord.app_commands import Choice
 from discord.ext import commands
 
 from configuration.constants import *
-from utils import database as db, embeds as _embeds, ramcheck
+from utils import database as db, ramcheck
+from utils.containers import (
+    CustomContainer,
+    HelpCommandsContainer,
+    HelpGameInfoContainer,
+    HelpGettingStartedContainer,
+    HelpMainContainer,
+    InviteContainer,
+    container_send_kwargs,
+    container_to_markdown,
+)
 from utils.conversion import contextify
 from utils.discord_utils import format_user_error_message, interaction_check
 from utils.emojis import get_emoji_string, get_game_emoji
@@ -18,13 +28,6 @@ from utils.interfaces import MatchmakingInterface, user_in_active_game
 from utils.locale import fmt, get, plural
 from utils.replay_format import chunk_replay_lines, format_replay_event_line
 from utils.views import HelpView, InviteView, PaginationView
-
-CustomEmbed = _embeds.CustomEmbed
-InviteEmbed = _embeds.InviteEmbed
-HelpMainEmbed = getattr(_embeds, "HelpMainEmbed", _embeds.CustomEmbed)
-HelpGettingStartedEmbed = getattr(_embeds, "HelpGettingStartedEmbed", _embeds.CustomEmbed)
-HelpCommandsEmbed = getattr(_embeds, "HelpCommandsEmbed", _embeds.CustomEmbed)
-HelpGameInfoEmbed = getattr(_embeds, "HelpGameInfoEmbed", _embeds.CustomEmbed)
 
 log = logging.getLogger(LOGGING_ROOT)
 
@@ -286,11 +289,15 @@ class GeneralCog(commands.Cog):
                 continue
 
             # Invitation
-            embed = InviteEmbed(inviter=ctx.user, game_type=game_type, guild_name=matchmaker.message.guild.name)
+            container = InviteContainer(inviter=ctx.user, game_type=game_type, guild_name=matchmaker.message.guild.name)
 
-            await invited_user.send(embed=embed,
-                                    view=InviteView(join_button_id=BUTTON_PREFIX_INVITE + str(matchmaker.message.id),
-                                                    game_link=matchmaker.message.jump_url))
+            await invited_user.send(
+                view=InviteView(
+                    join_button_id=BUTTON_PREFIX_INVITE + str(matchmaker.message.id),
+                    game_link=matchmaker.message.jump_url,
+                    summary_text=container_to_markdown(container),
+                ),
+            )
             continue
 
         if not invited_users:
@@ -382,27 +389,27 @@ class GeneralCog(commands.Cog):
         shard_ping = self.bot.latency
         shard_servers = len([guild for guild in self.bot.guilds if guild.shard_id == shard_id])
 
-        embed = CustomEmbed(
+        container = CustomContainer(
             title=f'{get("embeds.stats.title")} {get_emoji_string("pointing")}',
             description=fmt("embeds.stats.description", managed_by=MANAGED_BY),
             color=INFO_COLOR
         )
 
-        embed.add_field(name=get("embeds.stats.field_version"), value=VERSION)
-        embed.add_field(name=get("embeds.stats.field_discordpy"), value=discord.__version__)
-        embed.add_field(name=get("embeds.stats.field_games_loaded"), value=len(GAME_TYPES))
-        embed.add_field(name=get("embeds.stats.field_total_servers"), value=server_count)
-        embed.add_field(name=get("embeds.stats.field_owners"), value=len(OWNERS))
-        embed.add_field(name=get("embeds.stats.field_ram"), value=ramcheck.get_ram_usage_mb())
-        embed.add_field(name=get("embeds.stats.field_shard_id"), value=shard_id)
-        embed.add_field(name=get("embeds.stats.field_shard_ping"),
+        container.add_field(name=get("embeds.stats.field_version"), value=VERSION)
+        container.add_field(name=get("embeds.stats.field_discordpy"), value=discord.__version__)
+        container.add_field(name=get("embeds.stats.field_games_loaded"), value=len(GAME_TYPES))
+        container.add_field(name=get("embeds.stats.field_total_servers"), value=server_count)
+        container.add_field(name=get("embeds.stats.field_owners"), value=len(OWNERS))
+        container.add_field(name=get("embeds.stats.field_ram"), value=ramcheck.get_ram_usage_mb())
+        container.add_field(name=get("embeds.stats.field_shard_id"), value=shard_id)
+        container.add_field(name=get("embeds.stats.field_shard_ping"),
                         value=fmt("format.ping_ms", ping=round(shard_ping * 100, 2)))
-        embed.add_field(name=get("embeds.stats.field_shard_servers"), value=shard_servers)
-        embed.add_field(name=f'{get_emoji_string("user")} {get("embeds.stats.field_users")}', value=member_count)
-        embed.add_field(name=get("embeds.stats.field_in_matchmaking"), value=len(IN_MATCHMAKING))
-        embed.add_field(name=get("embeds.stats.field_in_game"), value=len(IN_GAME))
+        container.add_field(name=get("embeds.stats.field_shard_servers"), value=shard_servers)
+        container.add_field(name=f'{get_emoji_string("user")} {get("embeds.stats.field_users")}', value=member_count)
+        container.add_field(name=get("embeds.stats.field_in_matchmaking"), value=len(IN_MATCHMAKING))
+        container.add_field(name=get("embeds.stats.field_in_game"), value=len(IN_GAME))
 
-        await ctx.response.send_message(embed=embed)
+        await ctx.response.send_message(**container_send_kwargs(container))
 
     @command_root.command(name="about", description=get("commands.about.description"))
     async def command_about(self, ctx: discord.Interaction):
@@ -410,21 +417,27 @@ class GeneralCog(commands.Cog):
         libraries = ["discord.py", "svg.py", "ruamel.yaml", "cairosvg", "trueskill", "mpmath"]
         f_log.debug(f"/about called: {contextify(ctx)}")
 
-        embed = CustomEmbed(title=get("embeds.about.title"), color=INFO_COLOR)
-        embed.add_field(name=get("embeds.about.field_bot_by"), value="[@quantumbagel](https://github.com/quantumbagel)")
-        embed.add_field(name=get("embeds.about.field_source"), value="[here](https://github.com/PlayCord/bot)")
-        embed.add_field(name=get("embeds.about.field_pfp"), value="[@soldship](https://github.com/quantumsoldship)")
-        embed.add_field(name=get("embeds.about.field_inspiration"),
-                        value="[LoRiggio (Liar's Dice Bot)](https://github.com/Pixelz22/LoRiggioDev) by [@Pixelz22](https://github.com/Pixelz22)",
-                        inline=True)
-        embed.add_field(name=get("embeds.about.field_libraries"),
-                        value="\n".join([f"[{lib}](https://pypi.org/project/{lib})" for lib in libraries]),
-                        inline=False)
-        embed.add_field(name=get("embeds.about.field_dev_time"),
-                        value="October 2024 - March 2025\nMarch 2026 - Present")
-        embed.set_footer(text=get("embeds.about.footer"), icon_url=get("brand.footer_icon"))
+        container = CustomContainer(title=get("embeds.about.title"), color=INFO_COLOR)
+        container.add_field(name=get("embeds.about.field_bot_by"), value="[@quantumbagel](https://github.com/quantumbagel)")
+        container.add_field(name=get("embeds.about.field_source"), value="[here](https://github.com/PlayCord/bot)")
+        container.add_field(name=get("embeds.about.field_pfp"), value="[@soldship](https://github.com/quantumsoldship)")
+        container.add_field(
+            name=get("embeds.about.field_inspiration"),
+            value="[LoRiggio (Liar's Dice Bot)](https://github.com/Pixelz22/LoRiggioDev) by [@Pixelz22](https://github.com/Pixelz22)",
+            inline=True,
+        )
+        container.add_field(
+            name=get("embeds.about.field_libraries"),
+            value="\n".join([f"[{lib}](https://pypi.org/project/{lib})" for lib in libraries]),
+            inline=False,
+        )
+        container.add_field(
+            name=get("embeds.about.field_dev_time"),
+            value="October 2024 - March 2025\nMarch 2026 - Present",
+        )
+        container.set_footer(text=get("embeds.about.footer"), icon_url=get("brand.footer_icon"))
 
-        await ctx.response.send_message(embed=embed)
+        await ctx.response.send_message(**container_send_kwargs(container))
 
     @command_root.command(name="help", description=get("commands.help.description"))
     @app_commands.describe(topic=get("commands.help.param_topic"))
@@ -437,30 +450,33 @@ class GeneralCog(commands.Cog):
         f_log = log.getChild("command.help")
         f_log.debug(f"/help called with topic={topic}: {contextify(ctx)}")
 
-        # Determine which embed to show based on topic
+        # Determine which container to show based on topic
         if topic == "getting_started":
-            embed = HelpGettingStartedEmbed()
+            container = HelpGettingStartedContainer()
             section = "getting_started"
         elif topic == "commands":
-            embed = HelpCommandsEmbed()
+            container = HelpCommandsContainer()
             section = "commands"
         elif topic == "games":
-            # Build games overview
-            embed = await self._build_help_games_embed()
+            container = await self._build_help_games_container()
             section = "games"
         else:
-            embed = HelpMainEmbed()
+            container = HelpMainContainer()
             section = "main"
 
-        view = HelpView(user_id=ctx.user.id, current_section=section)
-        await ctx.response.send_message(embed=embed, view=view)
+        view = HelpView(
+            user_id=ctx.user.id,
+            current_section=section,
+            body_text=container_to_markdown(container),
+        )
+        await ctx.response.send_message(view=view)
 
-    async def _build_help_games_embed(self):
-        """Build a quick games overview embed for help menu."""
-        embed = CustomEmbed(
+    async def _build_help_games_container(self):
+        """Build a quick games overview container for help menu."""
+        container = CustomContainer(
             title=get("help.games_overview.title"),
             description=get("help.games_overview.description"),
-            color=INFO_COLOR
+            color=INFO_COLOR,
         )
 
         games_text = []
@@ -471,19 +487,19 @@ class GeneralCog(commands.Cog):
         if len(GAME_TYPES) > 8:
             games_text.append(fmt("help.games_overview.more_games", count=len(GAME_TYPES) - 8))
 
-        embed.add_field(
+        container.add_field(
             name=get("help.games_overview.field_games"),
             value="\n".join(games_text),
-            inline=False
+            inline=False,
         )
 
-        embed.add_field(
+        container.add_field(
             name=get("help.games_overview.field_tip"),
             value=get("help.games_overview.tip_value"),
-            inline=False
+            inline=False,
         )
 
-        return embed
+        return container
 
     @command_root.command(name="learn", description=get("commands.learn.description"))
     @app_commands.describe(game=get("commands.learn.param_game"))
@@ -501,8 +517,8 @@ class GeneralCog(commands.Cog):
 
         game_class = _GAME_METADATA[game]["class"]
 
-        embed = HelpGameInfoEmbed(game, game_class)
-        await ctx.response.send_message(embed=embed)
+        container = HelpGameInfoContainer(game, game_class)
+        await ctx.response.send_message(**container_send_kwargs(container))
 
     @command_root.command(name="leaderboard", description=get("commands.leaderboard.description"))
     @app_commands.describe(
@@ -538,34 +554,35 @@ class GeneralCog(commands.Cog):
 
         limit = 10
 
-        embed, has_data, is_last_page = await self._build_leaderboard_embed(
+        container, has_data, is_last_page = await self._build_leaderboard_container(
             game, game_name, game_db.game_id, scope, ctx.guild, page, limit
         )
 
         # If no data on this page and page > 1, go back to page 1
         if not has_data and page > 1:
             page = 1
-            embed, has_data, is_last_page = await self._build_leaderboard_embed(
+            container, has_data, is_last_page = await self._build_leaderboard_container(
                 game, game_name, game_db.game_id, scope, ctx.guild, page, limit
             )
 
         max_pages = page if is_last_page else page + 1
-        embed.set_footer(text=fmt("embeds.leaderboard.footer", page=page, max=max_pages))
+        container.set_footer(text=fmt("embeds.leaderboard.footer", page=page, max=max_pages))
 
         view = PaginationView(
             guild_id=ctx.guild.id if ctx.guild else 0,
             user_id=ctx.user.id,
             current_page=page,
             max_pages=max_pages,
+            body_text=container_to_markdown(container),
             callback_handler=lambda interaction, new_page: self._leaderboard_page_callback(
                 interaction, game, game_name, game_db.game_id, scope, new_page, limit
             )
         )
-        await ctx.followup.send(embed=embed, view=view)
+        await ctx.followup.send(view=view)
 
-    async def _build_leaderboard_embed(self, game: str, game_name: str, game_id: int, scope: str,
-                                        guild, page: int, limit: int):
-        """Build the leaderboard embed for a specific page. Returns (embed, has_data, is_last_page)."""
+    async def _build_leaderboard_container(self, game: str, game_name: str, game_id: int, scope: str,
+                                           guild, page: int, limit: int):
+        """Build leaderboard container for a specific page. Returns (container, has_data, is_last_page)."""
         offset = (page - 1) * limit
         if scope == "global":
             # Fetch one extra item to check if there are more pages
@@ -592,8 +609,8 @@ class GeneralCog(commands.Cog):
             scope_text = fmt("leaderboard.scope_server", guild_name=gname)
 
         title_key = "embeds.leaderboard.title_global" if scope == "global" else "embeds.leaderboard.title_server"
-        embed = CustomEmbed(title=fmt(title_key, game_name=game_name), color=INFO_COLOR)
-        embed.description = scope_text
+        container = CustomContainer(title=fmt(title_key, game_name=game_name), color=INFO_COLOR)
+        container.description = scope_text
 
         has_data = bool(leaderboard_data)
         # If we got more than limit items, there are more pages
@@ -603,10 +620,11 @@ class GeneralCog(commands.Cog):
         display_data = leaderboard_data[:limit]
 
         if not display_data:
-            embed.add_field(name=get("leaderboard.no_data_name"),
-                            value=get("embeds.leaderboard.no_players") if page == 1 else get(
-                                "embeds.leaderboard.no_more_players"),
-                            inline=False)
+            container.add_field(
+                name=get("leaderboard.no_data_name"),
+                value=get("embeds.leaderboard.no_players") if page == 1 else get("embeds.leaderboard.no_more_players"),
+                inline=False,
+            )
         else:
             rankings = []
             for i, entry in enumerate(display_data, start=offset + 1):
@@ -627,29 +645,30 @@ class GeneralCog(commands.Cog):
                         matches=matches,
                         games_word=plural("game", matches))
                 )
-            embed.add_field(name=get("embeds.leaderboard.field_rankings"), value="\n".join(rankings), inline=False)
+            container.add_field(name=get("embeds.leaderboard.field_rankings"), value="\n".join(rankings), inline=False)
 
-        return embed, has_data, is_last_page
+        return container, has_data, is_last_page
 
     async def _leaderboard_page_callback(self, interaction: discord.Interaction, game: str, game_name: str,
                                          game_id: int, scope: str, new_page: int,
                                          limit: int):
         """Callback for leaderboard pagination buttons."""
-        embed, has_data, is_last_page = await self._build_leaderboard_embed(
+        container, has_data, is_last_page = await self._build_leaderboard_container(
             game, game_name, game_id, scope, interaction.guild, new_page, limit
         )
         max_pages = new_page if is_last_page else new_page + 1
-        embed.set_footer(text=fmt("embeds.leaderboard.footer", page=new_page, max=max_pages))
+        container.set_footer(text=fmt("embeds.leaderboard.footer", page=new_page, max=max_pages))
         view = PaginationView(
             guild_id=interaction.guild.id if interaction.guild else 0,
             user_id=interaction.user.id,
             current_page=new_page,
             max_pages=max_pages,  # Dynamic max based on data
+            body_text=container_to_markdown(container),
             callback_handler=lambda inter, pg: self._leaderboard_page_callback(
                 inter, game, game_name, game_id, scope, pg, limit
             )
         )
-        await interaction.edit_original_response(embed=embed, view=view)
+        await interaction.edit_original_response(view=view)
 
     @command_root.command(name="catalog", description=get("commands.catalog.description"))
     @app_commands.describe(page=get("commands.catalog.param_page"))
@@ -664,26 +683,27 @@ class GeneralCog(commands.Cog):
         if page < 1 or page > total_pages:
             page = 1
 
-        embed = self._build_catalog_embed(page, total_pages, all_games, games_per_page)
+        container = self._build_catalog_container(page, total_pages, all_games, games_per_page)
 
         view = PaginationView(
             guild_id=ctx.guild.id if ctx.guild else 0,
             user_id=ctx.user.id,
             current_page=page,
             max_pages=total_pages,
+            body_text=container_to_markdown(container),
             callback_handler=lambda interaction, new_page: self._catalog_page_callback(
                 interaction, new_page, total_pages, all_games, games_per_page
             )
         )
-        await ctx.response.send_message(embed=embed, view=view)
+        await ctx.response.send_message(view=view)
 
-    def _build_catalog_embed(self, page: int, total_pages: int, all_games: list, games_per_page: int) -> CustomEmbed:
-        """Build the catalog embed for a specific page."""
+    def _build_catalog_container(self, page: int, total_pages: int, all_games: list, games_per_page: int) -> CustomContainer:
+        """Build the catalog container for a specific page."""
         start_idx = (page - 1) * games_per_page
         page_games = all_games[start_idx:start_idx + games_per_page]
 
-        embed = CustomEmbed(title=fmt("embeds.catalog.title", name=NAME), color=INFO_COLOR)
-        embed.description = fmt("embeds.catalog.description", count=len(GAME_TYPES))
+        container = CustomContainer(title=fmt("embeds.catalog.title", name=NAME), color=INFO_COLOR)
+        container.description = fmt("embeds.catalog.description", count=len(GAME_TYPES))
 
         for game_id in page_games:
             meta = _GAME_METADATA[game_id]
@@ -702,7 +722,7 @@ class GeneralCog(commands.Cog):
                 player_text = fmt("help.game_info.players_format", count=game_players)
 
             short_desc = f"{game_desc[:100]}{'...' if len(game_desc) > 100 else ''}"
-            embed.add_field(
+            container.add_field(
                 name=fmt("embeds.catalog.game_field_format", emoji=game_emoji, game_name=game_name),
                 value=fmt("embeds.catalog.game_value_format",
                           description=short_desc,
@@ -713,23 +733,24 @@ class GeneralCog(commands.Cog):
                 inline=False
             )
 
-        embed.set_footer(text=fmt("embeds.catalog.footer", page=page, total=total_pages))
-        return embed
+        container.set_footer(text=fmt("embeds.catalog.footer", page=page, total=total_pages))
+        return container
 
     async def _catalog_page_callback(self, interaction: discord.Interaction, new_page: int,
                                      total_pages: int, all_games: list, games_per_page: int):
         """Callback for catalog pagination buttons."""
-        embed = self._build_catalog_embed(new_page, total_pages, all_games, games_per_page)
+        container = self._build_catalog_container(new_page, total_pages, all_games, games_per_page)
         view = PaginationView(
             guild_id=interaction.guild.id if interaction.guild else 0,
             user_id=interaction.user.id,
             current_page=new_page,
             max_pages=total_pages,
+            body_text=container_to_markdown(container),
             callback_handler=lambda inter, pg: self._catalog_page_callback(
                 inter, pg, total_pages, all_games, games_per_page
             )
         )
-        await interaction.edit_original_response(embed=embed, view=view)
+        await interaction.edit_original_response(view=view)
 
     @command_root.command(name="profile", description=get("commands.profile.description"))
     @app_commands.describe(user=get("commands.profile.param_user"))
@@ -749,8 +770,8 @@ class GeneralCog(commands.Cog):
             )
             return
 
-        embed = CustomEmbed(title=fmt("embeds.profile.title", username=user.display_name), color=INFO_COLOR)
-        embed.set_thumbnail(url=user.display_avatar.url)
+        container = CustomContainer(title=fmt("embeds.profile.title", username=user.display_name), color=INFO_COLOR)
+        container.set_thumbnail(url=user.display_avatar.url)
 
         game_stats = []
         for game_id in GAME_TYPES:
@@ -795,10 +816,13 @@ class GeneralCog(commands.Cog):
                     )
 
         if game_stats:
-            embed.add_field(name=get("embeds.profile.field_ratings"), value="\n".join(game_stats), inline=False)
+            container.add_field(name=get("embeds.profile.field_ratings"), value="\n".join(game_stats), inline=False)
         else:
-            embed.add_field(name=get("embeds.profile.field_ratings"), value=get("embeds.profile.field_ratings_empty"),
-                            inline=False)
+            container.add_field(
+                name=get("embeds.profile.field_ratings"),
+                value=get("embeds.profile.field_ratings_empty"),
+                inline=False,
+            )
 
         match_history = db.database.get_user_match_history(user.id, ctx.guild.id, limit=5)
         if match_history:
@@ -811,19 +835,25 @@ class GeneralCog(commands.Cog):
                     rated_status=get("history.rated") if m.get('is_rated', True) else get("history.casual"),
                     delta=f"{'+' if m.get('mu_delta', 0) >= 0 else ''}{round(m.get('mu_delta', 0))}")
                 for m in match_history]
-            embed.add_field(name=get("embeds.profile.field_recent_matches"), value="\n".join(history_lines),
-                            inline=False)
+            container.add_field(
+                name=get("embeds.profile.field_recent_matches"),
+                value="\n".join(history_lines),
+                inline=False,
+            )
         else:
-            embed.add_field(name=get("embeds.profile.field_recent_matches"),
-                            value=get("embeds.profile.field_recent_matches_empty"), inline=False)
+            container.add_field(
+                name=get("embeds.profile.field_recent_matches"),
+                value=get("embeds.profile.field_recent_matches_empty"),
+                inline=False,
+            )
 
         total_matches = db.database.count_matches_for_user(user.id, ctx.guild.id)
-        embed.add_field(
+        container.add_field(
             name=get("embeds.profile.field_total_games"),
             value=f"{total_matches} {plural('game', total_matches)}",
             inline=True,
         )
-        await ctx.followup.send(embed=embed)
+        await ctx.followup.send(**container_send_kwargs(container))
 
     @command_root.command(name="history", description=get("commands.history.description"))
     @app_commands.describe(
@@ -864,29 +894,30 @@ class GeneralCog(commands.Cog):
 
         game_name = _GAME_METADATA[game]["name"]
 
-        embed, chart_file, has_data, is_last_page = self._build_history_embed(
+        container, chart_file, has_data, is_last_page = self._build_history_container(
             user, game_name, game_db.game_id, ctx.guild.id, page, days, f_log
         )
 
         max_pages = page if is_last_page else page + 1
-        embed.set_footer(text=fmt("pagination.page_footer", page=page, max=max_pages))
+        container.set_footer(text=fmt("pagination.page_footer", page=page, max=max_pages))
         view = PaginationView(
             guild_id=ctx.guild.id if ctx.guild else 0,
             user_id=ctx.user.id,
             current_page=page,
             max_pages=max_pages,
+            body_text=container_to_markdown(container),
             callback_handler=lambda interaction, new_page: self._history_page_callback(
                 interaction, user, game_name, game_db.game_id, new_page, days, f_log
             )
         )
         if chart_file:
-            await ctx.response.send_message(embed=embed, file=chart_file, view=view)
+            await ctx.response.send_message(view=view, file=chart_file)
         else:
-            await ctx.response.send_message(embed=embed, view=view)
+            await ctx.response.send_message(view=view)
 
-    def _build_history_embed(self, user, game_name: str, game_id: int, guild_id: int,
-                             page: int, days: int, f_log):
-        """Build history embed for a specific page. Returns (embed, chart_file, has_data, is_last_page)."""
+    def _build_history_container(self, user, game_name: str, game_id: int, guild_id: int,
+                                 page: int, days: int, f_log):
+        """Build history container for a specific page. Returns (container, chart_file, has_data, is_last_page)."""
         limit = 8
         offset = (page - 1) * limit
 
@@ -900,8 +931,8 @@ class GeneralCog(commands.Cog):
         )
         rating_history = db.database.get_rating_history(user.id, guild_id, game_id, days=days)
 
-        embed = CustomEmbed(title=fmt("history.embed_title", user=user.display_name, game=game_name), color=INFO_COLOR)
-        embed.set_thumbnail(url=user.display_avatar.url)
+        container = CustomContainer(title=fmt("history.embed_title", user=user.display_name, game=game_name), color=INFO_COLOR)
+        container.set_thumbnail(url=user.display_avatar.url)
 
         has_data = bool(match_history)
         # If we got more than limit items, there are more pages
@@ -938,11 +969,13 @@ class GeneralCog(commands.Cog):
                     f" | {get('history.rated') if row.get('is_rated', True) else get('history.casual')}"
                     f" | {'+' if delta >= 0 else ''}{round(delta)}{summ_txt}"
                 )
-            embed.add_field(name=get("history.recent_matches"), value="\n".join(lines), inline=False)
+            container.add_field(name=get("history.recent_matches"), value="\n".join(lines), inline=False)
         else:
-            embed.add_field(name=get("history.recent_matches"),
-                            value=get("history.no_completed") if page == 1 else get("history.no_more"),
-                            inline=False)
+            container.add_field(
+                name=get("history.recent_matches"),
+                value=get("history.no_completed") if page == 1 else get("history.no_more"),
+                inline=False,
+            )
 
         # Generate matplotlib chart if rating history exists (only on first page for performance)
         chart_file = None
@@ -962,10 +995,10 @@ class GeneralCog(commands.Cog):
                     dpi=100
                 )
                 chart_file = discord.File(chart_buffer, filename="rating_chart.png")
-                embed.set_image(url="attachment://rating_chart.png")
+                container.set_image(url="attachment://rating_chart.png")
 
                 delta_total = points[-1] - points[0]
-                embed.add_field(
+                container.add_field(
                     name=fmt("history.rating_trend_name", days=days),
                     value=(
                         f"{get('history.start')}: {round(points[0])} → {get('history.end')}: {round(points[-1])} "
@@ -976,7 +1009,7 @@ class GeneralCog(commands.Cog):
             except Exception as e:
                 f_log.error(f"Failed to generate chart: {e}")
                 delta_total = points[-1] - points[0]
-                embed.add_field(
+                container.add_field(
                     name=fmt("history.rating_trend_name", days=days),
                     value=(
                         f"{get('history.start')}: {round(points[0])} → {get('history.end')}: {round(points[-1])} "
@@ -985,30 +1018,34 @@ class GeneralCog(commands.Cog):
                     inline=False,
                 )
         elif page == 1:
-            embed.add_field(name=fmt("history.rating_trend_name", days=days), value=get("history.no_rating_period"),
-                            inline=False)
+            container.add_field(
+                name=fmt("history.rating_trend_name", days=days),
+                value=get("history.no_rating_period"),
+                inline=False,
+            )
 
-        return embed, chart_file, has_data, is_last_page
+        return container, chart_file, has_data, is_last_page
 
     async def _history_page_callback(self, interaction: discord.Interaction, user, game_name: str,
                                      game_id: int, new_page: int, days: int, f_log):
         """Callback for history pagination buttons."""
-        embed, chart_file, has_data, is_last_page = self._build_history_embed(
+        container, chart_file, has_data, is_last_page = self._build_history_container(
             user, game_name, game_id, interaction.guild.id, new_page, days, f_log
         )
         max_pages = new_page if is_last_page else new_page + 1
-        embed.set_footer(text=fmt("pagination.page_footer", page=new_page, max=max_pages))
+        container.set_footer(text=fmt("pagination.page_footer", page=new_page, max=max_pages))
         view = PaginationView(
             guild_id=interaction.guild.id if interaction.guild else 0,
             user_id=interaction.user.id,
             current_page=new_page,
             max_pages=max_pages,  # Dynamic max based on data
+            body_text=container_to_markdown(container),
             callback_handler=lambda inter, pg: self._history_page_callback(
                 inter, user, game_name, game_id, pg, days, f_log
             )
         )
         # Chart file only on page 1, so we won't have it on other pages
-        await interaction.edit_original_response(embed=embed, view=view)
+        await interaction.edit_original_response(view=view)
 
     def _replay_game_label(self, game_id: int) -> str:
         g = db.database.get_game_by_id(game_id)
@@ -1016,7 +1053,7 @@ class GeneralCog(commands.Cog):
             return str(game_id)
         return getattr(g, "display_name", None) or getattr(g, "game_name", str(game_id))
 
-    def _build_replay_embed(
+    def _build_replay_container(
         self,
         match_id: int,
         game_label: str,
@@ -1025,7 +1062,7 @@ class GeneralCog(commands.Cog):
         global_summary: str | None = None,
         *,
         replay_display: str | None = None,
-    ) -> CustomEmbed:
+    ) -> CustomContainer:
         total = max(1, len(pages))
         p = max(1, min(page_1based, total))
         body = pages[p - 1] if pages else ""
@@ -1035,12 +1072,12 @@ class GeneralCog(commands.Cog):
             head = f"{str(global_summary).strip()}\n\n"
         desc = (head + code)[:4000]
         disp = replay_display if replay_display is not None else str(match_id)
-        emb = CustomEmbed(
+        container = CustomContainer(
             title=fmt("commands.replay.title", id=disp, game=game_label),
             description=desc,
         )
-        emb.set_footer(text=fmt("pagination.page_footer", page=p, max=total))
-        return emb
+        container.set_footer(text=fmt("pagination.page_footer", page=p, max=total))
+        return container
 
     async def _replay_page_callback(
         self,
@@ -1052,7 +1089,7 @@ class GeneralCog(commands.Cog):
         global_summary: str | None,
         replay_display: str,
     ):
-        embed = self._build_replay_embed(
+        container = self._build_replay_container(
             match_id,
             game_label,
             pages,
@@ -1065,11 +1102,12 @@ class GeneralCog(commands.Cog):
             user_id=interaction.user.id,
             current_page=new_page,
             max_pages=len(pages),
+            body_text=container_to_markdown(container),
             callback_handler=lambda inter, np: self._replay_page_callback(
                 inter, np, pages, match_id, game_label, global_summary, replay_display
             ),
         )
-        await interaction.edit_original_response(embed=embed, view=view)
+        await interaction.edit_original_response(view=view)
 
     @command_root.command(name="replay", description=get("commands.replay.description"))
     @app_commands.describe(match_ref=get("commands.replay.param_match_ref"))
@@ -1106,7 +1144,7 @@ class GeneralCog(commands.Cog):
             replay_global = meta.get("outcome_global_summary")
             if replay_global is not None:
                 replay_global = str(replay_global).strip() or None
-        embed = self._build_replay_embed(
+        container = self._build_replay_container(
             match_id,
             game_label,
             pages,
@@ -1119,11 +1157,12 @@ class GeneralCog(commands.Cog):
             user_id=ctx.user.id,
             current_page=1,
             max_pages=len(pages),
+            body_text=container_to_markdown(container),
             callback_handler=lambda inter, np: self._replay_page_callback(
                 inter, np, pages, match_id, game_label, replay_global, replay_display
             ),
         )
-        await ctx.followup.send(embed=embed, view=view, ephemeral=True)
+        await ctx.followup.send(view=view, ephemeral=True)
 
     @command_root.command(name="feedback", description=get("commands.feedback.description"))
     @app_commands.describe(message=get("commands.feedback.param_message"))

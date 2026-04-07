@@ -9,6 +9,7 @@ from typing import Any
 import discord
 from discord import app_commands
 from discord.app_commands.models import AppCommandGroup, Argument
+from utils.containers import CustomContainer
 from utils.locale import fmt, get
 
 
@@ -197,14 +198,14 @@ def format_drift_report(drift: dict[str, Any], *, max_lines: int = 40) -> str:
 _ZWSP = "\u200b"
 
 
-def drift_to_embed(
+def drift_to_container(
     drift: dict[str, Any],
     *,
     color: discord.Color,
     title: str,
     inline_column_limit: int = 340,
     max_modified_sections: int = 14,
-) -> discord.Embed:
+) -> CustomContainer:
     """
     Build one embed: summary row, three-column drift (added / removed / modified names),
     then non-inline fields per modified command (diff lines).
@@ -215,8 +216,8 @@ def drift_to_embed(
     removed = list(drift.get("removed") or [])
     modified: dict[str, list[str]] = dict(drift.get("modified") or {})
 
-    embed = discord.Embed(title=title[:256], color=color)
-    embed.description = fmt(
+    container = CustomContainer(title=title[:256], color=color)
+    container.description = fmt(
         "commands.treediff.embed_description_stats",
         local_n=len(local_all),
         remote_n=len(remote_all),
@@ -251,7 +252,7 @@ def drift_to_embed(
         ),
     ]
     for locale_key, value in row_counts:
-        embed.add_field(name=get(locale_key), value=value[:1024], inline=True)
+        container.add_field(name=get(locale_key), value=value[:1024], inline=True)
 
     row_lists = [
         ("commands.treediff.field_added", short_list(added, inline_column_limit)),
@@ -262,17 +263,17 @@ def drift_to_embed(
         ),
     ]
     for locale_key, value in row_lists:
-        embed.add_field(name=get(locale_key), value=value[:1024], inline=True)
+        container.add_field(name=get(locale_key), value=value[:1024], inline=True)
 
     mod_sorted = sorted(modified.items())
     shown = 0
     for cmd_name, changes in mod_sorted:
-        if len(embed.fields) >= 24 or shown >= max_modified_sections:
+        if len(container.fields) >= 24 or shown >= max_modified_sections:
             break
         body = "\n".join(f"• {c}" for c in changes)
         if len(body) > 1024:
             body = body[:1021] + "…"
-        embed.add_field(
+        container.add_field(
             name=f"`{cmd_name}`"[:256],
             value=body or _ZWSP,
             inline=False,
@@ -280,13 +281,13 @@ def drift_to_embed(
         shown += 1
 
     if shown < len(mod_sorted):
-        embed.add_field(
+        container.add_field(
             name=get("commands.treediff.field_more_modified"),
             value=fmt("commands.treediff.more_modified_detail", n=len(mod_sorted) - shown),
             inline=False,
         )
 
-    return embed
+    return container
 
 
 async def fetch_and_analyze_tree(

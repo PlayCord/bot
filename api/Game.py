@@ -7,7 +7,7 @@ from typing import Any, ClassVar
 
 from api.Bot import Bot
 from api.Command import Command
-from api.MessageComponents import MessageComponent
+from api.MessageComponents import Message, ThreadMessage
 from api.Player import Player
 
 
@@ -180,10 +180,9 @@ class Game(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def state(self) -> list[MessageComponent]:
+    def state(self) -> Message:
         """
-        Return the current state of the game using MessageComponents.
-        :return: a list of MessageComponents representing the game state.
+        Return the current state of the game as a CV2 message tree.
         """
         raise NotImplementedError
 
@@ -254,3 +253,30 @@ class Game(ABC):
         Include every participant when returning a dict. Define copy on the game class, not locale TOML.
         """
         return None
+
+    def player_state(self, player: Player) -> Message | None:
+        """
+        Optional private state for a specific player.
+
+        Sent ephemerally after state updates when provided by a game.
+        """
+        return None
+
+    def spectator_state(self) -> Message | None:
+        """
+        Optional spectator-specific state.
+
+        Returning ``None`` falls back to :meth:`state`.
+        """
+        return None
+
+    def thread_messages(self) -> list[ThreadMessage]:
+        """
+        Additional persistent messages maintained alongside the main game message.
+        """
+        return []
+
+    notify_on_turn: ClassVar[bool] = False
+
+    def turn_notification(self, player: Player) -> str:
+        return f"It's your turn, {player.mention}!"

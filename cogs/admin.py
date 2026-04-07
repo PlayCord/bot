@@ -8,7 +8,13 @@ from discord.ext import commands
 from configuration.constants import *
 from utils import database as db
 from utils.analytics import format_recent_event_row, render_analytics_matplotlib_summary
-from utils.embeds import ErrorEmbed, append_chunked_fields, lines_to_embed_field_chunks
+from utils.containers import (
+    CustomContainer,
+    ErrorContainer,
+    append_container_sections,
+    container_send_kwargs,
+    lines_to_container_sections,
+)
 from utils.locale import fmt, get
 
 log = logging.getLogger(LOGGING_ROOT)
@@ -49,10 +55,10 @@ class AdminCog(commands.Cog):
             log.exception("Owner admin message task failed")
             try:
                 await msg.reply(
-                    embed=ErrorEmbed(
+                    **container_send_kwargs(ErrorContainer(
                         what_failed=get("commands.admin.task_unexpected_error"),
                         reason=traceback.format_exc(),
-                    )
+                    ))
                 )
             except discord.HTTPException:
                 pass
@@ -132,13 +138,13 @@ class AdminCog(commands.Cog):
                 await self.bot.tree.sync()
             except Exception as e:
                 await msg.reply(
-                    embed=ErrorEmbed(
+                    **container_send_kwargs(ErrorContainer(
                         what_failed=fmt(
                             "commands.admin.sync_failed",
                             error_type=type(e).__name__,
                         ),
                         reason=traceback.format_exc(),
-                    )
+                    ))
                 )
                 return False
             f_log.info(f"Performed authorized sync from user {msg.author.id} to all guilds.")
@@ -161,13 +167,13 @@ class AdminCog(commands.Cog):
             await self.bot.tree.sync(guild=g)
         except Exception as e:
             await msg.reply(
-                embed=ErrorEmbed(
+                **container_send_kwargs(ErrorContainer(
                     what_failed=fmt(
                         "commands.admin.sync_failed",
                         error_type=type(e).__name__,
                     ),
                     reason=traceback.format_exc(),
-                )
+                ))
             )
             return False
         f_log.info(f"Performed authorized sync from user {msg.author.id} to guild {g.id}")
@@ -181,12 +187,14 @@ class AdminCog(commands.Cog):
                 hours = int(split[1])
             except ValueError:
                 await msg.reply(
-                    embed=discord.Embed(
-                        description=fmt(
-                            "commands.analytics.message_usage",
-                            prefix=f"{LOGGING_ROOT}/",
-                        ),
-                        color=INFO_COLOR,
+                    **container_send_kwargs(
+                        CustomContainer(
+                            description=fmt(
+                                "commands.analytics.message_usage",
+                                prefix=f"{LOGGING_ROOT}/",
+                            ),
+                            color=INFO_COLOR,
+                        )
                     )
                 )
                 return False
@@ -196,18 +204,18 @@ class AdminCog(commands.Cog):
         recent = db.database.get_analytics_recent_events(hours=hours, limit=60)
         if not counts and not recent and not by_game:
             await msg.reply(
-                embed=discord.Embed(
+                **container_send_kwargs(CustomContainer(
                     title=fmt("commands.analytics.embed_title", hours=hours),
                     description=fmt("commands.analytics.message_empty", hours=hours),
                     color=EMBED_COLOR,
-                )
+                ))
             )
             return True
 
         chart_buf = await asyncio.to_thread(
             render_analytics_matplotlib_summary, counts, by_game, hours
         )
-        main_embed = discord.Embed(
+        main_container = CustomContainer(
             title=fmt("commands.analytics.embed_title", hours=hours),
             description=(
                 get("commands.analytics.embed_description")
@@ -218,27 +226,29 @@ class AdminCog(commands.Cog):
         )
         if chart_buf is not None:
             chart_buf.seek(0)
-            main_embed.set_image(url="attachment://playcord-analytics.png")
+            main_container.set_image(url="attachment://playcord-analytics.png")
 
         recent_lines: list[str] = (
             [format_recent_event_row(r) for r in recent]
             if recent
             else [get("common.empty_markdown")]
         )
-        append_chunked_fields(
-            main_embed,
-            lines_to_embed_field_chunks(recent_lines),
+        append_container_sections(
+            main_container,
+            lines_to_container_sections(recent_lines),
             first_name=get("commands.analytics.field_recent"),
             truncated_note=get("commands.analytics.recent_truncated_note"),
         )
 
         if chart_buf is not None:
             await msg.reply(
-                embed=main_embed,
-                file=discord.File(chart_buf, filename="playcord-analytics.png"),
+                **container_send_kwargs(
+                    main_container,
+                    files=[discord.File(chart_buf, filename="playcord-analytics.png")],
+                )
             )
         else:
-            await msg.reply(embed=main_embed)
+            await msg.reply(**container_send_kwargs(main_container))
         return True
 
     async def _task_treediff(self, msg: discord.Message) -> bool:
@@ -248,9 +258,11 @@ class AdminCog(commands.Cog):
             if split[1] == MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER:
                 if msg.guild is None:
                     await msg.reply(
-                        embed=discord.Embed(
-                            description=get("commands.treediff.need_guild"),
-                            color=WARNING_COLOR,
+                        **container_send_kwargs(
+                            CustomContainer(
+                                description=get("commands.treediff.need_guild"),
+                                color=WARNING_COLOR,
+                            )
                         )
                     )
                     return False
@@ -260,41 +272,43 @@ class AdminCog(commands.Cog):
                     guild = discord.Object(id=int(split[1]))
                 except ValueError:
                     await msg.reply(
-                        embed=discord.Embed(
-                            description=fmt(
-                                "commands.treediff.message_usage",
-                                prefix=f"{LOGGING_ROOT}/",
-                            ),
-                            color=INFO_COLOR,
+                        **container_send_kwargs(
+                            CustomContainer(
+                                description=fmt(
+                                    "commands.treediff.message_usage",
+                                    prefix=f"{LOGGING_ROOT}/",
+                                ),
+                                color=INFO_COLOR,
+                            )
                         )
                     )
                     return False
         try:
-            from utils.command_tree_diff import drift_to_embed, fetch_and_analyze_tree
+            from utils.command_tree_diff import drift_to_container, fetch_and_analyze_tree
 
             drift = await fetch_and_analyze_tree(self.bot.tree, guild=guild)
         except discord.HTTPException as e:
             await msg.reply(
-                embed=ErrorEmbed(
+                **container_send_kwargs(ErrorContainer(
                     what_failed=get("commands.treediff.message_failed"),
                     reason=str(e),
-                )
+                ))
             )
             return False
         except Exception:
             await msg.reply(
-                embed=ErrorEmbed(
+                **container_send_kwargs(ErrorContainer(
                     what_failed=get("commands.treediff.message_failed"),
                     reason=traceback.format_exc(),
-                )
+                ))
             )
             return False
-        diff_embed = drift_to_embed(
+        diff_container = drift_to_container(
             drift,
             color=EMBED_COLOR,
             title=get("commands.treediff.embed_title"),
         )
-        await msg.reply(embed=diff_embed)
+        await msg.reply(**container_send_kwargs(diff_container))
         return True
 
     async def _task_clear(self, msg: discord.Message) -> bool:
@@ -331,26 +345,26 @@ class AdminCog(commands.Cog):
             f"`{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET} guild <id|{MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER}>`"
         )
         if len(split) < 2:
-            await msg.reply(embed=discord.Embed(description=usage, color=INFO_COLOR))
+            await msg.reply(**container_send_kwargs(CustomContainer(description=usage, color=INFO_COLOR)))
             return False
 
         target = split[1].lower()
         if target == "all":
             if len(split) != 2:
-                await msg.reply(embed=discord.Embed(description=usage, color=INFO_COLOR))
+                await msg.reply(**container_send_kwargs(CustomContainer(description=usage, color=INFO_COLOR)))
                 return False
             db.database.reset_all_data()
             await msg.reply(
-                embed=discord.Embed(
+                **container_send_kwargs(CustomContainer(
                     title="Database reset complete",
                     description="Dropped and recreated the full database schema, then rebuilt tracked assets.",
                     color=SUCCESS_COLOR,
-                )
+                ))
             )
             return True
 
         if len(split) != 3:
-            await msg.reply(embed=discord.Embed(description=usage, color=INFO_COLOR))
+            await msg.reply(**container_send_kwargs(CustomContainer(description=usage, color=INFO_COLOR)))
             return False
 
         raw_id = split[2]
@@ -363,46 +377,46 @@ class AdminCog(commands.Cog):
             else:
                 entity_id = int(raw_id)
         except ValueError:
-            await msg.reply(embed=discord.Embed(description=usage, color=INFO_COLOR))
+            await msg.reply(**container_send_kwargs(CustomContainer(description=usage, color=INFO_COLOR)))
             return False
 
         if target == "game":
             recreated = db.database.reset_game_data(entity_id)
             await msg.reply(
-                embed=discord.Embed(
+                **container_send_kwargs(CustomContainer(
                     title="Game reset complete",
                     description=(
                         f"Deleted all rows related to game `{entity_id}` and recreated "
                         f"`{recreated.game_name}` as game id `{recreated.game_id}`."
                     ),
                     color=SUCCESS_COLOR,
-                )
+                ))
             )
             return True
 
         if target == "user":
             db.database.reset_user_data(entity_id)
             await msg.reply(
-                embed=discord.Embed(
+                **container_send_kwargs(CustomContainer(
                     title="User reset complete",
                     description=f"Deleted all rows related to user `{entity_id}` and recreated a blank user record.",
                     color=SUCCESS_COLOR,
-                )
+                ))
             )
             return True
 
         if target == "guild":
             db.database.reset_guild_data(entity_id)
             await msg.reply(
-                embed=discord.Embed(
+                **container_send_kwargs(CustomContainer(
                     title="Guild reset complete",
                     description=f"Deleted all rows related to guild `{entity_id}` and recreated a blank guild record.",
                     color=SUCCESS_COLOR,
-                )
+                ))
             )
             return True
 
-        await msg.reply(embed=discord.Embed(description=usage, color=INFO_COLOR))
+        await msg.reply(**container_send_kwargs(CustomContainer(description=usage, color=INFO_COLOR)))
         return False
 
 

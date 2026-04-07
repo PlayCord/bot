@@ -2,7 +2,7 @@ from api.Arguments import Integer
 from api.Command import Command
 from api.Game import Game
 from api.MatchOptions import MatchOptionSpec
-from api.MessageComponents import DataTable, Description
+from api.MessageComponents import Container, MediaGallery, Message, TextDisplay, format_data_table_image
 from api.Player import Player
 from api.Response import Response
 
@@ -60,7 +60,7 @@ class NimGame(Game):
         if self.misere:
             self.last_action += " **Misère:** last move loses."
 
-    def state(self):
+    def state(self) -> Message:
         rule_note = " (Misère)" if self.misere else ""
         status = (
             f"🏁 Winner: {self.winner.mention}"
@@ -69,8 +69,12 @@ class NimGame(Game):
         )
         board = "\n".join([f"Pile {i + 1}: {'🪨' * n} ({n})" for i, n in enumerate(self.piles)])
         description = f"{status}\n\n{board}\n\n{self.last_action}"
-        table = DataTable({p: {"Active:": "✅" if p != self.winner else "🏆"} for p in self.players})
-        return [Description(description), table]
+        return Message(
+            Container(
+                TextDisplay(description),
+                MediaGallery(format_data_table_image({p: {"Active": "✅" if p != self.winner else "🏆"} for p in self.players})),
+            )
+        )
 
     def current_turn(self) -> Player:
         return self.players[self.turn]

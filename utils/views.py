@@ -1,25 +1,57 @@
 import discord
 from discord import SelectOption
 
-from configuration.constants import BUTTON_PREFIX_LOBBY_OPT, BUTTON_PREFIX_LOBBY_ROLE
+from configuration.constants import BUTTON_PREFIX_LOBBY_OPT, BUTTON_PREFIX_LOBBY_ROLE, EMBED_COLOR
+from utils.containers import (
+    CustomContainer,
+    HelpCommandsContainer,
+    HelpGettingStartedContainer,
+    HelpMainContainer,
+    container_to_markdown,
+)
 from utils.emojis import get_button_emoji
 from utils.locale import get
 
 
-class DynamicButtonView(discord.ui.View):
+def container_to_view_text(container: CustomContainer | str | None) -> str:
+    return container_to_markdown(container)
+
+
+class DynamicButtonView(discord.ui.LayoutView):
     """
     Dynamic button view: this is PAIN
     """
 
-    def __init__(self, buttons: list[dict]) -> None:
+    def __init__(
+        self,
+        buttons: list[dict],
+        summary_text: str | None = None,
+        table_image_url: str | None = None,
+    ) -> None:
         """
         Create a dynamic button view
         :param buttons: list of buttons as dictionaries
         look at class D
         """
-        super().__init__(timeout=None)  # timeout=None required for persistent views, per discord docs
+        super().__init__(timeout=None)
+        container = None
+        if summary_text or table_image_url:
+            container = discord.ui.Container()
+            if summary_text:
+                container.add_item(discord.ui.TextDisplay(summary_text[:4000]))
+            if table_image_url:
+                if summary_text:
+                    container.add_item(discord.ui.Separator())
+                container.add_item(
+                    discord.ui.MediaGallery(
+                        discord.MediaGalleryItem(table_image_url),
+                    )
+                )
+            # Keep buttons inside the container when present
+            self.add_item(container)
 
-        # Register buttons to view
+        row = discord.ui.ActionRow()
+        count = 0
         for button in buttons:
             for argument in ["label", "style", "id", "emoji", "disabled", "callback", "link"]:
                 if argument not in button.keys():
@@ -28,17 +60,32 @@ class DynamicButtonView(discord.ui.View):
                         continue
                     button[argument] = None
 
-            item = discord.ui.Button(label=button["label"], style=button["style"],
-                                     custom_id=button["id"], emoji=button["emoji"], disabled=button["disabled"],
-                                     url=button["link"])
+            item = discord.ui.Button(
+                label=button["label"],
+                style=button["style"],
+                custom_id=button["id"],
+                emoji=button["emoji"],
+                disabled=button["disabled"],
+                url=button["link"],
+            )
             if button["callback"] is None:
                 item.callback = self._fail_callback
             elif button["callback"] == "none":
                 item.callback = self._null_callback
             else:
                 item.callback = button["callback"]
-
-            self.add_item(item)
+            row.add_item(item)
+            count += 1
+            if count == 5:
+                self.add_item(row)
+                row = discord.ui.ActionRow()
+                count = 0
+        if count:
+            # If a container exists, add the action row to it so buttons appear inside the container
+            if container is not None:
+                container.add_item(row)
+            else:
+                self.add_item(row)
 
     async def _null_callback(self, interaction: discord.Interaction) -> None:
         """
@@ -55,12 +102,11 @@ class DynamicButtonView(discord.ui.View):
         :param interaction: discord context
         :return: nothing
         """
-        embed = interaction.message.embeds[0]  # There can only be one... embed :O
+        for child in self.walk_children():
+            if hasattr(child, "disabled"):
+                child.disabled = True
 
-        for child in self.children:  # Disable all children via drop kicking
-            child.disabled = True
-
-        await interaction.response.edit_message(embed=embed, view=self)  # Update message, because you can't autoupdate
+        await interaction.response.edit_message(view=self)
 
         msg = await interaction.followup.send(content=get("interactions.dead_view"), ephemeral=True)
 
@@ -72,8 +118,15 @@ class MatchmakingView(DynamicButtonView):
     View for matchmaking message
     """
 
-    def __init__(self, join_button_id=None, leave_button_id=None,
-                 start_button_id=None, can_start=True) -> None:
+    def __init__(
+        self,
+        join_button_id=None,
+        leave_button_id=None,
+        start_button_id=None,
+        can_start=True,
+        summary_text: str | None = None,
+        table_image_url: str | None = None,
+    ) -> None:
         """
         Create a matchmaking view
         :param join_button_id: id of the join button
@@ -88,10 +141,10 @@ class MatchmakingView(DynamicButtonView):
              "emoji": get_button_emoji("leave"), "callback": "none"},
             {"label": get("buttons.start"), "style": discord.ButtonStyle.blurple, "id": start_button_id,
              "emoji": get_button_emoji("start"), "callback": "none", "disabled": not can_start}
-        ])
+        ], summary_text=summary_text, table_image_url=table_image_url)
 
 
-class MatchmakingLobbyView(discord.ui.View):
+class MatchmakingLobbyView(discord.ui.LayoutView):
     """
     Join / leave / start, optional string selects for per-game lobby settings (creator-only),
     and optional per-player role selects for games with CHOSEN role mode.
@@ -112,31 +165,46 @@ class MatchmakingLobbyView(discord.ui.View):
         current_values: dict[str, str | int] | None = None,
         role_specs: list[tuple[int, str, tuple[str, ...]]] | None = None,
         current_role_values: dict[int, str] | None = None,
+        summary_text: str | None = None,
+        table_image_url: str | None = None,
     ) -> None:
         super().__init__(timeout=None)
         current_values = dict(current_values) if current_values else {}
         current_role_values = dict(current_role_values) if current_role_values else {}
         role_specs = role_specs or []
 
+        container = discord.ui.Container(discord.ui.TextDisplay("### Lobby Actions"))
+        if summary_text:
+            container.add_item(discord.ui.TextDisplay(summary_text[:4000]))
+        if table_image_url:
+            if summary_text:
+                container.add_item(discord.ui.Separator())
+            container.add_item(
+                discord.ui.MediaGallery(
+                    discord.MediaGalleryItem(table_image_url),
+                )
+            )
+        if summary_text or table_image_url:
+            container.add_item(discord.ui.Separator())
+
+        action_row = discord.ui.ActionRow()
         join_btn = discord.ui.Button(
             label=get("buttons.join"),
             style=discord.ButtonStyle.gray,
             custom_id=join_button_id,
             emoji=get_button_emoji("join"),
-            row=0,
         )
         join_btn.callback = self._route_to_cog
-        self.add_item(join_btn)
+        action_row.add_item(join_btn)
 
         leave_btn = discord.ui.Button(
             label=get("buttons.leave"),
             style=discord.ButtonStyle.gray,
             custom_id=leave_button_id,
             emoji=get_button_emoji("leave"),
-            row=0,
         )
         leave_btn.callback = self._route_to_cog
-        self.add_item(leave_btn)
+        action_row.add_item(leave_btn)
 
         start_btn = discord.ui.Button(
             label=get("buttons.start"),
@@ -144,15 +212,16 @@ class MatchmakingLobbyView(discord.ui.View):
             custom_id=start_button_id,
             emoji=get_button_emoji("start"),
             disabled=not can_start,
-            row=0,
         )
         start_btn.callback = self._route_to_cog
-        self.add_item(start_btn)
+        action_row.add_item(start_btn)
+        container.add_item(action_row)
 
-        row = 1
+        if option_specs:
+            container.add_item(discord.ui.Separator())
+            container.add_item(discord.ui.TextDisplay("### Match Options"))
+
         for spec in option_specs:
-            if row > 4:
-                break
             cur = current_values.get(spec.key, spec.default)
             options: list[SelectOption] = []
             for label, value, is_def in spec.select_options():
@@ -169,15 +238,16 @@ class MatchmakingLobbyView(discord.ui.View):
                 min_values=1,
                 max_values=1,
                 options=options,
-                row=row,
             )
             sel.callback = self._route_to_cog
-            self.add_item(sel)
-            row += 1
+            option_row = discord.ui.ActionRow()
+            option_row.add_item(sel)
+            container.add_item(option_row)
 
+        if role_specs:
+            container.add_item(discord.ui.Separator())
+            container.add_item(discord.ui.TextDisplay("### Role Selection"))
         for player_id, display_name, avail_roles in role_specs:
-            if row > 4:
-                break
             cur = current_role_values.get(player_id)
             roptions: list[SelectOption] = []
             for r in avail_roles:
@@ -196,11 +266,13 @@ class MatchmakingLobbyView(discord.ui.View):
                 min_values=1,
                 max_values=1,
                 options=roptions,
-                row=row,
             )
             rsel.callback = self._route_to_cog
-            self.add_item(rsel)
-            row += 1
+            role_row = discord.ui.ActionRow()
+            role_row.add_item(rsel)
+            container.add_item(role_row)
+
+        self.add_item(container)
 
 
 class InviteView(DynamicButtonView):
@@ -208,7 +280,7 @@ class InviteView(DynamicButtonView):
     View for invitation DM
     """
 
-    def __init__(self, join_button_id=None, game_link=None) -> None:
+    def __init__(self, join_button_id=None, game_link=None, summary_text: str | None = None) -> None:
         """
         Create a invite view
         :param join_button_id: the custom ID of the join button
@@ -219,7 +291,7 @@ class InviteView(DynamicButtonView):
              "id": join_button_id, "emoji": get_button_emoji("join"), "callback": "none"},
             {"label": get("buttons.go_to_game"),
              "style": discord.ButtonStyle.gray, "link": game_link}
-        ])
+        ], summary_text=summary_text)
 
 
 class SpectateView(DynamicButtonView):
@@ -227,7 +299,7 @@ class SpectateView(DynamicButtonView):
     View for status message
     """
 
-    def __init__(self, spectate_button_id=None, peek_button_id=None, game_link=None) -> None:
+    def __init__(self, spectate_button_id=None, peek_button_id=None, game_link=None, summary_text: str | None = None) -> None:
         """
         Create a spectate view
         :param spectate_button_id: custom ID of the spectate button
@@ -241,10 +313,10 @@ class SpectateView(DynamicButtonView):
              "emoji": get_button_emoji("peek"), "callback": "none"},
             {"label": get("buttons.go_to_game"), "style": discord.ButtonStyle.gray,
              "link": game_link}
-        ])
+        ], summary_text=summary_text)
 
 
-class PaginationView(DynamicButtonView):
+class PaginationView(discord.ui.LayoutView):
     """
     Pagination with First/Previous/Next/Last (timeout=None). Button custom_ids carry only
     guild_id/user_id for ownership checks; page state lives on this view instance.
@@ -252,7 +324,7 @@ class PaginationView(DynamicButtonView):
     """
 
     def __init__(self, guild_id: int, user_id: int, current_page: int,
-                 max_pages: int, callback_handler):
+                 max_pages: int, callback_handler, body_text: str | None = None):
         """
         :param guild_id: Guild ID for validation (0 if not in a guild)
         :param user_id: User who invoked the command (only they can use the buttons)
@@ -260,11 +332,19 @@ class PaginationView(DynamicButtonView):
         :param max_pages: Total pages
         :param callback_handler: async (interaction, new_page) -> None
         """
+        super().__init__(timeout=None)
         self.guild_id = guild_id
         self.user_id = user_id
         self.current_page = current_page
         self.max_pages = max_pages
         self.callback_handler = callback_handler
+        if body_text:
+            self.add_item(
+                discord.ui.Container(
+                    discord.ui.TextDisplay(body_text[:4000]),
+                    accent_color=EMBED_COLOR,
+                )
+            )
 
         from configuration.constants import (
             BUTTON_PREFIX_PAGINATION_FIRST,
@@ -273,41 +353,54 @@ class PaginationView(DynamicButtonView):
             BUTTON_PREFIX_PAGINATION_LAST
         )
 
+        self.add_item(discord.ui.TextDisplay(f"Page {current_page} of {max_pages}"))
         base = f"{guild_id}/{user_id}"
-        super().__init__([
-            {
-                "label": get("buttons.first"),
-                "emoji": "⏮️",
-                "style": discord.ButtonStyle.gray,
-                "id": f"{BUTTON_PREFIX_PAGINATION_FIRST}{base}",
-                "disabled": (current_page == 1),
-                "callback": self._first_callback,
-            },
-            {
-                "label": get("buttons.previous"),
-                "emoji": "◀️",
-                "style": discord.ButtonStyle.primary,
-                "id": f"{BUTTON_PREFIX_PAGINATION_PREV}{base}",
-                "disabled": (current_page == 1),
-                "callback": self._prev_callback,
-            },
-            {
-                "label": get("buttons.next"),
-                "emoji": "▶️",
-                "style": discord.ButtonStyle.primary,
-                "id": f"{BUTTON_PREFIX_PAGINATION_NEXT}{base}",
-                "disabled": (current_page >= max_pages),
-                "callback": self._next_callback,
-            },
-            {
-                "label": get("buttons.last"),
-                "emoji": "⏭️",
-                "style": discord.ButtonStyle.gray,
-                "id": f"{BUTTON_PREFIX_PAGINATION_LAST}{base}",
-                "disabled": (current_page >= max_pages),
-                "callback": self._last_callback,
-            },
-        ])
+        row = discord.ui.ActionRow()
+        buttons = [
+            (
+                get("buttons.first"),
+                "⏮️",
+                discord.ButtonStyle.gray,
+                f"{BUTTON_PREFIX_PAGINATION_FIRST}{base}",
+                current_page == 1,
+                self._first_callback,
+            ),
+            (
+                get("buttons.previous"),
+                "◀️",
+                discord.ButtonStyle.primary,
+                f"{BUTTON_PREFIX_PAGINATION_PREV}{base}",
+                current_page == 1,
+                self._prev_callback,
+            ),
+            (
+                get("buttons.next"),
+                "▶️",
+                discord.ButtonStyle.primary,
+                f"{BUTTON_PREFIX_PAGINATION_NEXT}{base}",
+                current_page >= max_pages,
+                self._next_callback,
+            ),
+            (
+                get("buttons.last"),
+                "⏭️",
+                discord.ButtonStyle.gray,
+                f"{BUTTON_PREFIX_PAGINATION_LAST}{base}",
+                current_page >= max_pages,
+                self._last_callback,
+            ),
+        ]
+        for label, emoji, style, custom_id, disabled, callback in buttons:
+            button = discord.ui.Button(
+                label=label,
+                emoji=emoji,
+                style=style,
+                custom_id=custom_id,
+                disabled=disabled,
+            )
+            button.callback = callback
+            row.add_item(button)
+        self.add_item(row)
 
     def _validate_interaction(self, interaction: discord.Interaction) -> bool:
         """Validate that the interaction is from the command invoker."""
@@ -371,7 +464,7 @@ class PaginationView(DynamicButtonView):
 class RematchView(DynamicButtonView):
     """Rematch button; interaction is handled in GamesCog (see callback \"none\")."""
 
-    def __init__(self, match_id: int):
+    def __init__(self, match_id: int, summary_text: str | None = None):
         from configuration.constants import BUTTON_PREFIX_REMATCH
 
         super().__init__([
@@ -383,41 +476,47 @@ class RematchView(DynamicButtonView):
                 "disabled": False,
                 "callback": "none",
             },
-        ])
+        ], summary_text=summary_text)
 
 
-class HelpView(discord.ui.View):
+class HelpView(discord.ui.LayoutView):
     """
     Interactive help menu with navigation buttons.
     """
     
-    def __init__(self, user_id: int, current_section: str = "main"):
-        super().__init__(timeout=300)  # 5 minute timeout
+    def __init__(self, user_id: int, current_section: str = "main", body_text: str | None = None):
+        super().__init__(timeout=300)
         self.user_id = user_id
         self.current_section = current_section
+        self.body_text = body_text
         self._setup_buttons()
     
     def _setup_buttons(self):
         """Set up navigation buttons based on current section."""
-        from configuration.constants import INFO_COLOR
-        
-        # Main navigation buttons
+        container = discord.ui.Container(
+            discord.ui.TextDisplay("### Help Navigation"),
+            accent_color=EMBED_COLOR,
+        )
+        if self.body_text:
+            container.add_item(discord.ui.TextDisplay(self.body_text[:4000]))
+            container.add_item(discord.ui.Separator())
+        row = discord.ui.ActionRow()
         if self.current_section == "main":
-            self.add_item(HelpButton(
+            row.add_item(HelpButton(
                 label=get("help.buttons.getting_started"),
                 emoji="🚀",
                 section="getting_started",
                 style=discord.ButtonStyle.green,
                 user_id=self.user_id
             ))
-            self.add_item(HelpButton(
+            row.add_item(HelpButton(
                 label=get("help.buttons.game_list"),
                 emoji="🎮",
                 section="games",
                 style=discord.ButtonStyle.primary,
                 user_id=self.user_id
             ))
-            self.add_item(HelpButton(
+            row.add_item(HelpButton(
                 label=get("help.buttons.commands"),
                 emoji="⚙️",
                 section="commands",
@@ -425,8 +524,7 @@ class HelpView(discord.ui.View):
                 user_id=self.user_id
             ))
         else:
-            # Back button for sub-sections
-            self.add_item(HelpButton(
+            row.add_item(HelpButton(
                 label=get("help.buttons.back_to_help"),
                 emoji="🏠",
                 section="main",
@@ -435,13 +533,15 @@ class HelpView(discord.ui.View):
             ))
             
             if self.current_section == "games":
-                self.add_item(HelpButton(
+                row.add_item(HelpButton(
                     label=get("help.buttons.view_catalog"),
                     emoji="📖",
                     section="catalog",
                     style=discord.ButtonStyle.primary,
                     user_id=self.user_id
                 ))
+        container.add_item(row)
+        self.add_item(container)
 
 
 class HelpButton(discord.ui.Button):
@@ -461,19 +561,16 @@ class HelpButton(discord.ui.Button):
             )
             return
         
-        from utils.embeds import (
-            HelpMainEmbed, HelpGettingStartedEmbed, HelpCommandsEmbed
-        )
         
         if self.section == "main":
-            embed = HelpMainEmbed()
+            container = HelpMainContainer()
         elif self.section == "getting_started":
-            embed = HelpGettingStartedEmbed()
+            container = HelpGettingStartedContainer()
         elif self.section == "commands":
-            embed = HelpCommandsEmbed()
+            container = HelpCommandsContainer()
         elif self.section == "games":
             # Show a brief games overview
-            embed = await self._build_games_embed()
+            container = await self._build_games_container()
         elif self.section == "catalog":
             # Redirect to catalog command
             await interaction.response.send_message(
@@ -482,18 +579,21 @@ class HelpButton(discord.ui.Button):
             )
             return
         else:
-            embed = HelpMainEmbed()
+            container = HelpMainContainer()
         
-        view = HelpView(user_id=self.user_id, current_section=self.section)
-        await interaction.response.edit_message(embed=embed, view=view)
+        view = HelpView(
+            user_id=self.user_id,
+            current_section=self.section,
+            body_text=container_to_view_text(container),
+        )
+        await interaction.response.edit_message(view=view)
     
-    async def _build_games_embed(self):
-        """Build a quick games overview embed."""
+    async def _build_games_container(self):
+        """Build a quick games overview container."""
         import importlib
         from configuration.constants import GAME_TYPES, INFO_COLOR
-        from utils.embeds import CustomEmbed
         
-        embed = CustomEmbed(
+        container = CustomContainer(
             title=get("help.games_overview.title"),
             description=get("help.games_overview.description"),
             color=INFO_COLOR
@@ -508,22 +608,22 @@ class HelpButton(discord.ui.Button):
         if len(GAME_TYPES) > 8:
             games_text.append(get("help.games_overview.more_games").format(count=len(GAME_TYPES) - 8))
         
-        embed.add_field(
+        container.add_field(
             name=get("help.games_overview.field_games"),
             value="\n".join(games_text),
             inline=False
         )
         
-        embed.add_field(
+        container.add_field(
             name=get("help.games_overview.field_tip"),
             value=get("help.games_overview.tip_value"),
             inline=False
         )
         
-        return embed
+        return container
 
 
-class ContextualHelpView(discord.ui.View):
+class ContextualHelpView(discord.ui.LayoutView):
     """
     A view with a contextual help button that can be added to any embed.
     Shows relevant help information based on the context.
@@ -539,25 +639,29 @@ class ContextualHelpView(discord.ui.View):
         """
         super().__init__(timeout=timeout)
         self.help_topic = help_topic
-    
-    @discord.ui.button(label=get("buttons.need_help"), emoji="❓", style=discord.ButtonStyle.secondary)
-    async def help_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Show contextual help based on the topic."""
-        from utils.embeds import (
-            HelpMainEmbed, HelpGettingStartedEmbed, HelpCommandsEmbed
+        row = discord.ui.ActionRow()
+        button = discord.ui.Button(
+            label=get("buttons.need_help"),
+            emoji="❓",
+            style=discord.ButtonStyle.secondary,
         )
-        
+        button.callback = self.help_button
+        row.add_item(button)
+        self.add_item(row)
+
+    async def help_button(self, interaction: discord.Interaction):
+        """Show contextual help based on the topic."""
         if self.help_topic == "getting_started":
-            embed = HelpGettingStartedEmbed()
+            container = HelpGettingStartedContainer()
         elif self.help_topic == "commands":
-            embed = HelpCommandsEmbed()
+            container = HelpCommandsContainer()
         else:
-            embed = HelpMainEmbed()
+            container = HelpMainContainer()
         
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(content=container_to_view_text(container), ephemeral=True)
 
 
-class QuickActionsView(discord.ui.View):
+class QuickActionsView(discord.ui.LayoutView):
     """
     A view with quick action buttons for common operations.
     Can be added to profile, leaderboard, and other embeds.
@@ -565,9 +669,9 @@ class QuickActionsView(discord.ui.View):
     
     def __init__(self, show_catalog: bool = True, show_help: bool = True, timeout: int = 180):
         super().__init__(timeout=timeout)
-        
+        row = discord.ui.ActionRow()
         if show_catalog:
-            self.add_item(discord.ui.Button(
+            row.add_item(discord.ui.Button(
                 label=get("buttons.view_catalog"),
                 emoji="📖",
                 style=discord.ButtonStyle.primary,
@@ -575,9 +679,10 @@ class QuickActionsView(discord.ui.View):
             ))
         
         if show_help:
-            self.add_item(discord.ui.Button(
+            row.add_item(discord.ui.Button(
                 label=get("buttons.get_help"),
                 emoji="❓",
                 style=discord.ButtonStyle.secondary,
                 custom_id="quick_help",
             ))
+        self.add_item(row)

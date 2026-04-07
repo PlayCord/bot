@@ -4,13 +4,10 @@ from discord import app_commands
 from discord.app_commands import CheckFailure
 
 from configuration.constants import IS_ACTIVE, LOGGING_ROOT
+from utils.containers import ErrorContainer, UserErrorContainer, container_send_kwargs
 from utils.conversion import contextify
 from utils.database import DatabaseConnectionError
 from utils.locale import fmt, get, get_error
-from utils import embeds as _embeds
-
-ErrorEmbed = _embeds.ErrorEmbed
-UserErrorEmbed = getattr(_embeds, "UserErrorEmbed", ErrorEmbed)
 
 log = logging.getLogger(LOGGING_ROOT)
 
@@ -26,8 +23,8 @@ def format_user_error_message(error_key: str, **kwargs) -> str:
     return "\n\n".join(parts)
 
 
-def get_user_error_embed(error_key: str, **kwargs) -> UserErrorEmbed:
-    """Get a pre-defined user error embed with optional formatting from locale (no title row)."""
+def get_user_error_embed(error_key: str, **kwargs) -> UserErrorContainer:
+    """Get a pre-defined user error container with optional formatting from locale (no title row)."""
     description, suggestion = get_error(error_key)
 
     if kwargs:
@@ -35,7 +32,7 @@ def get_user_error_embed(error_key: str, **kwargs) -> UserErrorEmbed:
         if suggestion:
             suggestion = suggestion.format(**kwargs)
 
-    return UserErrorEmbed(description=description, suggestion=suggestion or None)
+    return UserErrorContainer(description=description, suggestion=suggestion or None)
 
 
 async def send_simple_embed(ctx: discord.Interaction, title: str, description: str, ephemeral: bool = True,
@@ -97,20 +94,20 @@ async def command_error(ctx: discord.Interaction, error: app_commands.AppCommand
         except (discord.HTTPException, discord.NotFound):
             pass
         await ctx.followup.send(
-            embed=ErrorEmbed(
+            **container_send_kwargs(ErrorContainer(
                 ctx=ctx,
                 what_failed=get("system_error.command_unexpected"),
                 reason=None,
-            ),
+            )),
             ephemeral=True,
         )
     else:
         await ctx.response.send_message(
-            embed=ErrorEmbed(
+            **container_send_kwargs(ErrorContainer(
                 ctx=ctx,
                 what_failed=get("system_error.command_unexpected"),
                 reason=None,
-            ),
+            )),
             ephemeral=True,
         )
 

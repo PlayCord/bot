@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 import inspect
+import io
 import logging
 import random
 import typing
@@ -9,25 +10,29 @@ from typing import Any
 import trueskill
 
 from api.Game import PlayerOrder, RoleMode, resolve_player_count
+from api.MessageComponents import Container, MediaGallery, Message, TextDisplay, format_data_table_image
 from api.Player import Player
 from api.Response import Response
 from configuration.constants import *
 from utils import database as db
 from utils.analytics import Timer
+from utils.bot_names import generate_bot_name
+from utils.containers import (
+    CustomContainer,
+    ErrorContainer,
+    GameOverContainer,
+    GameOverviewContainer,
+    container_edit_kwargs,
+    container_send_kwargs,
+    container_to_markdown,
+)
 from utils.conversion import column_creator, column_elo, column_names, column_turn, contextify, player_representative, \
     player_verification_function, textify
 from utils.database import InternalPlayer, get_shallow_player, internal_player_to_player
-from utils import embeds as _embeds
-from utils.bot_names import generate_bot_name
 from utils.emojis import get_emoji_string
-from utils.locale import get, fmt
+from utils.locale import fmt, get
 from utils.trueskill_params import get_trueskill_parameters
 from utils.views import MatchmakingLobbyView, MatchmakingView, RematchView, SpectateView
-
-CustomEmbed = _embeds.CustomEmbed
-ErrorEmbed = _embeds.ErrorEmbed
-GameOverEmbed = _embeds.GameOverEmbed
-GameOverviewEmbed = _embeds.GameOverviewEmbed
 
 
 def user_in_active_game(user_id: int) -> bool:
@@ -174,6 +179,7 @@ class GameInterface:
         self.processing_bot_turn = False
         self.ending_game = False
         self._pending_ui_tasks: list[asyncio.Task] = []
+        self._thread_messages: dict[str, discord.Message] = {}
 
     def _track_ui_task(self, coro) -> asyncio.Task:
         task = asyncio.create_task(coro)
@@ -225,15 +231,18 @@ class GameInterface:
                 except discord.HTTPException as e:
                     log.warning("add_user failed for %s: %s", player.user.id, e)
 
-        game_info_embed = CustomEmbed(description=get_emoji_string("loading")).remove_footer()
-        # Temporary embed TODO: remove this and make it cleaner while still guaranteeing the bot gets the first message
-        getting_ready_embed = CustomEmbed(description=get_emoji_string("loading")).remove_footer()
+        loading_message = Message(
+            Container(
+                TextDisplay(get_emoji_string("loading")),
+                accent_color=EMBED_COLOR,
+            )
+        )
 
         # Set the thread and game message in the class
         self.thread = game_thread
 
-        self.info_message = await self.thread.send(embed=game_info_embed)
-        self.game_message = await self.thread.send(embed=getting_ready_embed)
+        self.info_message = await self.thread.send(**loading_message.to_send_kwargs())
+        self.game_message = await self.thread.send(**loading_message.to_send_kwargs())
         log.debug(
             f"Finished game setup for a new game in {setup_timer.stop()}ms."
             f" matchmaker ID: {self.status_message.id} game ID: {self.thread.id}")
@@ -285,12 +294,12 @@ class GameInterface:
                     arguments,
                     contextify(ctx),
                 )
-                error_embed = ErrorEmbed(
+                error_embed = ErrorContainer(
                     ctx,
                     what_failed=get("move.unexpected_processing_error"),
                     reason=None,
                 )
-                await ctx.followup.send(embed=error_embed, ephemeral=True)
+                await ctx.followup.send(**container_send_kwargs(error_embed), ephemeral=True)
                 return
 
             try:
@@ -329,11 +338,11 @@ class GameInterface:
                 )
                 try:
                     await ctx.followup.send(
-                        embed=ErrorEmbed(
+                        **container_send_kwargs(ErrorContainer(
                             ctx,
                             what_failed=get("move.unexpected_processing_error"),
                             reason=None,
-                        ),
+                        )),
                         ephemeral=True,
                     )
                 except Exception:
@@ -356,11 +365,11 @@ class GameInterface:
                 )
                 try:
                     await ctx.followup.send(
-                        embed=ErrorEmbed(
+                        **container_send_kwargs(ErrorContainer(
                             ctx,
                             what_failed=get("move.unexpected_processing_error"),
                             reason=None,
-                        ),
+                        )),
                         ephemeral=True,
                     )
                 except Exception:
@@ -392,17 +401,19 @@ class GameInterface:
         return None
 
     async def _move_postamble(
-        self,
-        *,
-        ctx: discord.Interaction,
-        move_response: Any,
-        python_callback_name: str,
-        persist_user_id: int,
-        persist_args: dict[str, Any],
-        interaction_kind: str,
+            self,
+            *,
+            ctx: discord.Interaction,
+            move_response: Any,
+            python_callback_name: str,
+            persist_user_id: int,
+            persist_args: dict[str, Any],
+            interaction_kind: str,
     ) -> None:
         log = self.logger.getChild("move[postamble]")
         await self.display_game_state()
+        await self._sync_thread_messages()
+        await self._dispatch_private_updates(ctx)
         _cmd = self._lookup_move_command(python_callback_name)
         if self._should_persist_move_replay(move_response, _cmd):
             self._persist_move_and_replay(
@@ -452,11 +463,11 @@ class GameInterface:
         return str(value)
 
     def _persist_move_and_replay(
-        self,
-        python_callback_name: str,
-        user_id: int | None,
-        arguments: dict[str, Any],
-        source: str,
+            self,
+            python_callback_name: str,
+            user_id: int | None,
+            arguments: dict[str, Any],
+            source: str,
     ) -> None:
         try:
             cmd = self._lookup_move_command(python_callback_name)
@@ -589,11 +600,11 @@ class GameInterface:
             if self.thread is not None:
                 try:
                     await self.thread.send(
-                        embed=ErrorEmbed(
+                        **container_send_kwargs(ErrorContainer(
                             ctx=None,
                             what_failed=get("move.unexpected_processing_error"),
                             reason=None,
-                        )
+                        ))
                     )
                 except Exception:
                     await self.thread.send(
@@ -668,12 +679,12 @@ class GameInterface:
                     arguments,
                     contextify(ctx),
                 )
-                error_embed = ErrorEmbed(
+                error_embed = ErrorContainer(
                     ctx,
                     what_failed=get("move.unexpected_processing_error"),
                     reason=None,
                 )
-                await ctx.followup.send(embed=error_embed, ephemeral=True)
+                await ctx.followup.send(**container_send_kwargs(error_embed), ephemeral=True)
                 return
 
             try:
@@ -692,11 +703,11 @@ class GameInterface:
                 )
                 try:
                     await ctx.followup.send(
-                        embed=ErrorEmbed(
+                        **container_send_kwargs(ErrorContainer(
                             ctx,
                             what_failed=get("move.unexpected_processing_error"),
                             reason=None,
-                        ),
+                        )),
                         ephemeral=True,
                     )
                 except Exception:
@@ -719,11 +730,11 @@ class GameInterface:
                 )
                 try:
                     await ctx.followup.send(
-                        embed=ErrorEmbed(
+                        **container_send_kwargs(ErrorContainer(
                             ctx,
                             what_failed=get("move.unexpected_processing_error"),
                             reason=None,
-                        ),
+                        )),
                         ephemeral=True,
                     )
                 except Exception:
@@ -773,12 +784,12 @@ class GameInterface:
                     name,
                     contextify(ctx),
                 )
-                error_embed = ErrorEmbed(
+                error_embed = ErrorContainer(
                     ctx,
                     what_failed=get("move.unexpected_processing_error"),
                     reason=None,
                 )
-                await ctx.followup.send(embed=error_embed, ephemeral=True)
+                await ctx.followup.send(**container_send_kwargs(error_embed), ephemeral=True)
                 return
 
             try:
@@ -797,11 +808,11 @@ class GameInterface:
                 )
                 try:
                     await ctx.followup.send(
-                        embed=ErrorEmbed(
+                        **container_send_kwargs(ErrorContainer(
                             ctx,
                             what_failed=get("move.unexpected_processing_error"),
                             reason=None,
-                        ),
+                        )),
                         ephemeral=True,
                     )
                 except Exception:
@@ -824,15 +835,76 @@ class GameInterface:
                 )
                 try:
                     await ctx.followup.send(
-                        embed=ErrorEmbed(
+                        **container_send_kwargs(ErrorContainer(
                             ctx,
                             what_failed=get("move.unexpected_processing_error"),
                             reason=None,
-                        ),
+                        )),
                         ephemeral=True,
                     )
                 except Exception:
                     pass
+
+    def _build_info_message(self, turn_description: str) -> Message:
+        info_table = format_data_table_image(
+            {
+                player: {
+                    "Rating": rating,
+                    "Turn": turn_marker,
+                }
+                for player, rating, turn_marker in zip(
+                self.players,
+                column_elo(self.players, self.game_type).split("\n"),
+                column_turn(self.players, self.current_turn).split("\n"),
+                strict=False,
+            )
+            }
+        )
+        return Message(
+            Container(
+                TextDisplay(f"## {fmt('game.state_title', game=self.game.name, players=len(self.players))}"),
+                TextDisplay(turn_description),
+                MediaGallery(info_table),
+            )
+        )
+
+    def _build_status_view(self):
+        overview = GameOverviewContainer(self.game.name, self.game_type, self.rated, self.players, self.current_turn)
+        return SpectateView(
+            spectate_button_id=f"spectate/{self.thread.id}",
+            peek_button_id=f"peek/{self.thread.id}/{self.game_message.id}",
+            game_link=self.info_message.jump_url if self.info_message is not None else None,
+            summary_text=container_to_markdown(overview),
+        )
+
+    async def _sync_thread_messages(self) -> None:
+        desired = {item.key: item.content for item in (self.game.thread_messages() or [])}
+
+        for key in list(self._thread_messages):
+            if key not in desired:
+                try:
+                    await self._thread_messages[key].delete()
+                except discord.HTTPException:
+                    pass
+                self._thread_messages.pop(key, None)
+
+        for key, message in desired.items():
+            if key in self._thread_messages:
+                await self._thread_messages[key].edit(**message.to_edit_kwargs(self.thread.id))
+            else:
+                self._thread_messages[key] = await self.thread.send(**message.to_send_kwargs(self.thread.id))
+
+    async def _dispatch_private_updates(self, ctx: discord.Interaction) -> None:
+        actor = db.database.get_player(ctx.user, ctx.guild.id) if ctx.guild is not None else None
+        if actor is not None:
+            private_message = self.game.player_state(internal_player_to_player(actor, self.game_type))
+            if private_message is not None:
+                await ctx.followup.send(**private_message.to_send_kwargs(self.thread.id), ephemeral=True)
+
+        if getattr(self.game, "notify_on_turn", False):
+            turn_player = self.game.current_turn()
+            if getattr(turn_player, "id", None) == getattr(ctx.user, "id", None):
+                await ctx.followup.send(self.game.turn_notification(turn_player), ephemeral=True)
 
     async def display_game_state(self) -> None:
         """
@@ -846,100 +918,29 @@ class GameInterface:
             turn_description = fmt("game.bot_turn_computing", player=self.current_turn.mention)
         else:
             turn_description = textify(TEXTIFY_CURRENT_GAME_TURN, {"player": self.current_turn.mention})
-
-        # Embed to send as the updated game state
-        info_embed = CustomEmbed(title=fmt("game.state_title", game=self.game.name, players=len(self.players)),
-                                 description=turn_description).remove_footer()
-
-        # Game state embed and view
-        state_embed = CustomEmbed().remove_footer()
-        state_view = discord.ui.View()
-        should_use_embed = False
-        should_use_view = False
-
-        game_state = self.game.state()  # Get the game state from the game
-
-        state_types = {}
-        limits = {}
-        picture = None
-
-        removed_fields = 0
-
-        if game_state is not None:
-            for state_type in game_state:
-
-                # Call transformation functions if they exist
-                if hasattr(state_type, "_embed_transform"):
-                    state_type._embed_transform(state_embed)
-                    n_fields = len(state_embed.fields)
-                    while len(state_embed.fields) > 25:
-                        state_embed.remove_field(25)
-                    should_use_embed = True
-                    removed_fields += max(0, n_fields - 25)
-                if hasattr(state_type, "_view_transform"):
-                    state_type._view_transform(state_view, self.thread.id)
-                    should_use_view = True
-
-                limits[state_type.type] = state_type.limit  # Add limit for the state type, regardless of if it exists
-
-                # Keep track of the amount of each state type
-                if state_type.type in state_types:
-                    state_types[state_type.type] += 1
-                else:
-                    state_types[state_type.type] = 1
-
-                if state_type.type == "image":  # Special flag to extract discord.File object from the image type
-                    picture = state_type.game_picture
-        else:
-            state_embed.add_field(name=get("game.empty_state_name"),
-                                  value=get("game.empty_state_value"),
-                                  inline=False)
-            should_use_embed = True  # Force the embed to be sent
-
-        # Detect if over limit
-        if removed_fields > 0:
-            log.warning(f"Had to discard {removed_fields} fields from processing due to being over the limit!"
-                        f" This could cause a bad paint. game_id={self.thread.id} game_type={self.game_type}")
-
-        for limit_type in limits:
-            if state_types[limit_type] > limits[limit_type]:
-                log.warning(f"Unsure method determined that state type {limit_type!r}"
-                            f" was over the limit ({state_types[limit_type]} > {limits[limit_type]})"
-                            f" game_id={self.thread.id} game_type={self.game_type}")
-
-        # Add info embed data
-        info_embed.add_field(name=get("embeds.game_overview.field_players"), value=column_names(self.players))
-        info_embed.add_field(name=get("embeds.game_overview.field_ratings"), value=column_elo(self.players, self.game_type))
-        info_embed.add_field(name=get("embeds.game_overview.field_turn"), value=column_turn(self.players, self.current_turn))
+        info_message = self._build_info_message(turn_description)
+        game_state = self.game.state()
+        if game_state is None:
+            game_state = Message(
+                Container(
+                    TextDisplay(f"**{get('game.empty_state_name')}**"),
+                    TextDisplay(get("game.empty_state_value")),
+                    accent_color=INFO_COLOR,
+                )
+            )
 
         # Edit the game and info messages with the new embeds
         async def edit_info_message():
             while self.info_message is None:
                 await asyncio.sleep(1)
-            await self.info_message.edit(embed=info_embed)
+            await self.info_message.edit(**info_message.to_edit_kwargs())
 
         self._track_ui_task(edit_info_message())
-
-        if picture is not None:  # For some reason, [None] is not accepted by discord.py, so send it None if no image.
-            attachments = [picture]
-        else:
-            attachments = []
-
-        pass_data = {"attachments": attachments}
-
-        if should_use_embed:
-            pass_data["embed"] = state_embed
-        else:
-            pass_data["embed"] = None
-        if should_use_view:
-            pass_data["view"] = state_view
-        else:
-            pass_data["view"] = None
 
         async def edit_game_message():
             while self.game_message is None:
                 await asyncio.sleep(1)
-            await self.game_message.edit(**pass_data)
+            await self.game_message.edit(**game_state.to_edit_kwargs(self.thread.id))
 
         self._track_ui_task(edit_game_message())
 
@@ -947,8 +948,7 @@ class GameInterface:
         async def edit_status_message():
             while self.status_message is None:
                 await asyncio.sleep(1)
-            await self.status_message.edit(
-                embed=GameOverviewEmbed(self.game.name, self.game_type, self.rated, self.players, self.current_turn))
+            await self.status_message.edit(view=self._build_status_view())
 
         self._track_ui_task(edit_status_message())
 
@@ -1010,9 +1010,10 @@ class MatchmakingInterface:
         self.message = message
 
         if self.queued_players == {None}:  # Couldn't get information on the creator, so fail now
-            fail_embed = ErrorEmbed(what_failed=get("queue.db_connect_failed_what"),
-                                    reason=get("queue.db_connect_failed_reason"))
-            self.failed = fail_embed
+            self.failed = ErrorContainer(
+                what_failed=get("queue.db_connect_failed_what"),
+                reason=get("queue.db_connect_failed_reason"),
+            )
             return
         CURRENT_MATCHMAKING.update({self.message.id: self})
         IN_MATCHMAKING.update({p: self for p in self.queued_players})
@@ -1054,9 +1055,9 @@ class MatchmakingInterface:
             self.rated = False
             return
         if (
-            self._specs
-            and getattr(self.game, "customization_forces_unrated_when_non_default", True)
-            and not self._match_settings_are_default()
+                self._specs
+                and getattr(self.game, "customization_forces_unrated_when_non_default", True)
+                and not self._match_settings_are_default()
         ):
             self.rated = False
             return
@@ -1106,6 +1107,11 @@ class MatchmakingInterface:
             return
         raw = (ctx.data.get("values") or [""])[0]
         self.match_settings[key] = spec.coerce(raw)
+        preset_values = spec.applied_preset(raw)
+        if preset_values:
+            for other_spec in self._specs:
+                if other_spec.key in preset_values:
+                    self.match_settings[other_spec.key] = other_spec.coerce(str(preset_values[other_spec.key]))
         self._sync_rated_flag()
         await self.update_embed()
         await ctx.followup.send(get("queue.lobby_option_updated"), ephemeral=True)
@@ -1139,12 +1145,12 @@ class MatchmakingInterface:
 
         desc_suffix = ""
         if (
-            self._specs
-            and self.rated_requested
-            and not self.rated
-            and not self.has_bots
-            and not self._match_settings_are_default()
-            and getattr(self.game, "customization_forces_unrated_when_non_default", True)
+                self._specs
+                and self.rated_requested
+                and not self.rated
+                and not self.has_bots
+                and not self._match_settings_are_default()
+                and getattr(self.game, "customization_forces_unrated_when_non_default", True)
         ):
             desc_suffix = f"\n\n{get('queue.customization_unrated_note')}"
 
@@ -1163,41 +1169,56 @@ class MatchmakingInterface:
             else:
                 game_metadata[param] = get("help.game_info.unknown")
 
-        embed = CustomEmbed(title=fmt("queue.title", game=self.game.name),
-                            description=f"⏰{game_metadata['time']}{LONG_SPACE_EMBED * 2}"
-                                        f"👤{self.allowed_players}{LONG_SPACE_EMBED * 2}"
-                                        f"📈{game_metadata['difficulty']}{LONG_SPACE_EMBED * 2}"
-                                        f"📊{game_rated_text}{LONG_SPACE_EMBED * 2}"
-                                        f"{private_text}{desc_suffix}")
+        container = CustomContainer(
+            title=fmt("queue.title", game=self.game.name),
+            description=(
+                f"⏰{game_metadata['time']}{LONG_SPACE_EMBED * 2}"
+                f"👤{self.allowed_players}{LONG_SPACE_EMBED * 2}"
+                f"📈{game_metadata['difficulty']}{LONG_SPACE_EMBED * 2}"
+                f"📊{game_rated_text}{LONG_SPACE_EMBED * 2}"
+                f"{private_text}{desc_suffix}"
+            ),
+        )
 
-        # Add columns for names, elo, and creator status
         all_players = self.all_players()
-        embed.add_field(name=get("queue.field_players"), value=column_names(all_players), inline=True)
-        embed.add_field(name=get("queue.field_rating"), value=column_elo(all_players, self.game_type), inline=True)
-        embed.add_field(name=get("queue.field_creator"), value=column_creator(all_players, self.creator), inline=True)
+        matchmaking_table = format_data_table_image(
+            {
+                player: {
+                    get("queue.field_rating"): rating,
+                    get("queue.field_creator"): creator_marker,
+                }
+                for player, rating, creator_marker in zip(
+                all_players,
+                column_elo(all_players, self.game_type).split("\n"),
+                column_creator(all_players, self.creator).split("\n"),
+                strict=False,
+            )
+            }
+        )
+        table_file = discord.File(io.BytesIO(matchmaking_table), filename="matchmaking_table.png")
+        table_image_url = f"attachment://{table_file.filename}"
 
         # Add whitelist or blacklist depending on private status
         if self.private:
-            embed.add_field(name=get("queue.field_whitelist"), value=column_names(self.whitelist), inline=True)
+            container.add_field(name=get("queue.field_whitelist"), value=column_names(self.whitelist), inline=True)
         elif len(self.blacklist):
-            embed.add_field(name=get("queue.field_blacklist"), value=column_names(self.blacklist), inline=True)
+            container.add_field(name=get("queue.field_blacklist"), value=column_names(self.blacklist), inline=True)
 
-        # Credits for game
-        embed.add_field(name=get("queue.field_game_info"), value=self.game.description, inline=False)
-        embed.add_field(name=get("queue.field_game_by"),
-                        value=f"[{game_metadata['author']}]({game_metadata['author_link']})\n[{get('queue.source')}]({game_metadata['source_link']})")
-        embed.add_field(
-            name=get("queue.field_ids_name"),
-            value=fmt("queue.field_ids_value", lobby_id=self.message.id, game=self.game_type),
-            inline=False,
-        )
+        try:
+            container.set_footer(text=self.game.description)
+        except Exception:
+            # Fallback: if footer cannot be set for some reason, add as normal fields
+            if self.game.description:
+                container.add_field(name=get("queue.field_game_info"), value=self.game.description, inline=False)
+            if author:
+                container.add_field(name=get("queue.field_game_by"), value=str(author), inline=False)
 
         if self._specs:
             opt_lines = []
             for spec in self._specs:
                 v = self.match_settings.get(spec.key, spec.default)
                 opt_lines.append(f"**{spec.label}** → `{v}`")
-            embed.add_field(
+            container.add_field(
                 name=get("queue.field_match_options"),
                 value="\n".join(opt_lines),
                 inline=False,
@@ -1207,22 +1228,22 @@ class MatchmakingInterface:
         pr_roles = getattr(self.game, "player_roles", None)
         layout_ok_chosen = len(self._specs) + len(self.all_players()) <= 4
         show_role_selects = (
-            role_mode == RoleMode.CHOSEN
-            and not self.has_bots
-            and pr_roles is not None
-            and len(pr_roles) == len(self.all_players())
-            and layout_ok_chosen
+                role_mode == RoleMode.CHOSEN
+                and not self.has_bots
+                and pr_roles is not None
+                and len(pr_roles) == len(self.all_players())
+                and layout_ok_chosen
         )
         if role_mode == RoleMode.CHOSEN:
             if self.has_bots:
-                embed.add_field(
+                container.add_field(
                     name=get("queue.role_picks_field"),
                     value=get("queue.role_chosen_no_bots"),
                     inline=False,
                 )
             elif pr_roles and len(pr_roles) == len(self.all_players()):
                 if not layout_ok_chosen:
-                    embed.add_field(
+                    container.add_field(
                         name=get("queue.role_picks_field"),
                         value=get("queue.role_chosen_ui_overflow"),
                         inline=False,
@@ -1236,13 +1257,13 @@ class MatchmakingInterface:
                             pick_lines.append(f"**{label}** → `{picked}`")
                         else:
                             pick_lines.append(f"**{label}** → {get('queue.role_picks_none')}")
-                    embed.add_field(
+                    container.add_field(
                         name=get("queue.role_picks_field"),
                         value="\n".join(pick_lines) if pick_lines else get("queue.role_picks_none"),
                         inline=False,
                     )
             elif pr_roles:
-                embed.add_field(
+                container.add_field(
                     name=get("queue.role_picks_field"),
                     value=get("queue.role_chosen_lobby_not_full"),
                     inline=False,
@@ -1278,6 +1299,8 @@ class MatchmakingInterface:
                 current_values=dict(self.match_settings),
                 role_specs=role_specs_list,
                 current_role_values=dict(self.role_selections),
+                summary_text=container_to_markdown(container),
+                table_image_url=table_image_url,
             )
         else:
             view = MatchmakingView(
@@ -1285,10 +1308,11 @@ class MatchmakingInterface:
                 leave_button_id=leave_id,
                 start_button_id=start_id,
                 can_start=start_enabled,
+                summary_text=container_to_markdown(container),
+                table_image_url=table_image_url,
             )
 
-        # Update the embed in Discord
-        await self.message.edit(embed=embed, view=view)
+        await self.message.edit(view=view, attachments=[table_file])
         log.debug(f"Finished matchmaking update task in {update_timer.stop()}ms.")
 
     async def seed_rematch_players(self, guild: discord.Guild, user_ids: list[int]) -> str | None:
@@ -1606,8 +1630,13 @@ class MatchmakingInterface:
                   f"{contextify(ctx)}")
         # Start the GameInterface
 
-        await self.message.edit(embed=CustomEmbed(description=get_emoji_string("loading")).remove_footer(),
-                                view=None)
+        loading_message = Message(
+            Container(
+                TextDisplay(get_emoji_string("loading")),
+                accent_color=EMBED_COLOR,
+            )
+        )
+        await self.message.edit(**loading_message.to_edit_kwargs())
         await successful_matchmaking(interface=self)
 
 
@@ -1625,14 +1654,18 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
     except Exception:
         sm_log.exception("successful_matchmaking failed")
         try:
-            await message.edit(
-                embed=ErrorEmbed(
-                    ctx=None,
-                    what_failed=get("system_error.internal_what_failed"),
-                    reason=None,
-                ),
-                view=None,
+            error_container = ErrorContainer(
+                ctx=None,
+                what_failed=get("system_error.internal_what_failed"),
+                reason=None,
             )
+            error_message = Message(
+                Container(
+                    TextDisplay(container_to_markdown(error_container) or get("system_error.internal_what_failed")),
+                    accent_color=ERROR_COLOR,
+                )
+            )
+            await message.edit(**error_message.to_edit_kwargs())
         except Exception:
             pass
 
@@ -1711,9 +1744,20 @@ async def _successful_matchmaking_impl(interface: MatchmakingInterface) -> None:
 
         # Edit the status message with the SpectateView
         async def create_spectate_view():
-            await message.edit(view=SpectateView(spectate_button_id=f"spectate/{game.thread.id}",
-                                                 peek_button_id=f"peek/{game.thread.id}/{game.game_message.id}",
-                                                 game_link=game.info_message.jump_url))
+            spectate_summary = (
+                f"## {game.game.name}\n"
+                f"Match `{game.match_public_code}`\n"
+                f"{'Rated' if game.rated else 'Casual'} game\n"
+                f"Players: {', '.join(p.mention for p in game.players)}"
+            )
+            await message.edit(
+                view=SpectateView(
+                    spectate_button_id=f"spectate/{game.thread.id}",
+                    peek_button_id=f"peek/{game.thread.id}/{game.game_message.id}",
+                    game_link=game.info_message.jump_url,
+                    summary_text=spectate_summary,
+                ),
+            )
 
         asyncio.create_task(create_spectate_view())
         await game.display_game_state()  # Send the game display state
@@ -1895,12 +1939,17 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
 
     # There are three cases: str (error) Player (one person won) list[list[Player]] (detailed ranking)
     if isinstance(outcome, str):  # Error
-        game_over_embed = ErrorEmbed(what_failed=get("game.error_during_move"), reason=outcome)
-        # Send the embed
-        await outbound_message.edit(embed=game_over_embed)
+        game_over_container = ErrorContainer(what_failed=get("game.error_during_move"), reason=outcome)
+        error_message = Message(
+            Container(
+                TextDisplay(container_to_markdown(game_over_container) or str(outcome)),
+                accent_color=ERROR_COLOR,
+            )
+        )
+        await outbound_message.edit(**error_message.to_edit_kwargs())
         await interface.await_pending_ui_tasks()
         await thread.edit(locked=True, archived=True, reason=get("threads.game_crashed"))
-        await thread.send(embed=game_over_embed)
+        await thread.send(**container_send_kwargs(game_over_container))
         try:
             from utils.analytics import EventType, register_event
 
@@ -1961,7 +2010,8 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
                                      "new_sigma": new_sigma,
                                      "mu_delta": new_mu - data["old_mu"],
                                      "sigma_delta": new_sigma - data["old_sigma"],
-                                     "ranking": data.get("ranking", rankings[list(player_ratings.keys()).index(player)] + 1)}})
+                                     "ranking": data.get("ranking",
+                                                         rankings[list(player_ratings.keys()).index(player)] + 1)}})
 
         db.database.end_game(match_id=game_id, game_name=game_type, rating_updates=ratings, final_scores=None)
 
@@ -2036,7 +2086,7 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
             metadata={
                 "rated": bool(rated),
                 "has_outcome_summary": outcome_summaries is not None
-                or outcome_global_summary is not None,
+                                       or outcome_global_summary is not None,
             },
         )
     except Exception:
@@ -2047,8 +2097,8 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
 
     CURRENT_GAMES.pop(thread.id)  # Remove this game from the CURRENT_GAMES tracker
 
-    # Create GameOverEmbed to show in the status and info messages
-    game_over_embed = GameOverEmbed(
+    # Create GameOverContainer to show in the status and info messages
+    game_over_container = GameOverContainer(
         rankings=player_string,
         game_name=interface.game.name,
         players=players,
@@ -2056,9 +2106,9 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
         outcome_global_summary=outcome_global_summary,
     )
 
-    # Send the embed to overview / game thread
-    await thread.send(embed=game_over_embed)
-    await outbound_message.edit(embed=game_over_embed, view=RematchView(game_id))
+    # Send the container summary to overview / game thread
+    await thread.send(**container_send_kwargs(game_over_container))
+    await outbound_message.edit(view=RematchView(game_id, summary_text=container_to_markdown(game_over_container)))
 
     await interface.await_pending_ui_tasks()
 

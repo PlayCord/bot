@@ -3,7 +3,16 @@ from typing import Any
 from api.Arguments import Integer
 from api.Command import Command
 from api.Game import Game
-from api.MessageComponents import Button, ButtonStyle, DataTable, Description, Image, CodeBlock
+from api.MessageComponents import (
+    Button,
+    ButtonStyle,
+    Container,
+    MediaGallery,
+    Message,
+    TextDisplay,
+    code_block,
+    format_data_table_image,
+)
 from api.Player import Player
 from api.Response import Response
 from utils.svg_utils import svg_to_png
@@ -101,7 +110,7 @@ class ConnectFourGame(Game):
         self.winner: Player | None = None
         self.last_action = f"{self.current_turn().mention} goes first."
 
-    def state(self):
+    def state(self) -> Message:
         if self.winner is not None:
             status = f"🏁 Winner: {self.winner.mention}"
         elif self.move_count == self.rows * self.columns:
@@ -124,21 +133,27 @@ class ConnectFourGame(Game):
                 )
             )
 
-        table = DataTable(
-            {
-                self.players[0]: {"Disc:": "🔴"},
-                self.players[1]: {"Disc:": "🟡"},
-            }
-        )
-        components = [Description(description), table]
+        body_children = [
+            TextDisplay(description),
+            MediaGallery(
+                format_data_table_image(
+                    {
+                        self.players[0]: {"Disc": "🔴"},
+                        self.players[1]: {"Disc": "🟡"},
+                    }
+                )
+            ),
+        ]
         board_png = render_connect_four_board_png(self.board, self.players[0], self.players[1])
         if board_png is not None:
-            components.append(Image(board_png))
+            body_children.append(MediaGallery(board_png))
         else:
-            components.append(CodeBlock(self._render_board(), language=""))
+            body_children.append(TextDisplay(code_block(self._render_board())))
 
-        components.extend(buttons)
-        return components
+        return Message(
+            Container(*body_children),
+            *buttons,
+        )
 
     def current_turn(self) -> Player:
         return self.players[self.turn]

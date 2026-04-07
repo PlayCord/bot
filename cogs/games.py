@@ -7,14 +7,12 @@ from discord.app_commands import Choice
 from discord.ext import commands
 
 from configuration.constants import *
-from utils import database as db, embeds as _embeds
+from utils import database as db
+from utils.containers import ErrorContainer, LoadingContainer, container_edit_kwargs, container_send_kwargs
 from utils.discord_utils import decode_discord_arguments, format_user_error_message, send_simple_embed
 from utils.emojis import get_emoji_string
 from utils.interfaces import MatchmakingInterface, user_in_active_game
 from utils.locale import fmt, get
-
-CustomEmbed = _embeds.CustomEmbed
-ErrorEmbed = _embeds.ErrorEmbed
 
 log = logging.getLogger(LOGGING_ROOT)
 
@@ -235,10 +233,10 @@ class GamesCog(commands.Cog):
             await ctx.followup.send(content=get("rematch.unknown_game"), ephemeral=True)
             return
         game_type = game_row.game_name
-        loading = await ctx.channel.send(embed=CustomEmbed(description=get_emoji_string("loading")).remove_footer())
+        loading = await ctx.channel.send(**container_send_kwargs(LoadingContainer(message=get_emoji_string("loading")).remove_footer()))
         mm = MatchmakingInterface(ctx.user, game_type, loading, rated=match.is_rated, private=False)
         if mm.failed is not None:
-            await loading.edit(embed=mm.failed)
+            await loading.edit(**container_edit_kwargs(mm.failed))
             await ctx.followup.send(content=get("rematch.failed"), ephemeral=True)
             return
         err = await mm.seed_rematch_players(g, human_ids)
@@ -298,12 +296,12 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
             )
             return None
 
-    await ctx.response.send_message(embed=CustomEmbed(description=get_emoji_string("loading")).remove_footer())
+    await ctx.response.send_message(**container_send_kwargs(LoadingContainer(message=get_emoji_string("loading")).remove_footer()))
     game_overview_message = await ctx.original_response()
     try:
         interface = MatchmakingInterface(ctx.user, game_type, game_overview_message, rated=rated, private=private)
         if interface.failed is not None:
-            await game_overview_message.edit(embed=interface.failed)
+            await game_overview_message.edit(**container_edit_kwargs(interface.failed))
             return None
         await interface.update_embed()
         from utils.analytics import EventType, register_event
@@ -320,12 +318,11 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
         f_log.exception("begin_game failed for game_type=%r", game_type)
         try:
             await game_overview_message.edit(
-                embed=ErrorEmbed(
+                **container_edit_kwargs(ErrorContainer(
                     ctx=None,
                     what_failed=get("system_error.internal_what_failed"),
                     reason=None,
-                ),
-                view=None,
+                ))
             )
         except Exception:
             pass

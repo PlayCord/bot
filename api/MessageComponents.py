@@ -1,364 +1,382 @@
+from __future__ import annotations
+
 import io
 import typing
-from enum import Enum
-from typing import Callable
+from dataclasses import dataclass
+from itertools import count
+from typing import Any, Callable, Iterable, Sequence
 
 import discord
 from discord import SelectOption
 
 from api.Player import Player
 from utils.emojis import parse_discord_emoji
+from utils.table_renderer import render_table_as_png
+
+ButtonStyle = discord.ButtonStyle
+SeparatorSpacing = discord.SeparatorSpacing
 
 
-class MessageComponent:
-    """
-    MessageComponent: something used to represent game state
-    """
+class _BuildContext:
+    def __init__(self, game_id: int | None) -> None:
+        self.game_id = game_id
+        self.attachments: list[discord.File] = []
+        self._attachment_names: set[str] = set()
+        self._counter = count(1)
 
-    def __init__(self):
-        """
-        Create a new MessageComponent. As this is a non-usable class, it doesn't do anything.
-        """
-        pass
+    def _unique_filename(self, prefix: str, extension: str) -> str:
+        while True:
+            name = f"{prefix}_{next(self._counter)}.{extension}"
+            if name not in self._attachment_names:
+                self._attachment_names.add(name)
+                return name
 
+    def prepare_attachment(
+        self,
+        media: str | bytes | discord.File,
+        *,
+        prefix: str = "attachment",
+        extension: str = "png",
+    ) -> str:
+        if isinstance(media, str):
+            return media
 
-class Description(MessageComponent):
-    """
-        Description: something used to represent the description of an embed
-        """
-
-    def __init__(self, value: str):
-        """
-        Create a new Description
-        :param value: value of the field
-        """
-
-        # Instantiate the class
-        super().__init__()
-        self.description = value
-        self.type = "description"  # API type
-        self.limit = 1  # Discord api limitation
-
-    def _embed_transform(self, embed: discord.Embed) -> None:
-        """
-        Transform the embed to set the description to it
-        :param embed: the embed to add a field to
-        :return: Nothing
-        """
-        embed.description = self.description
-
-
-class CodeBlock(MessageComponent):
-    """
-    CodeBlock: something used to represent a code block in an embed field
-    """
-
-    def __init__(self, content: str, language: str = ""):
-        """
-        Create a new CodeBlock
-        :param content: the code content to display
-        :param language: the language for syntax highlighting (e.g., 'python', 'javascript', '')
-        """
-        super().__init__()
-        self.content = content
-        self.language = language
-        self.type = "codeblock"
-        self.limit = 1
-
-    def _embed_transform(self, embed: discord.Embed) -> None:
-        """
-        Transform the embed to add a code block field
-        :param embed: the embed to add the code block to
-        :return: Nothing
-        """
-        # Format as a code block with backticks
-        formatted_content = f"```{self.language}\n{self.content}\n```"
-        # Truncate if too long (Discord field value limit is 1024 chars)
-        if len(formatted_content) > 1024:
-            formatted_content = formatted_content[:1021] + "```"
-        embed.add_field(name="\u200b", value=formatted_content, inline=False)
-
-
-class Field(MessageComponent):
-    """
-    FieldType: something used to represent just a basic field
-    """
-
-    def __init__(self, name: str, value: str, inline: bool = False):
-        """
-        Create a new FieldType
-        :param name: Name of the field
-        :param value: value of the field
-        :param inline: whether the field is inline or not.
-        """
-
-        # Instantiate the class
-        super().__init__()
-        self.name = name
-        self.value = value
-        self.inline = inline
-        self.type = "field"  # API type
-        self.limit = 25  # Discord api limitation
-
-    def _embed_transform(self, embed: discord.Embed) -> None:
-        """
-        Transform the embed to add a Field to it
-        :param embed: the embed to add a field to
-        :return: Nothing
-        """
-        embed.add_field(name=self.name, value=self.value, inline=self.inline)
-
-
-class DataTable(MessageComponent):
-    """
-    Creates a set of fields like this
-
-    Name:      Param1:  ...
-    Tyler       Thing   ...
-    Julian      Thing2  ...
-    """
-
-    def __init__(self, data: dict) -> None:
-        """
-        Create a new data table
-        :param data: data formatted like this:
-        {Player: {"Column name": "Column Value"}, Player2: {"Column name": "Different Column Value"}, ...}
-
-        Empty parameters are automatically filled in.
-        """
-
-        # Instantiate class data
-        super().__init__()
-        self.data = data
-        self.type = "info_rows"
-        self.limit = 1  # Only one dtaa table per embed
-
-    def _embed_transform(self, embed: discord.Embed) -> None:
-        """
-        Transform the embed to add the fields that make up a data table
-        :param embed: the embed to add the fields that make up a data table
-        :return: Nothing
-        """
-
-        # Populate data in the format {data type: {person: value, person2, value}}
-        column = {}
-        for person in self.data:
-            for data_type in self.data[person]:
-                if data_type not in column:
-                    column[data_type] = {person: str(self.data[person][data_type])}
-                column[data_type].update({person: str(self.data[person][data_type])})
-
-        # Check for empty data column and add empty values
-        for data_type in column:
-            for person in self.data:
-                if person not in column[data_type]:
-                    column[data_type].update({person: ""})
-
-        # Add fields
-        number_names = 0  # Number of Name: fields that have occurred
-        for index in range((len(column) + (len(column) + 1) // 2)):
-            if index % 3 == 0:  # Every third column should be a name column because discord
-                embed.add_field(name="Name:", value="\n".join([str(p) for p in self.data.keys()]))
-                number_names += 1
-            else:  # Subtract number of names for formatting purposes
-                embed.add_field(name=list(column.keys())[index - number_names],
-                                value="\n".join(column[list(column.keys())[index - number_names]].values()))
-
-
-class Image(MessageComponent):
-    """
-    Image field in embed
-    """
-
-    def __init__(self, bytestring: bytes) -> None:
-        """
-        Represents the image as a byte string
-        :param bytestring: bytes of the image
-        """
-
-        # Instantiate class variables
-        super().__init__()
-        self.limit = 1
-        self.bytes = bytestring
-        self.type = "image"
-
-        # Engage in shenanigans to convert bytes to a file without saving it
-        image = io.BytesIO()
-        image.write(self.bytes)
-        image.seek(0)
-        self.game_picture = discord.File(image, filename="image.png")
-
-    def _embed_transform(self, embed: discord.Embed) -> None:
-        """
-        Transform the embed to add the image
-        :param embed: the embed to add the image to
-        :return: nothing
-        """
-        # Add players and image to the embed
-        embed.set_image(url="attachment://image.png")  # Set the attachment
-
-
-class Footer(MessageComponent):
-    """
-    Footer field in embed
-    """
-
-    def __init__(self, text: str) -> None:
-        """
-        Create a new Footer. This just sets the footer
-        :param text: the text of the footer to set
-        """
-
-        # Instantiate class variables
-        super().__init__()
-        self.type = "footer"
-        self.text = text
-        self.limit = 1
-
-    def _embed_transform(self, embed: discord.Embed) -> None:
-        """
-        Transform the embed to add the footer
-        :param embed: embed to add the footer to
-        :return: nothing
-        """
-        embed.set_footer(text=self.text)
-
-
-class ButtonStyle(Enum):
-    primary = 1
-    secondary = 2
-    success = 3
-    danger = 4
-    link = 5
-
-    # Aliases
-    blurple = 1
-    grey = 2
-    gray = 2
-    green = 3
-    red = 4
-    url = 5
-
-    def __int__(self) -> int:
-        return self.value
-
-
-class Button(MessageComponent):
-    """
-    Represents a button for callbacks into the Game class
-    """
-
-    def __init__(self, label: str | None,
-                 callback: Callable[[Player, dict], typing.Any] | Callable[[Player], typing.Any], emoji: str = None,
-                 row: int | None = None, style: ButtonStyle = ButtonStyle.gray, arguments: dict = None,
-                 require_current_turn: bool = True, disabled: bool = False) -> None:
-        """
-        Create a new Button. This represents a button for callbacks into the Game class
-        :param label: label of button
-        :param callback: callback function
-        :param emoji: Emoji to use for the button
-        :param row: which row the button is in (0-4, integer)
-        :param style: coloring of button
-        :param arguments: arguments to pass to the callback function
-        :param require_current_turn: whether the button can only be used by the player whose turn it is
-        """
-
-        # Instantiate class options
-        super().__init__()
-        self.type = "button"
-        self.limit = 25
-        self.disabled = disabled
-        if not label:  # Empty string or None
-            self.name = "​"  # Zero width space for no label
+        if isinstance(media, bytes):
+            filename = self._unique_filename(prefix, extension)
+            file = discord.File(io.BytesIO(media), filename=filename)
+        elif isinstance(media, discord.File):
+            filename = getattr(media, "filename", None) or self._unique_filename(prefix, extension)
+            media.filename = filename
+            self._attachment_names.add(filename)
+            file = media
         else:
-            self.name = label  # Just pass label as given
+            raise TypeError(f"Unsupported attachment type: {type(media)!r}")
 
-        self.style = style
-        self.callback = callback
-        self.arguments = arguments
-        self.row = row
+        self.attachments.append(file)
+        return f"attachment://{file.filename}"
 
-        self.emoji = parse_discord_emoji(emoji)
 
-        self.require_current_turn = require_current_turn
-        if self.arguments is not None:  # create arguments like key=value,key2=value2
-            self.parsed_arguments = ",".join([f'{key}={value}' for key, value in self.arguments.items()])
+class LayoutNode:
+    def build(self, ctx: _BuildContext) -> discord.ui.Item:
+        raise NotImplementedError
+
+
+class _GroupedNode(LayoutNode):
+    pass
+
+
+def _callback_name(callback: str | Callable[..., Any]) -> str:
+    if callable(callback):
+        return callback.__name__
+    return str(callback)
+
+
+def _coerce_text_node(node: str | "TextDisplay") -> str | discord.ui.TextDisplay:
+    if isinstance(node, TextDisplay):
+        return node.build(_BuildContext(game_id=None))
+    return str(node)
+
+
+def _normalize_row_children(children: Sequence[Any]) -> list[Any]:
+    normalized: list[Any] = []
+    pending_rows: dict[int, list[Button | Select]] = {}
+
+    def flush_rows() -> None:
+        if not pending_rows:
+            return
+        for row_index in sorted(pending_rows):
+            normalized.append(ActionRow(*pending_rows[row_index]))
+        pending_rows.clear()
+
+    for child in children:
+        if child is None:
+            continue
+        if isinstance(child, (Button, Select)):
+            row_index = child.row if child.row is not None else 0
+            pending_rows.setdefault(row_index, []).append(child)
         else:
-            self.parsed_arguments = ""  # no arguments, no problem
+            flush_rows()
+            normalized.append(child)
 
-    def _view_transform(self, view: discord.ui.View, game_id: int) -> None:
-        """
-        Add the button to the view.
-        :param view: View to add the button to.
-        :param game_id: game ID for callback
-        :return: Nothing (view object is passed as memory location)
-        """
-
-        # Note: c/ means current turn IS required, n/ means NO
-        view.add_item(discord.ui.Button(style=self.style,
-                                        label=self.name,
-                                        emoji=self.emoji,
-                                        row=self.row,
-                                        custom_id=f"{'c' if self.require_current_turn else 'n'}/{game_id}/"
-                                                  f"{self.callback.__name__}/{self.parsed_arguments}",
-                                        disabled=self.disabled))
+    flush_rows()
+    return normalized
 
 
-class Dropdown(MessageComponent):
-    """
-    Represents a dropdown for callbacks into the Game class
-    """
+def code_block(content: str, language: str = "") -> str:
+    return f"```{language}\n{content}\n```"
 
-    def __init__(self, data: list[dict],
-                 callback: Callable[[Player, dict], typing.Any] | Callable[[Player], typing.Any],
-                 row: int | None = None,
-                 require_current_turn: bool = True, min_values: int = None, max_values: int = None,
-                 placeholder: str = None, disabled: bool = False) -> None:
-        """
-        Create a new Dropdown. This represents a dropdown for callbacks into the Game class
-        :param callback: callback function
-        :param row: which row the button is in (0-4, integer)
-        :param require_current_turn: whether the button can only be used by the player whose turn it is
-        """
 
-        # Instantiate class options
-        super().__init__()
-        self.type = "select"
-        self.limit = 25
+def _display_name_for_table_row(value: Any) -> str:
+    display_name = getattr(value, "display_name", None)
+    if display_name:
+        return str(display_name)
 
-        self.callback = callback
-        self.min_values = min_values
-        self.max_values = max_values
-        self.placeholder = placeholder
-        self.row = row
-        self.disabled = disabled
+    name = getattr(value, "name", None)
+    if name:
+        return str(name)
 
-        self.components = []
-        for component in data:
-            if "emoji" in component:
-                emoji = parse_discord_emoji(component["emoji"])
-            else:
-                emoji = None
-            if "default" not in component:
-                default = False
-            else:
-                default = component["default"]
-            description = component.get("description")
-            self.components.append(SelectOption(label=component["label"], value=component["value"],
-                                                emoji=emoji, default=default, description=description))
+    mention = getattr(value, "mention", None)
+    if mention:
+        return str(mention)
 
-        self.require_current_turn = require_current_turn
+    return str(value)
 
-    def _view_transform(self, view: discord.ui.View, game_id: int) -> None:
-        """
-        Add the dropdown to the view.
-        :param view: View to add the button to.
-        :param game_id: game ID for callback
-        :return: Nothing (view object is passed as memory location)
-        """
 
-        menu = discord.ui.Select(options=self.components, min_values=self.min_values,
-                                 max_values=self.max_values, placeholder=self.placeholder, disabled=self.disabled,
-                                 custom_id=f"{'select_c' if self.require_current_turn else 'select_n'}/{game_id}/"
-                                           f"{self.callback.__name__}")
-        view.add_item(menu)
+def _table_headers_and_rows(data: dict[Any, dict[str, Any]]) -> tuple[list[str], list[list[str]]]:
+    column_names: list[str] = []
+    for values in data.values():
+        for key in values:
+            key_text = str(key)
+            if key_text not in column_names:
+                column_names.append(key_text)
+
+    rows: list[list[str]] = []
+    for player, values in data.items():
+        row = [_display_name_for_table_row(player)]
+        for column in column_names:
+            row.append(str(values.get(column, "")))
+        rows.append(row)
+
+    return ["Name", *column_names], rows
+
+
+def format_data_table(data: dict[Any, dict[str, Any]]) -> str:
+    if not data:
+        return "_No data_"
+
+    headers, rows = _table_headers_and_rows(data)
+    widths = [len(header) for header in headers]
+    for row in rows:
+        for index, value in enumerate(row):
+            widths[index] = max(widths[index], len(value))
+
+    def fmt_row(values: Sequence[str]) -> str:
+        return " | ".join(value.ljust(widths[index]) for index, value in enumerate(values))
+
+    sep = "-+-".join("-" * width for width in widths)
+    lines = [fmt_row(headers), sep, *(fmt_row(row) for row in rows)]
+    return code_block("\n".join(lines))
+
+
+def format_data_table_image(data: dict[Any, dict[str, Any]]) -> bytes:
+    if not data:
+        return render_table_as_png(["Info"], [["No data"]])
+
+    headers, rows = _table_headers_and_rows(data)
+    return render_table_as_png(headers, rows)
+
+
+@dataclass(slots=True)
+class TextDisplay(_GroupedNode):
+    content: str
+
+    def build(self, ctx: _BuildContext) -> discord.ui.TextDisplay:
+        return discord.ui.TextDisplay(self.content)
+
+
+@dataclass(slots=True)
+class Separator(_GroupedNode):
+    visible: bool = True
+    spacing: discord.SeparatorSpacing = discord.SeparatorSpacing.small
+
+    def build(self, ctx: _BuildContext) -> discord.ui.Separator:
+        return discord.ui.Separator(visible=self.visible, spacing=self.spacing)
+
+
+@dataclass(slots=True)
+class Thumbnail:
+    media: str | bytes | discord.File
+    description: str | None = None
+    spoiler: bool = False
+
+    def build(self, ctx: _BuildContext) -> discord.ui.Thumbnail:
+        media = self.media
+        if not isinstance(media, str):
+            media = ctx.prepare_attachment(media, prefix="thumb")
+        return discord.ui.Thumbnail(media, description=self.description, spoiler=self.spoiler)
+
+
+@dataclass(slots=True)
+class MediaGallery(_GroupedNode):
+    items: tuple[str | bytes | discord.File | discord.MediaGalleryItem, ...]
+
+    def __init__(self, *items: str | bytes | discord.File | discord.MediaGalleryItem) -> None:
+        self.items = tuple(items)
+
+    def build(self, ctx: _BuildContext) -> discord.ui.MediaGallery:
+        built_items: list[discord.MediaGalleryItem] = []
+        for item in self.items:
+            if isinstance(item, discord.MediaGalleryItem):
+                built_items.append(item)
+                continue
+            media = item
+            if not isinstance(media, str):
+                media = ctx.prepare_attachment(media, prefix="gallery")
+            built_items.append(discord.MediaGalleryItem(media))
+        return discord.ui.MediaGallery(*built_items)
+
+
+@dataclass(slots=True)
+class Button:
+    label: str | None
+    callback: Callable[[Player, dict], Any] | Callable[[Player], Any] | str
+    emoji: str | None = None
+    row: int | None = None
+    style: discord.ButtonStyle = discord.ButtonStyle.secondary
+    arguments: dict[str, Any] | None = None
+    require_current_turn: bool = True
+    disabled: bool = False
+
+    def build(self, ctx: _BuildContext) -> discord.ui.Button:
+        if ctx.game_id is None:
+            raise ValueError("Interactive buttons require a game_id")
+        args = ""
+        if self.arguments:
+            args = ",".join(f"{key}={value}" for key, value in self.arguments.items())
+        prefix = "c" if self.require_current_turn else "n"
+        return discord.ui.Button(
+            style=self.style,
+            label=self.label or "\u200b",
+            emoji=parse_discord_emoji(self.emoji),
+            custom_id=f"{prefix}/{ctx.game_id}/{_callback_name(self.callback)}/{args}",
+            disabled=self.disabled,
+        )
+
+
+@dataclass(slots=True)
+class Select:
+    data: list[dict[str, Any]]
+    callback: Callable[[Player, dict], Any] | Callable[[Player], Any] | str
+    row: int | None = None
+    require_current_turn: bool = True
+    min_values: int | None = None
+    max_values: int | None = None
+    placeholder: str | None = None
+    disabled: bool = False
+
+    def build(self, ctx: _BuildContext) -> discord.ui.Select:
+        if ctx.game_id is None:
+            raise ValueError("Interactive selects require a game_id")
+        options: list[SelectOption] = []
+        for item in self.data:
+            options.append(
+                SelectOption(
+                    label=str(item["label"])[:100],
+                    value=str(item["value"])[:100],
+                    emoji=parse_discord_emoji(item.get("emoji")),
+                    default=bool(item.get("default", False)),
+                    description=(str(item["description"])[:100] if item.get("description") is not None else None),
+                )
+            )
+        prefix = "select_c" if self.require_current_turn else "select_n"
+        return discord.ui.Select(
+            options=options,
+            min_values=self.min_values,
+            max_values=self.max_values,
+            placeholder=self.placeholder,
+            disabled=self.disabled,
+            custom_id=f"{prefix}/{ctx.game_id}/{_callback_name(self.callback)}",
+        )
+
+
+@dataclass(slots=True)
+class ActionRow(_GroupedNode):
+    children: tuple[Button | Select, ...]
+
+    def __init__(self, *children: Button | Select) -> None:
+        self.children = tuple(children)
+
+    def build(self, ctx: _BuildContext) -> discord.ui.ActionRow:
+        row = discord.ui.ActionRow()
+        for child in self.children:
+            row.add_item(child.build(ctx))
+        return row
+
+
+@dataclass(slots=True)
+class Section(_GroupedNode):
+    children: tuple[str | TextDisplay, ...]
+    accessory: Button | Thumbnail
+
+    def __init__(self, *children: str | TextDisplay, accessory: Button | Thumbnail) -> None:
+        self.children = tuple(children)
+        self.accessory = accessory
+
+    def build(self, ctx: _BuildContext) -> discord.ui.Section:
+        built_children = [_coerce_text_node(child) for child in self.children]
+        return discord.ui.Section(*built_children, accessory=self.accessory.build(ctx))
+
+
+@dataclass(slots=True)
+class Container(_GroupedNode):
+    children: tuple[Any, ...]
+    accent_color: discord.Colour | int | None = None
+    spoiler: bool = False
+
+    def __init__(
+        self,
+        *children: Any,
+        accent_color: discord.Colour | int | None = None,
+        spoiler: bool = False,
+    ) -> None:
+        self.children = tuple(children)
+        self.accent_color = accent_color
+        self.spoiler = spoiler
+
+    def build(self, ctx: _BuildContext) -> discord.ui.Container:
+        built = [build_child(child, ctx) for child in _normalize_row_children(self.children)]
+        return discord.ui.Container(*built, accent_color=self.accent_color, spoiler=self.spoiler)
+
+
+def build_child(child: Any, ctx: _BuildContext) -> discord.ui.Item:
+    if isinstance(child, LayoutNode):
+        return child.build(ctx)
+    if isinstance(child, str):
+        return TextDisplay(child).build(ctx)
+    raise TypeError(f"Unsupported message child: {type(child)!r}")
+
+
+@dataclass(slots=True)
+class Message:
+    children: tuple[Any, ...]
+    files: list[discord.File] | None = None
+
+    def __init__(self, *children: Any, files: list[discord.File] | None = None) -> None:
+        self.children = tuple(children)
+        self.files = files
+
+    def _build(self, game_id: int | None = None) -> tuple[discord.ui.LayoutView, list[discord.File]]:
+        ctx = _BuildContext(game_id)
+        if self.files:
+            for file in self.files:
+                ctx.prepare_attachment(file, prefix="message")
+        view = discord.ui.LayoutView(timeout=None)
+        for child in _normalize_row_children(self.children):
+            view.add_item(build_child(child, ctx))
+        return view, ctx.attachments
+
+    def to_layout_view(self, game_id: int | None = None) -> discord.ui.LayoutView:
+        view, _ = self._build(game_id)
+        return view
+
+    def to_send_kwargs(self, game_id: int | None = None, *, content: str | None = None) -> dict[str, Any]:
+        view, files = self._build(game_id)
+        kwargs: dict[str, Any] = {"view": view}
+        if content is not None:
+            kwargs["content"] = content
+        if files:
+            kwargs["files"] = files
+        return kwargs
+
+    def to_edit_kwargs(self, game_id: int | None = None, *, content: str | None = None) -> dict[str, Any]:
+        view, files = self._build(game_id)
+        kwargs: dict[str, Any] = {"view": view, "attachments": files}
+        if content is not None:
+            kwargs["content"] = content
+        return kwargs
+
+
+@dataclass(slots=True)
+class ThreadMessage:
+    key: str
+    content: Message

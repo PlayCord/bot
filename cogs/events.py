@@ -7,7 +7,7 @@ from discord.ext import commands
 from configuration.constants import *
 from utils import analytics as analytics_mod
 from utils import database as db
-from utils.embeds import CustomEmbed
+from utils.containers import CustomContainer, container_send_kwargs
 from utils.locale import get, fmt
 
 log = logging.getLogger(LOGGING_ROOT)
@@ -41,17 +41,17 @@ class EventsCog(commands.Cog):
         f_log = log.getChild("event.guild_join")
         f_log.info(f"Added to guild {guild.name!r} ! (id={guild.id})")
 
-        embed = CustomEmbed(title=WELCOME_MESSAGE[0][0], description=WELCOME_MESSAGE[0][1], color=EMBED_COLOR)
+        container = CustomContainer(title=WELCOME_MESSAGE[0][0], description=WELCOME_MESSAGE[0][1], color=EMBED_COLOR)
         for line in WELCOME_MESSAGE[1:]:
-            embed.add_field(name=line[0], value=line[1])
-        embed.add_field(
+            container.add_field(name=line[0], value=line[1])
+        container.add_field(
             name=get("welcome.fields.playcord_channel.name"),
             value=get("welcome.fields.playcord_channel.value"),
             inline=False,
         )
 
         try:
-            await guild.system_channel.send(embed=embed)
+            await guild.system_channel.send(**container_send_kwargs(container))
         except AttributeError:
             f_log.info(ERROR_NO_SYSTEM_CHANNEL)
 
