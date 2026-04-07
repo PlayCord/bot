@@ -24,7 +24,7 @@ services:
       - playcord_network
 
   bot:
-    image: python:3.12-slim
+    build: .
     container_name: playcord_bot
     restart: unless-stopped
     working_dir: /app
@@ -41,10 +41,8 @@ services:
       PLAYCORD_DB_NAME: playcord
     volumes:
       - ./:/app
-    command: >
-      sh -c "apt-get update && apt-get install -y libcairo2 &&
-             pip install --no-cache-dir ruamel.yaml discord cairosvg svg.py trueskill mpmath emoji psutil 'psycopg[binary,pool]' matplotlib &&
-             python bot.py"
+    # Use the Dockerfile build which installs fonts and Python deps at build time.
+    command: ["python", "bot.py"]
     networks:
       - playcord_network
 
