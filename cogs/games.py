@@ -26,13 +26,12 @@ from configuration.constants import (
     PERMISSION_MSG_SPECTATE_DISABLED,
 )
 from utils import database as db
-from utils.containers import ErrorContainer, LoadingContainer, container_edit_kwargs, container_send_kwargs
+from utils.containers import LoadingContainer, container_send_kwargs
 from utils.discord_utils import (
     decode_discord_arguments,
     followup_send,
     format_user_error_message,
     response_send_message,
-    send_simple_embed,
 )
 from utils.emojis import get_emoji_string
 from utils.interfaces import MatchmakingInterface, user_in_active_game
@@ -275,7 +274,7 @@ class GamesCog(commands.Cog):
         loading = await ctx.channel.send(**container_send_kwargs(LoadingContainer(message=get_emoji_string("loading")).remove_footer()))
         mm = MatchmakingInterface(ctx.user, game_type, loading, rated=match.is_rated, private=False)
         if mm.failed is not None:
-            await loading.edit(**container_edit_kwargs(mm.failed))
+            await loading.edit(content=str(mm.failed), view=None, attachments=[])
             await followup_send(ctx,content=get("rematch.failed"), ephemeral=True)
             return
         err = await mm.seed_rematch_players(g, human_ids)
@@ -298,11 +297,11 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
                      private: bool = False) -> MatchmakingInterface | None:
     f_log = log.getChild("command.matchmaking")
     if user_in_active_game(ctx.user.id):
-        await send_simple_embed(
+        await response_send_message(
             ctx,
-            title=get("begin_game.already_in_game_title"),
-            description=get("begin_game.already_in_game_description"),
+            content=get("begin_game.already_in_game_description"),
             ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
         )
         return None
     me = ctx.guild.me
@@ -341,7 +340,7 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
     try:
         interface = MatchmakingInterface(ctx.user, game_type, game_overview_message, rated=rated, private=private)
         if interface.failed is not None:
-            await game_overview_message.edit(**container_edit_kwargs(interface.failed))
+            await game_overview_message.edit(content=str(interface.failed), view=None, attachments=[])
             return None
         await interface.update_embed()
         from utils.analytics import EventType, register_event
@@ -358,11 +357,9 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
         f_log.exception("begin_game failed for game_type=%r", game_type)
         try:
             await game_overview_message.edit(
-                **container_edit_kwargs(ErrorContainer(
-                    ctx=None,
-                    what_failed=get("system_error.internal_what_failed"),
-                    reason=None,
-                ))
+                content=get("system_error.internal_what_failed"),
+                view=None,
+                attachments=[],
             )
         except Exception:
             pass
@@ -399,34 +396,61 @@ async def add_matchmaking_bot(ctx: discord.Interaction, difficulty: str) -> bool
 
 
 async def handle_move(ctx: discord.Interaction, name, arguments, current_turn_required: bool = True) -> None:
+    from utils.analytics import EventType, register_event
+
+    requested_group = getattr(getattr(getattr(ctx, "command", None), "parent", None), "name", None)
+
+    def _track_move_rejected(reason: str, *, game_type: str | None = None, match_id: int | None = None) -> None:
+        register_event(
+            EventType.MOVE_REJECTED,
+            user_id=getattr(getattr(ctx, "user", None), "id", None),
+            guild_id=ctx.guild.id if getattr(ctx, "guild", None) else None,
+            game_type=game_type or requested_group,
+            match_id=match_id,
+            metadata={
+                "reason": reason,
+                "move_name": name,
+                "command_group": requested_group,
+                "current_turn_required": bool(current_turn_required),
+                "source": "handle_move",
+            },
+        )
+
     if ctx.channel.type != discord.ChannelType.private_thread:
-        await send_simple_embed(
+        _track_move_rejected("wrong_channel")
+        await followup_send(
             ctx,
-            get("move.invalid_context_title"),
-            get("move.invalid_context_description"),
+            content=f"{get('move.invalid_context_title')}. {get('move.invalid_context_description')}",
             ephemeral=True,
-            responded=True
+            delete_after=EPHEMERAL_DELETE_AFTER,
         )
         return
     if ctx.channel.id not in CURRENT_GAMES:
-        await send_simple_embed(
+        _track_move_rejected("no_active_game")
+        await followup_send(
             ctx,
-            get("move.invalid_context_title"),
-            get("move.no_active_game_description"),
+            content=f"{get('move.invalid_context_title')}. {get('move.no_active_game_description')}",
             ephemeral=True,
-            responded=True
+            delete_after=EPHEMERAL_DELETE_AFTER,
         )
         return
     active_game = CURRENT_GAMES[ctx.channel.id]
     command_parent = getattr(getattr(ctx, "command", None), "parent", None)
     requested_game_type = getattr(command_parent, "name", None)
     if requested_game_type and requested_game_type != active_game.game_type:
-        await send_simple_embed(
+        _track_move_rejected(
+            "wrong_game_type",
+            game_type=active_game.game_type,
+            match_id=getattr(active_game, "game_id", None),
+        )
+        await followup_send(
             ctx,
-            get("move.invalid_context_title"),
-            fmt("move.wrong_game_type_description", game=active_game.game_type),
+            content=(
+                f"{get('move.invalid_context_title')}. "
+                f"{fmt('move.wrong_game_type_description', game=active_game.game_type)}"
+            ),
             ephemeral=True,
-            responded=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
         )
         return
     arguments.pop("ctx")

@@ -52,13 +52,13 @@ def _build_container_view(
 ) -> discord.ui.LayoutView:
     view = discord.ui.LayoutView(timeout=None)
     container = discord.ui.Container(accent_color=accent_color)
-    if thumbnail_url:
-        container.add_item(discord.ui.Thumbnail(thumbnail_url))
     body_text = (body_text or "").strip()
     if body_text:
         for chunk in _chunk_text(body_text):
             container.add_item(discord.ui.TextDisplay(chunk))
     urls = [u for u in (media_urls or []) if u]
+    if thumbnail_url:
+        urls.insert(0, thumbnail_url)
     if urls:
         if body_text:
             container.add_item(discord.ui.Separator())
@@ -626,4 +626,3 @@ class MatchmakingContainer(CustomContainer):
                 value=get("embeds.matchmaking.waiting_value"),
                 inline=False,
             )
-

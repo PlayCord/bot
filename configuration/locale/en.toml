@@ -55,6 +55,7 @@ value = "Administrators can run `/playcord set_channel` in the channel where you
 
 [playcord]
 wrong_channel = "On this server, start games from {channel}."
+active_thread_command_restricted = "This is an active game thread. Use move commands or `/playcord forfeit` here."
 
 [rematch]
 not_participant = "Only players from that match can start a rematch."

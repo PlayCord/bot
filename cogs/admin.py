@@ -28,7 +28,6 @@ from utils.analytics import (
 )
 from utils.containers import (
     CustomContainer,
-    ErrorContainer,
     append_container_sections,
     container_send_kwargs,
     lines_to_container_sections,
@@ -59,6 +58,15 @@ async def _finalize_admin_reactions(
         pass
 
 
+def _admin_error_text(what_failed: str, reason: str | None = None) -> str:
+    head = (what_failed or "").strip()
+    tail = (reason or "").strip()
+    text = f"{head}\n\n{tail}".strip() if tail else head
+    if len(text) > 1900:
+        return text[:1897] + "..."
+    return text
+
+
 class AdminCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -72,12 +80,10 @@ class AdminCog(commands.Cog):
         except Exception:
             log.exception("Owner admin message task failed")
             try:
-                await msg.reply(
-                    **container_send_kwargs(ErrorContainer(
-                        what_failed=get("commands.admin.task_unexpected_error"),
-                        reason=traceback.format_exc(),
-                    ))
-                )
+                await msg.reply(content=_admin_error_text(
+                    get("commands.admin.task_unexpected_error"),
+                    traceback.format_exc(),
+                ))
             except discord.HTTPException:
                 pass
             ok = False
@@ -124,15 +130,13 @@ class AdminCog(commands.Cog):
             try:
                 await self.bot.tree.sync()
             except Exception as e:
-                await msg.reply(
-                    **container_send_kwargs(ErrorContainer(
-                        what_failed=fmt(
-                            "commands.admin.sync_failed",
-                            error_type=type(e).__name__,
-                        ),
-                        reason=traceback.format_exc(),
-                    ))
-                )
+                await msg.reply(content=_admin_error_text(
+                    fmt(
+                        "commands.admin.sync_failed",
+                        error_type=type(e).__name__,
+                    ),
+                    traceback.format_exc(),
+                ))
                 return False
             f_log.info(f"Performed authorized sync from user {msg.author.id} to all guilds.")
             return True
@@ -153,15 +157,13 @@ class AdminCog(commands.Cog):
         try:
             await self.bot.tree.sync(guild=g)
         except Exception as e:
-            await msg.reply(
-                **container_send_kwargs(ErrorContainer(
-                    what_failed=fmt(
-                        "commands.admin.sync_failed",
-                        error_type=type(e).__name__,
-                    ),
-                    reason=traceback.format_exc(),
-                ))
-            )
+            await msg.reply(content=_admin_error_text(
+                fmt(
+                    "commands.admin.sync_failed",
+                    error_type=type(e).__name__,
+                ),
+                traceback.format_exc(),
+            ))
             return False
         f_log.info(f"Performed authorized sync from user {msg.author.id} to guild {g.id}")
         return True
@@ -269,20 +271,16 @@ class AdminCog(commands.Cog):
 
             drift = await fetch_and_analyze_tree(self.bot.tree, guild=guild)
         except discord.HTTPException as e:
-            await msg.reply(
-                **container_send_kwargs(ErrorContainer(
-                    what_failed=get("commands.treediff.message_failed"),
-                    reason=str(e),
-                ))
-            )
+            await msg.reply(content=_admin_error_text(
+                get("commands.treediff.message_failed"),
+                str(e),
+            ))
             return False
         except Exception:
-            await msg.reply(
-                **container_send_kwargs(ErrorContainer(
-                    what_failed=get("commands.treediff.message_failed"),
-                    reason=traceback.format_exc(),
-                ))
-            )
+            await msg.reply(content=_admin_error_text(
+                get("commands.treediff.message_failed"),
+                traceback.format_exc(),
+            ))
             return False
         diff_container = drift_to_container(
             drift,

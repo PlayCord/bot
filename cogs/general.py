@@ -234,6 +234,7 @@ class GeneralCog(commands.Cog):
     )
 
     @command_root.command(name="invite", description=get("commands.invite.description"))
+    @app_commands.check(interaction_check)
     @app_commands.describe(
         user=get("commands.invite.param_user"),
         game=get("commands.invite.param_game"),
@@ -381,6 +382,7 @@ class GeneralCog(commands.Cog):
             await response_send_message(ctx, final, ephemeral=True)
 
     @command_root.command(name="kick", description=get("commands.kick.description"))
+    @app_commands.check(interaction_check)
     @app_commands.describe(
         user=get("commands.kick.param_user"),
         reason=get("commands.kick.param_reason"),
@@ -407,6 +409,7 @@ class GeneralCog(commands.Cog):
         await response_send_message(ctx, return_value, ephemeral=True)
 
     @command_root.command(name="ban", description=get("commands.ban.description"))
+    @app_commands.check(interaction_check)
     @app_commands.describe(
         user=get("commands.ban.param_user"),
         reason=get("commands.ban.param_reason"),
@@ -433,6 +436,7 @@ class GeneralCog(commands.Cog):
         await response_send_message(ctx, return_value, ephemeral=True)
 
     @command_root.command(name="stats", description=get("commands.stats.description"))
+    @app_commands.check(interaction_check)
     async def command_stats(self, ctx: discord.Interaction):
         f_log = log.getChild("command.stats")
         f_log.debug(f"/stats called: {contextify(ctx)}")
@@ -475,6 +479,7 @@ class GeneralCog(commands.Cog):
         await response_send_message(ctx, **container_send_kwargs(container))
 
     @command_root.command(name="about", description=get("commands.about.description"))
+    @app_commands.check(interaction_check)
     async def command_about(self, ctx: discord.Interaction):
         f_log = log.getChild("command.about")
         libraries = [
@@ -521,6 +526,7 @@ class GeneralCog(commands.Cog):
         await response_send_message(ctx, **container_send_kwargs(container))
 
     @command_root.command(name="help", description=get("commands.help.description"))
+    @app_commands.check(interaction_check)
     @app_commands.describe(topic=get("commands.help.param_topic"))
     @app_commands.choices(topic=[
         Choice(name=get("commands.help.choice_getting_started"), value="getting_started"),
@@ -593,6 +599,7 @@ class GeneralCog(commands.Cog):
         return container
 
     @command_root.command(name="leaderboard", description=get("commands.leaderboard.description"))
+    @app_commands.check(interaction_check)
     @app_commands.describe(
         game=get("commands.leaderboard.param_game"),
         scope=get("commands.leaderboard.param_scope"),
@@ -743,6 +750,7 @@ class GeneralCog(commands.Cog):
         await interaction.edit_original_response(view=view)
 
     @command_root.command(name="catalog", description=get("commands.catalog.description"))
+    @app_commands.check(interaction_check)
     @app_commands.describe(page=get("commands.catalog.param_page"))
     async def command_catalog(self, ctx: discord.Interaction, page: int = 1):
         f_log = log.getChild("command.catalog")
@@ -826,6 +834,7 @@ class GeneralCog(commands.Cog):
         await interaction.edit_original_response(view=view)
 
     @command_root.command(name="profile", description=get("commands.profile.description"))
+    @app_commands.check(interaction_check)
     @app_commands.describe(user=get("commands.profile.param_user"))
     async def command_profile(self, ctx: discord.Interaction, user: discord.User = None):
         f_log = log.getChild("command.profile")
@@ -934,6 +943,7 @@ class GeneralCog(commands.Cog):
         await followup_send(ctx, **container_send_kwargs(container))
 
     @command_root.command(name="history", description=get("commands.history.description"))
+    @app_commands.check(interaction_check)
     @app_commands.describe(
         game=get("commands.history.param_game"),
         user=get("commands.history.param_user"),
@@ -1357,6 +1367,7 @@ class GeneralCog(commands.Cog):
         await followup_send(ctx, result, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
 
     @command_root.command(name="settings", description=get("commands.settings.description"))
+    @app_commands.check(interaction_check)
     @app_commands.describe(rated=get("commands.settings.param_rated"), private=get("commands.settings.param_private"))
     async def command_settings(self, ctx: discord.Interaction, rated: bool = None, private: bool = None):
         f_log = log.getChild("command.settings")
@@ -1392,6 +1403,7 @@ class GeneralCog(commands.Cog):
             await response_send_message(ctx, get("settings.no_changes"), ephemeral=True)
 
     @command_root.command(name="set_channel", description=get("commands.set_channel.description"))
+    @app_commands.check(interaction_check)
     @app_commands.default_permissions(administrator=True)
     @app_commands.describe(channel=get("commands.set_channel.param_channel"))
     async def command_set_channel(

@@ -6,11 +6,11 @@ import discord
 from discord import app_commands
 from discord.app_commands import CheckFailure
 
-from configuration.constants import EPHEMERAL_DELETE_AFTER, INFO_COLOR, LOGGING_ROOT
-from utils.containers import CustomContainer, ErrorContainer, UserErrorContainer, container_send_kwargs
+from configuration.constants import CURRENT_GAMES, EPHEMERAL_DELETE_AFTER, INFO_COLOR, LOGGING_ROOT
+from utils.containers import CustomContainer, UserErrorContainer, container_send_kwargs
 from utils.conversion import contextify
 from utils.database import DatabaseConnectionError
-from utils.locale import fmt, get, get_error
+from utils.locale import get, get_error
 
 log = logging.getLogger(LOGGING_ROOT)
 
@@ -48,14 +48,17 @@ async def response_send_message(interaction: discord.Interaction, *args: Any, **
 
 
 def format_user_error_message(error_key: str, **kwargs) -> str:
-    """Plain-text user error for ephemeral replies: description + optional suggestion (no title)."""
+    """Plain-text user error with a single combined sentence block (no title/container)."""
     description, suggestion = get_error(error_key)
     if kwargs:
         description = description.format(**kwargs)
         if suggestion:
             suggestion = suggestion.format(**kwargs)
-    parts = [p for p in (description, suggestion) if p]
-    return "\n\n".join(parts)
+    description = (description or "").strip()
+    suggestion = (suggestion or "").strip()
+    if description and suggestion:
+        return f"{description} {suggestion}".strip()
+    return description or suggestion
 
 
 def get_user_error_embed(error_key: str, **kwargs) -> UserErrorContainer:
@@ -89,6 +92,24 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
 
     if ctx.user.bot:
         f_log.warning("Bot users are not allowed to use commands.")
+        return False
+
+    channel = getattr(ctx, "channel", None)
+    in_active_game_thread = (
+        channel is not None
+        and getattr(channel, "type", None) == discord.ChannelType.private_thread
+        and getattr(channel, "id", None) in CURRENT_GAMES
+    )
+    command = getattr(ctx, "command", None)
+    parent = getattr(command, "parent", None)
+    is_playcord_subcommand = parent is not None and getattr(parent, "name", None) == LOGGING_ROOT
+    command_name = getattr(command, "name", None)
+    if in_active_game_thread and is_playcord_subcommand and command_name != "forfeit":
+        msg = get("playcord.active_thread_command_restricted")
+        if ctx.response.is_done():
+            await followup_send(ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+        else:
+            await response_send_message(ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
         return False
 
     return True
@@ -125,27 +146,17 @@ async def command_error(ctx: discord.Interaction, error: app_commands.AppCommand
             await ctx.delete_original_response()
         except (discord.HTTPException, discord.NotFound):
             pass
-        await followup_send(
-            ctx,
-            **container_send_kwargs(ErrorContainer(
-                ctx=ctx,
-                what_failed=get("system_error.command_unexpected"),
-                reason=None,
-            )),
-            ephemeral=True,
-            delete_after=EPHEMERAL_DELETE_AFTER,
-        )
+        await followup_send(ctx,
+                            content=format_user_error_message("generic"),
+                            ephemeral=True,
+                            delete_after=EPHEMERAL_DELETE_AFTER,
+                            )
     else:
-        await response_send_message(
-            ctx,
-            **container_send_kwargs(ErrorContainer(
-                ctx=ctx,
-                what_failed=get("system_error.command_unexpected"),
-                reason=None,
-            )),
-            ephemeral=True,
-            delete_after=EPHEMERAL_DELETE_AFTER,
-        )
+        await response_send_message(ctx,
+                                    content=format_user_error_message("generic"),
+                                    ephemeral=True,
+                                    delete_after=EPHEMERAL_DELETE_AFTER,
+                                    )
 
 
 from discord.app_commands import Choice

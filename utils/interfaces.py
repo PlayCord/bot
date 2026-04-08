@@ -24,7 +24,6 @@ from configuration.constants import (
     CURRENT_GAMES,
     CURRENT_MATCHMAKING,
     EPHEMERAL_DELETE_AFTER,
-    ERROR_COLOR,
     FORFEIT_RATING_PENALTY,
     GAME_MSG_ALREADY_OVER,
     GAME_TYPES,
@@ -39,11 +38,10 @@ from configuration.constants import (
     UI_MESSAGE_DELETE_DELAY,
 )
 from utils import database as db
-from utils.analytics import Timer
+from utils.analytics import Timer, register_event
 from utils.bot_names import generate_bot_name
 from utils.containers import (
     CustomContainer,
-    ErrorContainer,
     GameOverContainer,
     GameOverviewContainer,
     container_send_kwargs,
@@ -55,6 +53,7 @@ from utils.database import InternalPlayer, get_shallow_player, internal_player_t
 from utils.discord_utils import followup_send
 from utils.emojis import get_emoji_string
 from utils.locale import fmt, get
+from utils.models import EventType
 from utils.trueskill_params import get_trueskill_parameters
 from utils.views import MatchmakingLobbyView, MatchmakingView, RematchView, SpectateView
 
@@ -305,6 +304,13 @@ class GameInterface:
         async with self.processing_move:  # Get move processing lock
             log.debug(f"Now processing move command {name!r} with arguments {arguments!r} context: {contextify(ctx)}")
             if ctx.user.id in self.forfeited_player_ids:
+                self._track_move_event(
+                    EventType.MOVE_REJECTED,
+                    ctx=ctx,
+                    interaction_kind="slash_command",
+                    command_name=name,
+                    reason="already_forfeited",
+                )
                 await followup_send(ctx,
                                     get("forfeit.already_forfeited"),
                                     ephemeral=True,
@@ -312,17 +318,38 @@ class GameInterface:
                                     )
                 return
             if self.game.is_game_finished():
+                self._track_move_event(
+                    EventType.MOVE_REJECTED,
+                    ctx=ctx,
+                    interaction_kind="slash_command",
+                    command_name=name,
+                    reason="game_already_over",
+                )
                 message = await followup_send(ctx, content=GAME_MSG_ALREADY_OVER, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             self.current_turn = self.game.current_turn()
             if getattr(self.current_turn, "is_bot", False):
+                self._track_move_event(
+                    EventType.MOVE_REJECTED,
+                    ctx=ctx,
+                    interaction_kind="slash_command",
+                    command_name=name,
+                    reason="bot_turn",
+                )
                 message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn}) context: {contextify(ctx)}")
+                self._track_move_event(
+                    EventType.MOVE_REJECTED,
+                    ctx=ctx,
+                    interaction_kind="slash_command",
+                    command_name=name,
+                    reason="not_your_turn",
+                )
                 message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
@@ -339,12 +366,14 @@ class GameInterface:
                     arguments,
                     contextify(ctx),
                 )
-                error_embed = ErrorContainer(
-                    ctx,
-                    what_failed=get("move.unexpected_processing_error"),
-                    reason=None,
+                self._track_move_event(
+                    EventType.MOVE_INVALID,
+                    ctx=ctx,
+                    interaction_kind="slash_command",
+                    command_name=name,
+                    reason="callback_exception",
                 )
-                await followup_send(ctx, **container_send_kwargs(error_embed), ephemeral=True)
+                await self._send_move_processing_error(ctx)
                 return
 
             try:
@@ -381,17 +410,14 @@ class GameInterface:
                     name,
                     contextify(ctx),
                 )
-                try:
-                    await followup_send(ctx,
-                                        **container_send_kwargs(ErrorContainer(
-                                            ctx,
-                                            what_failed=get("move.unexpected_processing_error"),
-                                            reason=None,
-                                        )),
-                                        ephemeral=True,
-                                        )
-                except Exception:
-                    pass
+                self._track_move_event(
+                    EventType.MOVE_INVALID,
+                    ctx=ctx,
+                    interaction_kind="slash_command",
+                    command_name=name,
+                    reason="ui_send_failure",
+                )
+                await self._send_move_processing_error(ctx)
 
             try:
                 await self._move_postamble(
@@ -408,17 +434,14 @@ class GameInterface:
                     name,
                     contextify(ctx),
                 )
-                try:
-                    await followup_send(ctx,
-                                        **container_send_kwargs(ErrorContainer(
-                                            ctx,
-                                            what_failed=get("move.unexpected_processing_error"),
-                                            reason=None,
-                                        )),
-                                        ephemeral=True,
-                                        )
-                except Exception:
-                    pass
+                self._track_move_event(
+                    EventType.MOVE_INVALID,
+                    ctx=ctx,
+                    interaction_kind="slash_command",
+                    command_name=name,
+                    reason="postamble_failure",
+                )
+                await self._send_move_processing_error(ctx)
 
     def _resolve_move_callable(self, command_name: str) -> str:
         callback = None
@@ -427,6 +450,41 @@ class GameInterface:
                 callback = command.callback
                 break
         return command_name if callback is None else callback
+
+    async def _send_move_processing_error(self, ctx: discord.Interaction) -> None:
+        await followup_send(ctx, content=get("move.unexpected_processing_error"), ephemeral=True)
+
+    def _track_move_event(
+        self,
+        event_type: Any,
+        *,
+        ctx: discord.Interaction | None,
+        interaction_kind: str,
+        command_name: str,
+        reason: str | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        metadata = {
+            "interaction_kind": interaction_kind,
+            "command_name": command_name,
+        }
+        if reason:
+            metadata["reason"] = reason
+        if extra:
+            metadata.update(extra)
+        guild_id = None
+        if self.thread is not None and self.thread.guild is not None:
+            guild_id = self.thread.guild.id
+        elif ctx is not None and ctx.guild is not None:
+            guild_id = ctx.guild.id
+        register_event(
+            event_type,
+            user_id=getattr(getattr(ctx, "user", None), "id", None) if ctx is not None else None,
+            guild_id=guild_id,
+            game_type=self.game_type,
+            match_id=self.game_id,
+            metadata=metadata,
+        )
 
     def _replay_sink_from_game(self, event: dict) -> None:
         try:
@@ -460,7 +518,41 @@ class GameInterface:
         await self._sync_thread_messages()
         await self._dispatch_private_updates(ctx)
         _cmd = self._lookup_move_command(python_callback_name)
-        if self._should_persist_move_replay(move_response, _cmd):
+        command_name = _cmd.name if _cmd is not None else python_callback_name
+        game_affecting = _cmd.is_game_affecting if _cmd is not None else True
+        should_persist = self._should_persist_move_replay(move_response, _cmd)
+        response_type = type(move_response).__name__ if move_response is not None else "None"
+        if not game_affecting:
+            self._track_move_event(
+                EventType.MOVE_VALID,
+                ctx=ctx,
+                interaction_kind=interaction_kind,
+                command_name=command_name,
+                reason="non_affecting_command",
+                extra={"game_affecting": False, "response_type": response_type},
+            )
+        elif should_persist:
+            self._track_move_event(
+                EventType.MOVE_VALID,
+                ctx=ctx,
+                interaction_kind=interaction_kind,
+                command_name=command_name,
+                extra={"game_affecting": True, "response_type": response_type},
+            )
+        else:
+            self._track_move_event(
+                EventType.MOVE_INVALID,
+                ctx=ctx,
+                interaction_kind=interaction_kind,
+                command_name=command_name,
+                reason="move_not_applied",
+                extra={
+                    "game_affecting": True,
+                    "response_type": response_type,
+                    "record_replay": bool(getattr(move_response, "record_replay", False)),
+                },
+            )
+        if should_persist:
             self._persist_move_and_replay(
                 python_callback_name, persist_user_id, persist_args, interaction_kind
             )
@@ -646,13 +738,7 @@ class GameInterface:
             log.error(f"Bot turn failed with error {err!r}", exc_info=True)
             if self.thread is not None:
                 try:
-                    await self.thread.send(
-                        **container_send_kwargs(ErrorContainer(
-                            ctx=None,
-                            what_failed=get("move.unexpected_processing_error"),
-                            reason=None,
-                        ))
-                    )
+                    await self.thread.send(get("move.unexpected_processing_error"))
                 except Exception:
                     await self.thread.send(
                         fmt("game.bot_failed_move", player=getattr(self.current_turn, "mention", "Bot"))
@@ -682,6 +768,13 @@ class GameInterface:
         async with self.processing_move:  # Get move processing lock
             log.debug(f"Now processing move command {name!r} with arguments {arguments!r} context: {contextify(ctx)}")
             if ctx.user.id in self.forfeited_player_ids:
+                self._track_move_event(
+                    EventType.MOVE_REJECTED,
+                    ctx=ctx,
+                    interaction_kind="button",
+                    command_name=name,
+                    reason="already_forfeited",
+                )
                 await followup_send(ctx,
                                     get("forfeit.already_forfeited"),
                                     ephemeral=True,
@@ -689,6 +782,13 @@ class GameInterface:
                                     )
                 return
             if self.game.is_game_finished():
+                self._track_move_event(
+                    EventType.MOVE_REJECTED,
+                    ctx=ctx,
+                    interaction_kind="button",
+                    command_name=name,
+                    reason="game_already_over",
+                )
                 message = await followup_send(ctx, content=GAME_MSG_ALREADY_OVER, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
@@ -697,12 +797,26 @@ class GameInterface:
 
             # Check to make sure that it is current turn (if required)
             if getattr(self.current_turn, "is_bot", False):
+                self._track_move_event(
+                    EventType.MOVE_REJECTED,
+                    ctx=ctx,
+                    interaction_kind="button",
+                    command_name=name,
+                    reason="bot_turn",
+                )
                 message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
+                self._track_move_event(
+                    EventType.MOVE_REJECTED,
+                    ctx=ctx,
+                    interaction_kind="button",
+                    command_name=name,
+                    reason="not_your_turn",
+                )
                 message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
@@ -737,12 +851,14 @@ class GameInterface:
                     arguments,
                     contextify(ctx),
                 )
-                error_embed = ErrorContainer(
-                    ctx,
-                    what_failed=get("move.unexpected_processing_error"),
-                    reason=None,
+                self._track_move_event(
+                    EventType.MOVE_INVALID,
+                    ctx=ctx,
+                    interaction_kind="button",
+                    command_name=name,
+                    reason="callback_exception",
                 )
-                await followup_send(ctx, **container_send_kwargs(error_embed), ephemeral=True)
+                await self._send_move_processing_error(ctx)
                 return
 
             try:
@@ -759,17 +875,14 @@ class GameInterface:
                     name,
                     contextify(ctx),
                 )
-                try:
-                    await followup_send(ctx,
-                                        **container_send_kwargs(ErrorContainer(
-                                            ctx,
-                                            what_failed=get("move.unexpected_processing_error"),
-                                            reason=None,
-                                        )),
-                                        ephemeral=True,
-                                        )
-                except Exception:
-                    pass
+                self._track_move_event(
+                    EventType.MOVE_INVALID,
+                    ctx=ctx,
+                    interaction_kind="button",
+                    command_name=name,
+                    reason="ui_send_failure",
+                )
+                await self._send_move_processing_error(ctx)
 
             try:
                 await self._move_postamble(
@@ -786,17 +899,14 @@ class GameInterface:
                     name,
                     contextify(ctx),
                 )
-                try:
-                    await followup_send(ctx,
-                                        **container_send_kwargs(ErrorContainer(
-                                            ctx,
-                                            what_failed=get("move.unexpected_processing_error"),
-                                            reason=None,
-                                        )),
-                                        ephemeral=True,
-                                        )
-                except Exception:
-                    pass
+                self._track_move_event(
+                    EventType.MOVE_INVALID,
+                    ctx=ctx,
+                    interaction_kind="button",
+                    command_name=name,
+                    reason="postamble_failure",
+                )
+                await self._send_move_processing_error(ctx)
 
     async def move_by_select(self, ctx: discord.Interaction, name: str, current_turn_required: bool = True):
         """
@@ -813,6 +923,13 @@ class GameInterface:
         async with self.processing_move:  # Get move processing lock
             log.debug(f"Now processing move command {name!r} context: {contextify(ctx)}")
             if ctx.user.id in self.forfeited_player_ids:
+                self._track_move_event(
+                    EventType.MOVE_REJECTED,
+                    ctx=ctx,
+                    interaction_kind="select",
+                    command_name=name,
+                    reason="already_forfeited",
+                )
                 await followup_send(ctx,
                                     get("forfeit.already_forfeited"),
                                     ephemeral=True,
@@ -820,6 +937,13 @@ class GameInterface:
                                     )
                 return
             if self.game.is_game_finished():
+                self._track_move_event(
+                    EventType.MOVE_REJECTED,
+                    ctx=ctx,
+                    interaction_kind="select",
+                    command_name=name,
+                    reason="game_already_over",
+                )
                 message = await followup_send(ctx, content=GAME_MSG_ALREADY_OVER, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
@@ -828,12 +952,26 @@ class GameInterface:
 
             # Check to make sure that it is current turn (if required)
             if getattr(self.current_turn, "is_bot", False):
+                self._track_move_event(
+                    EventType.MOVE_REJECTED,
+                    ctx=ctx,
+                    interaction_kind="select",
+                    command_name=name,
+                    reason="bot_turn",
+                )
                 message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
+                self._track_move_event(
+                    EventType.MOVE_REJECTED,
+                    ctx=ctx,
+                    interaction_kind="select",
+                    command_name=name,
+                    reason="not_your_turn",
+                )
                 message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
@@ -853,12 +991,14 @@ class GameInterface:
                     name,
                     contextify(ctx),
                 )
-                error_embed = ErrorContainer(
-                    ctx,
-                    what_failed=get("move.unexpected_processing_error"),
-                    reason=None,
+                self._track_move_event(
+                    EventType.MOVE_INVALID,
+                    ctx=ctx,
+                    interaction_kind="select",
+                    command_name=name,
+                    reason="callback_exception",
                 )
-                await followup_send(ctx, **container_send_kwargs(error_embed), ephemeral=True)
+                await self._send_move_processing_error(ctx)
                 return
 
             try:
@@ -875,17 +1015,14 @@ class GameInterface:
                     name,
                     contextify(ctx),
                 )
-                try:
-                    await followup_send(ctx,
-                                        **container_send_kwargs(ErrorContainer(
-                                            ctx,
-                                            what_failed=get("move.unexpected_processing_error"),
-                                            reason=None,
-                                        )),
-                                        ephemeral=True,
-                                        )
-                except Exception:
-                    pass
+                self._track_move_event(
+                    EventType.MOVE_INVALID,
+                    ctx=ctx,
+                    interaction_kind="select",
+                    command_name=name,
+                    reason="ui_send_failure",
+                )
+                await self._send_move_processing_error(ctx)
 
             try:
                 await self._move_postamble(
@@ -902,17 +1039,14 @@ class GameInterface:
                     name,
                     contextify(ctx),
                 )
-                try:
-                    await followup_send(ctx,
-                                        **container_send_kwargs(ErrorContainer(
-                                            ctx,
-                                            what_failed=get("move.unexpected_processing_error"),
-                                            reason=None,
-                                        )),
-                                        ephemeral=True,
-                                        )
-                except Exception:
-                    pass
+                self._track_move_event(
+                    EventType.MOVE_INVALID,
+                    ctx=ctx,
+                    interaction_kind="select",
+                    command_name=name,
+                    reason="postamble_failure",
+                )
+                await self._send_move_processing_error(ctx)
 
     def _build_info_message(self, turn_description: str) -> Message:
         info_table = format_data_table_image(
@@ -939,6 +1073,12 @@ class GameInterface:
 
     def _build_status_view(self):
         overview = GameOverviewContainer(self.game.name, self.game_type, self.rated, self.players, self.current_turn)
+        summary_bits: list[str] = []
+        if overview.title:
+            summary_bits.append(f"## {overview.title}")
+        if overview.description:
+            summary_bits.append(str(overview.description))
+        summary_text = "\n\n".join(summary_bits).strip() or None
         overview_table = format_data_table_image(
             {
                 player: {
@@ -961,7 +1101,7 @@ class GameInterface:
             spectate_button_id=f"{BUTTON_PREFIX_SPECTATE}{self.thread.id}",
             peek_button_id=peek_button_id,
             game_link=self.info_message.jump_url if self.info_message is not None else None,
-            summary_text=container_to_markdown(overview),
+            summary_text=summary_text,
             table_image_url=f"attachment://{table_file.filename}",
         )
         return view, [table_file]
@@ -1138,9 +1278,9 @@ class MatchmakingInterface:
         self.message = message
 
         if self.queued_players == {None}:  # Couldn't get information on the creator, so fail now
-            self.failed = ErrorContainer(
-                what_failed=get("queue.db_connect_failed_what"),
-                reason=get("queue.db_connect_failed_reason"),
+            self.failed = (
+                f"{get('queue.db_connect_failed_what')} "
+                f"{get('queue.db_connect_failed_reason')}"
             )
             return
         CURRENT_MATCHMAKING.update({self.message.id: self})
@@ -1864,18 +2004,11 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
     except Exception:
         sm_log.exception("successful_matchmaking failed")
         try:
-            error_container = ErrorContainer(
-                ctx=None,
-                what_failed=get("system_error.internal_what_failed"),
-                reason=None,
+            await message.edit(
+                content=get("system_error.internal_what_failed"),
+                view=None,
+                attachments=[],
             )
-            error_message = Message(
-                Container(
-                    TextDisplay(container_to_markdown(error_container) or get("system_error.internal_what_failed")),
-                    accent_color=ERROR_COLOR,
-                )
-            )
-            await message.edit(**error_message.to_edit_kwargs())
         except Exception:
             pass
 
@@ -2101,7 +2234,10 @@ async def non_rated_groups_to_string(rankings: list[int], groups: list[InternalP
     return "\n".join(player_ratings)  # concatenate and return
 
 
-async def game_over(interface: GameInterface, outcome: str | InternalPlayer | list[list[InternalPlayer]]) -> None:
+async def game_over(
+    interface: GameInterface,
+    outcome: str | Player | InternalPlayer | list[list[InternalPlayer | Player]],
+) -> None:
     """
     Callback called by GameInterface when the game is over. Easily the most technically complicated function
     in the entire API
@@ -2135,17 +2271,11 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
 
     # There are three cases: str (error) Player (one person won) list[list[Player]] (detailed ranking)
     if isinstance(outcome, str):  # Error
-        game_over_container = ErrorContainer(what_failed=get("game.error_during_move"), reason=outcome)
-        error_message = Message(
-            Container(
-                TextDisplay(container_to_markdown(game_over_container) or str(outcome)),
-                accent_color=ERROR_COLOR,
-            )
-        )
-        await outbound_message.edit(**error_message.to_edit_kwargs())
+        error_text = f"{get('game.error_during_move')} {str(outcome).strip()}".strip()
+        await outbound_message.edit(content=error_text, view=None, attachments=[])
         await interface.await_pending_ui_tasks()
         await thread.edit(locked=True, archived=True, reason=get("threads.game_crashed"))
-        await thread.send(**container_send_kwargs(game_over_container))
+        await thread.send(error_text)
         try:
             from utils.analytics import EventType, register_event
 
@@ -2161,17 +2291,15 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
         return
 
     if rated:
-        if isinstance(outcome, Player):  # Somebody won, everybody else lost. No way of comparison (tic-tac-toe)
-            # Winner's rating
-            winner = environment.create_rating(outcome.mu, outcome.sigma)
-
-            # All the losers
-            losers = [{p: environment.create_rating(*_pre_match_mu_sigma(p, game_type))}
-                      for p in players if p.id != outcome.id]
-
-            rating_groups = [{InternalPlayer(ratings={game_type: {"mu": outcome.mu, "sigma": outcome.sigma}},
-                                             user=None, metadata={}, id=outcome.id): winner},
-                             *losers]  # Make the rating groups, cast Player to InternalPlayer
+        if isinstance(outcome, (Player, InternalPlayer)):  # Somebody won, everybody else lost (tic-tac-toe style)
+            winner_mu, winner_sigma = _pre_match_mu_sigma(outcome, game_type)
+            winner = environment.create_rating(winner_mu, winner_sigma)
+            losers = [
+                {p: environment.create_rating(*_pre_match_mu_sigma(p, game_type))}
+                for p in players
+                if p.id != outcome.id
+            ]
+            rating_groups = [{outcome: winner}, *losers]
             rankings = [0, *[1 for _ in range(len(players) - 1)]]  # Rankings = [0, 1, 1, ..., 1] for this case
 
         else:  # More generic position placement
@@ -2226,7 +2354,7 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
         rankings = []
         groups = []
 
-        if isinstance(outcome, Player):
+        if isinstance(outcome, (Player, InternalPlayer)):
             groups = [outcome, *[p for p in players if p.id != outcome.id]]  # Make the rating groups
             rankings = [0, *[1 for _ in range(len(players) - 1)]]  # Rankings = [0, 1, 1, ..., 1] for this case
 

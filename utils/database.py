@@ -83,8 +83,10 @@ class InternalPlayer:
         id: Optional[int] = None
     ):
         # User info
-        if isinstance(user, discord.User):
-            self.name = user.name
+        if user is not None:
+            display_name = getattr(user, "display_name", None)
+            username = getattr(user, "name", None)
+            self.name = display_name or username
         else:
             self.name = None
 
@@ -136,7 +138,9 @@ class InternalPlayer:
     @property
     def display_name(self) -> str:
         """Human-readable player name for table rendering."""
-        return self.name or f"@{self.id}"
+        if self.name:
+            return f"@{str(self.name).lstrip('@')}"
+        return f"@{self.id}"
 
     def get_formatted_elo(
         self,
@@ -447,13 +451,13 @@ class Database:
     # ========================================================================
 
     def create_guild(self, guild_id: int, settings: Optional[Dict[str, Any]] = None):
-        """Create a guild record"""
+        """Ensure a guild record exists without overwriting existing settings."""
         settings_json = json.dumps(settings or {})
         query = """
             INSERT INTO guilds (guild_id, settings)
             VALUES (%s, %s::jsonb)
             ON CONFLICT (guild_id) DO UPDATE SET
-                settings = EXCLUDED.settings,
+                is_active = TRUE,
                 updated_at = NOW();
         """
         self._execute_query(query, (guild_id, settings_json))

@@ -8,13 +8,13 @@ from typing import Sequence
 
 from PIL import Image, ImageDraw, ImageFont
 
-_BG = "#0f172a"
-_BORDER = "#334155"
-_HEADER_BG = "#1e293b"
-_ROW_BG = "#111827"
-_ALT_ROW_BG = "#172033"
-_TEXT = "#e2e8f0"
-_HEADER_TEXT = "#f8fafc"
+_BG = "#0b0b0d"
+_BORDER = "#3a3a3f"
+_HEADER_BG = "#1a1b1f"
+_ROW_BG = "#101113"
+_ALT_ROW_BG = "#15161a"
+_TEXT = "#e6e6e8"
+_HEADER_TEXT = "#f2f2f3"
 _SCALE = 2
 _FONT_SIZE = 14 * _SCALE
 _HEADER_FONT_SIZE = 15 * _SCALE
@@ -38,31 +38,33 @@ _TEXT_FONT_CANDIDATES = (
 _EMOJI_FONT_CANDIDATES = (
     os.path.join(_ROOT, "assets", "fonts", "NotoColorEmoji-Regular.ttf"),
     "/System/Library/Fonts/Apple Color Emoji.ttc",
+    "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
     "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
     "C:\\Windows\\Fonts\\seguiemj.ttf",
 )
 
 
-def _font_path(candidates: Sequence[str]) -> str | None:
-    for path in candidates:
-        if os.path.exists(path):
-            return path
-    return None
+def _font_paths(candidates: Sequence[str]) -> list[str]:
+    return [path for path in candidates if os.path.exists(path)]
 
 
 @lru_cache(maxsize=None)
 def _load_font(size: int, *, emoji: bool = False) -> ImageFont.ImageFont:
-    path = _font_path(_EMOJI_FONT_CANDIDATES if emoji else _TEXT_FONT_CANDIDATES)
-    if path:
-        kwargs = {}
-        layout_enum = getattr(ImageFont, "Layout", None)
-        layout_engine = getattr(layout_enum, "RAQM", None) if layout_enum is not None else None
-        if layout_engine is not None:
-            kwargs["layout_engine"] = layout_engine
-        try:
-            return ImageFont.truetype(path, size=size, **kwargs)
-        except OSError:
-            pass
+    if emoji:
+        candidates: Sequence[str] = (*_EMOJI_FONT_CANDIDATES, *_TEXT_FONT_CANDIDATES)
+    else:
+        candidates = _TEXT_FONT_CANDIDATES
+    layout_enum = getattr(ImageFont, "Layout", None)
+    layout_engine = getattr(layout_enum, "RAQM", None) if layout_enum is not None else None
+    for path in _font_paths(candidates):
+        for use_layout in (True, False):
+            kwargs = {}
+            if use_layout and layout_engine is not None:
+                kwargs["layout_engine"] = layout_engine
+            try:
+                return ImageFont.truetype(path, size=size, **kwargs)
+            except OSError:
+                continue
     return ImageFont.load_default()
 
 
