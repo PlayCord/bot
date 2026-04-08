@@ -32,6 +32,8 @@ class EventsCog(commands.Cog):
         while True:
             try:
                 analytics_mod.flush_events()
+                if db.database is not None:
+                    db.database.cleanup_old_analytics(days=ANALYTICS_RETENTION_DAYS)
             except Exception:
                 pass
             await asyncio.sleep(120)
@@ -133,37 +135,15 @@ class EventsCog(commands.Cog):
                     f_log.warning(f"Cannot send warning - missing permissions in thread {message.channel.id}")
 
     async def presence(self) -> None:
-        presence_logger = logging.getLogger("playcord.presence")
         if not self.presence_lock.locked():
             async with self.presence_lock:
                 while True:
-                    # Dynamic presence showing active games/users
-                    active_games = len(CURRENT_GAMES)
-                    active_users = len(IN_GAME)
-                    
-                    # Build dynamic status options
-                    options = []
-                    
-                    # Show active games count when there are games
-                    if active_games > 0:
-                        if active_games == 1:
-                            options.append(get("presence.active_games_singular"))
-                        else:
-                            options.append(fmt("presence.active_games_plural", count=active_games))
-                    
-                    if active_users > 0:
-                        if active_users == 1:
-                            options.append(get("presence.with_players_singular"))
-                        else:
-                            options.append(fmt("presence.with_players_plural", count=active_users))
-                    
-                    # Add game-specific statuses
-                    for game in GAME_TYPES:
-                        options.append(fmt("presence.playing_game", game=GAME_TYPES[game][1]))
-                    
-                    # Add preset statuses
-                    options.extend(PRESENCE_PRESETS)
-                    
+                    options = [
+                        fmt("presence.catalog_games", count=len(GAME_TYPES)),
+                        fmt("presence.users_playing", count=len(IN_GAME)),
+                        fmt("presence.users_matchmaking", count=len(IN_MATCHMAKING)),
+                        fmt("presence.games_happening_now", count=len(CURRENT_GAMES)),
+                    ]
                     for option in options:
                         activity = discord.Activity(type=discord.ActivityType.playing, name=option)
                         await self.bot.change_presence(activity=activity)

@@ -1,5 +1,6 @@
 import importlib
 import logging
+from difflib import get_close_matches
 from datetime import datetime
 
 from discord import app_commands
@@ -12,15 +13,17 @@ from utils import database as db, ramcheck
 from utils.containers import (
     CustomContainer,
     HelpCommandsContainer,
+    HelpFaqContainer,
     HelpGameInfoContainer,
     HelpGettingStartedContainer,
     HelpMainContainer,
+    HelpTutorialsContainer,
     InviteContainer,
     container_send_kwargs,
     container_to_markdown,
 )
 from utils.conversion import contextify
-from utils.discord_utils import format_user_error_message, interaction_check
+from utils.discord_utils import followup_send, format_user_error_message, interaction_check, response_send_message
 from utils.emojis import get_emoji_string, get_game_emoji
 from utils.graphs import generate_elo_chart
 from utils.interfaces import MatchmakingInterface, user_in_active_game
@@ -60,6 +63,27 @@ def _ordinal(value: int) -> str:
     else:
         suffix = {1: "st", 2: "nd", 3: "rd"}.get(value % 10, "th")
     return f"{value}{suffix}"
+
+
+def _resolve_game_id_input(raw: str) -> tuple[str | None, str | None]:
+    selected = (raw or "").strip()
+    game_type = selected.lower()
+    if game_type in GAME_TYPES:
+        return game_type, None
+
+    candidates = get_close_matches(game_type, list(GAME_TYPES.keys()), n=1, cutoff=0.55)
+    if candidates:
+        return None, candidates[0]
+    return None, None
+
+
+def _history_status_label(status: str | None) -> str:
+    status_map = {
+        "completed": "completed",
+        "interrupted": "interrupted",
+        "abandoned": "abandoned",
+    }
+    return status_map.get((status or "").lower(), "completed")
 
 
 def resolve_match_for_replay(raw: str, guild_id: int):
@@ -108,6 +132,17 @@ async def autocomplete_game_id(ctx: discord.Interaction, current: str) -> list[C
             rank = 2
         matches.append((rank, game_id.lower(), display_name, game_id))
 
+    if query and not matches:
+        fuzzy = get_close_matches(query, list(_GAME_METADATA.keys()), n=25, cutoff=0.4)
+        for game_id in fuzzy:
+            meta = _GAME_METADATA[game_id]
+            summary = meta["summary"]
+            description = str(summary) if summary is not None else ""
+            if description:
+                description = " (" + description + ")"
+            display_name = str(meta["name"]) + description
+            matches.append((3, game_id.lower(), display_name, game_id))
+
     matches.sort(key=lambda item: (item[0], item[1]))
     return [Choice(name=name[:100], value=value) for _, _, name, value in matches[:25]]
 
@@ -123,11 +158,15 @@ async def autocomplete_game_id(ctx: discord.Interaction, current: str) -> list[C
 @app_commands.check(interaction_check)
 async def command_play(ctx: discord.Interaction, game: str, rated: bool = True, private: bool = False) -> None:
     selected_game = game.strip()
-    game_type = selected_game.lower()
-    if game_type not in GAME_TYPES:
-        await ctx.response.send_message(
-            content=format_user_error_message("game_invalid", game=selected_game),
+    game_type, suggestion = _resolve_game_id_input(selected_game)
+    if game_type is None:
+        message = format_user_error_message("game_invalid", game=selected_game)
+        if suggestion:
+            message = f"{message}\n\nDid you mean `/play {suggestion}`?"
+        await response_send_message(ctx,
+            content=message,
             ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
         )
         return
 
@@ -217,30 +256,30 @@ class GeneralCog(commands.Cog):
 
         if not invited_users and not requested_bots:
             if ctx.response.is_done():
-                await ctx.followup.send(get("matchmaking.invite_no_targets"), ephemeral=True)
+                await followup_send(ctx,get("matchmaking.invite_no_targets"), ephemeral=True)
             else:
-                await ctx.response.send_message(get("matchmaking.invite_no_targets"), ephemeral=True)
+                await response_send_message(ctx,get("matchmaking.invite_no_targets"), ephemeral=True)
             return
 
         id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
 
         if ctx.user.id not in id_matchmaking:
             if user_in_active_game(ctx.user.id):
-                await ctx.response.send_message(
+                await response_send_message(ctx,
                     content=format_user_error_message("already_in_game_other_server"),
                     ephemeral=True,
                 )
                 return
 
             if game is None:
-                await ctx.response.send_message(
+                await response_send_message(ctx,
                     content=format_user_error_message("no_active_lobby"),
                     ephemeral=True,
                 )
                 return
 
             if game not in GAME_TYPES:
-                await ctx.response.send_message(
+                await response_send_message(ctx,
                     content=format_user_error_message("game_invalid", game=game),
                     ephemeral=True,
                 )
@@ -261,7 +300,7 @@ class GeneralCog(commands.Cog):
         from cogs.games import add_matchmaking_bot
 
         if matchmaker.private and matchmaker.creator.id != ctx.user.id:
-            await ctx.response.send_message(
+            await response_send_message(ctx,
                 content=format_user_error_message("invite_not_creator_private"),
                 ephemeral=True,
             )
@@ -305,9 +344,9 @@ class GeneralCog(commands.Cog):
         if not len(failed_invites):
             f_log.debug(f"/invite success: {len(invited_users)} succeeded, 0 failed. {contextify(ctx)}")
             if ctx.response.is_done():
-                await ctx.followup.send(get("success.invites_sent"), ephemeral=True)
+                await followup_send(ctx,get("success.invites_sent"), ephemeral=True)
             else:
-                await ctx.response.send_message(get("success.invites_sent"), ephemeral=True)
+                await response_send_message(ctx,get("success.invites_sent"), ephemeral=True)
             return
         elif len(failed_invites) == len(invited_users):
             message = get("matchmaking.invites_failed_all")
@@ -320,9 +359,9 @@ class GeneralCog(commands.Cog):
             final += f"{fail.mention} - {failed_invites[fail]}\n"
 
         if ctx.response.is_done():
-            await ctx.followup.send(final, ephemeral=True)
+            await followup_send(ctx,final, ephemeral=True)
         else:
-            await ctx.response.send_message(final, ephemeral=True)
+            await response_send_message(ctx,final, ephemeral=True)
 
     @command_root.command(name="kick", description=get("commands.kick.description"))
     @app_commands.describe(
@@ -334,21 +373,21 @@ class GeneralCog(commands.Cog):
         id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
 
         if ctx.user.id not in id_matchmaking:
-            await ctx.response.send_message(
+            await response_send_message(ctx,
                 content=format_user_error_message("kick_no_lobby"),
                 ephemeral=True,
             )
             return
         matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
         if matchmaker.creator.id != ctx.user.id:
-            await ctx.response.send_message(
+            await response_send_message(ctx,
                 content=format_user_error_message("kick_not_creator"),
                 ephemeral=True,
             )
             return
 
         return_value = await matchmaker.kick(user, reason)
-        await ctx.response.send_message(return_value, ephemeral=True)
+        await response_send_message(ctx,return_value, ephemeral=True)
 
     @command_root.command(name="ban", description=get("commands.ban.description"))
     @app_commands.describe(
@@ -360,21 +399,21 @@ class GeneralCog(commands.Cog):
         id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
 
         if ctx.user.id not in id_matchmaking:
-            await ctx.response.send_message(
+            await response_send_message(ctx,
                 content=format_user_error_message("ban_no_lobby"),
                 ephemeral=True,
             )
             return
         matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
         if matchmaker.creator.id != ctx.user.id:
-            await ctx.response.send_message(
+            await response_send_message(ctx,
                 content=format_user_error_message("ban_not_creator"),
                 ephemeral=True,
             )
             return
 
         return_value = await matchmaker.ban(user, reason)
-        await ctx.response.send_message(return_value, ephemeral=True)
+        await response_send_message(ctx,return_value, ephemeral=True)
 
     @command_root.command(name="stats", description=get("commands.stats.description"))
     async def command_stats(self, ctx: discord.Interaction):
@@ -416,12 +455,24 @@ class GeneralCog(commands.Cog):
             inline=False,
         )
 
-        await ctx.response.send_message(**container_send_kwargs(container))
+        await response_send_message(ctx,**container_send_kwargs(container))
 
     @command_root.command(name="about", description=get("commands.about.description"))
     async def command_about(self, ctx: discord.Interaction):
         f_log = log.getChild("command.about")
-        libraries = ["discord.py", "svg.py", "ruamel.yaml", "cairosvg", "trueskill", "mpmath"]
+        libraries = [
+            "discord.py",
+            "svg.py",
+            "ruamel.yaml",
+            "cairosvg",
+            "trueskill",
+            "mpmath",
+            "emoji",
+            "pillow",
+            "psycopg",
+            "psutil",
+            "matplotlib",
+        ]
         f_log.debug(f"/about called: {contextify(ctx)}")
 
         container = CustomContainer(title=get("embeds.about.title"), color=INFO_COLOR)
@@ -450,7 +501,7 @@ class GeneralCog(commands.Cog):
         )
         container.set_footer(text=get("embeds.about.footer"), icon_url=get("brand.footer_icon"))
 
-        await ctx.response.send_message(**container_send_kwargs(container))
+        await response_send_message(ctx,**container_send_kwargs(container))
 
     @command_root.command(name="help", description=get("commands.help.description"))
     @app_commands.describe(topic=get("commands.help.param_topic"))
@@ -458,6 +509,8 @@ class GeneralCog(commands.Cog):
         Choice(name=get("commands.help.choice_getting_started"), value="getting_started"),
         Choice(name=get("commands.help.choice_commands"), value="commands"),
         Choice(name=get("commands.help.choice_games"), value="games"),
+        Choice(name=get("help.buttons.game_tutorials"), value="tutorials"),
+        Choice(name=get("help.buttons.faq"), value="faq"),
     ])
     async def command_help(self, ctx: discord.Interaction, topic: str = None):
         f_log = log.getChild("command.help")
@@ -470,6 +523,12 @@ class GeneralCog(commands.Cog):
         elif topic == "commands":
             container = HelpCommandsContainer()
             section = "commands"
+        elif topic == "tutorials":
+            container = HelpTutorialsContainer()
+            section = "tutorials"
+        elif topic == "faq":
+            container = HelpFaqContainer()
+            section = "faq"
         elif topic == "games":
             container = await self._build_help_games_container()
             section = "games"
@@ -482,7 +541,7 @@ class GeneralCog(commands.Cog):
             current_section=section,
             body_text=container_to_markdown(container),
         )
-        await ctx.response.send_message(view=view)
+        await response_send_message(ctx,view=view)
 
     async def _build_help_games_container(self):
         """Build a quick games overview container for help menu."""
@@ -514,25 +573,6 @@ class GeneralCog(commands.Cog):
 
         return container
 
-    @command_root.command(name="learn", description=get("commands.learn.description"))
-    @app_commands.describe(game=get("commands.learn.param_game"))
-    @app_commands.autocomplete(game=autocomplete_game_id)
-    async def command_learn(self, ctx: discord.Interaction, game: str):
-        f_log = log.getChild("command.learn")
-        f_log.debug(f"/learn called for game={game}: {contextify(ctx)}")
-
-        if game not in GAME_TYPES:
-            await ctx.response.send_message(
-                content=format_user_error_message("learn_game_not_found", game=game),
-                ephemeral=True,
-            )
-            return
-
-        game_class = _GAME_METADATA[game]["class"]
-
-        container = HelpGameInfoContainer(game, game_class)
-        await ctx.response.send_message(**container_send_kwargs(container))
-
     @command_root.command(name="leaderboard", description=get("commands.leaderboard.description"))
     @app_commands.describe(
         game=get("commands.leaderboard.param_game"),
@@ -547,7 +587,7 @@ class GeneralCog(commands.Cog):
         f_log.debug(f"/leaderboard called for game={game}, scope={scope}, page={page}: {contextify(ctx)}")
 
         if game not in GAME_TYPES:
-            await ctx.response.send_message(
+            await response_send_message(ctx,
                 content=format_user_error_message("game_invalid", game=game),
                 ephemeral=True,
             )
@@ -559,7 +599,7 @@ class GeneralCog(commands.Cog):
         game_name = _GAME_METADATA[game]["name"]
         game_db = db.database.get_game(game)
         if not game_db:
-            await ctx.followup.send(get("errors.game_not_registered.value"), ephemeral=True)
+            await followup_send(ctx,get("errors.game_not_registered.value"), ephemeral=True)
             return
 
         if page < 1:
@@ -591,7 +631,7 @@ class GeneralCog(commands.Cog):
                 interaction, game, game_name, game_db.game_id, scope, new_page, limit
             )
         )
-        await ctx.followup.send(view=view)
+        await followup_send(ctx,view=view)
 
     async def _build_leaderboard_container(self, game: str, game_name: str, game_id: int, scope: str,
                                            guild, page: int, limit: int):
@@ -708,7 +748,7 @@ class GeneralCog(commands.Cog):
                 interaction, new_page, total_pages, all_games, games_per_page
             )
         )
-        await ctx.response.send_message(view=view)
+        await response_send_message(ctx,view=view)
 
     def _build_catalog_container(self, page: int, total_pages: int, all_games: list,
                                  games_per_page: int) -> CustomContainer:
@@ -778,7 +818,7 @@ class GeneralCog(commands.Cog):
 
         player = db.database.get_player(user, ctx.guild.id)
         if player is None:
-            await ctx.followup.send(
+            await followup_send(ctx,
                 content=format_user_error_message("player_not_found", player_name=user.display_name),
                 ephemeral=True,
             )
@@ -843,10 +883,11 @@ class GeneralCog(commands.Cog):
             history_lines = [
                 fmt("embeds.profile.match_format",
                     game_name=m.get('game_name', get("help.game_info.unknown")),
-                    ranking=_ordinal(m.get('final_ranking')),
+                    ranking=_ordinal(m.get('final_ranking')) if m.get('final_ranking') else "-",
                     player_count=m.get('player_count', '?'),
                     seat=m.get('player_number', '?'),
                     rated_status=get("history.rated") if m.get('is_rated', True) else get("history.casual"),
+                    status=_history_status_label(m.get("status")),
                     delta=f"{'+' if m.get('mu_delta', 0) >= 0 else ''}{round(m.get('mu_delta', 0))}")
                 for m in match_history]
             container.add_field(
@@ -861,13 +902,17 @@ class GeneralCog(commands.Cog):
                 inline=False,
             )
 
-        total_matches = db.database.count_matches_for_user(user.id, ctx.guild.id)
+        total_matches = 0
+        for game_id in GAME_TYPES:
+            rating_info = db.database.get_user_game_ratings(user.id, game_id)
+            if rating_info:
+                total_matches += int(rating_info.get("matches_played", 0))
         container.add_field(
             name=get("embeds.profile.field_total_games"),
             value=f"{total_matches} {plural('game', total_matches)}",
             inline=True,
         )
-        await ctx.followup.send(**container_send_kwargs(container))
+        await followup_send(ctx,**container_send_kwargs(container))
 
     @command_root.command(name="history", description=get("commands.history.description"))
     @app_commands.describe(
@@ -894,16 +939,22 @@ class GeneralCog(commands.Cog):
 
         f_log.debug(f"/history called for game={game}, user={user.id}, page={page}, days={days}: {contextify(ctx)}")
 
-        if game not in GAME_TYPES:
-            await ctx.response.send_message(
-                fmt("history.unknown_game", game=game),
+        resolved_game, suggestion = _resolve_game_id_input(game)
+        if resolved_game is None:
+            message = fmt("history.unknown_game", game=game)
+            if suggestion:
+                message = f"{message}\n\nDid you mean `{suggestion}`?"
+            await response_send_message(ctx,
+                message,
                 ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
+        game = resolved_game
 
         game_db = db.database.get_game(game)
         if not game_db:
-            await ctx.response.send_message(get("errors.game_not_registered.value"), ephemeral=True)
+            await response_send_message(ctx,get("errors.game_not_registered.value"), ephemeral=True)
             return
 
         game_name = _GAME_METADATA[game]["name"]
@@ -925,9 +976,9 @@ class GeneralCog(commands.Cog):
             )
         )
         if chart_file:
-            await ctx.response.send_message(view=view, file=chart_file)
+            await response_send_message(ctx,view=view, file=chart_file)
         else:
-            await ctx.response.send_message(view=view)
+            await response_send_message(ctx,view=view)
 
     def _build_history_container(self, user, game_name: str, game_id: int, guild_id: int,
                                  page: int, days: int, f_log):
@@ -982,6 +1033,7 @@ class GeneralCog(commands.Cog):
                     f"`{mid}` `{gkey}` · {rank_text}/{row.get('player_count', '?')} | "
                     f"{fmt('history.seat', seat=row.get('player_number', '?'))}"
                     f" | {get('history.rated') if row.get('is_rated', True) else get('history.casual')}"
+                    f" | {_history_status_label(row.get('status'))}"
                     f" | {'+' if delta >= 0 else ''}{round(delta)}{summ_txt}"
                 )
             container.add_field(name=get("history.recent_matches"), value="\n".join(lines), inline=False)
@@ -1131,12 +1183,12 @@ class GeneralCog(commands.Cog):
     async def command_replay(self, ctx: discord.Interaction, match_ref: app_commands.Range[str, 1, 32]):
         await ctx.response.defer(ephemeral=True)
         if ctx.guild is None:
-            await ctx.followup.send(content=get("commands.set_channel.guild_only"), ephemeral=True)
+            await followup_send(ctx,content=get("commands.set_channel.guild_only"), ephemeral=True)
             return
         raw = (match_ref or "").strip()
         match = resolve_match_for_replay(raw, ctx.guild.id)
         if match is None:
-            await ctx.followup.send(
+            await followup_send(ctx,
                 content=format_user_error_message("replay_not_found"),
                 ephemeral=True,
             )
@@ -1145,7 +1197,7 @@ class GeneralCog(commands.Cog):
         replay_display = (match.match_code or "").strip() or str(match_id)
         events = db.database.get_replay_events(match_id)
         if not events:
-            await ctx.followup.send(
+            await followup_send(ctx,
                 content=fmt("commands.replay.no_data", match_display=replay_display),
                 ephemeral=True,
             )
@@ -1177,7 +1229,7 @@ class GeneralCog(commands.Cog):
                 inter, np, pages, match_id, game_label, replay_global, replay_display
             ),
         )
-        await ctx.followup.send(view=view, ephemeral=True)
+        await followup_send(ctx,view=view, ephemeral=True)
 
     @command_replay.autocomplete("match_ref")
     async def replay_autocomplete(self, ctx: discord.Interaction, current: str) -> list[Choice[str]]:
@@ -1215,15 +1267,82 @@ class GeneralCog(commands.Cog):
     async def command_feedback(self, ctx: discord.Interaction, message: app_commands.Range[str, 1, 500]):
         text = (message or "").strip()
         if not text:
-            await ctx.response.send_message(get("commands.feedback.empty"), ephemeral=True)
+            await response_send_message(ctx,
+                get("commands.feedback.empty"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
-        db.database.record_event(
-            "user_feedback",
-            user_id=ctx.user.id,
-            guild_id=ctx.guild.id if ctx.guild else None,
-            metadata={"text": text},
+        owner_ids = set(getattr(ctx.client, "owner_ids", set()) or set())
+        owner_id = getattr(ctx.client, "owner_id", None)
+        if owner_id is not None:
+            owner_ids.add(owner_id)
+        if not owner_ids:
+            app_info = await ctx.client.application_info()
+            if getattr(app_info, "owner", None) is not None:
+                owner_ids.add(app_info.owner.id)
+
+        guild_name = ctx.guild.name if ctx.guild else "Direct Message"
+        delivered = 0
+        body = (
+            f"## Feedback\n"
+            f"From: {ctx.user} (`{ctx.user.id}`)\n"
+            f"Guild: {guild_name}\n"
+            f"Channel: {getattr(ctx.channel, 'mention', 'Unknown')}\n\n"
+            f"{text}"
         )
-        await ctx.response.send_message(get("commands.feedback.thanks"), ephemeral=True)
+        for target_id in owner_ids:
+            try:
+                owner = ctx.client.get_user(target_id) or await ctx.client.fetch_user(target_id)
+                await owner.send(body)
+                delivered += 1
+            except discord.HTTPException:
+                continue
+
+        if delivered == 0:
+            await response_send_message(ctx,
+                get("commands.feedback.delivery_failed"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
+
+        await response_send_message(ctx,
+            get("commands.feedback.thanks"),
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
+        )
+
+    @command_root.command(name="forfeit", description=get("forfeit.description"))
+    @app_commands.guild_only()
+    @app_commands.check(interaction_check)
+    async def command_forfeit(self, ctx: discord.Interaction):
+        if ctx.channel.type != discord.ChannelType.private_thread:
+            await response_send_message(ctx,
+                get("forfeit.wrong_channel"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
+        game = CURRENT_GAMES.get(ctx.channel.id)
+        if game is None:
+            await response_send_message(ctx,
+                get("forfeit.not_active"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
+        if ctx.user.id not in {p.id for p in game.players}:
+            await response_send_message(ctx,
+                get("forfeit.not_in_game"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
+
+        await ctx.response.defer(ephemeral=True)
+        result = await game.forfeit_player(ctx.user.id)
+        await followup_send(ctx,result, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
 
     @command_root.command(name="settings", description=get("commands.settings.description"))
     @app_commands.describe(rated=get("commands.settings.param_rated"), private=get("commands.settings.param_private"))
@@ -1233,19 +1352,19 @@ class GeneralCog(commands.Cog):
 
         id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
         if ctx.user.id not in id_matchmaking:
-            await ctx.response.send_message(get("settings.not_in_matchmaking"),
+            await response_send_message(ctx,get("settings.not_in_matchmaking"),
                                             ephemeral=True)
             return
 
         matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
         if matchmaker.creator.id != ctx.user.id:
-            await ctx.response.send_message(get("settings.only_creator"), ephemeral=True)
+            await response_send_message(ctx,get("settings.only_creator"), ephemeral=True)
             return
 
         changes = []
         if rated is not None and rated != matchmaker.rated:
             if rated and getattr(matchmaker, "has_bots", False):
-                await ctx.response.send_message(get("settings.rated_blocked_bots"), ephemeral=True)
+                await response_send_message(ctx,get("settings.rated_blocked_bots"), ephemeral=True)
                 return
             matchmaker.rated = rated
             changes.append(fmt("settings.changed_rated", value=get("settings.yes") if rated else get("settings.no")))
@@ -1256,9 +1375,9 @@ class GeneralCog(commands.Cog):
 
         if changes:
             await matchmaker.update_embed()
-            await ctx.response.send_message(get("settings.updated") + "\n" + "\n".join(changes), ephemeral=True)
+            await response_send_message(ctx,get("settings.updated") + "\n" + "\n".join(changes), ephemeral=True)
         else:
-            await ctx.response.send_message(get("settings.no_changes"), ephemeral=True)
+            await response_send_message(ctx,get("settings.no_changes"), ephemeral=True)
 
     @command_root.command(name="set_channel", description=get("commands.set_channel.description"))
     @app_commands.default_permissions(administrator=True)
@@ -1269,15 +1388,15 @@ class GeneralCog(commands.Cog):
             channel: discord.TextChannel | None = None,
     ):
         if ctx.guild is None:
-            await ctx.response.send_message(get("commands.set_channel.guild_only"), ephemeral=True)
+            await response_send_message(ctx,get("commands.set_channel.guild_only"), ephemeral=True)
             return
         await ctx.response.defer(ephemeral=True)
         if channel is None:
             db.database.merge_guild_settings(ctx.guild.id, {"playcord_channel_id": None})
-            await ctx.followup.send(content=get("commands.set_channel.cleared"), ephemeral=True)
+            await followup_send(ctx,content=get("commands.set_channel.cleared"), ephemeral=True)
             return
         db.database.merge_guild_settings(ctx.guild.id, {"playcord_channel_id": channel.id})
-        await ctx.followup.send(
+        await followup_send(ctx,
             content=fmt("commands.set_channel.saved", channel=channel.mention),
             ephemeral=True,
         )

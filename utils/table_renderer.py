@@ -23,8 +23,10 @@ _CELL_PADDING_X = 16 * _SCALE
 _TABLE_PADDING = 12 * _SCALE
 _ROW_HEIGHT = 38 * _SCALE
 _HEADER_HEIGHT = 40 * _SCALE
+_ROOT = os.path.dirname(os.path.dirname(__file__))
 
 _TEXT_FONT_CANDIDATES = (
+    os.path.join(_ROOT, "assets", "fonts", "NotoSans-Regular.ttf"),
     "/System/Library/Fonts/Supplemental/Arial.ttf",
     "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
     "/System/Library/Fonts/Supplemental/Helvetica.ttc",
@@ -34,6 +36,7 @@ _TEXT_FONT_CANDIDATES = (
     "C:\\Windows\\Fonts\\segoeui.ttf",
 )
 _EMOJI_FONT_CANDIDATES = (
+    os.path.join(_ROOT, "assets", "fonts", "NotoColorEmoji-Regular.ttf"),
     "/System/Library/Fonts/Apple Color Emoji.ttc",
     "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
     "C:\\Windows\\Fonts\\seguiemj.ttf",
@@ -142,12 +145,13 @@ def _segment_metrics(
 
 
 def _measure_text(draw: ImageDraw.ImageDraw, text: str, *, header: bool = False) -> tuple[int, int]:
-    base_font = _load_font(_HEADER_FONT_SIZE if header else _FONT_SIZE)
+    target_size = _HEADER_FONT_SIZE if header else _FONT_SIZE
+    base_font = _load_font(target_size)
     width = 0
     height = base_font.size
     for cluster in _split_clusters(text):
         use_emoji = _is_emoji_cluster(cluster)
-        font = _load_font(_FONT_SIZE, emoji=True) if use_emoji else base_font
+        font = _load_font(target_size, emoji=True) if use_emoji else base_font
         cluster_width, cluster_height = _segment_metrics(draw, cluster, font, embedded_color=use_emoji)
         width += cluster_width
         height = max(height, cluster_height)
@@ -170,12 +174,13 @@ def _draw_text_in_cell(
     fill: str,
     header: bool = False,
 ) -> None:
-    base_font = _load_font(_HEADER_FONT_SIZE if header else _FONT_SIZE)
+    target_size = _HEADER_FONT_SIZE if header else _FONT_SIZE
+    base_font = _load_font(target_size)
     _, total_height = _measure_text(draw, text, header=header)
     cursor_x = x + _CELL_PADDING_X
     for cluster in _split_clusters(text):
         use_emoji = _is_emoji_cluster(cluster)
-        font = _load_font(_FONT_SIZE, emoji=True) if use_emoji else base_font
+        font = _load_font(target_size, emoji=True) if use_emoji else base_font
         segment_width, segment_height = _segment_metrics(draw, cluster, font, embedded_color=use_emoji)
         segment_y = y + max((cell_height - max(total_height, segment_height)) // 2, 0)
         kwargs = {"font": font}

@@ -17,6 +17,7 @@ class MatchStatus(str, Enum):
     """Status of a match"""
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
+    INTERRUPTED = "interrupted"
     ABANDONED = "abandoned"
     DISPUTED = "disputed"
 
@@ -196,7 +197,7 @@ class Match:
     @property
     def is_finished(self) -> bool:
         """Check if match is finished"""
-        return self.status in (MatchStatus.COMPLETED, MatchStatus.ABANDONED, MatchStatus.DISPUTED)
+        return self.status in (MatchStatus.COMPLETED, MatchStatus.INTERRUPTED, MatchStatus.ABANDONED, MatchStatus.DISPUTED)
 
     @property
     def is_in_progress(self) -> bool:

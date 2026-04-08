@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS matches
     CONSTRAINT fk_match_guild FOREIGN KEY (guild_id)
         REFERENCES guilds (guild_id) ON DELETE CASCADE,
     CONSTRAINT chk_match_status CHECK (
-        status IN ('in_progress', 'completed', 'abandoned', 'disputed')
+        status IN ('in_progress', 'completed', 'interrupted', 'abandoned', 'disputed')
         ),
     CONSTRAINT chk_match_end_time CHECK (
         ended_at IS NULL OR ended_at > started_at

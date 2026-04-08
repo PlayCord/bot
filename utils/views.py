@@ -1,11 +1,14 @@
 import discord
 from discord import SelectOption
 
-from configuration.constants import BUTTON_PREFIX_LOBBY_OPT, BUTTON_PREFIX_LOBBY_ROLE
+from configuration.constants import BUTTON_PREFIX_LOBBY_OPT, BUTTON_PREFIX_LOBBY_ROLE, EPHEMERAL_DELETE_AFTER
+from utils.discord_utils import followup_send, response_send_message
 from utils.containers import (
     CustomContainer,
     HelpCommandsContainer,
+    HelpFaqContainer,
     HelpGettingStartedContainer,
+    HelpTutorialsContainer,
     HelpMainContainer,
     container_to_markdown,
 )
@@ -101,9 +104,12 @@ class DynamicButtonView(discord.ui.LayoutView):
 
         await interaction.response.edit_message(view=self)
 
-        msg = await interaction.followup.send(content=get("interactions.dead_view"), ephemeral=True)
-
-        await msg.delete(delay=10)  # autodelete message
+        await followup_send(
+            interaction,
+            content=get("interactions.dead_view"),
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
+        )
 
 
 class MatchmakingView(DynamicButtonView):
@@ -116,6 +122,8 @@ class MatchmakingView(DynamicButtonView):
         join_button_id=None,
         leave_button_id=None,
         start_button_id=None,
+        ready_button_id=None,
+        ready_button_label: str | None = None,
         can_start=True,
         summary_text: str | None = None,
         table_image_url: str | None = None,
@@ -131,6 +139,8 @@ class MatchmakingView(DynamicButtonView):
             {"label": get("buttons.join"), "style": discord.ButtonStyle.gray, "id": join_button_id,
              "callback": "none"},
             {"label": get("buttons.leave"), "style": discord.ButtonStyle.gray, "id": leave_button_id,
+             "callback": "none"},
+            {"label": ready_button_label or get("buttons.ready"), "style": discord.ButtonStyle.success, "id": ready_button_id,
              "callback": "none"},
             {"label": get("buttons.start"), "style": discord.ButtonStyle.blurple, "id": start_button_id,
              "callback": "none", "disabled": not can_start}
@@ -152,6 +162,8 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
         join_button_id: str,
         leave_button_id: str,
         start_button_id: str,
+        ready_button_id: str | None,
+        ready_button_label: str,
         can_start: bool,
         lobby_message_id: int,
         option_specs: tuple = (),
@@ -166,7 +178,7 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
         current_role_values = dict(current_role_values) if current_role_values else {}
         role_specs = role_specs or []
 
-        container = discord.ui.Container(discord.ui.TextDisplay("### Lobby Actions"))
+        container = discord.ui.Container()
         if summary_text:
             container.add_item(discord.ui.TextDisplay(summary_text[:4000]))
         if table_image_url:
@@ -196,6 +208,15 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
         )
         leave_btn.callback = self._route_to_cog
         action_row.add_item(leave_btn)
+
+        if ready_button_id is not None:
+            ready_btn = discord.ui.Button(
+                label=ready_button_label,
+                style=discord.ButtonStyle.success,
+                custom_id=ready_button_id,
+            )
+            ready_btn.callback = self._route_to_cog
+            action_row.add_item(ready_btn)
 
         start_btn = discord.ui.Button(
             label=get("buttons.start"),
@@ -289,21 +310,34 @@ class SpectateView(DynamicButtonView):
     View for status message
     """
 
-    def __init__(self, spectate_button_id=None, peek_button_id=None, game_link=None, summary_text: str | None = None) -> None:
+    def __init__(
+        self,
+        spectate_button_id=None,
+        peek_button_id=None,
+        game_link=None,
+        summary_text: str | None = None,
+        table_image_url: str | None = None,
+    ) -> None:
         """
         Create a spectate view
         :param spectate_button_id: custom ID of the spectate button
         :param peek_button_id: custom ID of the peek button
         :param game_link: the link to the game
+        :param table_image_url: optional attachment:// URL for overview table (same slot as DynamicButtonView)
         """
-        super().__init__([
+        buttons = [
             {"label": get("buttons.spectate"), "style": discord.ButtonStyle.blurple,
              "id": spectate_button_id, "callback": "none"},
-            {"label": get("buttons.peek"), "style": discord.ButtonStyle.gray, "id": peek_button_id,
-             "callback": "none"},
-            {"label": get("buttons.go_to_game"), "style": discord.ButtonStyle.gray,
-             "link": game_link}
-        ], summary_text=summary_text)
+        ]
+        if peek_button_id:
+            buttons.append(
+                {"label": get("buttons.peek"), "style": discord.ButtonStyle.gray, "id": peek_button_id,
+                 "callback": "none"}
+            )
+        buttons.append(
+            {"label": get("buttons.go_to_game"), "style": discord.ButtonStyle.gray, "link": game_link}
+        )
+        super().__init__(buttons, summary_text=summary_text, table_image_url=table_image_url)
 
 
 class PaginationView(discord.ui.LayoutView):
@@ -340,7 +374,6 @@ class PaginationView(discord.ui.LayoutView):
             BUTTON_PREFIX_PAGINATION_LAST
         )
 
-        container.add_item(discord.ui.TextDisplay(f"Page {current_page} of {max_pages}"))
         base = f"{guild_id}/{user_id}"
         row = discord.ui.ActionRow()
         buttons = [
@@ -396,9 +429,10 @@ class PaginationView(discord.ui.LayoutView):
     async def _first_callback(self, interaction: discord.Interaction):
         """Navigate to first page."""
         if not self._validate_interaction(interaction):
-            await interaction.response.send_message(
+            await response_send_message(interaction,
                 get("interactions.pagination_not_yours"),
-                ephemeral=True
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
 
@@ -408,9 +442,10 @@ class PaginationView(discord.ui.LayoutView):
     async def _prev_callback(self, interaction: discord.Interaction):
         """Navigate to previous page."""
         if not self._validate_interaction(interaction):
-            await interaction.response.send_message(
+            await response_send_message(interaction,
                 get("interactions.pagination_not_yours"),
-                ephemeral=True
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
 
@@ -421,9 +456,10 @@ class PaginationView(discord.ui.LayoutView):
     async def _next_callback(self, interaction: discord.Interaction):
         """Navigate to next page."""
         if not self._validate_interaction(interaction):
-            await interaction.response.send_message(
+            await response_send_message(interaction,
                 get("interactions.pagination_not_yours"),
-                ephemeral=True
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
 
@@ -434,9 +470,10 @@ class PaginationView(discord.ui.LayoutView):
     async def _last_callback(self, interaction: discord.Interaction):
         """Navigate to last page."""
         if not self._validate_interaction(interaction):
-            await interaction.response.send_message(
+            await response_send_message(interaction,
                 get("interactions.pagination_not_yours"),
-                ephemeral=True
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
 
@@ -501,6 +538,18 @@ class HelpView(discord.ui.LayoutView):
                 style=discord.ButtonStyle.primary,
                 user_id=self.user_id
             ))
+            row.add_item(HelpButton(
+                label=get("help.buttons.game_tutorials"),
+                section="tutorials",
+                style=discord.ButtonStyle.secondary,
+                user_id=self.user_id
+            ))
+            row.add_item(HelpButton(
+                label=get("help.buttons.faq"),
+                section="faq",
+                style=discord.ButtonStyle.secondary,
+                user_id=self.user_id
+            ))
         else:
             row.add_item(HelpButton(
                 label=get("help.buttons.back_to_help"),
@@ -516,7 +565,19 @@ class HelpView(discord.ui.LayoutView):
                     style=discord.ButtonStyle.primary,
                     user_id=self.user_id
                 ))
+            elif self.current_section == "tutorials":
+                row.add_item(HelpButton(
+                    label=get("help.buttons.game_list"),
+                    section="games",
+                    style=discord.ButtonStyle.primary,
+                    user_id=self.user_id
+                ))
         container.add_item(row)
+        if self.current_section == "tutorials":
+            game_row = discord.ui.ActionRow()
+            for game_id in list(_game_ids_for_help())[:5]:
+                game_row.add_item(GameTutorialButton(game_id=game_id, user_id=self.user_id))
+            container.add_item(game_row)
         self.add_item(container)
 
 
@@ -531,9 +592,10 @@ class HelpButton(discord.ui.Button):
     
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
-            await interaction.response.send_message(
+            await response_send_message(interaction,
                 get("interactions.help_not_yours"),
-                ephemeral=True
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
         
@@ -544,14 +606,19 @@ class HelpButton(discord.ui.Button):
             container = HelpGettingStartedContainer()
         elif self.section == "commands":
             container = HelpCommandsContainer()
+        elif self.section == "faq":
+            container = HelpFaqContainer()
         elif self.section == "games":
             # Show a brief games overview
             container = await self._build_games_container()
+        elif self.section == "tutorials":
+            container = HelpTutorialsContainer()
         elif self.section == "catalog":
             # Redirect to catalog command
-            await interaction.response.send_message(
+            await response_send_message(interaction,
                 get("help.buttons.catalog_redirect"),
-                ephemeral=True
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
         else:
@@ -599,6 +666,41 @@ class HelpButton(discord.ui.Button):
         return container
 
 
+def _game_ids_for_help() -> list[str]:
+    from configuration.constants import GAME_TYPES
+    return list(GAME_TYPES.keys())
+
+
+class GameTutorialButton(discord.ui.Button):
+    def __init__(self, game_id: str, user_id: int):
+        super().__init__(label=game_id[:80], style=discord.ButtonStyle.primary)
+        self.game_id = game_id
+        self.user_id = user_id
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await response_send_message(interaction,
+                get("interactions.help_not_yours"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
+
+        import importlib
+        from utils.containers import HelpGameInfoContainer
+
+        from configuration.constants import GAME_TYPES
+        module_name, class_name = GAME_TYPES[self.game_id]
+        game_class = getattr(importlib.import_module(module_name), class_name)
+        container = HelpGameInfoContainer(self.game_id, game_class)
+        view = HelpView(
+            user_id=self.user_id,
+            current_section="tutorials",
+            body_text=container_to_view_text(container),
+        )
+        await interaction.response.edit_message(view=view)
+
+
 class ContextualHelpView(discord.ui.LayoutView):
     """
     A view with a contextual help button that can be added to any embed.
@@ -634,8 +736,13 @@ class ContextualHelpView(discord.ui.LayoutView):
             container = HelpCommandsContainer()
         else:
             container = HelpMainContainer()
-        
-        await interaction.response.send_message(content=container_to_view_text(container), ephemeral=True)
+
+        await response_send_message(
+            interaction,
+            content=container_to_view_text(container),
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
+        )
 
 
 class QuickActionsView(discord.ui.LayoutView):

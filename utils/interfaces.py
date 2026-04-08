@@ -9,7 +9,7 @@ from typing import Any
 
 import trueskill
 
-from api.Game import PlayerOrder, RoleMode, resolve_player_count
+from api.Game import Game as BaseGame, PlayerOrder, RoleMode, resolve_player_count
 from api.MessageComponents import Container, MediaGallery, Message, TextDisplay, format_data_table_image
 from api.Player import Player
 from api.Response import Response
@@ -28,6 +28,7 @@ from utils.containers import (
 )
 from utils.conversion import column_creator, column_elo, column_names, column_turn, contextify, player_representative, \
     player_verification_function, textify
+from utils.discord_utils import followup_send
 from utils.database import InternalPlayer, get_shallow_player, internal_player_to_player
 from utils.emojis import get_emoji_string
 from utils.locale import fmt, get
@@ -188,6 +189,7 @@ class GameInterface:
         self.ending_game = False
         self._pending_ui_tasks: list[asyncio.Task] = []
         self._thread_messages: dict[str, discord.Message] = {}
+        self.forfeited_player_ids: set[int] = set()
 
     def _track_ui_task(self, coro) -> asyncio.Task:
         task = asyncio.create_task(coro)
@@ -277,15 +279,22 @@ class GameInterface:
 
         async with self.processing_move:  # Get move processing lock
             log.debug(f"Now processing move command {name!r} with arguments {arguments!r} context: {contextify(ctx)}")
+            if ctx.user.id in self.forfeited_player_ids:
+                await followup_send(ctx,
+                    get("forfeit.already_forfeited"),
+                    ephemeral=True,
+                    delete_after=EPHEMERAL_DELETE_AFTER,
+                )
+                return
             self.current_turn = self.game.current_turn()
             if getattr(self.current_turn, "is_bot", False):
-                message = await ctx.followup.send(content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=5)
                 return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn}) context: {contextify(ctx)}")
-                message = await ctx.followup.send(content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=5)
                 return
             function_to_call = self._resolve_move_callable(name)
@@ -306,7 +315,7 @@ class GameInterface:
                     what_failed=get("move.unexpected_processing_error"),
                     reason=None,
                 )
-                await ctx.followup.send(**container_send_kwargs(error_embed), ephemeral=True)
+                await followup_send(ctx,**container_send_kwargs(error_embed), ephemeral=True)
                 return
 
             try:
@@ -344,7 +353,7 @@ class GameInterface:
                     contextify(ctx),
                 )
                 try:
-                    await ctx.followup.send(
+                    await followup_send(ctx,
                         **container_send_kwargs(ErrorContainer(
                             ctx,
                             what_failed=get("move.unexpected_processing_error"),
@@ -371,7 +380,7 @@ class GameInterface:
                     contextify(ctx),
                 )
                 try:
-                    await ctx.followup.send(
+                    await followup_send(ctx,
                         **container_send_kwargs(ErrorContainer(
                             ctx,
                             what_failed=get("move.unexpected_processing_error"),
@@ -432,7 +441,7 @@ class GameInterface:
                 outcome,
                 contextify(ctx),
             )
-            message = await ctx.followup.send(content=get("game.over_short"), ephemeral=True)
+            message = await followup_send(ctx,content=get("game.over_short"), ephemeral=True)
             await message.delete(delay=5)
             await game_over(self, outcome)
 
@@ -641,18 +650,25 @@ class GameInterface:
 
         async with self.processing_move:  # Get move processing lock
             log.debug(f"Now processing move command {name!r} with arguments {arguments!r} context: {contextify(ctx)}")
+            if ctx.user.id in self.forfeited_player_ids:
+                await followup_send(ctx,
+                    get("forfeit.already_forfeited"),
+                    ephemeral=True,
+                    delete_after=EPHEMERAL_DELETE_AFTER,
+                )
+                return
             # Update current turn
             self.current_turn = self.game.current_turn()
 
             # Check to make sure that it is current turn (if required)
             if getattr(self.current_turn, "is_bot", False):
-                message = await ctx.followup.send(content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=5)
                 return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
-                message = await ctx.followup.send(content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=5)
                 return
 
@@ -691,7 +707,7 @@ class GameInterface:
                     what_failed=get("move.unexpected_processing_error"),
                     reason=None,
                 )
-                await ctx.followup.send(**container_send_kwargs(error_embed), ephemeral=True)
+                await followup_send(ctx,**container_send_kwargs(error_embed), ephemeral=True)
                 return
 
             try:
@@ -709,7 +725,7 @@ class GameInterface:
                     contextify(ctx),
                 )
                 try:
-                    await ctx.followup.send(
+                    await followup_send(ctx,
                         **container_send_kwargs(ErrorContainer(
                             ctx,
                             what_failed=get("move.unexpected_processing_error"),
@@ -736,7 +752,7 @@ class GameInterface:
                     contextify(ctx),
                 )
                 try:
-                    await ctx.followup.send(
+                    await followup_send(ctx,
                         **container_send_kwargs(ErrorContainer(
                             ctx,
                             what_failed=get("move.unexpected_processing_error"),
@@ -761,18 +777,25 @@ class GameInterface:
 
         async with self.processing_move:  # Get move processing lock
             log.debug(f"Now processing move command {name!r} context: {contextify(ctx)}")
+            if ctx.user.id in self.forfeited_player_ids:
+                await followup_send(ctx,
+                    get("forfeit.already_forfeited"),
+                    ephemeral=True,
+                    delete_after=EPHEMERAL_DELETE_AFTER,
+                )
+                return
             # Update current turn
             self.current_turn = self.game.current_turn()
 
             # Check to make sure that it is current turn (if required)
             if getattr(self.current_turn, "is_bot", False):
-                message = await ctx.followup.send(content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=5)
                 return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
-                message = await ctx.followup.send(content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=5)
                 return
 
@@ -796,7 +819,7 @@ class GameInterface:
                     what_failed=get("move.unexpected_processing_error"),
                     reason=None,
                 )
-                await ctx.followup.send(**container_send_kwargs(error_embed), ephemeral=True)
+                await followup_send(ctx,**container_send_kwargs(error_embed), ephemeral=True)
                 return
 
             try:
@@ -814,7 +837,7 @@ class GameInterface:
                     contextify(ctx),
                 )
                 try:
-                    await ctx.followup.send(
+                    await followup_send(ctx,
                         **container_send_kwargs(ErrorContainer(
                             ctx,
                             what_failed=get("move.unexpected_processing_error"),
@@ -841,7 +864,7 @@ class GameInterface:
                     contextify(ctx),
                 )
                 try:
-                    await ctx.followup.send(
+                    await followup_send(ctx,
                         **container_send_kwargs(ErrorContainer(
                             ctx,
                             what_failed=get("move.unexpected_processing_error"),
@@ -877,12 +900,46 @@ class GameInterface:
 
     def _build_status_view(self):
         overview = GameOverviewContainer(self.game.name, self.game_type, self.rated, self.players, self.current_turn)
-        return SpectateView(
+        overview_table = format_data_table_image(
+            {
+                player: {
+                    get("queue.field_rating"): rating,
+                    get("embeds.game_overview.field_turn"): turn_marker,
+                }
+                for player, rating, turn_marker in zip(
+                    self.players,
+                    column_elo(self.players, self.game_type).split("\n"),
+                    column_turn(self.players, self.current_turn).split("\n"),
+                    strict=False,
+                )
+            }
+        )
+        table_file = discord.File(io.BytesIO(overview_table), filename="game_overview.png")
+        peek_button_id = None
+        if type(self.game).player_state is not BaseGame.player_state:
+            peek_button_id = f"peek/{self.thread.id}/{self.game_message.id}"
+        view = SpectateView(
             spectate_button_id=f"spectate/{self.thread.id}",
-            peek_button_id=f"peek/{self.thread.id}/{self.game_message.id}",
+            peek_button_id=peek_button_id,
             game_link=self.info_message.jump_url if self.info_message is not None else None,
             summary_text=container_to_markdown(overview),
+            table_image_url=f"attachment://{table_file.filename}",
         )
+        return view, [table_file]
+
+    def _advance_past_forfeited_players(self) -> None:
+        if not self.forfeited_player_ids:
+            return
+        turn_index = getattr(self.game, "turn", None)
+        players = getattr(self.game, "players", None)
+        if not isinstance(turn_index, int) or not isinstance(players, list) or not players:
+            return
+        for _ in range(len(players)):
+            current = players[turn_index % len(players)]
+            if getattr(current, "id", None) not in self.forfeited_player_ids:
+                self.game.turn = turn_index % len(players)
+                return
+            turn_index += 1
 
     async def _sync_thread_messages(self) -> None:
         desired = {item.key: item.content for item in (self.game.thread_messages() or [])}
@@ -906,12 +963,12 @@ class GameInterface:
         if actor is not None:
             private_message = self.game.player_state(internal_player_to_player(actor, self.game_type))
             if private_message is not None:
-                await ctx.followup.send(**private_message.to_send_kwargs(self.thread.id), ephemeral=True)
+                await followup_send(ctx,**private_message.to_send_kwargs(self.thread.id), ephemeral=True)
 
         if getattr(self.game, "notify_on_turn", False):
             turn_player = self.game.current_turn()
             if getattr(turn_player, "id", None) == getattr(ctx.user, "id", None):
-                await ctx.followup.send(self.game.turn_notification(turn_player), ephemeral=True)
+                await followup_send(ctx,self.game.turn_notification(turn_player), ephemeral=True)
 
     async def display_game_state(self) -> None:
         """
@@ -921,6 +978,9 @@ class GameInterface:
         log = self.logger.getChild("display_game_state")
         update_timer = Timer().start()
         self.current_turn = self.game.current_turn()
+        if getattr(self.current_turn, "id", None) in self.forfeited_player_ids:
+            self._advance_past_forfeited_players()
+            self.current_turn = self.game.current_turn()
         if getattr(self.current_turn, "is_bot", False):
             turn_description = fmt("game.bot_turn_computing", player=self.current_turn.mention)
         else:
@@ -955,7 +1015,8 @@ class GameInterface:
         async def edit_status_message():
             while self.status_message is None:
                 await asyncio.sleep(1)
-            await self.status_message.edit(view=self._build_status_view())
+            status_view, attachments = self._build_status_view()
+            await self.status_message.edit(view=status_view, attachments=attachments)
 
         self._track_ui_task(edit_status_message())
 
@@ -974,6 +1035,27 @@ class GameInterface:
 
     async def bump(self):
         self.game_message = await self.game_message.channel.send()
+
+    async def forfeit_player(self, user_id: int) -> str:
+        if user_id in self.forfeited_player_ids:
+            return get("forfeit.already_forfeited")
+
+        active_players = [p for p in self.players if getattr(p, "id", None) not in self.forfeited_player_ids]
+        forfeiting_player = next((p for p in active_players if getattr(p, "id", None) == user_id), None)
+        if forfeiting_player is None:
+            return get("forfeit.not_in_game")
+
+        self.forfeited_player_ids.add(user_id)
+
+        remaining = [p for p in active_players if getattr(p, "id", None) != user_id]
+        if len(remaining) <= 1:
+            winner = remaining[0] if remaining else forfeiting_player
+            await game_over(self, winner)
+            return fmt("forfeit.confirmed_loss", player=forfeiting_player.mention)
+
+        self._advance_past_forfeited_players()
+        await self.display_game_state()
+        return fmt("forfeit.confirmed_skip", player=forfeiting_player.mention)
 
 
 class MatchmakingInterface:
@@ -1032,6 +1114,7 @@ class MatchmakingInterface:
         self._specs = tuple(getattr(self.game, "customizable_options", ()) or ())
         self.match_settings: dict[str, str | int] = {s.key: s.default for s in self._specs}
         self.role_selections: dict[int, str] = {}
+        self.ready_players: set[int] = set()
         self._sync_rated_flag()
 
         # Required and maximum players for game TODO: more complex requirements for start/stop
@@ -1070,6 +1153,37 @@ class MatchmakingInterface:
             return
         self.rated = self.rated_requested
 
+    def _reset_ready_state(self) -> None:
+        self.ready_players.clear()
+
+    def _base_start_conditions_met(self) -> bool:
+        player_count = resolve_player_count(self.game)
+        total_players = len(self.all_players())
+        if isinstance(player_count, list):
+            if total_players not in player_count:
+                return False
+        elif isinstance(player_count, int) and total_players != player_count:
+            return False
+
+        role_mode = getattr(self.game, "role_mode", RoleMode.NONE)
+        if role_mode == RoleMode.CHOSEN:
+            if self.has_bots:
+                return False
+            if len(self._specs) + len(self.all_players()) > 4:
+                return False
+            pr = getattr(self.game, "player_roles", None)
+            if not pr or len(pr) != len(self.all_players()):
+                return False
+            for p in self.queued_players:
+                if p.id not in self.role_selections:
+                    return False
+            return self.game.validate_role_selection(self.role_selections) is True
+        return True
+
+    def _all_humans_ready(self) -> bool:
+        human_ids = {p.id for p in self.queued_players}
+        return bool(human_ids) and getattr(self, "ready_players", set()) == human_ids
+
     def all_players(self) -> list[InternalPlayer | Player]:
         return [*sorted(self.queued_players, key=lambda p: p.id), *self.bots]
 
@@ -1099,18 +1213,27 @@ class MatchmakingInterface:
         )
         self.bots.append(bot_player)
         self._sync_rated_flag()
+        getattr(self, "_reset_ready_state", lambda: None)()
         return None
 
     async def callback_lobby_option(self, ctx: discord.Interaction, key: str) -> None:
         """Handle string select for a lobby :attr:`customizable_options` key (creator only)."""
         log = self.logger.getChild("lobby_option")
         if ctx.user.id != self.creator.id:
-            await ctx.followup.send(get("queue.only_creator_lobby_options"), ephemeral=True)
+            await followup_send(ctx,
+                get("queue.only_creator_lobby_options"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         spec = next((s for s in self._specs if s.key == key), None)
         if spec is None:
             log.warning("unknown lobby option key=%r lobby=%s", key, self.message.id)
-            await ctx.followup.send(get("matchmaking.invalid_interaction"), ephemeral=True)
+            await followup_send(ctx,
+                get("matchmaking.invalid_interaction"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         raw = (ctx.data.get("values") or [""])[0]
         self.match_settings[key] = spec.coerce(raw)
@@ -1120,23 +1243,41 @@ class MatchmakingInterface:
                 if other_spec.key in preset_values:
                     self.match_settings[other_spec.key] = other_spec.coerce(str(preset_values[other_spec.key]))
         self._sync_rated_flag()
+        getattr(self, "_reset_ready_state", lambda: None)()
         await self.update_embed()
-        await ctx.followup.send(get("queue.lobby_option_updated"), ephemeral=True)
+        await followup_send(ctx,
+            get("queue.lobby_option_updated"),
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
+        )
 
     async def callback_role_select(self, ctx: discord.Interaction, player_id: int) -> None:
         """Handle per-player role string select for CHOSEN :attr:`role_mode`."""
         log = self.logger.getChild("lobby_role_select")
         if ctx.user.id != player_id:
-            await ctx.followup.send(get("queue.role_select_not_yours"), ephemeral=True)
+            await followup_send(ctx,
+                get("queue.role_select_not_yours"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         if getattr(self.game, "role_mode", RoleMode.NONE) != RoleMode.CHOSEN:
             log.warning("role select on non-CHOSEN lobby lobby=%s", self.message.id)
-            await ctx.followup.send(get("matchmaking.invalid_interaction"), ephemeral=True)
+            await followup_send(ctx,
+                get("matchmaking.invalid_interaction"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         raw = (ctx.data.get("values") or [""])[0]
         self.role_selections[player_id] = str(raw)
+        getattr(self, "_reset_ready_state", lambda: None)()
         await self.update_embed()
-        await ctx.followup.send(get("queue.role_select_updated"), ephemeral=True)
+        await followup_send(ctx,
+            get("queue.role_select_updated"),
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
+        )
 
     async def update_embed(self) -> None:
         """
@@ -1211,6 +1352,22 @@ class MatchmakingInterface:
         elif len(self.blacklist):
             container.add_field(name=get("queue.field_blacklist"), value=column_names(self.blacklist), inline=True)
 
+        ready_lines = []
+        for player in sorted(self.queued_players, key=lambda x: x.id):
+            ready_lines.append(
+                fmt(
+                    "queue.ready_state_line",
+                    player=getattr(player, "mention", getattr(player, "name", str(player.id))),
+                    state=get("queue.ready_state_ready") if player.id in self.ready_players else get("queue.ready_state_waiting"),
+                )
+            )
+        if ready_lines:
+            container.add_field(
+                name=get("queue.field_ready_state"),
+                value="\n".join(ready_lines),
+                inline=False,
+            )
+
         try:
             container.set_footer(text=self.game.description)
         except Exception:
@@ -1277,17 +1434,14 @@ class MatchmakingInterface:
                 )
 
         # Can the start button be pressed?
-        start_enabled = self.player_verification_function(len(self.queued_players))
-        player_count = resolve_player_count(self.game)
-        if isinstance(player_count, list):
-            start_enabled = len(self.all_players()) in player_count
-        elif isinstance(player_count, int):
-            start_enabled = len(self.all_players()) == player_count
+        start_enabled = self._base_start_conditions_met() and self._all_humans_ready()
 
         # Create matchmaking button view (with callbacks and can_start)
         join_id = f"join/{self.message.id}"
         leave_id = f"leave/{self.message.id}"
         start_id = f"start/{self.message.id}"
+        ready_id = f"{BUTTON_PREFIX_READY}{self.message.id}"
+        ready_label = get("buttons.ready_toggle")
         role_specs_list: list[tuple[int, str, tuple[str, ...]]] = []
         if show_role_selects and pr_roles is not None:
             avail = tuple(pr_roles)
@@ -1300,6 +1454,8 @@ class MatchmakingInterface:
                 join_button_id=join_id,
                 leave_button_id=leave_id,
                 start_button_id=start_id,
+                ready_button_id=ready_id,
+                ready_button_label=ready_label,
                 can_start=start_enabled,
                 lobby_message_id=self.message.id,
                 option_specs=self._specs,
@@ -1314,6 +1470,8 @@ class MatchmakingInterface:
                 join_button_id=join_id,
                 leave_button_id=leave_id,
                 start_button_id=start_id,
+                ready_button_id=ready_id,
+                ready_button_label=ready_label,
                 can_start=start_enabled,
                 summary_text=container_to_markdown(container),
                 table_image_url=table_image_url,
@@ -1357,14 +1515,15 @@ class MatchmakingInterface:
             log.debug(
                 f"Player.py {player} attempted to accept invite, but they are already in the game! "
                 f"{contextify(ctx)}")
-            await ctx.followup.send(get("queue.already_in_game"), ephemeral=True)
+            await followup_send(ctx,get("queue.already_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
             return False
         if user_in_active_game(player.id):
             log.info(f"Player.py {player} attempted to accept invite while already in another active game."
                      f" {contextify(ctx)}")
-            await ctx.followup.send(
+            await followup_send(ctx,
                 get("queue.already_in_active_game_other_server"),
-                ephemeral=True
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return False
         if user_in_active_matchmaking(player.id):
@@ -1372,9 +1531,10 @@ class MatchmakingInterface:
                 f"Player.py {player} attempted to accept invite while already queued in another lobby."
                 f" {contextify(ctx)}"
             )
-            await ctx.followup.send(
+            await followup_send(ctx,
                 get("queue.already_in_another_queue"),
                 ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return False
         else:
@@ -1382,7 +1542,7 @@ class MatchmakingInterface:
                 log.warning(
                     f"Player.py {player} attempted to accept invite, but we couldn't connect to the database!"
                     f"{contextify(ctx)}")
-                await ctx.followup.send(get("queue.couldnt_connect_db"), ephemeral=True)
+                await followup_send(ctx,get("queue.couldnt_connect_db"), ephemeral=True)
                 return False
 
             # Add to whitelist or remove from blacklist, depending on private/public status
@@ -1396,6 +1556,7 @@ class MatchmakingInterface:
 
             self.queued_players.add(player)  # Add the player to queued_players
             IN_MATCHMAKING.update({player: self})
+            getattr(self, "_reset_ready_state", lambda: None)()
             log.debug(
                 f"Successfully accepted invite for {player.id} ({player.name})!"
                 f"{contextify(ctx)}")
@@ -1423,6 +1584,7 @@ class MatchmakingInterface:
             self.queued_players.remove(new_player)
             IN_MATCHMAKING.pop(new_player)
             self.role_selections.pop(new_player.id, None)
+            getattr(self, "_reset_ready_state", lambda: None)()
 
         # end game if necessary
         if not len(self.queued_players):
@@ -1475,6 +1637,7 @@ class MatchmakingInterface:
             self.queued_players.remove(new_player)
             IN_MATCHMAKING.pop(new_player)
             self.role_selections.pop(new_player.id, None)
+            getattr(self, "_reset_ready_state", lambda: None)()
             await self.update_embed()
 
         # end game if necessary
@@ -1507,13 +1670,14 @@ class MatchmakingInterface:
         if ctx.user.id in [p.id for p in self.queued_players]:  # Can't join if you are already in
             log.info(f"Attempted to join player {new_player} but failed because they were already in the queue."
                      f" {contextify(ctx)}")
-            await ctx.followup.send(get("queue.already_in_game"), ephemeral=True)
+            await followup_send(ctx,get("queue.already_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
         elif user_in_active_game(new_player.id):
             log.info(f"Attempted to join player {new_player} but failed because they are already in another game."
                      f" {contextify(ctx)}")
-            await ctx.followup.send(
+            await followup_send(ctx,
                 get("queue.already_in_active_game_other_server"),
-                ephemeral=True
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
         elif user_in_active_matchmaking(new_player.id):
@@ -1521,31 +1685,64 @@ class MatchmakingInterface:
                 f"Attempted to join player {new_player} but failed because they are already queued elsewhere."
                 f" {contextify(ctx)}"
             )
-            await ctx.followup.send(get("queue.already_in_another_queue"), ephemeral=True)
+            await followup_send(ctx,
+                get("queue.already_in_another_queue"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         else:
             if not self.private:
                 if new_player in self.blacklist:
                     log.info(f"Attempted to join player {new_player} but failed because they were already in the queue."
                              f" {contextify(ctx)}")
-                    await ctx.followup.send(
+                    await followup_send(ctx,
                         fmt("queue.banned_message", creator=self.creator.mention),
-                        ephemeral=True
+                        ephemeral=True,
+                        delete_after=EPHEMERAL_DELETE_AFTER,
                     )
                     return
                 self.queued_players.add(new_player)  # Add the player to queued_players
                 IN_MATCHMAKING.update({new_player: self})
+                getattr(self, "_reset_ready_state", lambda: None)()
                 await self.update_embed()  # Update embed on discord side
             else:
                 if new_player not in self.whitelist:
                     log.info(f"Attempted to join player {new_player} to private game but failed because"
                              f" they were not on the whitelist."
                              f" {contextify(ctx)}")
-                    await ctx.followup.send(get("queue.not_on_whitelist"), ephemeral=True)
+                    await followup_send(ctx,
+                        get("queue.not_on_whitelist"),
+                        ephemeral=True,
+                        delete_after=EPHEMERAL_DELETE_AFTER,
+                    )
                     return
                 self.queued_players.add(new_player)  # Add the player to queued_players
                 IN_MATCHMAKING.update({new_player: self})
+                getattr(self, "_reset_ready_state", lambda: None)()
                 await self.update_embed()  # Update embed on discord side
+
+    async def callback_toggle_ready(self, ctx: discord.Interaction) -> None:
+        player = get_shallow_player(ctx.user)
+        if player.id not in [p.id for p in self.queued_players]:
+            await followup_send(ctx,get("queue.not_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            return
+        if not self._base_start_conditions_met():
+            await followup_send(ctx,
+                get("queue.ready_requirements_not_met"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
+        ready_players = getattr(self, "ready_players", set())
+        if player.id in ready_players:
+            ready_players.remove(player.id)
+            notice = get("queue.unready_confirmed")
+        else:
+            ready_players.add(player.id)
+            notice = get("queue.ready_confirmed")
+        await self.update_embed()
+        await followup_send(ctx,notice, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
 
     async def callback_leave_game(self, ctx: discord.Interaction) -> None:
         """
@@ -1560,7 +1757,7 @@ class MatchmakingInterface:
         if player.id not in [p.id for p in self.queued_players]:  # Can't leave if you weren't even there
             log.info(f"Attempted to remove player {player} but failed because they weren't in the queue to begin with."
                      f" {contextify(ctx)}")
-            await ctx.followup.send(get("queue.not_in_game"), ephemeral=True)
+            await followup_send(ctx,get("queue.not_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
         else:
             # Remove player from queue
             for p in self.queued_players:
@@ -1568,12 +1765,13 @@ class MatchmakingInterface:
                     self.queued_players.remove(player)
                     IN_MATCHMAKING.pop(player)
                     self.role_selections.pop(player.id, None)
+                    getattr(self, "_reset_ready_state", lambda: None)()
                     break
             # Nobody is left lol
             if not len(self.queued_players):
                 log.info(f"Call to leave_game left no players in lobby, so ending game. {contextify(ctx)}")
-                await ctx.followup.send(get("queue.game_cancelled_last_player"),
-                                        ephemeral=True)
+                await followup_send(ctx,get("queue.game_cancelled_last_player"),
+                                        ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
                 await self.message.delete()  # Remove matchmaking message
                 self.outcome = False
                 return
@@ -1599,7 +1797,11 @@ class MatchmakingInterface:
         log.debug(f"Attempting to start the game... {contextify(ctx)}")
 
         if ctx.user.id != self.creator.id:  # Don't have permissions to start the game
-            await ctx.followup.send(get("permissions.cant_start_not_creator"), ephemeral=True)
+            await followup_send(ctx,
+                get("permissions.cant_start_not_creator"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             log.debug(f"Game failed to start because player {player} was not the creator. "
                       f"{contextify(ctx)}")
             return
@@ -1608,44 +1810,29 @@ class MatchmakingInterface:
         if busy_players:
             verb = "is" if len(busy_players) == 1 else "are"
             mentions = ", ".join(p.mention for p in busy_players)
-            await ctx.followup.send(
+            await followup_send(ctx,
                 fmt("permissions.players_in_other_game", mentions=mentions, verb=verb),
-                ephemeral=True
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             log.info("Game start denied because one or more queued players are already in another active game. "
                      f"{contextify(ctx)}")
             return
 
-        total_players = len(self.all_players())
-        player_count = resolve_player_count(self.game)
-        if isinstance(player_count, list):
-            if total_players not in player_count:
-                await ctx.followup.send(get("queue.bot_too_many_for_game"), ephemeral=True)
-                return
-        elif isinstance(player_count, int) and total_players != player_count:
-            await ctx.followup.send(get("queue.bot_too_many_for_game"), ephemeral=True)
+        if not self._base_start_conditions_met():
+            await followup_send(ctx,
+                get("queue.ready_requirements_not_met"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
-
-        role_mode = getattr(self.game, "role_mode", RoleMode.NONE)
-        if role_mode == RoleMode.CHOSEN:
-            if self.has_bots:
-                await ctx.followup.send(get("queue.role_chosen_no_bots"), ephemeral=True)
-                return
-            if len(self._specs) + len(self.all_players()) > 4:
-                await ctx.followup.send(get("queue.role_chosen_ui_overflow"), ephemeral=True)
-                return
-            pr = getattr(self.game, "player_roles", None)
-            if not pr or len(pr) != len(self.all_players()):
-                await ctx.followup.send(get("queue.bot_too_many_for_game"), ephemeral=True)
-                return
-            for p in self.queued_players:
-                if p.id not in self.role_selections:
-                    await ctx.followup.send(get("queue.role_all_must_select"), ephemeral=True)
-                    return
-            vr = self.game.validate_role_selection(self.role_selections)
-            if vr is not True:
-                await ctx.followup.send(str(vr), ephemeral=True)
-                return
+        if not self._all_humans_ready():
+            await followup_send(ctx,
+                get("queue.ready_all_players_required"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
 
         # The matchmaking was successful!
         self.outcome = True
@@ -1765,24 +1952,6 @@ async def _successful_matchmaking_impl(interface: MatchmakingInterface) -> None:
         # Register the game to the channel it's in
         CURRENT_GAMES.update({game.thread.id: game})
 
-        # Edit the status message with the SpectateView
-        async def create_spectate_view():
-            spectate_summary = (
-                f"## {game.game.name}\n"
-                f"Match `{game.match_public_code}`\n"
-                f"{'Rated' if game.rated else 'Casual'} game\n"
-                f"Players: {', '.join(p.mention for p in game.players)}"
-            )
-            await message.edit(
-                view=SpectateView(
-                    spectate_button_id=f"spectate/{game.thread.id}",
-                    peek_button_id=f"peek/{game.thread.id}/{game.game_message.id}",
-                    game_link=game.info_message.jump_url,
-                    summary_text=spectate_summary,
-                ),
-            )
-
-        asyncio.create_task(create_spectate_view())
         await game.display_game_state()  # Send the game display state
     except Exception:
         _sm = logging.getLogger(f"{LOGGING_ROOT}.successful_matchmaking")
@@ -2036,6 +2205,13 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
                                      "ranking": data.get("ranking",
                                                          rankings[list(player_ratings.keys()).index(player)] + 1)}})
 
+        if interface.forfeited_player_ids:
+            for forfeited_id in interface.forfeited_player_ids:
+                if forfeited_id in ratings:
+                    penalty = 100
+                    ratings[forfeited_id]["new_mu"] = max(0.0, ratings[forfeited_id]["new_mu"] - penalty)
+                    ratings[forfeited_id]["mu_delta"] -= penalty
+
         db.database.end_game(match_id=game_id, game_name=game_type, rating_updates=ratings, final_scores=None)
 
 
@@ -2079,6 +2255,12 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
                 outcome_summaries = parsed or None
     except Exception:
         outcome_summaries = None
+
+    if interface.forfeited_player_ids:
+        outcome_summaries = dict(outcome_summaries or {})
+        for player in players:
+            if player.id in interface.forfeited_player_ids:
+                outcome_summaries[player.id] = get("forfeit.summary")
 
     outcome_global_summary: str | None = None
     try:

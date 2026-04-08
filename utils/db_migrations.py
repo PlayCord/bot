@@ -407,6 +407,19 @@ MIGRATIONS: List[Tuple[str, str, List[str]]] = [
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_match_code_ci ON matches ((lower(match_code))) WHERE match_code IS NOT NULL",
         ],
     ),
+    (
+        "2.8.0",
+        "Allow interrupted match status for restart/crash recovery",
+        [
+            "ALTER TABLE matches DROP CONSTRAINT IF EXISTS chk_match_status",
+            """
+            ALTER TABLE matches
+            ADD CONSTRAINT chk_match_status CHECK (
+                status IN ('in_progress', 'completed', 'interrupted', 'abandoned', 'disputed')
+            )
+            """,
+        ],
+    ),
 ]
 
 

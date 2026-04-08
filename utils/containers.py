@@ -44,9 +44,12 @@ def _build_container_view(
     *,
     accent_color: discord.Color | int | None = None,
     media_urls: Iterable[str] | None = None,
+    thumbnail_url: str | None = None,
 ) -> discord.ui.LayoutView:
     view = discord.ui.LayoutView(timeout=None)
     container = discord.ui.Container(accent_color=accent_color)
+    if thumbnail_url:
+        container.add_item(discord.ui.Thumbnail(thumbnail_url))
     body_text = (body_text or "").strip()
     if body_text:
         for chunk in _chunk_text(body_text):
@@ -82,11 +85,15 @@ def container_send_kwargs(
         body = card.to_markdown()
         accent = card.color
         media = card.media_urls()
+        thumbnail = card.thumbnail_url
     else:
         body = container_to_markdown(card)
         accent = None
         media = []
-    kwargs: dict[str, Any] = {"view": _build_container_view(body, accent_color=accent, media_urls=media)}
+        thumbnail = None
+    kwargs: dict[str, Any] = {
+        "view": _build_container_view(body, accent_color=accent, media_urls=media, thumbnail_url=thumbnail)
+    }
     if files:
         kwargs["files"] = files
     if content is not None:
@@ -104,11 +111,15 @@ def container_edit_kwargs(
         body = card.to_markdown()
         accent = card.color
         media = card.media_urls()
+        thumbnail = card.thumbnail_url
     else:
         body = container_to_markdown(card)
         accent = None
         media = []
-    kwargs: dict[str, Any] = {"view": _build_container_view(body, accent_color=accent, media_urls=media)}
+        thumbnail = None
+    kwargs: dict[str, Any] = {
+        "view": _build_container_view(body, accent_color=accent, media_urls=media, thumbnail_url=thumbnail)
+    }
     if attachments is not None:
         kwargs["attachments"] = attachments
     if content is not None:
@@ -214,8 +225,6 @@ class CustomContainer:
 
     def media_urls(self) -> list[str]:
         out: list[str] = []
-        if self.thumbnail_url:
-            out.append(self.thumbnail_url)
         if self.image_url:
             out.append(self.image_url)
         return out
@@ -480,6 +489,44 @@ class HelpCommandsContainer(CustomContainer):
             name=get("help.commands.fields.info.name"),
             value=get("help.commands.fields.info.value"),
             inline=False,
+        )
+
+
+class HelpFaqContainer(CustomContainer):
+    def __init__(self):
+        super().__init__(
+            title=get("help.faq.title"),
+            description=get("help.faq.description"),
+            color=INFO_COLOR,
+        )
+        self.add_field(
+            name=get("help.faq.fields.play_again.name"),
+            value=get("help.faq.fields.play_again.value"),
+            inline=False,
+        )
+        self.add_field(
+            name=get("help.faq.fields.channel.name"),
+            value=get("help.faq.fields.channel.value"),
+            inline=False,
+        )
+        self.add_field(
+            name=get("help.faq.fields.replay.name"),
+            value=get("help.faq.fields.replay.value"),
+            inline=False,
+        )
+        self.add_field(
+            name=get("help.faq.fields.private_info.name"),
+            value=get("help.faq.fields.private_info.value"),
+            inline=False,
+        )
+
+
+class HelpTutorialsContainer(CustomContainer):
+    def __init__(self):
+        super().__init__(
+            title=get("help.tutorials.title"),
+            description=get("help.tutorials.description"),
+            color=GAME_COLOR,
         )
 
 

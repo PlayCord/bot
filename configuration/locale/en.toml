@@ -74,11 +74,12 @@ no_data = "No replay log was stored for `{match_display}`."
 empty_page = "Empty page."
 
 [commands.feedback]
-description = "Send feedback to the bot team (stored for review)"
+description = "Send feedback to the bot owners"
 param_message = "Your message (max 500 characters)"
-thanks = "Thanks — your feedback was recorded."
+thanks = "Thanks — your feedback was delivered to the bot owners."
 too_long = "Please keep feedback under {max} characters."
 empty = "Please enter a non-empty message."
+delivery_failed = "I couldn't DM any bot owners right now. Please try again later."
 
 [commands.set_channel]
 description = "Set or clear the channel where /play must be used when the server requires it"
@@ -161,14 +162,10 @@ compare_command_tree_failed = "compare_command_tree_on_startup failed: {error}"
 # BOT STATUS / PRESENCE
 # =============================================================================
 [presence]
-with_name = "with {name}!"
-games_with_friends = "games with friends!"
-play_catalog = "/play catalog"
-active_games_singular = "1 active game"
-active_games_plural = "{count} active games"
-with_players_singular = "with 1 player"
-with_players_plural = "with {count} players"
-playing_game = "Playing {game}..."
+catalog_games = "{count} games • /playcord catalog to list"
+users_playing = "{count} users playing • /playcord stats for stats"
+users_matchmaking = "{count} users matchmaking • /play to start a game"
+games_happening_now = "{count} games happening now • /play to start a game"
 
 # =============================================================================
 # COMMANDS - DESCRIPTIONS (shown in Discord autocomplete)
@@ -347,8 +344,32 @@ title = "🎮 Available Games"
 description = "Here's a quick overview of what you can play:"
 field_games = "Games"
 field_tip = "💡 Tip"
-tip_value = "Use `/playcord catalog` for detailed info on each game!"
+tip_value = "Use the buttons below for tutorials, or `/playcord catalog` for more detail."
 more_games = "*...and {count} more!*"
+
+[help.faq]
+title = "FAQ"
+description = "Quick answers to common PlayCord questions."
+
+[help.faq.fields.play_again]
+name = "How do I start a game?"
+value = "Run `/play <game>` in a server text channel, then invite friends or wait for others to join."
+
+[help.faq.fields.channel]
+name = "Why can't I start a game here?"
+value = "Some servers set a dedicated PlayCord channel with `/playcord set_channel`. Start games there if your server configured one."
+
+[help.faq.fields.replay]
+name = "How do I review old matches?"
+value = "Use `/playcord history <game>` to browse recent matches, then `/playcord replay <match_code>` to inspect moves."
+
+[help.faq.fields.private_info]
+name = "What does Peek do?"
+value = "Peek is only shown for games with hidden player information. It lets players re-open their own private state."
+
+[help.tutorials]
+title = "Game Tutorials"
+description = "Pick a game below to see its quick rules, player count, and how to start it."
 
 # =============================================================================
 # HELP VIEW BUTTONS
@@ -357,6 +378,8 @@ more_games = "*...and {count} more!*"
 getting_started = "Getting Started"
 game_list = "Game List"
 commands = "Commands"
+faq = "FAQ"
+game_tutorials = "Game Tutorials"
 back_to_help = "← Back to Help"
 view_catalog = "View Full Catalog"
 catalog_redirect = "Use `/playcord catalog` to browse all games with details!"
@@ -586,21 +609,21 @@ title = "🎲 {name} Game Catalog"
 description = "Browse all {count} available games. Use `/play <game>` to start playing!"
 game_field_format = "{emoji} {game_name}"
 game_value_format = "{description}\n⏰ {time} | 👤 {players} | 📈 {difficulty}\n**Command:** `/play {game_id}`"
-footer = "Page {page}/{total} • Use /playcord learn <game> for more details"
+footer = "Page {page}/{total} • Use /playcord help for tutorials and FAQ"
 
 # =============================================================================
 # EMBEDS - PROFILE
 # =============================================================================
 [embeds.profile]
-title = "👤 {username}'s Profile"
-field_ratings = "📊 Game Ratings"
+title = "{username}'s Profile"
+field_ratings = "Game Ratings"
 field_ratings_empty = "No games played yet! Start with `/play <game>`"
-field_recent_matches = "📜 Recent Matches"
+field_recent_matches = "Recent Matches"
 field_recent_matches_empty = "No recent matches."
-field_total_games = "🎮 Total Games Played"
+field_total_games = "Total Games Played"
 rating_format = "**{game_name}**: {rating} ({matches} {games_word})"
 rating_format_ranked = "**{game_name}**: {rating} ({matches} {games_word}) {badge} #{rank} Global"
-match_format = "**{game_name}** - {ranking}/{player_count} | seat #{seat} | {rated_status} | ({delta})"
+match_format = "**{game_name}** - {ranking}/{player_count} | seat #{seat} | {rated_status} | {status} | ({delta})"
 
 # =============================================================================
 # EMBEDS - LEADERBOARD
@@ -653,6 +676,8 @@ footer = "© 2026 Julian Reder. All rights reserved."
 join = "Join"
 leave = "Leave"
 start = "Start"
+ready = "Ready"
+ready_toggle = "Ready / Unready"
 spectate = "Spectate Game"
 peek = "Peek"
 rematch = "Rematch"
@@ -804,10 +829,18 @@ bot_invalid_difficulty = "Invalid bot difficulty '{difficulty}'."
 bot_too_many_for_game = "Cannot add bot: this game does not allow that many players."
 bot_display_rating = "Bot"
 field_match_options = "Match options"
+field_ready_state = "Ready check"
 only_creator_lobby_options = "Only the lobby creator can change these settings."
 lobby_option_updated = "Match settings updated."
 role_select_updated = "Role choice updated."
 role_select_not_yours = "You can only change your own role."
+ready_state_line = "{player} — {state}"
+ready_state_ready = "ready"
+ready_state_waiting = "waiting"
+ready_confirmed = "You're marked as ready."
+unready_confirmed = "You're no longer marked as ready."
+ready_requirements_not_met = "This lobby isn't ready for confirmations yet. Finish filling required players and settings first."
+ready_all_players_required = "Every human player in the lobby must mark ready before the creator can start."
 role_chosen_no_bots = "Role pick mode cannot be used while bot players are in the lobby."
 role_chosen_ui_overflow = "Too many lobby controls for this game (Discord row limit). Reduce match options or player count."
 role_all_must_select = "Every player must pick a role before starting."
@@ -911,6 +944,7 @@ already_in_game_description = "You are already in an active game in another serv
 invalid_context_title = "Move commands can only be run during a game"
 invalid_context_description = "Move commands can only be run during a game in a private thread."
 no_active_game_description = "No active game found in this thread."
+wrong_game_type_description = "That move belongs to a different game. Use the `{game}` command group for this thread."
 unexpected_processing_error = "An unexpected error occurred while processing your move. Please try again or report on GitHub if it keeps happening."
 
 
@@ -938,7 +972,17 @@ rank_medal_1 = "🥇"
 rank_medal_2 = "🥈"
 rank_medal_3 = "🥉"
 rank_number = "#{rank}"
-rank_badge_1 = "🏆"
-rank_badge_top3 = "🥇"
-rank_badge_top10 = "⭐"
+rank_badge_1 = "[Champion]"
+rank_badge_top3 = "[Top 3]"
+rank_badge_top10 = "[Top 10]"
 ping_ms = "{ping} ms"
+
+[forfeit]
+description = "Forfeit your current game"
+confirmed_loss = "{player} forfeited the match."
+confirmed_skip = "{player} forfeited and will be skipped from future turns."
+already_forfeited = "You've already forfeited this game."
+not_in_game = "You're not a participant in this game."
+not_active = "There isn't an active game in this thread."
+wrong_channel = "Use `/playcord forfeit` inside your active private game thread."
+summary = "Forfeited"

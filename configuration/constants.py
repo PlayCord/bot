@@ -3,7 +3,6 @@ import discord
 from utils.locale import fmt, get, get_dict
 
 VERSION = "0.4.0"
-IS_ACTIVE = True
 NAME = get("brand.name")
 MANAGED_BY = get("meta.author")
 LOGGING_ROOT = "playcord"
@@ -11,9 +10,6 @@ MESSAGE_COMMAND_FAILED = "⛔"
 MESSAGE_COMMAND_SUCCEEDED = "✅"
 MESSAGE_COMMAND_PENDING = "⏳"
 
-MESSAGE_COMMAND_DISABLE = "disable"
-MESSAGE_COMMAND_ENABLE = "enable"
-MESSAGE_COMMAND_TOGGLE = "toggle"
 MESSAGE_COMMAND_SYNC = "sync"
 MESSAGE_COMMAND_CLEAR = "clear"
 MESSAGE_COMMAND_ANALYTICS = "analytics"
@@ -107,6 +103,7 @@ LONG_SPACE_EMBED = "\u2800"  # discord hides spaces when there is more than one 
 BUTTON_PREFIX_JOIN = "join/"
 BUTTON_PREFIX_LEAVE = "leave/"
 BUTTON_PREFIX_START = "start/"
+BUTTON_PREFIX_READY = "ready/"
 BUTTON_PREFIX_LOBBY_OPT = "lobbyopt/"
 BUTTON_PREFIX_LOBBY_ROLE = "lobbyrole/"
 BUTTON_PREFIX_SELECT_CURRENT = "select_c/"
@@ -125,11 +122,8 @@ BUTTON_PREFIX_PAGINATION_LAST = "pagination_last/"
 BUTTON_PREFIX_REMATCH = "rematch/"
 
 PRESENCE_TIMEOUT = 60
-PRESENCE_PRESETS = [
-    fmt("presence.with_name", name=NAME),
-    get("presence.games_with_friends"),
-    get("presence.play_catalog"),
-]
+EPHEMERAL_DELETE_AFTER = 10
+ANALYTICS_RETENTION_DAYS = 30
 
 # Permission and policy messages
 PERMISSION_MSG_NOT_PARTICIPANT = get("permissions.not_participant")

@@ -9,7 +9,13 @@ from discord.ext import commands
 from configuration.constants import *
 from utils import database as db
 from utils.containers import ErrorContainer, LoadingContainer, container_edit_kwargs, container_send_kwargs
-from utils.discord_utils import decode_discord_arguments, format_user_error_message, send_simple_embed
+from utils.discord_utils import (
+    decode_discord_arguments,
+    followup_send,
+    format_user_error_message,
+    response_send_message,
+    send_simple_embed,
+)
 from utils.emojis import get_emoji_string
 from utils.interfaces import MatchmakingInterface, user_in_active_game
 from utils.locale import fmt, get
@@ -55,7 +61,7 @@ async def _pagination_unhandled_fallback(interaction: discord.Interaction, custo
             elif interaction.guild_id is not None and gid != interaction.guild_id:
                 msg = get("interactions.pagination_not_yours")
     try:
-        await interaction.response.send_message(msg, ephemeral=True)
+        await response_send_message(interaction, msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
     except discord.HTTPException:
         pass
 
@@ -103,13 +109,18 @@ class GamesCog(commands.Cog):
             arg_blob = data[2] if len(data) > 2 else ""
             arguments = {arg.split("=")[0]: arg.split("=")[1] for arg in arg_blob.split(",") if "=" in arg} if arg_blob else {}
         except (KeyError, IndexError, ValueError):
-            await ctx.followup.send(content=format_user_error_message("game_ended"), ephemeral=True)
+            await followup_send(ctx,
+                content=format_user_error_message("game_ended"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
 
         if game_id not in CURRENT_GAMES:
-            await ctx.followup.send(
+            await followup_send(ctx,
                 content=format_user_error_message("game_ended"),
                 ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
 
@@ -118,7 +129,11 @@ class GamesCog(commands.Cog):
         # Validate user is a participant in this game
         participant_ids = {p.id for p in game.players}
         if ctx.user.id not in participant_ids:
-            await ctx.followup.send(PERMISSION_MSG_NOT_PARTICIPANT, ephemeral=True)
+            await followup_send(ctx,
+                PERMISSION_MSG_NOT_PARTICIPANT,
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
 
         await game.move_by_button(ctx=ctx, name=function_id, arguments=arguments,
@@ -133,13 +148,18 @@ class GamesCog(commands.Cog):
             game_id = int(data[0])
             function_id = data[1]
         except (KeyError, IndexError, ValueError):
-            await ctx.followup.send(content=format_user_error_message("game_ended"), ephemeral=True)
+            await followup_send(ctx,
+                content=format_user_error_message("game_ended"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
 
         if game_id not in CURRENT_GAMES:
-            await ctx.followup.send(
+            await followup_send(ctx,
                 content=format_user_error_message("game_ended"),
                 ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
 
@@ -148,7 +168,11 @@ class GamesCog(commands.Cog):
         # Validate user is a participant in this game
         participant_ids = {p.id for p in game.players}
         if ctx.user.id not in participant_ids:
-            await ctx.followup.send(PERMISSION_MSG_NOT_PARTICIPANT, ephemeral=True)
+            await followup_send(ctx,
+                PERMISSION_MSG_NOT_PARTICIPANT,
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
 
         await game.move_by_select(
@@ -160,12 +184,17 @@ class GamesCog(commands.Cog):
         try:
             game_id = int(ctx.data["custom_id"].replace(BUTTON_PREFIX_SPECTATE, ""))
         except (KeyError, ValueError):
-            await ctx.followup.send(content=format_user_error_message("game_ended"), ephemeral=True)
-            return
-        if game_id not in CURRENT_GAMES:
-            await ctx.followup.send(
+            await followup_send(ctx,
                 content=format_user_error_message("game_ended"),
                 ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
+        if game_id not in CURRENT_GAMES:
+            await followup_send(ctx,
+                content=format_user_error_message("game_ended"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
 
@@ -174,16 +203,24 @@ class GamesCog(commands.Cog):
         # Check if user is already a participant (they're already in the thread)
         participant_ids = {p.id for p in game.players}
         if ctx.user.id in participant_ids:
-            await ctx.followup.send(get("success.already_participant"), ephemeral=True)
+            await followup_send(ctx,
+                get("success.already_participant"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
 
         # Check if spectating is allowed for this game (games can disable spectating)
         if hasattr(game.game, 'allow_spectating') and not game.game.allow_spectating:
-            await ctx.followup.send(PERMISSION_MSG_SPECTATE_DISABLED, ephemeral=True)
+            await followup_send(ctx,
+                PERMISSION_MSG_SPECTATE_DISABLED,
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
 
         await game.thread.add_user(ctx.user)
-        await ctx.followup.send(get("success.spectating"), ephemeral=True)
+        await followup_send(ctx, get("success.spectating"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
 
     async def peek_callback(self, ctx: discord.Interaction) -> None:
         await ctx.response.defer()
@@ -191,15 +228,20 @@ class GamesCog(commands.Cog):
             data = ctx.data["custom_id"].replace(BUTTON_PREFIX_PEEK, "").split("/")
             game_id = int(data[0])
         except (KeyError, IndexError, ValueError):
-            await ctx.followup.send(content=format_user_error_message("game_ended"), ephemeral=True)
+            await followup_send(ctx,
+                content=format_user_error_message("game_ended"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         if game_id in CURRENT_GAMES:
             # Just resend the latest game state to the user ephemerally
             await CURRENT_GAMES[game_id].display_game_state(ctx)
         else:
-            await ctx.followup.send(
+            await followup_send(ctx,
                 content=format_user_error_message("game_ended"),
                 ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
 
     async def rematch_button_callback(self, ctx: discord.Interaction) -> None:
@@ -210,34 +252,34 @@ class GamesCog(commands.Cog):
         try:
             mid = int(tail)
         except ValueError:
-            await ctx.followup.send(content=format_user_error_message("rematch_invalid"), ephemeral=True)
+            await followup_send(ctx,content=format_user_error_message("rematch_invalid"), ephemeral=True)
             return
         match = db.database.get_match(mid)
         if not match or match.status != MatchStatus.COMPLETED:
-            await ctx.followup.send(content=format_user_error_message("rematch_unavailable"), ephemeral=True)
+            await followup_send(ctx,content=format_user_error_message("rematch_unavailable"), ephemeral=True)
             return
         human_ids = db.database.get_match_human_user_ids_ordered(mid)
         if ctx.user.id not in human_ids:
-            await ctx.followup.send(content=get("rematch.not_participant"), ephemeral=True)
+            await followup_send(ctx,content=get("rematch.not_participant"), ephemeral=True)
             return
         for uid in human_ids:
             if user_in_active_game(uid):
-                await ctx.followup.send(content=get("rematch.someone_busy"), ephemeral=True)
+                await followup_send(ctx,content=get("rematch.someone_busy"), ephemeral=True)
                 return
         g = ctx.guild
         if g is None or not isinstance(ctx.channel, discord.TextChannel):
-            await ctx.followup.send(content=get("rematch.bad_channel"), ephemeral=True)
+            await followup_send(ctx,content=get("rematch.bad_channel"), ephemeral=True)
             return
         game_row = db.database.get_game_by_id(match.game_id)
         if not game_row:
-            await ctx.followup.send(content=get("rematch.unknown_game"), ephemeral=True)
+            await followup_send(ctx,content=get("rematch.unknown_game"), ephemeral=True)
             return
         game_type = game_row.game_name
         loading = await ctx.channel.send(**container_send_kwargs(LoadingContainer(message=get_emoji_string("loading")).remove_footer()))
         mm = MatchmakingInterface(ctx.user, game_type, loading, rated=match.is_rated, private=False)
         if mm.failed is not None:
             await loading.edit(**container_edit_kwargs(mm.failed))
-            await ctx.followup.send(content=get("rematch.failed"), ephemeral=True)
+            await followup_send(ctx,content=get("rematch.failed"), ephemeral=True)
             return
         err = await mm.seed_rematch_players(g, human_ids)
         if err:
@@ -245,10 +287,10 @@ class GamesCog(commands.Cog):
                 await loading.delete()
             except discord.HTTPException:
                 pass
-            await ctx.followup.send(content=err, ephemeral=True)
+            await followup_send(ctx,content=err, ephemeral=True)
             return
         await mm.update_embed()
-        await ctx.followup.send(content=get("rematch.created"), ephemeral=True)
+        await followup_send(ctx,content=get("rematch.created"), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
@@ -268,35 +310,35 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
         return None
     if not (ctx.channel.permissions_for(ctx.guild.me).create_private_threads and ctx.channel.permissions_for(
             ctx.guild.me).send_messages):
-        await ctx.response.send_message(
+        await response_send_message(
+            ctx,
             content=format_user_error_message("missing_permissions"),
             ephemeral=True,
         )
         return None
     if ctx.channel.type in [discord.ChannelType.public_thread, discord.ChannelType.private_thread]:
-        await ctx.response.send_message(
+        await response_send_message(
+            ctx,
             content=format_user_error_message("invalid_channel"),
             ephemeral=True,
         )
         return None
 
-    require_pc = CONFIGURATION.get("playcord", {}).get("require_playcord_channel", False)
-    if require_pc and ctx.guild is not None:
+    if ctx.guild is not None:
         pc = db.database.get_playcord_channel_id(ctx.guild.id)
-        if pc is None:
-            await ctx.response.send_message(
-                content=format_user_error_message("playcord_channel_unset"),
-                ephemeral=True,
-            )
-            return None
-        if ctx.channel.id != pc:
-            await ctx.response.send_message(
+        if pc is not None and ctx.channel.id != pc:
+            await response_send_message(
+                ctx,
                 content=fmt("playcord.wrong_channel", channel=f"<#{pc}>"),
                 ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return None
 
-    await ctx.response.send_message(**container_send_kwargs(LoadingContainer(message=get_emoji_string("loading")).remove_footer()))
+    await response_send_message(
+        ctx,
+        **container_send_kwargs(LoadingContainer(message=get_emoji_string("loading")).remove_footer()),
+    )
     game_overview_message = await ctx.original_response()
     try:
         interface = MatchmakingInterface(ctx.user, game_type, game_overview_message, rated=rated, private=private)
@@ -332,9 +374,9 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
 async def add_matchmaking_bot(ctx: discord.Interaction, difficulty: str) -> bool:
     async def _send(message: str) -> None:
         if ctx.response.is_done():
-            await ctx.followup.send(message, ephemeral=True)
+            await followup_send(ctx, message, ephemeral=True)
         else:
-            await ctx.response.send_message(message, ephemeral=True)
+            await response_send_message(ctx, message, ephemeral=True)
 
     id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
     if ctx.user.id not in id_matchmaking:
@@ -377,11 +419,22 @@ async def handle_move(ctx: discord.Interaction, name, arguments, current_turn_re
             responded=True
         )
         return
+    active_game = CURRENT_GAMES[ctx.channel.id]
+    command_parent = getattr(getattr(ctx, "command", None), "parent", None)
+    requested_game_type = getattr(command_parent, "name", None)
+    if requested_game_type and requested_game_type != active_game.game_type:
+        await send_simple_embed(
+            ctx,
+            get("move.invalid_context_title"),
+            fmt("move.wrong_game_type_description", game=active_game.game_type),
+            ephemeral=True,
+            responded=True,
+        )
+        return
     arguments.pop("ctx")
     arguments = {a: await decode_discord_arguments(arguments[a]) for a in arguments.keys()}
     AUTOCOMPLETE_CACHE[ctx.channel.id] = {}
-    await CURRENT_GAMES[ctx.channel.id].move_by_command(ctx, name, arguments,
-                                                        current_turn_required=current_turn_required)
+    await active_game.move_by_command(ctx, name, arguments, current_turn_required=current_turn_required)
 
 
 async def handle_autocomplete(ctx: discord.Interaction, function, current: str, argument) -> list[Choice[str]]:

@@ -7,7 +7,11 @@ from discord.ext import commands
 
 from configuration.constants import *
 from utils import database as db
-from utils.analytics import format_recent_event_row, render_analytics_matplotlib_summary
+from utils.analytics import (
+    format_recent_event_row,
+    render_analytics_markdown_summary,
+    render_analytics_matplotlib_summary,
+)
 from utils.containers import (
     CustomContainer,
     ErrorContainer,
@@ -85,34 +89,6 @@ class AdminCog(commands.Cog):
         # Sync (Discord API — can be slow)
         if msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_SYNC}"):
             self._spawn_long_admin_task(msg, self._task_sync)
-
-        # Disable
-        elif msg.content == f"{LOGGING_ROOT}/{MESSAGE_COMMAND_DISABLE}":
-            import configuration.constants as constants
-            if not constants.IS_ACTIVE:
-                await msg.add_reaction(MESSAGE_COMMAND_FAILED)
-                return
-            constants.IS_ACTIVE = False
-            f_log.critical(f"Bot has been disabled by authorized user {msg.author.id}.")
-            await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)
-
-        # Enable
-        elif msg.content == f"{LOGGING_ROOT}/{MESSAGE_COMMAND_ENABLE}":
-            import configuration.constants as constants
-            if constants.IS_ACTIVE:
-                await msg.add_reaction(MESSAGE_COMMAND_FAILED)
-                return
-            constants.IS_ACTIVE = True
-            f_log.critical(f"Bot has been enabled by authorized user {msg.author.id}.")
-            await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)
-
-        # Toggle
-        elif msg.content == f"{LOGGING_ROOT}/{MESSAGE_COMMAND_TOGGLE}":
-            import configuration.constants as constants
-            constants.IS_ACTIVE = not constants.IS_ACTIVE
-            f_log.critical(
-                f"Bot has been {'enabled' if constants.IS_ACTIVE else 'disabled'} by authorized user {msg.author.id}.")
-            await msg.add_reaction(MESSAGE_COMMAND_SUCCEEDED)
 
         # Analytics — owner message `playcord/analytics [hours]` (DB + matplotlib)
         elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_ANALYTICS}"):
@@ -226,11 +202,7 @@ class AdminCog(commands.Cog):
             chart_buf.seek(0)
             main_container.set_image(url="attachment://playcord-analytics.png")
 
-        recent_lines: list[str] = (
-            [format_recent_event_row(r) for r in recent]
-            if recent
-            else [get("common.empty_markdown")]
-        )
+        recent_lines: list[str] = render_analytics_markdown_summary(counts, by_game, recent, hours)
         append_container_sections(
             main_container,
             lines_to_container_sections(recent_lines),

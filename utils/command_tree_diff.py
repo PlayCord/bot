@@ -42,36 +42,20 @@ def collect_local_tree(
 def _collect_remote_leaves(ac: discord.AppCommand) -> dict[str, dict[str, Any]]:
     """Map qualified slash path -> {description, arguments} for leaf commands."""
     out: dict[str, dict[str, Any]] = {}
-    opts = ac.options or []
 
-    if not opts:
-        out[ac.name] = {
-            "description": (ac.description or "").strip(),
-            "arguments": [],
-        }
-        return out
+    def walk(node: discord.AppCommand | AppCommandGroup, parts: tuple[str, ...]) -> None:
+        options = list(getattr(node, "options", None) or [])
+        if not options or all(isinstance(opt, Argument) for opt in options):
+            out[" ".join(parts)] = {
+                "description": (getattr(node, "description", "") or "").strip(),
+                "arguments": [opt for opt in options if isinstance(opt, Argument)],
+            }
+            return
+        for opt in options:
+            if isinstance(opt, AppCommandGroup) or getattr(opt, "options", None) is not None:
+                walk(opt, parts + (opt.name,))
 
-    if all(isinstance(x, Argument) for x in opts):
-        out[ac.name] = {
-            "description": (ac.description or "").strip(),
-            "arguments": list(opts),
-        }
-        return out
-
-    def walk(options: list, parts: tuple[str, ...]) -> None:
-        for opt in options or []:
-            if isinstance(opt, AppCommandGroup):
-                np = parts + (opt.name,)
-                ch = opt.options or []
-                if ch and all(isinstance(x, Argument) for x in ch):
-                    out[" ".join(np)] = {
-                        "description": (opt.description or "").strip(),
-                        "arguments": list(ch),
-                    }
-                else:
-                    walk(ch, np)
-
-    walk(opts, (ac.name,))
+    walk(ac, (ac.name,))
     return out
 
 
@@ -201,7 +185,7 @@ _ZWSP = "\u200b"
 def drift_to_container(
     drift: dict[str, Any],
     *,
-    color: discord.Color,
+    color: discord.Color | None,
     title: str,
     inline_column_limit: int = 340,
     max_modified_sections: int = 14,

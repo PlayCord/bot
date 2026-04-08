@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any
 
 import utils.database as _db_module
+from configuration.constants import ANALYTICS_RETENTION_DAYS, VERSION
 from utils.models import EventType
 
 logger = logging.getLogger("playcord.analytics")
@@ -31,12 +32,22 @@ def register_event(
     guild_id: int | None = None,
     game_type: str | None = None,
     match_id: int | None = None,
+    command_name: str | None = None,
+    latency_ms: float | None = None,
+    outcome: str | None = None,
 ) -> None:
     """
     Register an analytics event (written to the database immediately when connected).
     """
     et = event_type.value if isinstance(event_type, EventType) else str(event_type)
     meta = dict(metadata or {})
+    meta.setdefault("bot_version", VERSION)
+    if command_name is not None:
+        meta.setdefault("command_name", command_name)
+    if latency_ms is not None:
+        meta.setdefault("latency_ms", round(float(latency_ms), 2))
+    if outcome is not None:
+        meta.setdefault("outcome", str(outcome))
 
     db = _db()
     if db is not None:
@@ -93,6 +104,10 @@ def flush_events() -> int:
 
     flushed = 0
     try:
+        try:
+            db.cleanup_old_analytics(days=ANALYTICS_RETENTION_DAYS)
+        except Exception:
+            logger.debug("Analytics cleanup skipped during flush", exc_info=True)
         for event in events_to_flush:
             db.record_analytics_event(
                 event_type=event["event_type"],
@@ -232,3 +247,19 @@ def format_recent_event_row(row: dict[str, Any]) -> str:
         f"u={row.get('user_id')} g={row.get('guild_id')} "
         f"match={row.get('match_id')} {meta_s}"
     )
+
+
+def render_analytics_markdown_summary(
+    event_counts: list[dict[str, Any]],
+    game_counts: list[dict[str, Any]],
+    recent: list[dict[str, Any]],
+    hours: int,
+) -> list[str]:
+    lines = [f"Window: last {hours} hour(s)"]
+    lines.append("Events by type:")
+    lines.extend(format_ascii_bar_chart(event_counts) or ["_(none)_"])
+    lines.append("Games:")
+    lines.extend(format_ascii_bar_chart(game_counts, label_key="game_type") or ["_(none)_"])
+    lines.append("Recent events:")
+    lines.extend([format_recent_event_row(row) for row in recent[:12]] or ["_(none)_"])
+    return lines

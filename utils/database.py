@@ -1060,8 +1060,32 @@ class Database:
 
     def update_match_status(self, match_id: int, status: str):
         """Update match status"""
-        query = "UPDATE matches SET status = %s WHERE match_id = %s;"
-        self._execute_query(query, (status, match_id))
+        query = """
+            UPDATE matches
+            SET status = %s,
+                updated_at = NOW(),
+                ended_at = CASE WHEN %s = 'in_progress' THEN ended_at ELSE COALESCE(ended_at, NOW()) END
+            WHERE match_id = %s;
+        """
+        self._execute_query(query, (status, status, match_id))
+
+    def interrupt_stale_matches(self, reason: str = "bot_restart") -> int:
+        """Mark any in-progress matches left behind by a restart as interrupted."""
+        payload = json.dumps({"interrupt_reason": reason})
+        query = """
+            UPDATE matches
+            SET status = 'interrupted',
+                ended_at = COALESCE(ended_at, NOW()),
+                updated_at = NOW(),
+                metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+            WHERE status = 'in_progress';
+        """
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, (payload,))
+                count = cur.rowcount
+                conn.commit()
+                return count
 
     def merge_match_metadata_outcome_display(
         self,
@@ -1488,6 +1512,7 @@ class Database:
                 g.game_name as game_key,
                 g.display_name as game_name,
                 m.ended_at,
+                m.status,
                 m.is_rated,
                 m.metadata,
                 mp.final_ranking as final_ranking,
@@ -1499,7 +1524,7 @@ class Database:
             JOIN matches m ON mp.match_id = m.match_id
             JOIN games g ON m.game_id = g.game_id
             WHERE mp.user_id = %s
-              AND m.status = 'completed'
+              AND m.status IN ('completed', 'interrupted', 'abandoned')
         """
         params: List[Any] = [user_id]
         if guild_id is not None:
@@ -1774,7 +1799,7 @@ class Database:
                 conn.commit()
                 return len(results) if results else 0
 
-    def cleanup_old_analytics(self, days: int = 90) -> int:
+    def cleanup_old_analytics(self, days: int = constants.ANALYTICS_RETENTION_DAYS) -> int:
         """Delete old analytics events"""
         query = """
             DELETE FROM analytics_events
@@ -2180,6 +2205,7 @@ class Database:
             FROM match_participants mp
             JOIN matches m ON mp.match_id = m.match_id
             WHERE mp.user_id = %s AND m.guild_id = %s
+              AND m.status IN ('completed', 'interrupted', 'abandoned')
         """
         params = [user_id, guild_id]
         if is_rated is not None:
@@ -2409,7 +2435,11 @@ def startup():
         db_migrations.apply_migrations(db)
         db.refresh_sql_assets()
         db.sync_games_from_code()
+        db.cleanup_old_analytics(days=constants.ANALYTICS_RETENTION_DAYS)
+        interrupted = db.interrupt_stale_matches()
         database = db
+        if interrupted:
+            logger.warning("Marked %s stale in-progress matches as interrupted during startup", interrupted)
         logger.info("Database startup successful")
         return True
     except Exception as err:
