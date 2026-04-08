@@ -1994,7 +1994,7 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
 
             # All the losers
             losers = [{p: environment.create_rating(*_pre_match_mu_sigma(p, game_type))}
-                      for p in players if p != outcome]
+                      for p in players if p.id != outcome.id]
 
             rating_groups = [{InternalPlayer(ratings={game_type: {"mu": outcome.mu, "sigma": outcome.sigma}},
                                              user=None, metadata={}, id=outcome.id): winner},
@@ -2046,7 +2046,7 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
         groups = []
 
         if isinstance(outcome, Player):
-            groups = [outcome, *[p for p in players if p != outcome]]  # Make the rating groups
+            groups = [outcome, *[p for p in players if p.id != outcome.id]]  # Make the rating groups
             rankings = [0, *[1 for _ in range(len(players) - 1)]]  # Rankings = [0, 1, 1, ..., 1] for this case
 
         elif isinstance(outcome, list):
