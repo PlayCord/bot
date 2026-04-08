@@ -71,7 +71,7 @@ def _resolve_game_id_input(raw: str) -> tuple[str | None, str | None]:
     if game_type in GAME_TYPES:
         return game_type, None
 
-    candidates = get_close_matches(game_type, list(GAME_TYPES.keys()), n=1, cutoff=0.55)
+    candidates = get_close_matches(game_type, list(GAME_TYPES), n=1, cutoff=0.55)
     if candidates:
         return None, candidates[0]
     return None, None
@@ -133,7 +133,7 @@ async def autocomplete_game_id(ctx: discord.Interaction, current: str) -> list[C
         matches.append((rank, game_id.lower(), display_name, game_id))
 
     if query and not matches:
-        fuzzy = get_close_matches(query, list(_GAME_METADATA.keys()), n=25, cutoff=0.4)
+        fuzzy = get_close_matches(query, list(_GAME_METADATA), n=25, cutoff=0.4)
         for game_id in fuzzy:
             meta = _GAME_METADATA[game_id]
             summary = meta["summary"]
@@ -552,12 +552,14 @@ class GeneralCog(commands.Cog):
         )
 
         games_text = []
-        for game_id in list(GAME_TYPES.keys())[:8]:
+        for game_id in list(GAME_TYPES)[:HELP_GAMES_PREVIEW_COUNT]:
             game_name = _GAME_METADATA[game_id]["name"]
             games_text.append(f"• **{game_name}** (`/play {game_id}`)")
 
-        if len(GAME_TYPES) > 8:
-            games_text.append(fmt("help.games_overview.more_games", count=len(GAME_TYPES) - 8))
+        if len(GAME_TYPES) > HELP_GAMES_PREVIEW_COUNT:
+            games_text.append(
+                fmt("help.games_overview.more_games", count=len(GAME_TYPES) - HELP_GAMES_PREVIEW_COUNT),
+            )
 
         container.add_field(
             name=get("help.games_overview.field_games"),
@@ -605,7 +607,7 @@ class GeneralCog(commands.Cog):
         if page < 1:
             page = 1
 
-        limit = 10
+        limit = LEADERBOARD_PAGE_SIZE
 
         container, has_data, is_last_page = await self._build_leaderboard_container(
             game, game_name, game_db.game_id, scope, ctx.guild, page, limit
@@ -729,8 +731,8 @@ class GeneralCog(commands.Cog):
         f_log = log.getChild("command.catalog")
         f_log.debug(f"/catalog called with page={page}: {contextify(ctx)}")
 
-        games_per_page = 3
-        all_games = list(GAME_TYPES.keys())
+        games_per_page = CATALOG_GAMES_PER_PAGE
+        all_games = list(GAME_TYPES)
         total_pages = (len(all_games) + games_per_page - 1) // games_per_page
 
         if page < 1 or page > total_pages:
@@ -832,7 +834,7 @@ class GeneralCog(commands.Cog):
             game_name = _GAME_METADATA[game_id]["name"]
             rating_info = db.database.get_user_game_ratings(user.id, game_id)
             if rating_info and rating_info.get('matches_played', 0) > 0:
-                mu = rating_info.get('mu', 1000)
+                mu = rating_info.get('mu', MU)
                 matches = rating_info.get('matches_played', 0)
 
                 # Check for global rank
@@ -983,7 +985,7 @@ class GeneralCog(commands.Cog):
     def _build_history_container(self, user, game_name: str, game_id: int, guild_id: int,
                                  page: int, days: int, f_log):
         """Build history container for a specific page. Returns (container, chart_file, has_data, is_last_page)."""
-        limit = 8
+        limit = HISTORY_PAGE_SIZE
         offset = (page - 1) * limit
 
         # Fetch one extra item to check if there are more pages

@@ -56,8 +56,8 @@ def build_function_definitions() -> dict[Group, list[Any]]:
                 option_arguments = option.arguments()
                 for argument in option_arguments:
                     temp_arguments.update({argument: option_arguments[argument]})
-                for decorator in option_decorators.keys():
-                    if decorator not in decorators.keys():
+                for decorator in option_decorators:
+                    if decorator not in decorators:
                         temp_decorators[decorator] = option_decorators[decorator]
                     else:
                         temp_decorators[decorator].update({decorator: option_decorators[decorator]})
@@ -86,7 +86,7 @@ def build_function_definitions() -> dict[Group, list[Any]]:
                             f"  await ctx.response.defer(ephemeral=True)\n"
                             f"  await handle_move(ctx=ctx, name={this_move.name!r}, arguments=locals(), current_turn_required={this_move.require_current_turn})\n")
 
-            if "autocomplete" in this_move_decorators.keys():
+            if "autocomplete" in this_move_decorators:
                 for autocomplete in this_move_decorators["autocomplete"]:
                     ac_command_name = this_move_decorators["autocomplete"][autocomplete]
                     ac_command = (f"async def {ac_command_name}(ctx, current):\n"

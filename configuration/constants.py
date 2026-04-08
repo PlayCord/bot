@@ -125,6 +125,22 @@ PRESENCE_TIMEOUT = 60
 EPHEMERAL_DELETE_AFTER = 10
 ANALYTICS_RETENTION_DAYS = 30
 
+# Ephemeral UI messages (e.g. permission prompts) auto-delete after this many seconds.
+UI_MESSAGE_DELETE_DELAY = 5
+
+# Mu subtracted for a forfeiting player before clamping to non-negative (rated games).
+FORFEIT_RATING_PENALTY = 100
+
+# Background analytics flush loop (`EventsCog._analytics_periodic_flush`).
+ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS = 60
+ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS = 120
+
+# General / help UI limits
+HELP_GAMES_PREVIEW_COUNT = 8
+LEADERBOARD_PAGE_SIZE = 10
+HISTORY_PAGE_SIZE = 8
+CATALOG_GAMES_PER_PAGE = 3
+
 # Permission and policy messages
 PERMISSION_MSG_NOT_PARTICIPANT = get("permissions.not_participant")
 PERMISSION_MSG_SPECTATE_DISABLED = get("permissions.spectate_disabled")

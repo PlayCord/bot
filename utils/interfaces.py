@@ -5,6 +5,7 @@ import io
 import logging
 import random
 import typing
+from collections import Counter
 from typing import Any
 
 import trueskill
@@ -13,7 +14,28 @@ from api.Game import Game as BaseGame, PlayerOrder, RoleMode, resolve_player_cou
 from api.MessageComponents import Container, MediaGallery, Message, TextDisplay, format_data_table_image
 from api.Player import Player
 from api.Response import Response
-from configuration.constants import *
+from configuration.constants import (
+    BUTTON_PREFIX_JOIN,
+    BUTTON_PREFIX_LEAVE,
+    BUTTON_PREFIX_PEEK,
+    BUTTON_PREFIX_READY,
+    BUTTON_PREFIX_SPECTATE,
+    CURRENT_GAMES,
+    CURRENT_MATCHMAKING,
+    EPHEMERAL_DELETE_AFTER,
+    ERROR_COLOR,
+    FORFEIT_RATING_PENALTY,
+    GAME_TYPES,
+    INFO_COLOR,
+    IN_GAME,
+    IN_MATCHMAKING,
+    LOGGING_ROOT,
+    LONG_SPACE_EMBED,
+    MU,
+    PERMISSION_MSG_NOT_YOUR_TURN,
+    TEXTIFY_CURRENT_GAME_TURN,
+    UI_MESSAGE_DELETE_DELAY,
+)
 from utils import database as db
 from utils.analytics import Timer
 from utils.bot_names import generate_bot_name
@@ -36,20 +58,22 @@ from utils.trueskill_params import get_trueskill_parameters
 from utils.views import MatchmakingLobbyView, MatchmakingView, RematchView, SpectateView
 
 
-def user_in_active_game(user_id: int) -> bool:
-    """Return True when the user is currently in any active game across all servers."""
-    for player in IN_GAME.keys():
+def _user_in_player_map(mapping: dict, user_id: int) -> bool:
+    """True if any key in ``mapping`` is a player-like object with matching ``id``."""
+    for player in mapping:
         if getattr(player, "id", None) == user_id:
             return True
     return False
+
+
+def user_in_active_game(user_id: int) -> bool:
+    """Return True when the user is currently in any active game across all servers."""
+    return _user_in_player_map(IN_GAME, user_id)
 
 
 def user_in_active_matchmaking(user_id: int) -> bool:
     """Return True when the user is currently queued in any active matchmaking lobby."""
-    for player in IN_MATCHMAKING.keys():
-        if getattr(player, "id", None) == user_id:
-            return True
-    return False
+    return _user_in_player_map(IN_MATCHMAKING, user_id)
 
 
 def synthetic_bot_name_from_id(user_id: int) -> str:
@@ -289,13 +313,13 @@ class GameInterface:
             self.current_turn = self.game.current_turn()
             if getattr(self.current_turn, "is_bot", False):
                 message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
-                await message.delete(delay=5)
+                await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn}) context: {contextify(ctx)}")
                 message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
-                await message.delete(delay=5)
+                await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             function_to_call = self._resolve_move_callable(name)
             try:
@@ -442,7 +466,7 @@ class GameInterface:
                 contextify(ctx),
             )
             message = await followup_send(ctx,content=get("game.over_short"), ephemeral=True)
-            await message.delete(delay=5)
+            await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
             await game_over(self, outcome)
 
     @staticmethod
@@ -663,13 +687,13 @@ class GameInterface:
             # Check to make sure that it is current turn (if required)
             if getattr(self.current_turn, "is_bot", False):
                 message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
-                await message.delete(delay=5)
+                await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
                 message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
-                await message.delete(delay=5)
+                await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
 
             # Get callback
@@ -790,13 +814,13 @@ class GameInterface:
             # Check to make sure that it is current turn (if required)
             if getattr(self.current_turn, "is_bot", False):
                 message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
-                await message.delete(delay=5)
+                await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
                 message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
-                await message.delete(delay=5)
+                await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
 
             # Get callback
@@ -917,9 +941,9 @@ class GameInterface:
         table_file = discord.File(io.BytesIO(overview_table), filename="game_overview.png")
         peek_button_id = None
         if type(self.game).player_state is not BaseGame.player_state:
-            peek_button_id = f"peek/{self.thread.id}/{self.game_message.id}"
+            peek_button_id = f"{BUTTON_PREFIX_PEEK}{self.thread.id}/{self.game_message.id}"
         view = SpectateView(
-            spectate_button_id=f"spectate/{self.thread.id}",
+            spectate_button_id=f"{BUTTON_PREFIX_SPECTATE}{self.thread.id}",
             peek_button_id=peek_button_id,
             game_link=self.info_message.jump_url if self.info_message is not None else None,
             summary_text=container_to_markdown(overview),
@@ -1132,7 +1156,7 @@ class MatchmakingInterface:
 
     @property
     def has_bots(self) -> bool:
-        return len(self.bots) > 0
+        return bool(self.bots)
 
     def _match_settings_are_default(self) -> bool:
         for spec in self._specs:
@@ -1466,8 +1490,8 @@ class MatchmakingInterface:
                     inline=False,
                 )
 
-        join_id = f"join/{self.message.id}"
-        leave_id = f"leave/{self.message.id}"
+        join_id = f"{BUTTON_PREFIX_JOIN}{self.message.id}"
+        leave_id = f"{BUTTON_PREFIX_LEAVE}{self.message.id}"
         ready_id = f"{BUTTON_PREFIX_READY}{self.message.id}" if self._base_start_conditions_met() else None
         ready_label = get("buttons.ready_toggle")
         role_specs_list: list[tuple[int, str, tuple[str, ...]]] = []
@@ -1980,6 +2004,8 @@ async def rating_groups_to_string(rankings: list[int], groups: list[dict[Any, tr
     # Convert the list of dictionaries into one dictionary with all of the keys
     all_ratings = {list(p.keys())[0]: list(p.values())[0] for p in groups}
 
+    rank_tie_counts = Counter(rankings)
+
     for i, pre_rated_player in enumerate(keys):  # Loop
 
         # Logic for keeping track of place
@@ -2003,7 +2029,7 @@ async def rating_groups_to_string(rankings: list[int], groups: list[dict[Any, tr
 
         # Add data for the player to player_ratings
         player_ratings.update({pre_rated_player.id: {"old_mu": round(starting_mu), "delta": mu_delta,
-                                                     "place": current_place, "tied": rankings.count(rankings[i]) > 1,
+                                                     "place": current_place, "tied": rank_tie_counts[rankings[i]] > 1,
                                                      "new_mu": aftermath_mu,
                                                      "old_sigma": starting_sigma,
                                                      "new_sigma": aftermath_sigma}})
@@ -2037,6 +2063,8 @@ async def non_rated_groups_to_string(rankings: list[int], groups: list[InternalP
     nums_current_place = 0
     matching = 0
 
+    rank_tie_counts = Counter(rankings)
+
     # Loop through players
     for i, pre_rated_player in enumerate(groups):
         # Ranking of current player = last player ranked, so increment the number of people
@@ -2050,7 +2078,7 @@ async def non_rated_groups_to_string(rankings: list[int], groups: list[InternalP
 
         # Check if tied
         show_tied = ""
-        if rankings.count(rankings[i]) > 1:  # More than one player tied for same score
+        if rank_tie_counts[rankings[i]] > 1:  # More than one player tied for same score
             show_tied = 'T'  # Display "T" (1T.)
 
         # Add format PLACE[TIED].   MENTION
@@ -2151,8 +2179,10 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
         logging.getLogger(LOGGING_ROOT).debug(
             "rated game_over: rankings=%s player_ratings_keys=%s",
             rankings,
-            list(player_ratings.keys()) if player_ratings else None,
+            list(player_ratings) if player_ratings else None,
         )
+        player_ids_in_order = list(player_ratings)
+        ranking_display = {pid: rankings[i] + 1 for i, pid in enumerate(player_ids_in_order)}
         ratings = {}
         for player in player_ratings:
             data = player_ratings[player]
@@ -2163,13 +2193,12 @@ async def game_over(interface: GameInterface, outcome: str | InternalPlayer | li
                                      "new_sigma": new_sigma,
                                      "mu_delta": new_mu - data["old_mu"],
                                      "sigma_delta": new_sigma - data["old_sigma"],
-                                     "ranking": data.get("ranking",
-                                                         rankings[list(player_ratings.keys()).index(player)] + 1)}})
+                                     "ranking": data.get("ranking", ranking_display[player])}})
 
         if interface.forfeited_player_ids:
             for forfeited_id in interface.forfeited_player_ids:
                 if forfeited_id in ratings:
-                    penalty = 100
+                    penalty = FORFEIT_RATING_PENALTY
                     ratings[forfeited_id]["new_mu"] = max(0.0, ratings[forfeited_id]["new_mu"] - penalty)
                     ratings[forfeited_id]["mu_delta"] -= penalty
 

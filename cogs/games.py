@@ -22,6 +22,16 @@ from utils.locale import fmt, get
 
 log = logging.getLogger(LOGGING_ROOT)
 
+
+async def _send_game_ended_error(ctx: discord.Interaction) -> None:
+    await followup_send(
+        ctx,
+        content=format_user_error_message("game_ended"),
+        ephemeral=True,
+        delete_after=EPHEMERAL_DELETE_AFTER,
+    )
+
+
 def _autocomplete_sort_key(label: str, current: str) -> tuple:
     lo, cu = label.lower(), current.lower()
     try:
@@ -109,19 +119,11 @@ class GamesCog(commands.Cog):
             arg_blob = data[2] if len(data) > 2 else ""
             arguments = {arg.split("=")[0]: arg.split("=")[1] for arg in arg_blob.split(",") if "=" in arg} if arg_blob else {}
         except (KeyError, IndexError, ValueError):
-            await followup_send(ctx,
-                content=format_user_error_message("game_ended"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+            await _send_game_ended_error(ctx)
             return
 
         if game_id not in CURRENT_GAMES:
-            await followup_send(ctx,
-                content=format_user_error_message("game_ended"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+            await _send_game_ended_error(ctx)
             return
 
         game = CURRENT_GAMES[game_id]
@@ -148,19 +150,11 @@ class GamesCog(commands.Cog):
             game_id = int(data[0])
             function_id = data[1]
         except (KeyError, IndexError, ValueError):
-            await followup_send(ctx,
-                content=format_user_error_message("game_ended"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+            await _send_game_ended_error(ctx)
             return
 
         if game_id not in CURRENT_GAMES:
-            await followup_send(ctx,
-                content=format_user_error_message("game_ended"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+            await _send_game_ended_error(ctx)
             return
 
         game = CURRENT_GAMES[game_id]
@@ -184,18 +178,10 @@ class GamesCog(commands.Cog):
         try:
             game_id = int(ctx.data["custom_id"].replace(BUTTON_PREFIX_SPECTATE, ""))
         except (KeyError, ValueError):
-            await followup_send(ctx,
-                content=format_user_error_message("game_ended"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+            await _send_game_ended_error(ctx)
             return
         if game_id not in CURRENT_GAMES:
-            await followup_send(ctx,
-                content=format_user_error_message("game_ended"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+            await _send_game_ended_error(ctx)
             return
 
         game = CURRENT_GAMES[game_id]
@@ -228,21 +214,13 @@ class GamesCog(commands.Cog):
             data = ctx.data["custom_id"].replace(BUTTON_PREFIX_PEEK, "").split("/")
             game_id = int(data[0])
         except (KeyError, IndexError, ValueError):
-            await followup_send(ctx,
-                content=format_user_error_message("game_ended"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+            await _send_game_ended_error(ctx)
             return
         if game_id in CURRENT_GAMES:
             # Just resend the latest game state to the user ephemerally
             await CURRENT_GAMES[game_id].display_game_state(ctx)
         else:
-            await followup_send(ctx,
-                content=format_user_error_message("game_ended"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+            await _send_game_ended_error(ctx)
 
     async def rematch_button_callback(self, ctx: discord.Interaction) -> None:
         await ctx.response.defer(ephemeral=True)
@@ -308,8 +286,9 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
             ephemeral=True,
         )
         return None
-    if not (ctx.channel.permissions_for(ctx.guild.me).create_private_threads and ctx.channel.permissions_for(
-            ctx.guild.me).send_messages):
+    me = ctx.guild.me
+    channel_perms = ctx.channel.permissions_for(me)
+    if not (channel_perms.create_private_threads and channel_perms.send_messages):
         await response_send_message(
             ctx,
             content=format_user_error_message("missing_permissions"),
@@ -432,7 +411,7 @@ async def handle_move(ctx: discord.Interaction, name, arguments, current_turn_re
         )
         return
     arguments.pop("ctx")
-    arguments = {a: await decode_discord_arguments(arguments[a]) for a in arguments.keys()}
+    arguments = {a: await decode_discord_arguments(arguments[a]) for a in arguments}
     AUTOCOMPLETE_CACHE[ctx.channel.id] = {}
     await active_game.move_by_command(ctx, name, arguments, current_turn_required=current_turn_required)
 

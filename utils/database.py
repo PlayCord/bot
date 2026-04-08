@@ -315,7 +315,11 @@ class Database:
         self._load_sql_asset("database/views.sql")
 
     def _load_schema_asset(self) -> None:
-        """Execute the tracked schema file."""
+        """Execute the tracked schema file.
+
+        Thin wrapper around :meth:`_load_sql_asset` for ``database/schema.sql`` so
+        tests can mock this entry point without affecting other SQL assets.
+        """
         self._load_sql_asset("database/schema.sql")
 
     @contextmanager

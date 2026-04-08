@@ -75,7 +75,7 @@ def textify(basis: dict[str, float], replacements: dict[str, str]) -> str:
     random_float = random.random()  # Pick a number between 0 and 1
     actually_picked_message = None
 
-    if not len(basis.keys()):  # Make sure there is
+    if not basis:  # Make sure there is
         return f"{LOGGING_ROOT}.textify - CRITICAL - received empty input for basis"
 
     # Here's how this code block works
@@ -84,7 +84,7 @@ def textify(basis: dict[str, float], replacements: dict[str, str]) -> str:
     # 0.3 Message 2 (0.3 < random_float <= 0.6)
     # 0.2 Message 3 (0.6 < random_float <= 0.8)
     # 0.2 Message 4 (0.8 < random_float <= 1.0)
-    for possible_message in basis.keys():
+    for possible_message in basis:
         if random_float > basis[possible_message]:  # keep going
             random_float -= basis[possible_message]
             continue
@@ -97,7 +97,7 @@ def textify(basis: dict[str, float], replacements: dict[str, str]) -> str:
         actually_picked_message = possible_message
 
     # Replace the strings with their replacements (great english)
-    for replacement in replacements.keys():
+    for replacement in replacements:
         actually_picked_message = actually_picked_message.replace("{" + replacement + "}", replacements[replacement])
 
     return actually_picked_message

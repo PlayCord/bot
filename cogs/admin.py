@@ -70,9 +70,6 @@ class AdminCog(commands.Cog):
         finally:
             await _finalize_admin_reactions(msg, self.bot.user, success=ok)
 
-    def _spawn_long_admin_task(self, msg: discord.Message, work) -> None:
-        asyncio.create_task(self._run_long_admin_task(msg, work))
-
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message) -> None:
         """
@@ -88,23 +85,23 @@ class AdminCog(commands.Cog):
 
         # Sync (Discord API — can be slow)
         if msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_SYNC}"):
-            self._spawn_long_admin_task(msg, self._task_sync)
+            asyncio.create_task(self._run_long_admin_task(msg, self._task_sync))
 
         # Analytics — owner message `playcord/analytics [hours]` (DB + matplotlib)
         elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_ANALYTICS}"):
-            self._spawn_long_admin_task(msg, self._task_analytics)
+            asyncio.create_task(self._run_long_admin_task(msg, self._task_analytics))
 
         # Slash tree deep diff
         elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_TREEDIFF}"):
-            self._spawn_long_admin_task(msg, self._task_treediff)
+            asyncio.create_task(self._run_long_admin_task(msg, self._task_treediff))
 
         # Clear (tree sync — can be slow)
         elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_CLEAR}"):
-            self._spawn_long_admin_task(msg, self._task_clear)
+            asyncio.create_task(self._run_long_admin_task(msg, self._task_clear))
 
         # Database reset helpers
         elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET}"):
-            self._spawn_long_admin_task(msg, self._task_dbreset)
+            asyncio.create_task(self._run_long_admin_task(msg, self._task_dbreset))
 
     async def _task_sync(self, msg: discord.Message) -> bool:
         f_log = log.getChild("event.on_message")

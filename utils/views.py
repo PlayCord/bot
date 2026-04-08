@@ -1,7 +1,14 @@
 import discord
 from discord import SelectOption
 
-from configuration.constants import BUTTON_PREFIX_LOBBY_OPT, BUTTON_PREFIX_LOBBY_ROLE, EPHEMERAL_DELETE_AFTER
+from configuration.constants import (
+    BUTTON_PREFIX_LOBBY_OPT,
+    BUTTON_PREFIX_LOBBY_ROLE,
+    EPHEMERAL_DELETE_AFTER,
+    GAME_TYPES,
+    HELP_GAMES_PREVIEW_COUNT,
+    INFO_COLOR,
+)
 from utils.discord_utils import followup_send, response_send_message
 from utils.containers import (
     CustomContainer,
@@ -15,8 +22,7 @@ from utils.containers import (
 from utils.locale import get
 
 
-def container_to_view_text(container: CustomContainer | str | None) -> str:
-    return container_to_markdown(container)
+container_to_view_text = container_to_markdown
 
 
 class DynamicButtonView(discord.ui.LayoutView):
@@ -54,7 +60,7 @@ class DynamicButtonView(discord.ui.LayoutView):
         count = 0
         for button in buttons:
             for argument in ["label", "style", "id", "disabled", "callback", "link"]:
-                if argument not in button.keys():
+                if argument not in button:
                     if argument == "disabled":
                         button[argument] = False
                         continue
@@ -565,7 +571,7 @@ class HelpView(discord.ui.LayoutView):
         container.add_item(row)
         if self.current_section == "tutorials":
             game_row = discord.ui.ActionRow()
-            for game_id in list(_game_ids_for_help())[:5]:
+            for game_id in list(GAME_TYPES)[:5]:
                 game_row.add_item(GameTutorialButton(game_id=game_id, user_id=self.user_id))
             container.add_item(game_row)
         self.add_item(container)
@@ -624,8 +630,7 @@ class HelpButton(discord.ui.Button):
     async def _build_games_container(self):
         """Build a quick games overview container."""
         import importlib
-        from configuration.constants import GAME_TYPES, INFO_COLOR
-        
+
         container = CustomContainer(
             title=get("help.games_overview.title"),
             description=get("help.games_overview.description"),
@@ -633,13 +638,17 @@ class HelpButton(discord.ui.Button):
         )
         
         games_text = []
-        for game_id, (module_name, class_name) in list(GAME_TYPES.items())[:8]:
+        for game_id, (module_name, class_name) in list(GAME_TYPES.items())[:HELP_GAMES_PREVIEW_COUNT]:
             game_class = getattr(importlib.import_module(module_name), class_name)
             game_name = getattr(game_class, 'name', game_id)
             games_text.append(f"• **{game_name}** (`/play {game_id}`)")
         
-        if len(GAME_TYPES) > 8:
-            games_text.append(get("help.games_overview.more_games").format(count=len(GAME_TYPES) - 8))
+        if len(GAME_TYPES) > HELP_GAMES_PREVIEW_COUNT:
+            games_text.append(
+                get("help.games_overview.more_games").format(
+                    count=len(GAME_TYPES) - HELP_GAMES_PREVIEW_COUNT,
+                )
+            )
         
         container.add_field(
             name=get("help.games_overview.field_games"),
@@ -654,11 +663,6 @@ class HelpButton(discord.ui.Button):
         )
         
         return container
-
-
-def _game_ids_for_help() -> list[str]:
-    from configuration.constants import GAME_TYPES
-    return list(GAME_TYPES.keys())
 
 
 class GameTutorialButton(discord.ui.Button):
@@ -679,7 +683,6 @@ class GameTutorialButton(discord.ui.Button):
         import importlib
         from utils.containers import HelpGameInfoContainer
 
-        from configuration.constants import GAME_TYPES
         module_name, class_name = GAME_TYPES[self.game_id]
         game_class = getattr(importlib.import_module(module_name), class_name)
         container = HelpGameInfoContainer(self.game_id, game_class)

@@ -28,7 +28,7 @@ class EventsCog(commands.Cog):
 
     async def _analytics_periodic_flush(self) -> None:
         """Retry any buffered analytics rows after failed DB writes."""
-        await asyncio.sleep(60)
+        await asyncio.sleep(ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS)
         while True:
             try:
                 analytics_mod.flush_events()
@@ -36,7 +36,7 @@ class EventsCog(commands.Cog):
                     db.database.cleanup_old_analytics(days=ANALYTICS_RETENTION_DAYS)
             except Exception:
                 pass
-            await asyncio.sleep(120)
+            await asyncio.sleep(ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild) -> None:
@@ -124,13 +124,13 @@ class EventsCog(commands.Cog):
 
             # Only warn once per 60 seconds per user per thread
             last_warned = self._warned_users[thread_id].get(user_id, 0)
-            if current_time - last_warned > 60:
+            if current_time - last_warned > PRESENCE_TIMEOUT:
                 self._warned_users[thread_id][user_id] = current_time
                 try:
                     warning = await message.channel.send(
                         f"{message.author.mention} {THREAD_POLICY_WARNING_MESSAGE}",
                     )
-                    await warning.delete(delay=10)
+                    await warning.delete(delay=EPHEMERAL_DELETE_AFTER)
                 except discord.Forbidden:
                     f_log.warning(f"Cannot send warning - missing permissions in thread {message.channel.id}")
 
