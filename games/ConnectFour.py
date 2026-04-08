@@ -15,6 +15,7 @@ from api.MessageComponents import (
 )
 from api.Player import Player
 from api.Response import Response
+from configuration.constants import UI_MESSAGE_DELETE_DELAY
 from utils.svg_utils import svg_to_png
 
 
@@ -162,19 +163,13 @@ class ConnectFourGame(Game):
         return self.drop(player, column)
 
     def drop(self, player: Player, column: int):
-        if self.winner is not None:
-            return Response(content="This game is already over.", ephemeral=True, delete_after=5)
-
-        if player != self.current_turn():
-            return Response(content="It's not your turn.", ephemeral=True, delete_after=5)
-
         if column < 1 or column > self.columns:
-            return Response(content="Column must be between 1 and 7.", ephemeral=True, delete_after=5)
+            return Response(content="Column must be between 1 and 7.", ephemeral=True, delete_after=UI_MESSAGE_DELETE_DELAY)
 
         col_index = column - 1
         row_index = self._find_open_row(col_index)
         if row_index is None:
-            return Response(content=f"Column {column} is full.", ephemeral=True, delete_after=5)
+            return Response(content=f"Column {column} is full.", ephemeral=True, delete_after=UI_MESSAGE_DELETE_DELAY)
 
         self.board[row_index][col_index] = player
         self.move_count += 1

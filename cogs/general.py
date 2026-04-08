@@ -1,24 +1,41 @@
 import importlib
 import logging
-from difflib import get_close_matches
 from datetime import datetime
+from difflib import get_close_matches
 
+import discord
 from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
 
 from api.Game import resolve_player_count
-from configuration.constants import *
+from configuration.constants import (
+    BUTTON_PREFIX_INVITE,
+    CATALOG_GAMES_PER_PAGE,
+    CURRENT_GAMES,
+    EPHEMERAL_DELETE_AFTER,
+    GAME_TYPES,
+    HELP_GAMES_PREVIEW_COUNT,
+    HISTORY_PAGE_SIZE,
+    INFO_COLOR, IN_GAME,
+    IN_MATCHMAKING,
+    LEADERBOARD_PAGE_SIZE,
+    LOGGING_ROOT,
+    MANAGED_BY,
+    MU,
+    NAME,
+    VERSION,
+)
 from utils import database as db, ramcheck
 from utils.containers import (
     CustomContainer,
     HelpCommandsContainer,
     HelpFaqContainer,
-    HelpGameInfoContainer,
     HelpGettingStartedContainer,
     HelpMainContainer,
     HelpTutorialsContainer,
     InviteContainer,
+    TEXT_DISPLAY_MAX,
     container_send_kwargs,
     container_to_markdown,
 )
@@ -28,6 +45,7 @@ from utils.emojis import get_emoji_string, get_game_emoji
 from utils.graphs import generate_elo_chart
 from utils.interfaces import MatchmakingInterface, user_in_active_game
 from utils.locale import fmt, get, plural
+from utils.matchmaking_user_map import matchmaking_by_user_id
 from utils.replay_format import chunk_replay_lines, format_replay_event_line
 from utils.views import HelpView, InviteView, PaginationView
 
@@ -164,10 +182,10 @@ async def command_play(ctx: discord.Interaction, game: str, rated: bool = True, 
         if suggestion:
             message = f"{message}\n\nDid you mean `/play {suggestion}`?"
         await response_send_message(ctx,
-            content=message,
-            ephemeral=True,
-            delete_after=EPHEMERAL_DELETE_AFTER,
-        )
+                                    content=message,
+                                    ephemeral=True,
+                                    delete_after=EPHEMERAL_DELETE_AFTER,
+                                    )
         return
 
     from cogs.games import begin_game
@@ -179,11 +197,11 @@ async def autocomplete_invite_bot(ctx: discord.Interaction, current: str) -> lis
     if user_in_active_game(ctx.user.id):
         return []
 
-    id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
-    if ctx.user.id not in id_matchmaking:
+    mm_by_user = matchmaking_by_user_id()
+    if ctx.user.id not in mm_by_user:
         return []
 
-    matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
+    matchmaker: MatchmakingInterface = mm_by_user[ctx.user.id]
     available_bots = getattr(matchmaker.game, "bots", {})
     if not available_bots:
         return []
@@ -256,33 +274,33 @@ class GeneralCog(commands.Cog):
 
         if not invited_users and not requested_bots:
             if ctx.response.is_done():
-                await followup_send(ctx,get("matchmaking.invite_no_targets"), ephemeral=True)
+                await followup_send(ctx, get("matchmaking.invite_no_targets"), ephemeral=True)
             else:
-                await response_send_message(ctx,get("matchmaking.invite_no_targets"), ephemeral=True)
+                await response_send_message(ctx, get("matchmaking.invite_no_targets"), ephemeral=True)
             return
 
-        id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
+        mm_by_user = matchmaking_by_user_id()
 
-        if ctx.user.id not in id_matchmaking:
+        if ctx.user.id not in mm_by_user:
             if user_in_active_game(ctx.user.id):
                 await response_send_message(ctx,
-                    content=format_user_error_message("already_in_game_other_server"),
-                    ephemeral=True,
-                )
+                                            content=format_user_error_message("already_in_game_other_server"),
+                                            ephemeral=True,
+                                            )
                 return
 
             if game is None:
                 await response_send_message(ctx,
-                    content=format_user_error_message("no_active_lobby"),
-                    ephemeral=True,
-                )
+                                            content=format_user_error_message("no_active_lobby"),
+                                            ephemeral=True,
+                                            )
                 return
 
             if game not in GAME_TYPES:
                 await response_send_message(ctx,
-                    content=format_user_error_message("game_invalid", game=game),
-                    ephemeral=True,
-                )
+                                            content=format_user_error_message("game_invalid", game=game),
+                                            ephemeral=True,
+                                            )
                 return
 
             # Start a new matchmaking lobby
@@ -291,19 +309,19 @@ class GeneralCog(commands.Cog):
 
             # Need to wait a bit or re-fetch to get the new matchmaker
             # Actually, handle the rest of it after begin_game finishes and we find the matchmaker
-            id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
-            if ctx.user.id not in id_matchmaking:
+            mm_by_user = matchmaking_by_user_id()
+            if ctx.user.id not in mm_by_user:
                 # It might take a moment or begin_game failed
                 return
 
-        matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
+        matchmaker: MatchmakingInterface = mm_by_user[ctx.user.id]
         from cogs.games import add_matchmaking_bot
 
         if matchmaker.private and matchmaker.creator.id != ctx.user.id:
             await response_send_message(ctx,
-                content=format_user_error_message("invite_not_creator_private"),
-                ephemeral=True,
-            )
+                                        content=format_user_error_message("invite_not_creator_private"),
+                                        ephemeral=True,
+                                        )
             f_log.debug(f"/invite rejected: not creator. {contextify(ctx)}")
             return
 
@@ -336,7 +354,6 @@ class GeneralCog(commands.Cog):
                     summary_text=container_to_markdown(container),
                 ),
             )
-            continue
 
         if not invited_users:
             return
@@ -344,9 +361,9 @@ class GeneralCog(commands.Cog):
         if not len(failed_invites):
             f_log.debug(f"/invite success: {len(invited_users)} succeeded, 0 failed. {contextify(ctx)}")
             if ctx.response.is_done():
-                await followup_send(ctx,get("success.invites_sent"), ephemeral=True)
+                await followup_send(ctx, get("success.invites_sent"), ephemeral=True)
             else:
-                await response_send_message(ctx,get("success.invites_sent"), ephemeral=True)
+                await response_send_message(ctx, get("success.invites_sent"), ephemeral=True)
             return
         elif len(failed_invites) == len(invited_users):
             message = get("matchmaking.invites_failed_all")
@@ -359,9 +376,9 @@ class GeneralCog(commands.Cog):
             final += f"{fail.mention} - {failed_invites[fail]}\n"
 
         if ctx.response.is_done():
-            await followup_send(ctx,final, ephemeral=True)
+            await followup_send(ctx, final, ephemeral=True)
         else:
-            await response_send_message(ctx,final, ephemeral=True)
+            await response_send_message(ctx, final, ephemeral=True)
 
     @command_root.command(name="kick", description=get("commands.kick.description"))
     @app_commands.describe(
@@ -370,24 +387,24 @@ class GeneralCog(commands.Cog):
     )
     async def command_kick(self, ctx: discord.Interaction, user: discord.User, reason: str = None):
         f_log = log.getChild("command.kick")
-        id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
+        mm_by_user = matchmaking_by_user_id()
 
-        if ctx.user.id not in id_matchmaking:
+        if ctx.user.id not in mm_by_user:
             await response_send_message(ctx,
-                content=format_user_error_message("kick_no_lobby"),
-                ephemeral=True,
-            )
+                                        content=format_user_error_message("kick_no_lobby"),
+                                        ephemeral=True,
+                                        )
             return
-        matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
+        matchmaker: MatchmakingInterface = mm_by_user[ctx.user.id]
         if matchmaker.creator.id != ctx.user.id:
             await response_send_message(ctx,
-                content=format_user_error_message("kick_not_creator"),
-                ephemeral=True,
-            )
+                                        content=format_user_error_message("kick_not_creator"),
+                                        ephemeral=True,
+                                        )
             return
 
         return_value = await matchmaker.kick(user, reason)
-        await response_send_message(ctx,return_value, ephemeral=True)
+        await response_send_message(ctx, return_value, ephemeral=True)
 
     @command_root.command(name="ban", description=get("commands.ban.description"))
     @app_commands.describe(
@@ -396,24 +413,24 @@ class GeneralCog(commands.Cog):
     )
     async def command_ban(self, ctx: discord.Interaction, user: discord.User, reason: str = None):
         f_log = log.getChild("command.ban")
-        id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
+        mm_by_user = matchmaking_by_user_id()
 
-        if ctx.user.id not in id_matchmaking:
+        if ctx.user.id not in mm_by_user:
             await response_send_message(ctx,
-                content=format_user_error_message("ban_no_lobby"),
-                ephemeral=True,
-            )
+                                        content=format_user_error_message("ban_no_lobby"),
+                                        ephemeral=True,
+                                        )
             return
-        matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
+        matchmaker: MatchmakingInterface = mm_by_user[ctx.user.id]
         if matchmaker.creator.id != ctx.user.id:
             await response_send_message(ctx,
-                content=format_user_error_message("ban_not_creator"),
-                ephemeral=True,
-            )
+                                        content=format_user_error_message("ban_not_creator"),
+                                        ephemeral=True,
+                                        )
             return
 
         return_value = await matchmaker.ban(user, reason)
-        await response_send_message(ctx,return_value, ephemeral=True)
+        await response_send_message(ctx, return_value, ephemeral=True)
 
     @command_root.command(name="stats", description=get("commands.stats.description"))
     async def command_stats(self, ctx: discord.Interaction):
@@ -439,7 +456,7 @@ class GeneralCog(commands.Cog):
         )
         container.add_field(
             name="Servers",
-            value=f"{server_count} servers · {len(GAME_TYPES)} games · {len(OWNERS)} owners",
+            value=f"{server_count} servers · {len(GAME_TYPES)} games · {len(self.bot.effective_owner_ids)} owners",
         )
         container.add_field(
             name="Shard",
@@ -455,7 +472,7 @@ class GeneralCog(commands.Cog):
             inline=False,
         )
 
-        await response_send_message(ctx,**container_send_kwargs(container))
+        await response_send_message(ctx, **container_send_kwargs(container))
 
     @command_root.command(name="about", description=get("commands.about.description"))
     async def command_about(self, ctx: discord.Interaction):
@@ -501,7 +518,7 @@ class GeneralCog(commands.Cog):
         )
         container.set_footer(text=get("embeds.about.footer"), icon_url=get("brand.footer_icon"))
 
-        await response_send_message(ctx,**container_send_kwargs(container))
+        await response_send_message(ctx, **container_send_kwargs(container))
 
     @command_root.command(name="help", description=get("commands.help.description"))
     @app_commands.describe(topic=get("commands.help.param_topic"))
@@ -541,7 +558,7 @@ class GeneralCog(commands.Cog):
             current_section=section,
             body_text=container_to_markdown(container),
         )
-        await response_send_message(ctx,view=view)
+        await response_send_message(ctx, view=view)
 
     async def _build_help_games_container(self):
         """Build a quick games overview container for help menu."""
@@ -590,9 +607,9 @@ class GeneralCog(commands.Cog):
 
         if game not in GAME_TYPES:
             await response_send_message(ctx,
-                content=format_user_error_message("game_invalid", game=game),
-                ephemeral=True,
-            )
+                                        content=format_user_error_message("game_invalid", game=game),
+                                        ephemeral=True,
+                                        )
             return
 
         # Defer response for database query (shows "thinking...")
@@ -601,7 +618,7 @@ class GeneralCog(commands.Cog):
         game_name = _GAME_METADATA[game]["name"]
         game_db = db.database.get_game(game)
         if not game_db:
-            await followup_send(ctx,get("errors.game_not_registered.value"), ephemeral=True)
+            await followup_send(ctx, get("errors.game_not_registered.value"), ephemeral=True)
             return
 
         if page < 1:
@@ -633,7 +650,7 @@ class GeneralCog(commands.Cog):
                 interaction, game, game_name, game_db.game_id, scope, new_page, limit
             )
         )
-        await followup_send(ctx,view=view)
+        await followup_send(ctx, view=view)
 
     async def _build_leaderboard_container(self, game: str, game_name: str, game_id: int, scope: str,
                                            guild, page: int, limit: int):
@@ -750,7 +767,7 @@ class GeneralCog(commands.Cog):
                 interaction, new_page, total_pages, all_games, games_per_page
             )
         )
-        await response_send_message(ctx,view=view)
+        await response_send_message(ctx, view=view)
 
     def _build_catalog_container(self, page: int, total_pages: int, all_games: list,
                                  games_per_page: int) -> CustomContainer:
@@ -821,9 +838,9 @@ class GeneralCog(commands.Cog):
         player = db.database.get_player(user, ctx.guild.id)
         if player is None:
             await followup_send(ctx,
-                content=format_user_error_message("player_not_found", player_name=user.display_name),
-                ephemeral=True,
-            )
+                                content=format_user_error_message("player_not_found", player_name=user.display_name),
+                                ephemeral=True,
+                                )
             return
 
         container = CustomContainer(title=fmt("embeds.profile.title", username=user.display_name), color=INFO_COLOR)
@@ -914,7 +931,7 @@ class GeneralCog(commands.Cog):
             value=f"{total_matches} {plural('game', total_matches)}",
             inline=True,
         )
-        await followup_send(ctx,**container_send_kwargs(container))
+        await followup_send(ctx, **container_send_kwargs(container))
 
     @command_root.command(name="history", description=get("commands.history.description"))
     @app_commands.describe(
@@ -947,16 +964,16 @@ class GeneralCog(commands.Cog):
             if suggestion:
                 message = f"{message}\n\nDid you mean `{suggestion}`?"
             await response_send_message(ctx,
-                message,
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                        message,
+                                        ephemeral=True,
+                                        delete_after=EPHEMERAL_DELETE_AFTER,
+                                        )
             return
         game = resolved_game
 
         game_db = db.database.get_game(game)
         if not game_db:
-            await response_send_message(ctx,get("errors.game_not_registered.value"), ephemeral=True)
+            await response_send_message(ctx, get("errors.game_not_registered.value"), ephemeral=True)
             return
 
         game_name = _GAME_METADATA[game]["name"]
@@ -978,9 +995,9 @@ class GeneralCog(commands.Cog):
             )
         )
         if chart_file:
-            await response_send_message(ctx,view=view, file=chart_file)
+            await response_send_message(ctx, view=view, file=chart_file)
         else:
-            await response_send_message(ctx,view=view)
+            await response_send_message(ctx, view=view)
 
     def _build_history_container(self, user, game_name: str, game_id: int, guild_id: int,
                                  page: int, days: int, f_log):
@@ -1139,7 +1156,7 @@ class GeneralCog(commands.Cog):
         head = ""
         if global_summary and str(global_summary).strip():
             head = f"{str(global_summary).strip()}\n\n"
-        desc = (head + code)[:4000]
+        desc = (head + code)[:TEXT_DISPLAY_MAX]
         disp = replay_display if replay_display is not None else str(match_id)
         container = CustomContainer(
             title=fmt("commands.replay.title", id=disp, game=game_label),
@@ -1185,24 +1202,24 @@ class GeneralCog(commands.Cog):
     async def command_replay(self, ctx: discord.Interaction, match_ref: app_commands.Range[str, 1, 32]):
         await ctx.response.defer(ephemeral=True)
         if ctx.guild is None:
-            await followup_send(ctx,content=get("commands.set_channel.guild_only"), ephemeral=True)
+            await followup_send(ctx, content=get("commands.set_channel.guild_only"), ephemeral=True)
             return
         raw = (match_ref or "").strip()
         match = resolve_match_for_replay(raw, ctx.guild.id)
         if match is None:
             await followup_send(ctx,
-                content=format_user_error_message("replay_not_found"),
-                ephemeral=True,
-            )
+                                content=format_user_error_message("replay_not_found"),
+                                ephemeral=True,
+                                )
             return
         match_id = match.match_id
         replay_display = (match.match_code or "").strip() or str(match_id)
         events = db.database.get_replay_events(match_id)
         if not events:
             await followup_send(ctx,
-                content=fmt("commands.replay.no_data", match_display=replay_display),
-                ephemeral=True,
-            )
+                                content=fmt("commands.replay.no_data", match_display=replay_display),
+                                ephemeral=True,
+                                )
             return
         lines = [format_replay_event_line(e) for e in events]
         pages = chunk_replay_lines(lines)
@@ -1231,7 +1248,7 @@ class GeneralCog(commands.Cog):
                 inter, np, pages, match_id, game_label, replay_global, replay_display
             ),
         )
-        await followup_send(ctx,view=view, ephemeral=True)
+        await followup_send(ctx, view=view, ephemeral=True)
 
     @command_replay.autocomplete("match_ref")
     async def replay_autocomplete(self, ctx: discord.Interaction, current: str) -> list[Choice[str]]:
@@ -1270,19 +1287,12 @@ class GeneralCog(commands.Cog):
         text = (message or "").strip()
         if not text:
             await response_send_message(ctx,
-                get("commands.feedback.empty"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                        get("commands.feedback.empty"),
+                                        ephemeral=True,
+                                        delete_after=EPHEMERAL_DELETE_AFTER,
+                                        )
             return
-        owner_ids = set(getattr(ctx.client, "owner_ids", set()) or set())
-        owner_id = getattr(ctx.client, "owner_id", None)
-        if owner_id is not None:
-            owner_ids.add(owner_id)
-        if not owner_ids:
-            app_info = await ctx.client.application_info()
-            if getattr(app_info, "owner", None) is not None:
-                owner_ids.add(app_info.owner.id)
+        owner_ids = set(ctx.client.effective_owner_ids)
 
         guild_name = ctx.guild.name if ctx.guild else "Direct Message"
         delivered = 0
@@ -1303,17 +1313,17 @@ class GeneralCog(commands.Cog):
 
         if delivered == 0:
             await response_send_message(ctx,
-                get("commands.feedback.delivery_failed"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                        get("commands.feedback.delivery_failed"),
+                                        ephemeral=True,
+                                        delete_after=EPHEMERAL_DELETE_AFTER,
+                                        )
             return
 
         await response_send_message(ctx,
-            get("commands.feedback.thanks"),
-            ephemeral=True,
-            delete_after=EPHEMERAL_DELETE_AFTER,
-        )
+                                    get("commands.feedback.thanks"),
+                                    ephemeral=True,
+                                    delete_after=EPHEMERAL_DELETE_AFTER,
+                                    )
 
     @command_root.command(name="forfeit", description=get("forfeit.description"))
     @app_commands.guild_only()
@@ -1321,30 +1331,30 @@ class GeneralCog(commands.Cog):
     async def command_forfeit(self, ctx: discord.Interaction):
         if ctx.channel.type != discord.ChannelType.private_thread:
             await response_send_message(ctx,
-                get("forfeit.wrong_channel"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                        get("forfeit.wrong_channel"),
+                                        ephemeral=True,
+                                        delete_after=EPHEMERAL_DELETE_AFTER,
+                                        )
             return
         game = CURRENT_GAMES.get(ctx.channel.id)
         if game is None:
             await response_send_message(ctx,
-                get("forfeit.not_active"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                        get("forfeit.not_active"),
+                                        ephemeral=True,
+                                        delete_after=EPHEMERAL_DELETE_AFTER,
+                                        )
             return
         if ctx.user.id not in {p.id for p in game.players}:
             await response_send_message(ctx,
-                get("forfeit.not_in_game"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                        get("forfeit.not_in_game"),
+                                        ephemeral=True,
+                                        delete_after=EPHEMERAL_DELETE_AFTER,
+                                        )
             return
 
         await ctx.response.defer(ephemeral=True)
         result = await game.forfeit_player(ctx.user.id)
-        await followup_send(ctx,result, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+        await followup_send(ctx, result, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
 
     @command_root.command(name="settings", description=get("commands.settings.description"))
     @app_commands.describe(rated=get("commands.settings.param_rated"), private=get("commands.settings.param_private"))
@@ -1352,21 +1362,21 @@ class GeneralCog(commands.Cog):
         f_log = log.getChild("command.settings")
         f_log.debug(f"/settings called: rated={rated}, private={private} {contextify(ctx)}")
 
-        id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
-        if ctx.user.id not in id_matchmaking:
-            await response_send_message(ctx,get("settings.not_in_matchmaking"),
-                                            ephemeral=True)
+        mm_by_user = matchmaking_by_user_id()
+        if ctx.user.id not in mm_by_user:
+            await response_send_message(ctx, get("settings.not_in_matchmaking"),
+                                        ephemeral=True)
             return
 
-        matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
+        matchmaker: MatchmakingInterface = mm_by_user[ctx.user.id]
         if matchmaker.creator.id != ctx.user.id:
-            await response_send_message(ctx,get("settings.only_creator"), ephemeral=True)
+            await response_send_message(ctx, get("settings.only_creator"), ephemeral=True)
             return
 
         changes = []
         if rated is not None and rated != matchmaker.rated:
             if rated and getattr(matchmaker, "has_bots", False):
-                await response_send_message(ctx,get("settings.rated_blocked_bots"), ephemeral=True)
+                await response_send_message(ctx, get("settings.rated_blocked_bots"), ephemeral=True)
                 return
             matchmaker.rated = rated
             changes.append(fmt("settings.changed_rated", value=get("settings.yes") if rated else get("settings.no")))
@@ -1377,9 +1387,9 @@ class GeneralCog(commands.Cog):
 
         if changes:
             await matchmaker.update_embed()
-            await response_send_message(ctx,get("settings.updated") + "\n" + "\n".join(changes), ephemeral=True)
+            await response_send_message(ctx, get("settings.updated") + "\n" + "\n".join(changes), ephemeral=True)
         else:
-            await response_send_message(ctx,get("settings.no_changes"), ephemeral=True)
+            await response_send_message(ctx, get("settings.no_changes"), ephemeral=True)
 
     @command_root.command(name="set_channel", description=get("commands.set_channel.description"))
     @app_commands.default_permissions(administrator=True)
@@ -1390,18 +1400,18 @@ class GeneralCog(commands.Cog):
             channel: discord.TextChannel | None = None,
     ):
         if ctx.guild is None:
-            await response_send_message(ctx,get("commands.set_channel.guild_only"), ephemeral=True)
+            await response_send_message(ctx, get("commands.set_channel.guild_only"), ephemeral=True)
             return
         await ctx.response.defer(ephemeral=True)
         if channel is None:
             db.database.merge_guild_settings(ctx.guild.id, {"playcord_channel_id": None})
-            await followup_send(ctx,content=get("commands.set_channel.cleared"), ephemeral=True)
+            await followup_send(ctx, content=get("commands.set_channel.cleared"), ephemeral=True)
             return
         db.database.merge_guild_settings(ctx.guild.id, {"playcord_channel_id": channel.id})
         await followup_send(ctx,
-            content=fmt("commands.set_channel.saved", channel=channel.mention),
-            ephemeral=True,
-        )
+                            content=fmt("commands.set_channel.saved", channel=channel.mention),
+                            ephemeral=True,
+                            )
 
 
 async def setup(bot: commands.Bot):

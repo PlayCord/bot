@@ -610,7 +610,6 @@ class Database:
         import importlib
 
         from api.Game import resolve_player_count
-        from configuration.constants import GAME_TYPES
 
         cfg = constants.CONFIGURATION.get("ratings", {})
         default_min_mu = float(cfg.get("min_mu", 0.0))

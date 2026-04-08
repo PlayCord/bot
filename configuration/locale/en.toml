@@ -76,10 +76,10 @@ empty_page = "Empty page."
 [commands.feedback]
 description = "Send feedback to the bot owners"
 param_message = "Your message (max 500 characters)"
-thanks = "Thanks — your feedback was delivered to the bot owners."
+thanks = "Thanks, your feedback was delivered."
 too_long = "Please keep feedback under {max} characters."
 empty = "Please enter a non-empty message."
-delivery_failed = "I couldn't DM any bot owners right now. Please try again later."
+delivery_failed = "Failed to send feedback. Try again later."
 
 [commands.set_channel]
 description = "Set or clear the channel where /play must be used when the server requires it"
@@ -744,6 +744,9 @@ last = "Last"
 "No winner this time - it's a draw!" = 0.15
 "Both players are evenly matched! It's a tie!" = 0.05
 
+[game.errors]
+already_over = "This game is already over."
+
 # =============================================================================
 # PERMISSION / POLICY MESSAGES
 # =============================================================================
@@ -862,6 +865,7 @@ pagination_outdated = "This pagination is outdated due to a bot restart. Please 
 
 [autocomplete]
 no_game_in_channel = "There is no game in this channel!"
+game_finished = "This game is already over."
 function_missing = "Autocomplete function is not defined!"
 
 [errors.game_not_registered]

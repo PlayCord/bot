@@ -4,7 +4,25 @@ import logging
 import discord
 from discord.ext import commands
 
-from configuration.constants import *
+from configuration.constants import (
+    ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS,
+    ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS,
+    ANALYTICS_RETENTION_DAYS,
+    CURRENT_GAMES,
+    EPHEMERAL_DELETE_AFTER,
+    ERROR_NO_SYSTEM_CHANNEL,
+    GAME_TYPES,
+    IN_GAME,
+    IN_MATCHMAKING,
+    LOGGING_ROOT,
+    PRESENCE_TIMEOUT,
+    THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES,
+    THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY,
+    THREAD_POLICY_SPECTATORS_SILENT,
+    THREAD_POLICY_WARN_NON_PARTICIPANTS,
+    THREAD_POLICY_WARNING_MESSAGE,
+    WELCOME_MESSAGE,
+)
 from utils import analytics as analytics_mod
 from utils import database as db
 from utils.containers import CustomContainer, container_send_kwargs

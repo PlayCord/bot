@@ -19,8 +19,12 @@ from utils.emojis import get_emoji_string
 from utils.locale import fmt, get
 
 _TEXT_DISPLAY_MAX = 4000
+# Discord TextDisplay / message content limit (public alias for callers outside this module)
+TEXT_DISPLAY_MAX = _TEXT_DISPLAY_MAX
 _FIELD_VALUE_MAX = 1024
 _FIELD_LINE_SAFE_MAX = 500
+# Embed field value max minus small safety margin for markdown/formatting overhead
+_FIELD_VALUE_SAFE = _FIELD_VALUE_MAX - 7
 
 
 def _chunk_text(text: str, *, max_len: int = _TEXT_DISPLAY_MAX) -> list[str]:
@@ -329,7 +333,7 @@ class ErrorContainer(CustomContainer):
             )
         if reason is not None:
             reason = reason.replace(current_directory, "")
-            text_fields = lines_to_container_sections(reason.split("\n"), value_max=1017, line_max=500)
+            text_fields = lines_to_container_sections(reason.split("\n"), value_max=_FIELD_VALUE_SAFE, line_max=_FIELD_LINE_SAFE_MAX)
             for i, section in enumerate(text_fields):
                 self.add_field(
                     name=f"{get_emoji_string('hmm')} {fmt('system_error.reason_field', part=i + 1, total=len(text_fields))}",
@@ -376,7 +380,7 @@ class GameOverContainer(CustomContainer):
         if outcome_global_summary:
             self.add_field(
                 name=get("embeds.game_over.field_global_summary"),
-                value=outcome_global_summary[:1024],
+                value=outcome_global_summary[:_FIELD_VALUE_MAX],
                 inline=False,
             )
         self.add_field(name=get("embeds.game_over.field_rankings"), value=rankings, inline=True)

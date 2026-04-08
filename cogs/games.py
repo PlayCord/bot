@@ -6,7 +6,25 @@ from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
 
-from configuration.constants import *
+from configuration.constants import (
+    AUTOCOMPLETE_CACHE,
+    BUTTON_PREFIX_CURRENT_TURN,
+    BUTTON_PREFIX_NO_TURN,
+    BUTTON_PREFIX_PAGINATION_FIRST,
+    BUTTON_PREFIX_PAGINATION_LAST,
+    BUTTON_PREFIX_PAGINATION_NEXT,
+    BUTTON_PREFIX_PAGINATION_PREV,
+    BUTTON_PREFIX_PEEK,
+    BUTTON_PREFIX_REMATCH,
+    BUTTON_PREFIX_SELECT_CURRENT,
+    BUTTON_PREFIX_SELECT_NO_TURN,
+    BUTTON_PREFIX_SPECTATE,
+    CURRENT_GAMES,
+    EPHEMERAL_DELETE_AFTER,
+    LOGGING_ROOT,
+    PERMISSION_MSG_NOT_PARTICIPANT,
+    PERMISSION_MSG_SPECTATE_DISABLED,
+)
 from utils import database as db
 from utils.containers import ErrorContainer, LoadingContainer, container_edit_kwargs, container_send_kwargs
 from utils.discord_utils import (
@@ -18,6 +36,7 @@ from utils.discord_utils import (
 )
 from utils.emojis import get_emoji_string
 from utils.interfaces import MatchmakingInterface, user_in_active_game
+from utils.matchmaking_user_map import matchmaking_by_user_id
 from utils.locale import fmt, get
 
 log = logging.getLogger(LOGGING_ROOT)
@@ -357,12 +376,12 @@ async def add_matchmaking_bot(ctx: discord.Interaction, difficulty: str) -> bool
         else:
             await response_send_message(ctx, message, ephemeral=True)
 
-    id_matchmaking = {p.id: q for p, q in IN_MATCHMAKING.items()}
-    if ctx.user.id not in id_matchmaking:
+    mm_by_user = matchmaking_by_user_id()
+    if ctx.user.id not in mm_by_user:
         await _send(get("settings.not_in_matchmaking"))
         return False
 
-    matchmaker: MatchmakingInterface = id_matchmaking[ctx.user.id]
+    matchmaker: MatchmakingInterface = mm_by_user[ctx.user.id]
     if matchmaker.creator.id != ctx.user.id:
         await _send(get("settings.only_creator"))
         return False
@@ -421,6 +440,8 @@ async def handle_autocomplete(ctx: discord.Interaction, function, current: str, 
         game_view = CURRENT_GAMES[ctx.channel.id]
     except KeyError:
         return [app_commands.Choice(name=get("autocomplete.no_game_in_channel"), value="")]
+    if game_view.game.is_game_finished():
+        return [app_commands.Choice(name=get("autocomplete.game_finished"), value="-")]
     player = db.database.get_player(ctx.user, ctx.guild.id)
     try:
         player_options = AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][function][argument][current]

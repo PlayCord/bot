@@ -8,6 +8,7 @@ import typing
 from collections import Counter
 from typing import Any
 
+import discord
 import trueskill
 
 from api.Game import Game as BaseGame, PlayerOrder, RoleMode, resolve_player_count
@@ -25,6 +26,7 @@ from configuration.constants import (
     EPHEMERAL_DELETE_AFTER,
     ERROR_COLOR,
     FORFEIT_RATING_PENALTY,
+    GAME_MSG_ALREADY_OVER,
     GAME_TYPES,
     INFO_COLOR,
     IN_GAME,
@@ -44,14 +46,13 @@ from utils.containers import (
     ErrorContainer,
     GameOverContainer,
     GameOverviewContainer,
-    container_edit_kwargs,
     container_send_kwargs,
     container_to_markdown,
 )
 from utils.conversion import column_creator, column_elo, column_names, column_turn, contextify, player_representative, \
     player_verification_function, textify
-from utils.discord_utils import followup_send
 from utils.database import InternalPlayer, get_shallow_player, internal_player_to_player
+from utils.discord_utils import followup_send
 from utils.emojis import get_emoji_string
 from utils.locale import fmt, get
 from utils.trueskill_params import get_trueskill_parameters
@@ -305,20 +306,24 @@ class GameInterface:
             log.debug(f"Now processing move command {name!r} with arguments {arguments!r} context: {contextify(ctx)}")
             if ctx.user.id in self.forfeited_player_ids:
                 await followup_send(ctx,
-                    get("forfeit.already_forfeited"),
-                    ephemeral=True,
-                    delete_after=EPHEMERAL_DELETE_AFTER,
-                )
+                                    get("forfeit.already_forfeited"),
+                                    ephemeral=True,
+                                    delete_after=EPHEMERAL_DELETE_AFTER,
+                                    )
+                return
+            if self.game.is_game_finished():
+                message = await followup_send(ctx, content=GAME_MSG_ALREADY_OVER, ephemeral=True)
+                await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             self.current_turn = self.game.current_turn()
             if getattr(self.current_turn, "is_bot", False):
-                message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn}) context: {contextify(ctx)}")
-                message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             function_to_call = self._resolve_move_callable(name)
@@ -339,7 +344,7 @@ class GameInterface:
                     what_failed=get("move.unexpected_processing_error"),
                     reason=None,
                 )
-                await followup_send(ctx,**container_send_kwargs(error_embed), ephemeral=True)
+                await followup_send(ctx, **container_send_kwargs(error_embed), ephemeral=True)
                 return
 
             try:
@@ -378,13 +383,13 @@ class GameInterface:
                 )
                 try:
                     await followup_send(ctx,
-                        **container_send_kwargs(ErrorContainer(
-                            ctx,
-                            what_failed=get("move.unexpected_processing_error"),
-                            reason=None,
-                        )),
-                        ephemeral=True,
-                    )
+                                        **container_send_kwargs(ErrorContainer(
+                                            ctx,
+                                            what_failed=get("move.unexpected_processing_error"),
+                                            reason=None,
+                                        )),
+                                        ephemeral=True,
+                                        )
                 except Exception:
                     pass
 
@@ -405,13 +410,13 @@ class GameInterface:
                 )
                 try:
                     await followup_send(ctx,
-                        **container_send_kwargs(ErrorContainer(
-                            ctx,
-                            what_failed=get("move.unexpected_processing_error"),
-                            reason=None,
-                        )),
-                        ephemeral=True,
-                    )
+                                        **container_send_kwargs(ErrorContainer(
+                                            ctx,
+                                            what_failed=get("move.unexpected_processing_error"),
+                                            reason=None,
+                                        )),
+                                        ephemeral=True,
+                                        )
                 except Exception:
                     pass
 
@@ -465,7 +470,7 @@ class GameInterface:
                 outcome,
                 contextify(ctx),
             )
-            message = await followup_send(ctx,content=get("game.over_short"), ephemeral=True)
+            message = await followup_send(ctx, content=get("game.over_short"), ephemeral=True)
             await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
             await game_over(self, outcome)
 
@@ -570,6 +575,8 @@ class GameInterface:
             await asyncio.sleep(1.0)
             move_response = None
             async with self.processing_move:
+                if self.game.is_game_finished():
+                    return
                 self.current_turn = self.game.current_turn()
                 if not getattr(self.current_turn, "is_bot", False):
                     return
@@ -676,23 +683,27 @@ class GameInterface:
             log.debug(f"Now processing move command {name!r} with arguments {arguments!r} context: {contextify(ctx)}")
             if ctx.user.id in self.forfeited_player_ids:
                 await followup_send(ctx,
-                    get("forfeit.already_forfeited"),
-                    ephemeral=True,
-                    delete_after=EPHEMERAL_DELETE_AFTER,
-                )
+                                    get("forfeit.already_forfeited"),
+                                    ephemeral=True,
+                                    delete_after=EPHEMERAL_DELETE_AFTER,
+                                    )
+                return
+            if self.game.is_game_finished():
+                message = await followup_send(ctx, content=GAME_MSG_ALREADY_OVER, ephemeral=True)
+                await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             # Update current turn
             self.current_turn = self.game.current_turn()
 
             # Check to make sure that it is current turn (if required)
             if getattr(self.current_turn, "is_bot", False):
-                message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
-                message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
 
@@ -731,7 +742,7 @@ class GameInterface:
                     what_failed=get("move.unexpected_processing_error"),
                     reason=None,
                 )
-                await followup_send(ctx,**container_send_kwargs(error_embed), ephemeral=True)
+                await followup_send(ctx, **container_send_kwargs(error_embed), ephemeral=True)
                 return
 
             try:
@@ -750,13 +761,13 @@ class GameInterface:
                 )
                 try:
                     await followup_send(ctx,
-                        **container_send_kwargs(ErrorContainer(
-                            ctx,
-                            what_failed=get("move.unexpected_processing_error"),
-                            reason=None,
-                        )),
-                        ephemeral=True,
-                    )
+                                        **container_send_kwargs(ErrorContainer(
+                                            ctx,
+                                            what_failed=get("move.unexpected_processing_error"),
+                                            reason=None,
+                                        )),
+                                        ephemeral=True,
+                                        )
                 except Exception:
                     pass
 
@@ -777,13 +788,13 @@ class GameInterface:
                 )
                 try:
                     await followup_send(ctx,
-                        **container_send_kwargs(ErrorContainer(
-                            ctx,
-                            what_failed=get("move.unexpected_processing_error"),
-                            reason=None,
-                        )),
-                        ephemeral=True,
-                    )
+                                        **container_send_kwargs(ErrorContainer(
+                                            ctx,
+                                            what_failed=get("move.unexpected_processing_error"),
+                                            reason=None,
+                                        )),
+                                        ephemeral=True,
+                                        )
                 except Exception:
                     pass
 
@@ -803,23 +814,27 @@ class GameInterface:
             log.debug(f"Now processing move command {name!r} context: {contextify(ctx)}")
             if ctx.user.id in self.forfeited_player_ids:
                 await followup_send(ctx,
-                    get("forfeit.already_forfeited"),
-                    ephemeral=True,
-                    delete_after=EPHEMERAL_DELETE_AFTER,
-                )
+                                    get("forfeit.already_forfeited"),
+                                    ephemeral=True,
+                                    delete_after=EPHEMERAL_DELETE_AFTER,
+                                    )
+                return
+            if self.game.is_game_finished():
+                message = await followup_send(ctx, content=GAME_MSG_ALREADY_OVER, ephemeral=True)
+                await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             # Update current turn
             self.current_turn = self.game.current_turn()
 
             # Check to make sure that it is current turn (if required)
             if getattr(self.current_turn, "is_bot", False):
-                message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
             if ctx.user.id != self.current_turn.id and current_turn_required:
                 log.debug(f"current_turn_required command failed because it isn't this player's turn"
                           f" (should be {self.current_turn.id} ({self.current_turn.name})) context: {contextify(ctx)}")
-                message = await followup_send(ctx,content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+                message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
                 await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
                 return
 
@@ -843,7 +858,7 @@ class GameInterface:
                     what_failed=get("move.unexpected_processing_error"),
                     reason=None,
                 )
-                await followup_send(ctx,**container_send_kwargs(error_embed), ephemeral=True)
+                await followup_send(ctx, **container_send_kwargs(error_embed), ephemeral=True)
                 return
 
             try:
@@ -862,13 +877,13 @@ class GameInterface:
                 )
                 try:
                     await followup_send(ctx,
-                        **container_send_kwargs(ErrorContainer(
-                            ctx,
-                            what_failed=get("move.unexpected_processing_error"),
-                            reason=None,
-                        )),
-                        ephemeral=True,
-                    )
+                                        **container_send_kwargs(ErrorContainer(
+                                            ctx,
+                                            what_failed=get("move.unexpected_processing_error"),
+                                            reason=None,
+                                        )),
+                                        ephemeral=True,
+                                        )
                 except Exception:
                     pass
 
@@ -889,13 +904,13 @@ class GameInterface:
                 )
                 try:
                     await followup_send(ctx,
-                        **container_send_kwargs(ErrorContainer(
-                            ctx,
-                            what_failed=get("move.unexpected_processing_error"),
-                            reason=None,
-                        )),
-                        ephemeral=True,
-                    )
+                                        **container_send_kwargs(ErrorContainer(
+                                            ctx,
+                                            what_failed=get("move.unexpected_processing_error"),
+                                            reason=None,
+                                        )),
+                                        ephemeral=True,
+                                        )
                 except Exception:
                     pass
 
@@ -931,11 +946,11 @@ class GameInterface:
                     get("embeds.game_overview.field_turn"): turn_marker,
                 }
                 for player, rating, turn_marker in zip(
-                    self.players,
-                    column_elo(self.players, self.game_type).split("\n"),
-                    column_turn(self.players, self.current_turn).split("\n"),
-                    strict=False,
-                )
+                self.players,
+                column_elo(self.players, self.game_type).split("\n"),
+                column_turn(self.players, self.current_turn).split("\n"),
+                strict=False,
+            )
             }
         )
         table_file = discord.File(io.BytesIO(overview_table), filename="game_overview.png")
@@ -987,12 +1002,12 @@ class GameInterface:
         if actor is not None:
             private_message = self.game.player_state(internal_player_to_player(actor, self.game_type))
             if private_message is not None:
-                await followup_send(ctx,**private_message.to_send_kwargs(self.thread.id), ephemeral=True)
+                await followup_send(ctx, **private_message.to_send_kwargs(self.thread.id), ephemeral=True)
 
         if getattr(self.game, "notify_on_turn", False):
             turn_player = self.game.current_turn()
             if getattr(turn_player, "id", None) == getattr(ctx.user, "id", None):
-                await followup_send(ctx,self.game.turn_notification(turn_player), ephemeral=True)
+                await followup_send(ctx, self.game.turn_notification(turn_player), ephemeral=True)
 
     async def display_game_state(self) -> None:
         """
@@ -1290,19 +1305,19 @@ class MatchmakingInterface:
         log = self.logger.getChild("lobby_option")
         if ctx.user.id != self.creator.id:
             await followup_send(ctx,
-                get("queue.only_creator_lobby_options"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                get("queue.only_creator_lobby_options"),
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
         spec = next((s for s in self._specs if s.key == key), None)
         if spec is None:
             log.warning("unknown lobby option key=%r lobby=%s", key, self.message.id)
             await followup_send(ctx,
-                get("matchmaking.invalid_interaction"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                get("matchmaking.invalid_interaction"),
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
         raw = (ctx.data.get("values") or [""])[0]
         self.match_settings[key] = spec.coerce(raw)
@@ -1315,38 +1330,38 @@ class MatchmakingInterface:
         getattr(self, "_reset_ready_state", lambda: None)()
         await self.update_embed()
         await followup_send(ctx,
-            get("queue.lobby_option_updated"),
-            ephemeral=True,
-            delete_after=EPHEMERAL_DELETE_AFTER,
-        )
+                            get("queue.lobby_option_updated"),
+                            ephemeral=True,
+                            delete_after=EPHEMERAL_DELETE_AFTER,
+                            )
 
     async def callback_role_select(self, ctx: discord.Interaction, player_id: int) -> None:
         """Handle per-player role string select for CHOSEN :attr:`role_mode`."""
         log = self.logger.getChild("lobby_role_select")
         if ctx.user.id != player_id:
             await followup_send(ctx,
-                get("queue.role_select_not_yours"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                get("queue.role_select_not_yours"),
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
         if getattr(self.game, "role_mode", RoleMode.NONE) != RoleMode.CHOSEN:
             log.warning("role select on non-CHOSEN lobby lobby=%s", self.message.id)
             await followup_send(ctx,
-                get("matchmaking.invalid_interaction"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                get("matchmaking.invalid_interaction"),
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
         raw = (ctx.data.get("values") or [""])[0]
         self.role_selections[player_id] = str(raw)
         getattr(self, "_reset_ready_state", lambda: None)()
         await self.update_embed()
         await followup_send(ctx,
-            get("queue.role_select_updated"),
-            ephemeral=True,
-            delete_after=EPHEMERAL_DELETE_AFTER,
-        )
+                            get("queue.role_select_updated"),
+                            ephemeral=True,
+                            delete_after=EPHEMERAL_DELETE_AFTER,
+                            )
 
     async def update_embed(self) -> None:
         """
@@ -1563,16 +1578,16 @@ class MatchmakingInterface:
             log.debug(
                 f"Player.py {player} attempted to accept invite, but they are already in the game! "
                 f"{contextify(ctx)}")
-            await followup_send(ctx,get("queue.already_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, get("queue.already_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
             return False
         if user_in_active_game(player.id):
             log.info(f"Player.py {player} attempted to accept invite while already in another active game."
                      f" {contextify(ctx)}")
             await followup_send(ctx,
-                get("queue.already_in_active_game_other_server"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                get("queue.already_in_active_game_other_server"),
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return False
         if user_in_active_matchmaking(player.id):
             log.info(
@@ -1580,17 +1595,17 @@ class MatchmakingInterface:
                 f" {contextify(ctx)}"
             )
             await followup_send(ctx,
-                get("queue.already_in_another_queue"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                get("queue.already_in_another_queue"),
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return False
         else:
             if player is None:  # Couldn't retrieve information, so don't join them
                 log.warning(
                     f"Player.py {player} attempted to accept invite, but we couldn't connect to the database!"
                     f"{contextify(ctx)}")
-                await followup_send(ctx,get("queue.couldnt_connect_db"), ephemeral=True)
+                await followup_send(ctx, get("queue.couldnt_connect_db"), ephemeral=True)
                 return False
 
             # Add to whitelist or remove from blacklist, depending on private/public status
@@ -1718,15 +1733,15 @@ class MatchmakingInterface:
         if ctx.user.id in [p.id for p in self.queued_players]:  # Can't join if you are already in
             log.info(f"Attempted to join player {new_player} but failed because they were already in the queue."
                      f" {contextify(ctx)}")
-            await followup_send(ctx,get("queue.already_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, get("queue.already_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
         elif user_in_active_game(new_player.id):
             log.info(f"Attempted to join player {new_player} but failed because they are already in another game."
                      f" {contextify(ctx)}")
             await followup_send(ctx,
-                get("queue.already_in_active_game_other_server"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                get("queue.already_in_active_game_other_server"),
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
         elif user_in_active_matchmaking(new_player.id):
             log.info(
@@ -1734,10 +1749,10 @@ class MatchmakingInterface:
                 f" {contextify(ctx)}"
             )
             await followup_send(ctx,
-                get("queue.already_in_another_queue"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                get("queue.already_in_another_queue"),
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
         else:
             if not self.private:
@@ -1745,10 +1760,10 @@ class MatchmakingInterface:
                     log.info(f"Attempted to join player {new_player} but failed because they were already in the queue."
                              f" {contextify(ctx)}")
                     await followup_send(ctx,
-                        fmt("queue.banned_message", creator=self.creator.mention),
-                        ephemeral=True,
-                        delete_after=EPHEMERAL_DELETE_AFTER,
-                    )
+                                        fmt("queue.banned_message", creator=self.creator.mention),
+                                        ephemeral=True,
+                                        delete_after=EPHEMERAL_DELETE_AFTER,
+                                        )
                     return
                 self.queued_players.add(new_player)  # Add the player to queued_players
                 IN_MATCHMAKING.update({new_player: self})
@@ -1760,10 +1775,10 @@ class MatchmakingInterface:
                              f" they were not on the whitelist."
                              f" {contextify(ctx)}")
                     await followup_send(ctx,
-                        get("queue.not_on_whitelist"),
-                        ephemeral=True,
-                        delete_after=EPHEMERAL_DELETE_AFTER,
-                    )
+                                        get("queue.not_on_whitelist"),
+                                        ephemeral=True,
+                                        delete_after=EPHEMERAL_DELETE_AFTER,
+                                        )
                     return
                 self.queued_players.add(new_player)  # Add the player to queued_players
                 IN_MATCHMAKING.update({new_player: self})
@@ -1773,14 +1788,14 @@ class MatchmakingInterface:
     async def callback_toggle_ready(self, ctx: discord.Interaction) -> None:
         player = get_shallow_player(ctx.user)
         if player.id not in [p.id for p in self.queued_players]:
-            await followup_send(ctx,get("queue.not_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, get("queue.not_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
             return
         if not self._base_start_conditions_met():
             await followup_send(ctx,
-                get("queue.ready_requirements_not_met"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                get("queue.ready_requirements_not_met"),
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
         ready_players = getattr(self, "ready_players", set())
         if player.id in ready_players:
@@ -1790,7 +1805,7 @@ class MatchmakingInterface:
             ready_players.add(player.id)
             notice = get("queue.ready_confirmed")
         await self.update_embed()
-        await followup_send(ctx,notice, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+        await followup_send(ctx, notice, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
 
     async def callback_leave_game(self, ctx: discord.Interaction) -> None:
         """
@@ -1805,7 +1820,7 @@ class MatchmakingInterface:
         if player.id not in [p.id for p in self.queued_players]:  # Can't leave if you weren't even there
             log.info(f"Attempted to remove player {player} but failed because they weren't in the queue to begin with."
                      f" {contextify(ctx)}")
-            await followup_send(ctx,get("queue.not_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, get("queue.not_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
         else:
             # Remove player from queue
             for p in self.queued_players:
@@ -1818,8 +1833,8 @@ class MatchmakingInterface:
             # Nobody is left lol
             if not len(self.queued_players):
                 log.info(f"Call to leave_game left no players in lobby, so ending game. {contextify(ctx)}")
-                await followup_send(ctx,get("queue.game_cancelled_last_player"),
-                                        ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+                await followup_send(ctx, get("queue.game_cancelled_last_player"),
+                                    ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
                 await self.message.delete()  # Remove matchmaking message
                 self.outcome = False
                 return

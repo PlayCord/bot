@@ -1,8 +1,19 @@
 import logging
 
+import discord
 from discord.ext import commands
 
-from configuration.constants import *
+from configuration.constants import (
+    BUTTON_PREFIX_INVITE,
+    BUTTON_PREFIX_JOIN,
+    BUTTON_PREFIX_LEAVE,
+    BUTTON_PREFIX_LOBBY_OPT,
+    BUTTON_PREFIX_LOBBY_ROLE,
+    BUTTON_PREFIX_READY,
+    CURRENT_MATCHMAKING,
+    EPHEMERAL_DELETE_AFTER,
+    LOGGING_ROOT,
+)
 from utils.conversion import contextify
 from utils.discord_utils import followup_send
 from utils.locale import get
@@ -48,23 +59,26 @@ class MatchmakingCog(commands.Cog):
         cid = data.get("custom_id")
         if not cid or not cid.startswith(BUTTON_PREFIX_LOBBY_OPT):
             await followup_send(ctx,
-                content=get("matchmaking.invalid_interaction"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                content=get("matchmaking.invalid_interaction"),
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
         rest = cid[len(BUTTON_PREFIX_LOBBY_OPT):]
         mid_str, _, key = rest.partition("/")
         if not mid_str or not key:
-            await followup_send(ctx,content=get("matchmaking.invalid_button"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, content=get("matchmaking.invalid_button"), ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER)
             return
         try:
             matchmaking_id = int(mid_str)
         except ValueError:
-            await followup_send(ctx,content=get("matchmaking.invalid_button"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, content=get("matchmaking.invalid_button"), ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER)
             return
         if matchmaking_id not in CURRENT_MATCHMAKING:
-            await followup_send(ctx,content=get("matchmaking.session_expired"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, content=get("matchmaking.session_expired"), ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER)
             return
         f_log.debug("lobby option key=%r lobby=%s user=%s", key, matchmaking_id, ctx.user.id)
         matchmaker = CURRENT_MATCHMAKING[matchmaking_id]
@@ -77,21 +91,25 @@ class MatchmakingCog(commands.Cog):
         data = ctx.data if ctx.data is not None else {}
         cid = data.get("custom_id")
         if not cid or not cid.startswith(BUTTON_PREFIX_LOBBY_ROLE):
-            await followup_send(ctx,content=get("matchmaking.invalid_interaction"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, content=get("matchmaking.invalid_interaction"), ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER)
             return
         rest = cid[len(BUTTON_PREFIX_LOBBY_ROLE):]
         mid_str, _, pid_str = rest.partition("/")
         if not mid_str or not pid_str:
-            await followup_send(ctx,content=get("matchmaking.invalid_button"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, content=get("matchmaking.invalid_button"), ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER)
             return
         try:
             matchmaking_id = int(mid_str)
             player_id = int(pid_str)
         except ValueError:
-            await followup_send(ctx,content=get("matchmaking.invalid_button"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, content=get("matchmaking.invalid_button"), ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER)
             return
         if matchmaking_id not in CURRENT_MATCHMAKING:
-            await followup_send(ctx,content=get("matchmaking.session_expired"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, content=get("matchmaking.session_expired"), ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER)
             return
         f_log.debug("lobby role pick lobby=%s player_id=%s user=%s", matchmaking_id, player_id, ctx.user.id)
         matchmaker = CURRENT_MATCHMAKING[matchmaking_id]
@@ -107,7 +125,8 @@ class MatchmakingCog(commands.Cog):
         data = ctx.data if ctx.data is not None else {}
         cid = data.get("custom_id")
         if not cid:
-            await followup_send(ctx,content=get("matchmaking.invalid_interaction"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, content=get("matchmaking.invalid_interaction"), ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER)
             return
 
         # Get interaction context
@@ -135,7 +154,8 @@ class MatchmakingCog(commands.Cog):
         try:
             matchmaking_id = int(cid.replace(leading_str, ""))
         except ValueError:
-            await followup_send(ctx,content=get("matchmaking.invalid_button"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, content=get("matchmaking.invalid_button"), ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER)
             return
 
         # Check if it exists
@@ -144,10 +164,10 @@ class MatchmakingCog(commands.Cog):
                 f"Matchmaking expired when trying to press button: {interaction_context}"
             )
             await followup_send(ctx,
-                content=get("matchmaking.session_expired"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                content=get("matchmaking.session_expired"),
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
 
         matchmaker = CURRENT_MATCHMAKING[matchmaking_id]
@@ -172,22 +192,24 @@ class MatchmakingCog(commands.Cog):
         try:
             matchmaking_id = int(cid.replace(BUTTON_PREFIX_INVITE, ""))
         except (TypeError, ValueError, AttributeError):
-            await followup_send(ctx,content=get("matchmaking.invalid_button"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, content=get("matchmaking.invalid_button"), ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER)
             return
 
         if matchmaking_id not in CURRENT_MATCHMAKING:
             await followup_send(ctx,
-                content=get("matchmaking.invite_expired"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                content=get("matchmaking.invite_expired"),
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
 
         matchmaker = CURRENT_MATCHMAKING[matchmaking_id]
         success = await matchmaker.accept_invite(ctx)
 
         if success:
-            await followup_send(ctx,content=get("matchmaking.invite_ok"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(ctx, content=get("matchmaking.invite_ok"), ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER)
 
 
 async def setup(bot: commands.Bot):

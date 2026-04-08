@@ -237,6 +237,14 @@ class Game(ABC):
         """
         pass
 
+    def is_game_finished(self) -> bool:
+        """
+        Return True when :meth:`outcome` is non-None (match decided: win, draw, etc.).
+
+        Used by :class:`~utils.interfaces.GameInterface` to reject moves after the game ends.
+        """
+        return self.outcome() is not None
+
     def match_global_summary(self, outcome: object) -> str | None:
         """
         One line for the whole match: final scoreboard, how the game ended, etc.

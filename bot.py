@@ -13,6 +13,7 @@ from configuration.constants import *
 from utils import database as db
 from utils.analytics import Timer
 from utils.locale import fmt, get
+from utils.bot_owners import STATIC_OWNER_IDS, resolve_effective_owner_ids
 from utils.command_builder import build_function_definitions
 from utils.discord_utils import command_error
 from utils.formatter import Formatter
@@ -98,8 +99,22 @@ else:
 class PlayCordBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=discord.Intents.all(), help_command=None)
+        self._effective_owner_ids: frozenset[int] | None = None
+
+    @property
+    def effective_owner_ids(self) -> frozenset[int]:
+        """User IDs that may use owner-only features (``OWNERS`` + Portal application owner)."""
+        if self._effective_owner_ids is not None:
+            return self._effective_owner_ids
+        return STATIC_OWNER_IDS
 
     async def setup_hook(self):
+        self._effective_owner_ids = await resolve_effective_owner_ids(self)
+        startup_logger.info(
+            "Resolved %d effective owner user ID(s) (OWNERS list + Developer Portal owner).",
+            len(self._effective_owner_ids),
+        )
+
         # Load Cogs
         await self.load_extension("cogs.general")
         await self.load_extension("cogs.matchmaking")

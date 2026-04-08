@@ -17,6 +17,8 @@ MESSAGE_COMMAND_TREEDIFF = "treediff"
 MESSAGE_COMMAND_DBRESET = "dbreset"
 MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER = "this"
 
+# Additional bot operator user IDs (always owners). The Developer Portal application owner
+# (and team owner_user_id when the app is under a team) is merged at runtime in PlayCordBot.setup_hook.
 OWNERS = [897146430664355850, 1085939954758205561]
 CONFIGURATION = {}
 
@@ -147,6 +149,9 @@ PERMISSION_MSG_SPECTATE_DISABLED = get("permissions.spectate_disabled")
 PERMISSION_MSG_WRONG_CHANNEL = get("permissions.wrong_channel")
 PERMISSION_MSG_NO_GAME_HERE = get("permissions.no_game_here")
 PERMISSION_MSG_NOT_YOUR_TURN = get("permissions.not_your_turn")
+
+# In-game ephemeral errors (shared across game implementations)
+GAME_MSG_ALREADY_OVER = get("game.errors.already_over")
 
 # Thread policy settings
 THREAD_POLICY_WARN_NON_PARTICIPANTS = True  # Warn users who message in game threads without being participants

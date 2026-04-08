@@ -4,6 +4,11 @@ from discord import SelectOption
 from configuration.constants import (
     BUTTON_PREFIX_LOBBY_OPT,
     BUTTON_PREFIX_LOBBY_ROLE,
+    BUTTON_PREFIX_PAGINATION_FIRST,
+    BUTTON_PREFIX_PAGINATION_LAST,
+    BUTTON_PREFIX_PAGINATION_NEXT,
+    BUTTON_PREFIX_PAGINATION_PREV,
+    BUTTON_PREFIX_REMATCH,
     EPHEMERAL_DELETE_AFTER,
     GAME_TYPES,
     HELP_GAMES_PREVIEW_COUNT,
@@ -17,12 +22,15 @@ from utils.containers import (
     HelpGettingStartedContainer,
     HelpTutorialsContainer,
     HelpMainContainer,
+    TEXT_DISPLAY_MAX,
     container_to_markdown,
 )
 from utils.locale import get
 
 
-container_to_view_text = container_to_markdown
+async def _noop_button_interaction(interaction: discord.Interaction) -> None:
+    """Placeholder callback for decorative buttons (e.g. link row)."""
+    pass
 
 
 class DynamicButtonView(discord.ui.LayoutView):
@@ -44,7 +52,7 @@ class DynamicButtonView(discord.ui.LayoutView):
         super().__init__(timeout=None)
         container = discord.ui.Container()
         if summary_text:
-            container.add_item(discord.ui.TextDisplay(summary_text[:4000]))
+            container.add_item(discord.ui.TextDisplay(summary_text[:TEXT_DISPLAY_MAX]))
         if table_image_url:
             if summary_text:
                 container.add_item(discord.ui.Separator())
@@ -76,7 +84,7 @@ class DynamicButtonView(discord.ui.LayoutView):
             if button["callback"] is None:
                 item.callback = self._fail_callback
             elif button["callback"] == "none":
-                item.callback = self._null_callback
+                item.callback = _noop_button_interaction
             else:
                 item.callback = button["callback"]
             row.add_item(item)
@@ -88,14 +96,6 @@ class DynamicButtonView(discord.ui.LayoutView):
         if count:
             container.add_item(row)
         self.add_item(container)
-
-    async def _null_callback(self, interaction: discord.Interaction) -> None:
-        """
-        Null callback
-        :param interaction: discord context
-        :return: Nothing
-        """
-        pass
 
     async def _fail_callback(self, interaction: discord.Interaction) -> None:
         """
@@ -184,7 +184,7 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
 
         container = discord.ui.Container()
         if summary_text:
-            container.add_item(discord.ui.TextDisplay(summary_text[:4000]))
+            container.add_item(discord.ui.TextDisplay(summary_text[:TEXT_DISPLAY_MAX]))
         if table_image_url:
             if summary_text:
                 container.add_item(discord.ui.Separator())
@@ -360,15 +360,8 @@ class PaginationView(discord.ui.LayoutView):
         self.callback_handler = callback_handler
         container = discord.ui.Container()
         if body_text:
-            container.add_item(discord.ui.TextDisplay(body_text[:4000]))
+            container.add_item(discord.ui.TextDisplay(body_text[:TEXT_DISPLAY_MAX]))
             container.add_item(discord.ui.Separator())
-
-        from configuration.constants import (
-            BUTTON_PREFIX_PAGINATION_FIRST,
-            BUTTON_PREFIX_PAGINATION_PREV,
-            BUTTON_PREFIX_PAGINATION_NEXT,
-            BUTTON_PREFIX_PAGINATION_LAST
-        )
 
         base = f"{guild_id}/{user_id}"
         row = discord.ui.ActionRow()
@@ -481,8 +474,6 @@ class RematchView(DynamicButtonView):
     """Rematch button; interaction is handled in GamesCog (see callback \"none\")."""
 
     def __init__(self, match_id: int, summary_text: str | None = None):
-        from configuration.constants import BUTTON_PREFIX_REMATCH
-
         super().__init__([
             {
                 "label": get("buttons.rematch"),
@@ -512,7 +503,7 @@ class HelpView(discord.ui.LayoutView):
             discord.ui.TextDisplay("### Help Navigation"),
         )
         if self.body_text:
-            container.add_item(discord.ui.TextDisplay(self.body_text[:4000]))
+            container.add_item(discord.ui.TextDisplay(self.body_text[:TEXT_DISPLAY_MAX]))
             container.add_item(discord.ui.Separator())
         row = discord.ui.ActionRow()
         if self.current_section == "main":
@@ -623,7 +614,7 @@ class HelpButton(discord.ui.Button):
         view = HelpView(
             user_id=self.user_id,
             current_section=self.section,
-            body_text=container_to_view_text(container),
+            body_text=container_to_markdown(container),
         )
         await interaction.response.edit_message(view=view)
     
@@ -689,7 +680,7 @@ class GameTutorialButton(discord.ui.Button):
         view = HelpView(
             user_id=self.user_id,
             current_section="tutorials",
-            body_text=container_to_view_text(container),
+            body_text=container_to_markdown(container),
         )
         await interaction.response.edit_message(view=view)
 
@@ -732,7 +723,7 @@ class ContextualHelpView(discord.ui.LayoutView):
 
         await response_send_message(
             interaction,
-            content=container_to_view_text(container),
+            content=container_to_markdown(container),
             ephemeral=True,
             delete_after=EPHEMERAL_DELETE_AFTER,
         )

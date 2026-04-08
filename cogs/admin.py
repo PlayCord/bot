@@ -5,7 +5,21 @@ import traceback
 import discord
 from discord.ext import commands
 
-from configuration.constants import *
+from configuration.constants import (
+    INFO_COLOR,
+    LOGGING_ROOT,
+    MESSAGE_COMMAND_ANALYTICS,
+    MESSAGE_COMMAND_CLEAR,
+    MESSAGE_COMMAND_DBRESET,
+    MESSAGE_COMMAND_FAILED,
+    MESSAGE_COMMAND_PENDING,
+    MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER,
+    MESSAGE_COMMAND_SUCCEEDED,
+    MESSAGE_COMMAND_SYNC,
+    MESSAGE_COMMAND_TREEDIFF,
+    SUCCESS_COLOR,
+    WARNING_COLOR,
+)
 from utils import database as db
 from utils.analytics import (
     format_recent_event_row,
@@ -75,7 +89,7 @@ class AdminCog(commands.Cog):
         """
         Handle message commands for bot administration
         """
-        if msg.author.bot or msg.author.id not in OWNERS:
+        if msg.author.bot or msg.author.id not in self.bot.effective_owner_ids:
             return
 
         f_log = log.getChild("event.on_message")

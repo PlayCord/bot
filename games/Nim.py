@@ -5,6 +5,7 @@ from api.MatchOptions import MatchOptionSpec
 from api.MessageComponents import Container, MediaGallery, Message, TextDisplay, format_data_table_image
 from api.Player import Player
 from api.Response import Response
+from configuration.constants import UI_MESSAGE_DELETE_DELAY
 
 
 class NimGame(Game):
@@ -80,16 +81,13 @@ class NimGame(Game):
         return self.players[self.turn]
 
     def take(self, player: Player, pile: int, count: int):
-        if self.finished:
-            return Response(content="This game is already over.", ephemeral=True, delete_after=5)
-
         pile_index = pile - 1
         if pile_index < 0 or pile_index >= len(self.piles):
-            return Response(content="Pile must be 1, 2, or 3.", ephemeral=True, delete_after=5)
+            return Response(content="Pile must be 1, 2, or 3.", ephemeral=True, delete_after=UI_MESSAGE_DELETE_DELAY)
         if count <= 0:
-            return Response(content="Count must be at least 1.", ephemeral=True, delete_after=5)
+            return Response(content="Count must be at least 1.", ephemeral=True, delete_after=UI_MESSAGE_DELETE_DELAY)
         if self.piles[pile_index] < count:
-            return Response(content="That pile doesn't have enough stones.", ephemeral=True, delete_after=5)
+            return Response(content="That pile doesn't have enough stones.", ephemeral=True, delete_after=UI_MESSAGE_DELETE_DELAY)
 
         self.piles[pile_index] -= count
         self.last_action = f"{player.mention} removed {count} from pile {pile}."

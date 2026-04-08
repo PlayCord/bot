@@ -65,12 +65,6 @@ class _GroupedNode(LayoutNode):
     pass
 
 
-def _callback_name(callback: str | Callable[..., Any]) -> str:
-    if callable(callback):
-        return callback.__name__
-    return str(callback)
-
-
 def _coerce_text_node(node: str | "TextDisplay") -> str | discord.ui.TextDisplay:
     if isinstance(node, TextDisplay):
         return node.build(_BuildContext(game_id=None))
@@ -234,10 +228,11 @@ class Button:
         if self.arguments:
             args = ",".join(f"{key}={value}" for key, value in self.arguments.items())
         prefix = "c" if self.require_current_turn else "n"
+        cb_name = self.callback.__name__ if callable(self.callback) else str(self.callback)
         return discord.ui.Button(
             style=self.style,
             label=self.label or "\u200b",
-            custom_id=f"{prefix}/{ctx.game_id}/{_callback_name(self.callback)}/{args}",
+            custom_id=f"{prefix}/{ctx.game_id}/{cb_name}/{args}",
             disabled=self.disabled,
         )
 
@@ -268,13 +263,14 @@ class Select:
                 )
             )
         prefix = "select_c" if self.require_current_turn else "select_n"
+        cb_name = self.callback.__name__ if callable(self.callback) else str(self.callback)
         return discord.ui.Select(
             options=options,
             min_values=self.min_values,
             max_values=self.max_values,
             placeholder=self.placeholder,
             disabled=self.disabled,
-            custom_id=f"{prefix}/{ctx.game_id}/{_callback_name(self.callback)}",
+            custom_id=f"{prefix}/{ctx.game_id}/{cb_name}",
         )
 
 

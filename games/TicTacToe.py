@@ -7,6 +7,7 @@ from api.Game import Game
 from api.MessageComponents import Button, ButtonStyle, Container, MediaGallery, Message, TextDisplay, format_data_table_image
 from api.Player import Player
 from api.Response import Response, ResponseType
+from configuration.constants import UI_MESSAGE_DELETE_DELAY
 
 
 class TicTacToeGame(Game):
@@ -49,8 +50,8 @@ class TicTacToeGame(Game):
 
     def state(self) -> Message:
         buttons = []
-        for col in range(3):
-            for row in range(3):
+        for col in range(self.size):
+            for row in range(self.size):
                 name = None
                 emoji = None
                 if self.board[row][col].id == self.x.id:
@@ -93,11 +94,9 @@ class TicTacToeGame(Game):
         return moves
 
     def move(self, player, move):
-        if player.id != self.players[self.turn].id:
-            return Response(content="It's not your turn.", style=ResponseType.error, ephemeral=True, delete_after=5)
         if self.board[int(move[1])][int(move[0])].id is not None:
             return Response(content="That tile is already taken.", style=ResponseType.error, ephemeral=True,
-                            delete_after=5)
+                            delete_after=UI_MESSAGE_DELETE_DELAY)
         self.board[int(move[1])][int(move[0])].take(self.players[self.turn])
         self.turn += 1
         if self.turn == len(self.players):
@@ -210,15 +209,15 @@ class TicTacToeGame(Game):
                 return row[0].owner  # Return the winner's owner
 
         # Check columns
-        for col in range(3):
+        for col in range(self.size):
             if (self.board[0][col].id is not None and
-                    all(self.board[row][col].id == self.board[0][col].id for row in range(3))):
+                    all(self.board[row][col].id == self.board[0][col].id for row in range(self.size))):
                 return self.board[0][col].owner  # Return the winner's owner
 
         # Check diagonals
-        if self.board[0][0].id is not None and all(self.board[i][i].id == self.board[0][0].id for i in range(3)):
+        if self.board[0][0].id is not None and all(self.board[i][i].id == self.board[0][0].id for i in range(self.size)):
             return self.board[0][0].owner  # Return the winner's owner
-        if self.board[0][2].id is not None and all(self.board[i][2 - i].id == self.board[0][2].id for i in range(3)):
+        if self.board[0][2].id is not None and all(self.board[i][2 - i].id == self.board[0][2].id for i in range(self.size)):
             return self.board[0][2].owner  # Return the winner's owner
 
         # Check for a draw (self.board is full and no winner)

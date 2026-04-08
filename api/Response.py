@@ -29,7 +29,7 @@ class Response:
     ) -> None:
         """
         Create a new Response object.
-[        :param content: plain text content of the response, outside of both the embed and view
+        :param content: plain text content of the response, outside of both the embed and view
         :param style: the style of the embed (normal, info, error)
         :param ephemeral: whether or not the embed is invisible to everyone but who called the callback
         :param delete_after: after how long to delete the message after it is sent
@@ -90,10 +90,3 @@ class Response:
 
         return (message_send_function(**payload),
                 lambda x: x.delete(delay=self.delete_after) if self.delete_after is not None else None)
-
-    def send(
-            self,
-            message_send_function: Callable[..., Awaitable[Any]],
-            game_id: int = None,
-    ) -> tuple[Awaitable[Any], Callable[[Any], Awaitable[Any] | None]]:
-        return self.generate_message(message_send_function, game_id)
