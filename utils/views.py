@@ -121,36 +121,36 @@ class MatchmakingView(DynamicButtonView):
         self,
         join_button_id=None,
         leave_button_id=None,
-        start_button_id=None,
         ready_button_id=None,
         ready_button_label: str | None = None,
-        can_start=True,
         summary_text: str | None = None,
         table_image_url: str | None = None,
     ) -> None:
         """
-        Create a matchmaking view
-        :param join_button_id: id of the join button
-        :param leave_button_id: id of the leave button
-        :param start_button_id: id of the start button
-        :param can_start: whether the game can be started
+        Create a matchmaking view (Join / Leave / optional Ready — no Start; game begins when all ready).
         """
-        super().__init__([
+        buttons: list[dict] = [
             {"label": get("buttons.join"), "style": discord.ButtonStyle.gray, "id": join_button_id,
              "callback": "none"},
             {"label": get("buttons.leave"), "style": discord.ButtonStyle.gray, "id": leave_button_id,
              "callback": "none"},
-            {"label": ready_button_label or get("buttons.ready"), "style": discord.ButtonStyle.success, "id": ready_button_id,
-             "callback": "none"},
-            {"label": get("buttons.start"), "style": discord.ButtonStyle.blurple, "id": start_button_id,
-             "callback": "none", "disabled": not can_start}
-        ], summary_text=summary_text, table_image_url=table_image_url)
+        ]
+        if ready_button_id is not None:
+            buttons.append(
+                {
+                    "label": ready_button_label or get("buttons.ready"),
+                    "style": discord.ButtonStyle.success,
+                    "id": ready_button_id,
+                    "callback": "none",
+                }
+            )
+        super().__init__(buttons, summary_text=summary_text, table_image_url=table_image_url)
 
 
 class MatchmakingLobbyView(discord.ui.LayoutView):
     """
-    Join / leave / start, optional string selects for per-game lobby settings (creator-only),
-    and optional per-player role selects for games with CHOSEN role mode.
+    Join / leave / optional Ready, optional string selects for per-game lobby settings (creator-only),
+    and optional per-player role selects for games with CHOSEN role mode. (Game starts when all humans ready.)
     """
 
     async def _route_to_cog(self, interaction: discord.Interaction) -> None:
@@ -161,10 +161,8 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
         self,
         join_button_id: str,
         leave_button_id: str,
-        start_button_id: str,
         ready_button_id: str | None,
         ready_button_label: str,
-        can_start: bool,
         lobby_message_id: int,
         option_specs: tuple = (),
         current_values: dict[str, str | int] | None = None,
@@ -218,14 +216,6 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
             ready_btn.callback = self._route_to_cog
             action_row.add_item(ready_btn)
 
-        start_btn = discord.ui.Button(
-            label=get("buttons.start"),
-            style=discord.ButtonStyle.blurple,
-            custom_id=start_button_id,
-            disabled=not can_start,
-        )
-        start_btn.callback = self._route_to_cog
-        action_row.add_item(start_btn)
         container.add_item(action_row)
 
         if option_specs:

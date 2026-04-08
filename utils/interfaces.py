@@ -1184,6 +1184,51 @@ class MatchmakingInterface:
         human_ids = {p.id for p in self.queued_players}
         return bool(human_ids) and getattr(self, "ready_players", set()) == human_ids
 
+    def _needed_players_display(self) -> str:
+        pc = resolve_player_count(self.game)
+        if pc is None:
+            return get("queue.lobby_needed_any")
+        if isinstance(pc, int):
+            return str(pc)
+        return " or ".join(str(x) for x in sorted(pc))
+
+    def _lobby_view_summary_line(self) -> str:
+        """Title line: ready counts only when the lobby can accept Ready toggles."""
+        if self._base_start_conditions_met():
+            return fmt(
+                "queue.lobby_header_ready_phase",
+                game=self.game.name,
+                ready=len(self.ready_players),
+                total=len(self.queued_players),
+            )
+        cur = len(self.all_players())
+        needed = self._needed_players_display()
+        return fmt("queue.lobby_header_recruiting", game=self.game.name, current=cur, needed=needed)
+
+    async def _maybe_auto_start_from_lobby(self) -> bool:
+        """When roster + ready checks pass, start immediately (no Start button)."""
+        if not self._base_start_conditions_met() or not self._all_humans_ready():
+            return False
+        busy_players = [q for q in self.queued_players if user_in_active_game(q.id)]
+        if busy_players:
+            au_log = self.logger.getChild("auto_start")
+            au_log.info(
+                "auto-start blocked: queued players in another active game lobby=%s busy=%s",
+                self.message.id,
+                [p.id for p in busy_players],
+            )
+            self._reset_ready_state()
+            return False
+        self.outcome = True
+        loading_message = Message(
+            Container(
+                TextDisplay(get_emoji_string("loading")),
+            )
+        )
+        await self.message.edit(**loading_message.to_edit_kwargs())
+        await successful_matchmaking(interface=self)
+        return True
+
     def all_players(self) -> list[InternalPlayer | Player]:
         return [*sorted(self.queued_players, key=lambda p: p.id), *self.bots]
 
@@ -1286,7 +1331,10 @@ class MatchmakingInterface:
         """
         log = self.logger.getChild("update_embed")
         update_timer = Timer().start()
-        # Set up the embed
+
+        if await self._maybe_auto_start_from_lobby():
+            log.debug("Matchmaking lobby auto-started in %sms.", update_timer.stop())
+            return
 
         game_rated_text = get("queue.rated") if self.rated else get("queue.not_rated")
         private_text = get("queue.private_status") if self.private else get("queue.public_status")
@@ -1318,7 +1366,7 @@ class MatchmakingInterface:
                 game_metadata[param] = get("help.game_info.unknown")
 
         container = CustomContainer(
-            title=fmt("queue.title", game=self.game.name),
+            title=self._lobby_view_summary_line(),
             description=(
                 f"⏰{game_metadata['time']}{LONG_SPACE_EMBED * 2}"
                 f"👤{self.allowed_players}{LONG_SPACE_EMBED * 2}"
@@ -1352,30 +1400,15 @@ class MatchmakingInterface:
         elif len(self.blacklist):
             container.add_field(name=get("queue.field_blacklist"), value=column_names(self.blacklist), inline=True)
 
-        ready_lines = []
-        for player in sorted(self.queued_players, key=lambda x: x.id):
-            ready_lines.append(
-                fmt(
-                    "queue.ready_state_line",
-                    player=getattr(player, "mention", getattr(player, "name", str(player.id))),
-                    state=get("queue.ready_state_ready") if player.id in self.ready_players else get("queue.ready_state_waiting"),
-                )
-            )
-        if ready_lines:
-            container.add_field(
-                name=get("queue.field_ready_state"),
-                value="\n".join(ready_lines),
-                inline=False,
-            )
-
         try:
             container.set_footer(text=self.game.description)
         except Exception:
             # Fallback: if footer cannot be set for some reason, add as normal fields
             if self.game.description:
                 container.add_field(name=get("queue.field_game_info"), value=self.game.description, inline=False)
-            if author:
-                container.add_field(name=get("queue.field_game_by"), value=str(author), inline=False)
+            auth = game_metadata.get("author")
+            if auth:
+                container.add_field(name=get("queue.field_game_by"), value=str(auth), inline=False)
 
         if self._specs:
             opt_lines = []
@@ -1433,14 +1466,9 @@ class MatchmakingInterface:
                     inline=False,
                 )
 
-        # Can the start button be pressed?
-        start_enabled = self._base_start_conditions_met() and self._all_humans_ready()
-
-        # Create matchmaking button view (with callbacks and can_start)
         join_id = f"join/{self.message.id}"
         leave_id = f"leave/{self.message.id}"
-        start_id = f"start/{self.message.id}"
-        ready_id = f"{BUTTON_PREFIX_READY}{self.message.id}"
+        ready_id = f"{BUTTON_PREFIX_READY}{self.message.id}" if self._base_start_conditions_met() else None
         ready_label = get("buttons.ready_toggle")
         role_specs_list: list[tuple[int, str, tuple[str, ...]]] = []
         if show_role_selects and pr_roles is not None:
@@ -1453,10 +1481,8 @@ class MatchmakingInterface:
             view = MatchmakingLobbyView(
                 join_button_id=join_id,
                 leave_button_id=leave_id,
-                start_button_id=start_id,
                 ready_button_id=ready_id,
                 ready_button_label=ready_label,
-                can_start=start_enabled,
                 lobby_message_id=self.message.id,
                 option_specs=self._specs,
                 current_values=dict(self.match_settings),
@@ -1469,10 +1495,8 @@ class MatchmakingInterface:
             view = MatchmakingView(
                 join_button_id=join_id,
                 leave_button_id=leave_id,
-                start_button_id=start_id,
                 ready_button_id=ready_id,
                 ready_button_label=ready_label,
-                can_start=start_enabled,
                 summary_text=container_to_markdown(container),
                 table_image_url=table_image_url,
             )
@@ -1785,69 +1809,6 @@ class MatchmakingInterface:
 
             await self.update_embed()  # Update embed again
         return
-
-    async def callback_start_game(self, ctx: discord.Interaction) -> None:
-        """
-        Callback for the selected player to start the game.
-        :param ctx: Discord context
-        :return: Nothing
-        """
-        log = self.logger.getChild("start_game")
-        player = get_shallow_player(ctx.user)
-        log.debug(f"Attempting to start the game... {contextify(ctx)}")
-
-        if ctx.user.id != self.creator.id:  # Don't have permissions to start the game
-            await followup_send(ctx,
-                get("permissions.cant_start_not_creator"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
-            log.debug(f"Game failed to start because player {player} was not the creator. "
-                      f"{contextify(ctx)}")
-            return
-
-        busy_players = [queued_player for queued_player in self.queued_players if user_in_active_game(queued_player.id)]
-        if busy_players:
-            verb = "is" if len(busy_players) == 1 else "are"
-            mentions = ", ".join(p.mention for p in busy_players)
-            await followup_send(ctx,
-                fmt("permissions.players_in_other_game", mentions=mentions, verb=verb),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
-            log.info("Game start denied because one or more queued players are already in another active game. "
-                     f"{contextify(ctx)}")
-            return
-
-        if not self._base_start_conditions_met():
-            await followup_send(ctx,
-                get("queue.ready_requirements_not_met"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
-            return
-        if not self._all_humans_ready():
-            await followup_send(ctx,
-                get("queue.ready_all_players_required"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
-            return
-
-        # The matchmaking was successful!
-        self.outcome = True
-
-        log.debug(f"Game successfully started by {player}!"
-                  f"{contextify(ctx)}")
-        # Start the GameInterface
-
-        loading_message = Message(
-            Container(
-                TextDisplay(get_emoji_string("loading")),
-            )
-        )
-        await self.message.edit(**loading_message.to_edit_kwargs())
-        await successful_matchmaking(interface=self)
 
 
 async def successful_matchmaking(interface: MatchmakingInterface) -> None:

@@ -35,7 +35,6 @@ class MatchmakingCog(commands.Cog):
                 custom_id.startswith(BUTTON_PREFIX_JOIN)
                 or custom_id.startswith(BUTTON_PREFIX_LEAVE)
                 or custom_id.startswith(BUTTON_PREFIX_READY)
-                or custom_id.startswith(BUTTON_PREFIX_START)
         ):
             await self.matchmaking_button_callback(ctx)
         elif custom_id.startswith(BUTTON_PREFIX_INVITE):
@@ -100,7 +99,7 @@ class MatchmakingCog(commands.Cog):
 
     async def matchmaking_button_callback(self, ctx: discord.Interaction) -> None:
         """
-        Handle matchmaking button (Join/Leave/Start)
+        Handle matchmaking button (Join / Leave / Ready)
         """
         await ctx.response.defer()
         f_log = log.getChild("callback.matchmaking_button")
@@ -125,7 +124,13 @@ class MatchmakingCog(commands.Cog):
         elif cid.startswith(BUTTON_PREFIX_READY):
             leading_str = BUTTON_PREFIX_READY
         else:
-            leading_str = BUTTON_PREFIX_START
+            await followup_send(
+                ctx,
+                content=get("matchmaking.invalid_button"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
 
         try:
             matchmaking_id = int(cid.replace(leading_str, ""))
@@ -154,8 +159,6 @@ class MatchmakingCog(commands.Cog):
             await matchmaker.callback_leave_game(ctx)
         elif leading_str == BUTTON_PREFIX_READY:
             await matchmaker.callback_toggle_ready(ctx)
-        else:
-            await matchmaker.callback_start_game(ctx)
 
     async def invite_accept_callback(self, ctx: discord.Interaction) -> None:
         """
