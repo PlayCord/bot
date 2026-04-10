@@ -2,7 +2,9 @@ import logging
 import os
 import sys
 
+import discord
 from discord import app_commands
+from discord.app_commands.models import AppCommand, AppCommandGroup, Argument
 from discord.ext import commands
 from ruamel.yaml import YAML
 
@@ -12,7 +14,7 @@ from cogs.general import command_play
 from configuration.constants import *
 from utils import database as db
 from utils.analytics import Timer
-from utils.locale import fmt, get
+from utils.locale import fmt, get, set_command_mentions
 from utils.bot_owners import STATIC_OWNER_IDS, resolve_effective_owner_ids
 from utils.command_builder import build_function_definitions
 from utils.discord_utils import command_error
@@ -80,6 +82,25 @@ def apply_environment_overrides(config: dict) -> dict:
                 )
 
     return config
+
+
+def _collect_remote_command_mentions(ac: AppCommand) -> dict[str, str]:
+    """Map command paths (e.g. ``playcord help``) to Discord mention strings."""
+    mentions: dict[str, str] = {}
+
+    def walk(node: AppCommand | AppCommandGroup, parts: tuple[str, ...]) -> None:
+        options = list(getattr(node, "options", None) or [])
+        mention = getattr(node, "mention", None)
+        if not options or all(isinstance(opt, Argument) for opt in options):
+            if mention:
+                mentions[" ".join(parts)] = mention
+            return
+        for opt in options:
+            if isinstance(opt, AppCommandGroup) or getattr(opt, "options", None) is not None:
+                walk(opt, parts + (opt.name,))
+
+    walk(ac, (ac.name,))
+    return mentions
 
 
 config = load_configuration()
@@ -155,6 +176,7 @@ class PlayCordBot(commands.Bot):
 
         await self._maybe_sync_commands_if_configured()
         await self._maybe_compare_command_tree_to_api()
+        await self._refresh_command_mentions()
 
     async def _maybe_sync_commands_if_configured(self) -> None:
         """Optional: sync app command tree when config bot.auto_sync_commands is true."""
@@ -192,6 +214,24 @@ class PlayCordBot(commands.Bot):
             startup_logger.warning(
                 fmt("startup.compare_command_tree_failed", error=str(e))
             )
+
+    async def _refresh_command_mentions(self) -> None:
+        """Load remote slash command IDs so `{command:...}` locale tokens render as clickable mentions."""
+        try:
+            remote_commands = await self.tree.fetch_commands()
+        except Exception as e:
+            startup_logger.warning(
+                "Could not fetch slash commands for locale mention tokens: %s",
+                e,
+            )
+            set_command_mentions(None)
+            return
+
+        mentions: dict[str, str] = {}
+        for ac in remote_commands:
+            mentions.update(_collect_remote_command_mentions(ac))
+        set_command_mentions(mentions)
+        startup_logger.info("Loaded %d slash command mention token(s).", len(mentions))
 
 
 if __name__ == "__main__":

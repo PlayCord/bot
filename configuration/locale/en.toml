@@ -1,6 +1,7 @@
 # PlayCord English Localization File
 # All user-facing strings are organized hierarchically for easy localization.
-# Use {variable} syntax for dynamic content that will be formatted at runtime.
+# Use {variable} syntax for dynamic content formatted at runtime.
+# Use {command:play} / {command:playcord help} to render clickable slash-command mentions.
 
 [meta]
 language = "English"
@@ -33,9 +34,9 @@ title = "👋 Welcome to {name}!"
 description = """Thanks for adding me! I'm a Discord bot for playing turn-based games with friends.
 
 **Quick Start:**
-• `/play <game>` - Start a new game
-• `/playcord catalog` - Browse all games
-• `/playcord help` - Interactive help menu"""
+• {command:play} - Start a new game
+• {command:playcord catalog} - Browse all games
+• {command:playcord help} - Interactive help menu"""
 
 [welcome.fields.games]
 name = "🎮 Available Games"
@@ -47,15 +48,15 @@ value = "Every game has a skill-based rating system. Win games to climb the lead
 
 [welcome.fields.help]
 name = "❓ Need Help?"
-value = "Use `/playcord help` for an interactive guide, or check out our [GitHub]({github_url}) for documentation."
+value = "Use {command:playcord help} for an interactive guide, or check out our [GitHub]({github_url}) for documentation."
 
 [welcome.fields.playcord_channel]
 name = "📌 Optional: dedicated channel"
-value = "Administrators can run `/playcord set_channel` in the channel where you want matchmaking to live when your server enforces a single PlayCord channel."
+value = "Administrators can run {command:playcord set_channel} in the channel where you want matchmaking to live when your server enforces a single PlayCord channel."
 
 [playcord]
 wrong_channel = "On this server, start games from {channel}."
-active_thread_command_restricted = "This is an active game thread. Use move commands or `/playcord forfeit` here."
+active_thread_command_restricted = "This is an active game thread. Use move commands or {command:playcord forfeit} here."
 
 [rematch]
 not_participant = "Only players from that match can start a rematch."
@@ -83,7 +84,7 @@ empty = "Please enter a non-empty message."
 delivery_failed = "Failed to send feedback. Try again later."
 
 [commands.set_channel]
-description = "Set or clear the channel where /play must be used when the server requires it"
+description = "Set or clear the channel where {command:play} must be used when the server requires it"
 param_channel = "Text channel, or leave empty to clear"
 guild_only = "Use this command in a server."
 cleared = "PlayCord channel setting cleared for this server."
@@ -164,7 +165,7 @@ compare_command_tree_failed = "compare_command_tree_on_startup failed: {error}"
 # =============================================================================
 [presence]
 catalog_games = "{count} games • /playcord catalog to list"
-users_playing = "{count} users playing • /playcord stats for stats"
+users_playing = "{count} users playing • /playcord stats} for stats"
 users_matchmaking = "{count} users matchmaking • /play to start a game"
 games_happening_now = "{count} games happening now • /play to start a game"
 
@@ -199,6 +200,7 @@ param_bot5 = "Fifth bot difficulty to add (optional)"
 [commands.play]
 description = "Start a new game lobby"
 param_game = "The game you want to play"
+did_you_mean = "Did you mean {command:play} {game}?"
 
 [commands.kick]
 description = "Remove a player from your lobby (they can rejoin)"
@@ -255,9 +257,9 @@ title = "📚 {name} Help Center"
 description = """Welcome to **{name}**! I'm your friendly game bot for Discord.
 
 Use the buttons below to explore different topics, or try these quick commands:
-• `/play <game>` - Start a new game
-• `/playcord catalog` - Browse all games
-• `/playcord profile` - View your stats"""
+• {command:play} - Start a new game
+• {command:playcord catalog} - Browse all games
+• {command:playcord profile} - View your stats"""
 
 [help.main.fields.getting_started]
 name = "🎮 Getting Started"
@@ -277,16 +279,16 @@ description = "Let's get you playing in under a minute!"
 
 [help.getting_started.fields.step1]
 name = "Step 1: Start a Game"
-value = """Use `/play <game>` to create a new game lobby.
-**Example:** `/play tictactoe`
+value = """Use {command:play} to create a new game lobby.
+**Example:** {command:play} tictactoe
 
-Not sure which game? Try `/playcord catalog` to browse!"""
+Not sure which game? Try {command:playcord catalog} to browse!"""
 
 [help.getting_started.fields.step2]
 name = "Step 2: Invite Friends (Optional)"
 value = """Your lobby is open to anyone by default.
 • **Public game:** Anyone can click Join
-• **Invite players:** Use `/playcord invite @user`"""
+• **Invite players:** Use {command:playcord invite}"""
 
 [help.getting_started.fields.step3]
 name = "Step 3: Play!"
@@ -296,42 +298,42 @@ Follow the on-screen instructions to make your moves!"""
 [help.getting_started.fields.tips]
 name = "💡 Pro Tips"
 value = """• Games track your rating - compete for the leaderboard!
-• Use `/playcord profile` to see your stats
+• Use {command:playcord profile} to see your stats
 • Click buttons instead of typing when available"""
 
 [help.commands]
-title = "⚙️ Command Reference"
+title = "Command Reference"
 description = "Here are all the commands you can use:"
 
 [help.commands.fields.playing]
-name = "🎮 Playing Games"
-value = """`/play <game>` - Start a new game
-`/playcord catalog` - Browse all games
-`/playcord invite @user` - Invite to your lobby
-`/playcord kick @user` - Remove from lobby
-`/playcord ban @user` - Ban from lobby"""
+name = "Playing Games"
+value = """{command:play} - Start a new game
+{command:playcord catalog} - Browse all games
+{command:playcord invite} - Invite to your lobby
+{command:playcord kick} - Remove from lobby
+{command:playcord ban} - Ban from lobby"""
 
 [help.commands.fields.stats]
-name = "📊 Stats & Rankings"
-value = """`/playcord profile [@user]` - View player stats
-`/playcord leaderboard <game>` - Top players
-`/playcord history` - Your recent matches (includes match IDs)
-`/playcord replay <match_id>` - Paginated move log for a match in this server"""
+name = "Stats & Rankings"
+value = """{command:playcord profile} - View player stats
+{command:playcord leaderboard} - Top players
+{command:playcord history} - Your recent matches (includes match IDs)
+{command:playcord replay} <match_id> - Paginated move log for a match in this server"""
 
 [help.commands.fields.info]
-name = "ℹ️ Information"
-value = """`/playcord help` - This help menu
-`/playcord about` - About the bot
-`/playcord stats` - Bot statistics
-`/playcord feedback <message>` - Send feedback to the team"""
+name = "Information"
+value = """{command:playcord help} - This help menu
+{command:playcord about} - About the bot
+{command:playcord stats} - Bot statistics
+{command:playcord feedback} <message> - Send feedback to the team"""
 
 [help.game_info]
-title = "🎮 How to Play: {game_name}"
+title = "How to Play: {game_name}"
 field_players = "👥 Players"
 field_duration = "⏰ Duration"
 field_difficulty = "📈 Difficulty"
 field_quick_start = "▶️ Quick Start"
-field_quick_start_value = "Type `/play {game_id}` to start a game!"
+field_quick_start_value = "Type {command:play} to start a game!"
 field_author = "👤 Created by"
 field_learn_more = "📚 Learn More"
 field_learn_more_value = "[Open full guide](https://playcord.github.io/learn/{game_id})"
@@ -345,7 +347,8 @@ title = "🎮 Available Games"
 description = "Here's a quick overview of what you can play:"
 field_games = "Games"
 field_tip = "💡 Tip"
-tip_value = "Use the buttons below for tutorials, or `/playcord catalog` for more detail."
+tip_value = "Use the buttons below for tutorials, or {command:playcord catalog} for more detail."
+game_entry = "• **{game_name}** ({command:play})"
 more_games = "*...and {count} more!*"
 
 [help.faq]
@@ -354,15 +357,15 @@ description = "Quick answers to common PlayCord questions."
 
 [help.faq.fields.play_again]
 name = "How do I start a game?"
-value = "Run `/play <game>` in a server text channel, then invite friends or wait for others to join."
+value = "Run {command:play} in a server text channel, then invite friends or wait for others to join."
 
 [help.faq.fields.channel]
 name = "Why can't I start a game here?"
-value = "Some servers set a dedicated PlayCord channel with `/playcord set_channel`. Start games there if your server configured one."
+value = "Some servers set a dedicated PlayCord channel with {command:playcord set_channel}. Start games there if your server configured one."
 
 [help.faq.fields.replay]
 name = "How do I review old matches?"
-value = "Use `/playcord history <game>` to browse recent matches, then `/playcord replay <match_code>` to inspect moves."
+value = "Use {command:playcord history} to browse recent matches, then {command:playcord replay} to inspect moves."
 
 [help.faq.fields.private_info]
 name = "What does Peek do?"
@@ -383,7 +386,7 @@ faq = "FAQ"
 game_tutorials = "Game Tutorials"
 back_to_help = "← Back to Help"
 view_catalog = "View Full Catalog"
-catalog_redirect = "Use `/playcord catalog` to browse all games with details!"
+catalog_redirect = "Use {command:playcord catalog} to browse all games with details!"
 
 # =============================================================================
 # FIRST TIME USER TUTORIAL
@@ -394,20 +397,20 @@ description = "Looks like this is your first time playing! Here's a quick guide 
 
 [tutorial.fields.how_games_work]
 name = "🎮 How Games Work"
-value = """1. **Join or Create** - Join a lobby or create one with `/play <game>`
-2. **Wait for Players** - Once enough players join, the creator starts the game
-3. **Play!** - Follow the on-screen buttons and instructions to play"""
+value = """1. Join or Create - Join a lobby or create one with {command:play}
+2. Wait for Players - Once enough players join, the creator starts the game
+3. Play! - Follow the on-screen buttons and instructions to play"""
 
 [tutorial.fields.ratings]
 name = "⭐ Ratings & Leaderboards"
 value = """Every rated game affects your skill rating. Win games to climb the leaderboard!
-Check your stats anytime with `/playcord profile`."""
+Check your stats anytime with {command:playcord profile}."""
 
 [tutorial.fields.tips]
 name = "💡 Pro Tips"
-value = """• Use **buttons** instead of typing when available - it's faster!
-• Invite friends with `/playcord invite @user`
-• Need help? Use `/playcord help` anytime"""
+value = """• Use buttons instead of typing when available - it's faster!
+• Invite friends with {command:playcord invite}
+• Need help? Use {command:playcord help} anytime"""
 
 [tutorial.fields.ready_to_play]
 name = "▶️ Ready to Play {game_name}?"
@@ -416,97 +419,70 @@ value = "Good luck and have fun! 🍀"
 # =============================================================================
 # ERROR MESSAGES
 # =============================================================================
-[errors.generic]
-description = "An unexpected error occurred."
-suggestion = "Please try again. If the problem persists, use `/playcord help` for assistance."
 
-[errors.not_in_matchmaking]
-description = "You need to be in a game lobby to use this command."
-suggestion = "Start a new game with `/play <game>` or join an existing lobby first."
 
-[errors.not_creator]
-description = "Only the lobby creator can perform this action."
-suggestion = "Ask the lobby creator to make changes, or create your own game lobby."
+[errors]
+generic = "An unexpected error occurred. Please try again. If the problem persists, use {command:playcord help} for assistance."
 
-[errors.already_in_game]
-description = "You're already in an active game."
-suggestion = "Finish your current game first, or forfeit it if you want to leave."
+not_in_matchmaking = "You need to be in a game lobby to use this command. Start a new game with {command:play} or join an existing lobby first."
 
-[errors.user_not_found]
-description = "I couldn't find that user in this server."
-suggestion = "Make sure you're mentioning a valid user who is in this server."
+not_creator = "Only the lobby creator can perform this action. Ask the lobby creator to make changes, or create your own game lobby."
 
-[errors.game_not_found]
-description = "That game doesn't exist."
-suggestion = "Use `/playcord catalog` to see all available games."
+already_in_game = "You're already in an active game. Finish your current game first, or forfeit it if you want to leave."
 
-[errors.database_error]
-description = "I'm having trouble connecting to the database right now."
-suggestion = "Please try again in a few moments. If this persists, the bot may be under maintenance."
+user_not_found = "I couldn't find that user in this server. Make sure you're mentioning a valid user who is in this server."
 
-[errors.invalid_move]
-description = "That move isn't allowed right now."
-suggestion = "Check the game rules or available moves and try again."
+game_not_found = "That game doesn't exist. Use {command:playcord catalog} to see all available games."
 
-[errors.not_your_turn]
-description = "It's not your turn to play."
-suggestion = "Wait for other players to make their moves."
+database_error = "I'm having trouble connecting to the database right now. Please try again in a few moments. If this persists, the bot may be under maintenance."
 
-[errors.game_ended]
-description = "This game has already finished."
-suggestion = "Start a new game with `/play <game>`!"
+invalid_move = "That move isn't allowed right now. Check the game rules or available moves and try again."
 
-[errors.not_participant]
-description = "You're not playing in this game."
-suggestion = "Click the **Spectate** button on the game status message to watch instead."
+not_your_turn = "It's not your turn to play. Wait for other players to make their moves."
 
-[errors.spectating_disabled]
-description = "Spectating has been disabled for this game."
-suggestion = "This game type doesn't allow spectators to preserve hidden information."
+game_ended = "This game has already finished. Start a new game with {command:play}!"
 
-[errors.wrong_channel]
-description = "Move commands can only be used during an active game."
-suggestion = "Start a new game with `/play <game>` first!"
+not_participant = "You're not playing in this game. Click the **Spectate** button on the game status message to watch instead."
 
-[errors.no_active_game]
-description = "There's no active game in this channel."
-suggestion = "This game thread may have ended. Start a new game with `/play <game>`!"
+spectating_disabled = "Spectating has been disabled for this game. This game type doesn't allow spectators to preserve hidden information."
 
-[errors.missing_permissions]
-description = "I don't have the required permissions in this channel."
-suggestion = "Make sure I have permissions to **Create Private Threads** and **Send Messages** in this channel."
+wrong_channel = "Move commands can only be used during an active game. Start a new game with {command:play} first!"
 
-[errors.invalid_channel]
-description = "Games can't be started inside threads."
-suggestion = "Use this command in a regular text channel instead."
+no_active_game = "There's no active game in this channel. This game thread may have ended. Start a new game with {command:play}!"
 
-[errors.playcord_channel_unset]
-description = "This server requires a PlayCord channel, but none is configured yet."
-suggestion = "Ask an admin to run `/playcord set_channel` in the channel where matchmaking should appear."
+missing_permissions = "I don't have the required permissions in this channel. Make sure I have permissions to **Create Private Threads** and **Send Messages** in this channel."
 
-[errors.rematch_invalid]
-description = "That rematch control is not valid."
-suggestion = "Start a new lobby with `/play <game>`."
+invalid_channel = "Games can't be started inside threads. Use this command in a regular text channel instead."
 
-[errors.rematch_unavailable]
-description = "That match can't be rematched right now."
-suggestion = "It may still be in progress or missing from the database."
+playcord_channel_unset = "This server requires a PlayCord channel, but none is configured yet. Ask an admin to run {command:playcord set_channel} in the channel where matchmaking should appear."
 
-[errors.replay_not_found]
-description = "No match with that ID exists in this server, or you may not view it here."
-suggestion = "Use `/playcord history` to find match IDs from your recent games."
+rematch_invalid = "That rematch control is not valid. Start a new lobby with {command:play}."
 
-[errors.player_not_found]
-description = "I couldn't find any data for **{player_name}**."
-suggestion = "This player may not have played any games yet."
+rematch_unavailable = "That match can't be rematched right now. It may still be in progress or missing from the database."
 
-[errors.no_active_lobby]
-description = "You're not in a game lobby right now."
-suggestion = "Specify a `game` parameter to create a new lobby and invite players, or use `/play <game>` first."
+replay_not_found = "No match with that ID exists in this server, or you may not view it here. Use {command:playcord history} to find match IDs from your recent games."
 
-[errors.game_invalid]
-description = "**{game}** isn't a valid game."
-suggestion = "Use `/playcord catalog` to see all available games."
+player_not_found = "I couldn't find any data for **{player_name}**. This player may not have played any games yet."
+
+no_active_lobby = "You're not in a game lobby right now. Specify a `game` parameter to create a new lobby and invite players, or use {command:play} first."
+
+game_invalid = "**{game}** isn't a valid game. Use {command:playcord catalog} to see all available games."
+
+game_not_registered = "This game is not registered in the database yet."
+
+already_in_game_other_server = "You're already playing a game in another server. Finish your current game first, or forfeit it to start a new one."
+
+invite_not_creator_private = "Only the lobby creator can invite players to a private game. Ask the lobby creator to send invites, or create your own lobby."
+
+kick_no_lobby = "You need to be in a game lobby to kick players. Start a new game with {command:play} first."
+
+kick_not_creator = "Only the lobby creator can kick players. Ask the lobby creator, or create your own lobby."
+
+ban_no_lobby = "You need to be in a game lobby to ban players. Start a new game with {command:play} first."
+
+ban_not_creator = "Only the lobby creator can ban players. Ask the lobby creator, or create your own lobby."
+
+learn_game_not_found = "I couldn't find a game called **{game}**. Use {command:playcord catalog} to see all available games, or try {command:playcord help} for general help."
 
 # =============================================================================
 # SUCCESS MESSAGES
@@ -549,7 +525,7 @@ command_unexpected = "An unexpected error occurred while running this command. P
 # =============================================================================
 [embeds.user_error]
 suggestion_field = "💡 Suggestion"
-footer = "Need help? Use /playcord help"
+footer = "Need help? Use {command:playcord help}"
 
 # =============================================================================
 # EMBEDS - GAME OVERVIEW (shown when game starts)
@@ -607,10 +583,10 @@ unrated = "Unrated"
 # =============================================================================
 [embeds.catalog]
 title = "🎲 {name} Game Catalog"
-description = "Browse all {count} available games. Use `/play <game>` to start playing!"
+description = "Browse all {count} available games. Use {command:play}  to start playing!"
 game_field_format = "{emoji} {game_name}"
-game_value_format = "{description}\n⏰ {time} | 👤 {players} | 📈 {difficulty}\n**Command:** `/play {game_id}`"
-footer = "Page {page}/{total} • Use /playcord help for tutorials and FAQ"
+game_value_format = "{description}\n⏰ {time} | 👤 {players} | 📈 {difficulty}\n**Command:** {command:play} {game_id}"
+footer = "Page {page}/{total} • Use {command:playcord help} for tutorials and FAQ"
 
 # =============================================================================
 # EMBEDS - PROFILE
@@ -618,7 +594,7 @@ footer = "Page {page}/{total} • Use /playcord help for tutorials and FAQ"
 [embeds.profile]
 title = "{username}'s Profile"
 field_ratings = "Game Ratings"
-field_ratings_empty = "No games played yet! Start with `/play <game>`"
+field_ratings_empty = "No games played yet! Start with {command:play} "
 field_recent_matches = "Recent Matches"
 field_recent_matches_empty = "No recent matches."
 field_total_games = "Total Games Played"
@@ -811,7 +787,7 @@ field_blacklist = "Blacklist:"
 field_game_info = "Game Info:"
 field_game_by = "Game by:"
 field_ids_name = "IDs"
-field_ids_value = "Lobby message `{lobby_id}` · game `{game}` — an 8-character match code appears in the private game thread title and works with `/playcord replay`."
+field_ids_value = "Lobby message `{lobby_id}` · game `{game}` — an 8-character match code appears in the private game thread title and works with {command:playcord replay}."
 source = "Source"
 already_in_game = "You are already in the game!"
 already_in_active_game_other_server = "You are already in an active game in another server. Finish that game before joining this lobby."
@@ -860,20 +836,19 @@ customization_unrated_note = "Non-default options disable rated play for this ma
 # =============================================================================
 [interactions]
 pagination_not_yours = "You cannot interact with another user's pagination buttons."
-help_not_yours = "This help menu belongs to someone else. Use `/playcord help` to open your own!"
+help_not_yours = "This help menu belongs to someone else. Use {command:playcord help} to open your own!"
 dead_view = "That interaction is no longer active due to a bot restart! Please create a new interaction :)"
-pagination_outdated = "This pagination is outdated due to a bot restart. Please just run `/playcord catalog` again to see the latest games :)"
+pagination_outdated = "This pagination is outdated due to a bot restart. Please just run {command:playcord catalog} again to see the latest games :)"
 
 [autocomplete]
 no_game_in_channel = "There is no game in this channel!"
 game_finished = "This game is already over."
 function_missing = "Autocomplete function is not defined!"
 
-[errors.game_not_registered]
-value = "This game is not registered in the database yet."
+# errors.game_not_registered removed — consolidated into [errors] table
 
 [history]
-unknown_game = "Unknown game type: {game}. Use `/playcord catalog` to see available games."
+unknown_game = "Unknown game type: {game}. Use {command:playcord catalog} to see available games."
 embed_title = "📈 {user} - {game} history"
 seat = "seat #{seat}"
 rated = "rated"
@@ -891,7 +866,7 @@ no_rating_period = "No rating history for this period."
 page_footer = "Page {page}/{max}"
 
 [settings]
-not_in_matchmaking = "You aren't in matchmaking. Start a game first with `/play <game>`."
+not_in_matchmaking = "You aren't in matchmaking. Start a game first with {command:play} ."
 only_creator = "Only the game creator can change settings."
 changed_rated = "Rated: {value}"
 changed_private = "Private: {value}"
@@ -915,33 +890,7 @@ error_during_move = "Error during a move!"
 bot_turn_computing = "It is {player}'s turn (bot is computing a move...)"
 bot_failed_move = "Bot {player} failed to make a move."
 
-[errors.already_in_game_other_server]
-description = "You're already playing a game in another server."
-suggestion = "Finish your current game first, or forfeit it to start a new one."
-
-[errors.invite_not_creator_private]
-description = "Only the lobby creator can invite players to a private game."
-suggestion = "Ask the lobby creator to send invites, or create your own lobby."
-
-[errors.kick_no_lobby]
-description = "You need to be in a game lobby to kick players."
-suggestion = "Start a new game with `/play <game>` first."
-
-[errors.kick_not_creator]
-description = "Only the lobby creator can kick players."
-suggestion = "Ask the lobby creator, or create your own lobby."
-
-[errors.ban_no_lobby]
-description = "You need to be in a game lobby to ban players."
-suggestion = "Start a new game with `/play <game>` first."
-
-[errors.ban_not_creator]
-description = "Only the lobby creator can ban players."
-suggestion = "Ask the lobby creator, or create your own lobby."
-
-[errors.learn_game_not_found]
-description = "I couldn't find a game called **{game}**."
-suggestion = "Use `/playcord catalog` to see all available games, or try `/playcord help` for general help."
+# duplicate per-error error tables removed — consolidated into [errors] table
 
 [begin_game]
 already_in_game_title = "Already In Game"
@@ -991,5 +940,5 @@ confirmed_skip = "{player} forfeited and will be skipped from future turns."
 already_forfeited = "You've already forfeited this game."
 not_in_game = "You're not a participant in this game."
 not_active = "There isn't an active game in this thread."
-wrong_channel = "Use `/playcord forfeit` inside your active private game thread."
+wrong_channel = "Use {command:playcord forfeit} inside your active private game thread."
 summary = "Forfeited"

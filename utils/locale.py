@@ -19,9 +19,10 @@ Usage:
 """
 
 import logging
+import re
 import tomllib
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # Default locale
 DEFAULT_LOCALE = "en"
@@ -32,14 +33,18 @@ _locale_cache: dict[str, dict] = {}
 # Current active locale
 _current_locale = DEFAULT_LOCALE
 
+# Slash command mention token support (`{command:play}` / `{command:playcord help}`)
+_COMMAND_TOKEN_RE = re.compile(r"\{command:([^{}]+)\}")
+_command_mentions: dict[str, str] = {}
+
 
 def _load_locale(locale_code: str) -> dict:
     """Load a locale file and cache it."""
     if locale_code in _locale_cache:
         return _locale_cache[locale_code]
-    
+
     locale_path = Path(__file__).parent.parent / "configuration" / "locale" / f"{locale_code}.toml"
-    
+
     if not locale_path.exists():
         if locale_code != DEFAULT_LOCALE:
             # Fall back to default locale
@@ -47,10 +52,10 @@ def _load_locale(locale_code: str) -> dict:
             return _load_locale(DEFAULT_LOCALE)
         else:
             raise FileNotFoundError(f"Default locale file not found: {locale_path}")
-    
+
     with open(locale_path, "rb") as f:
         data = tomllib.load(f)
-    
+
     _locale_cache[locale_code] = data
     return data
 
@@ -77,14 +82,47 @@ def _get_nested(data: dict, key: str, default: Any = None) -> Any:
     """
     keys = key.split(".")
     current = data
-    
+
     for k in keys:
         if isinstance(current, dict) and k in current:
             current = current[k]
         else:
             return default
-    
+
     return current
+
+
+def _normalize_command_path(path: str) -> str:
+    """Normalize slash command path text to a canonical lookup key."""
+    return " ".join(path.strip().lstrip("/").split()).lower()
+
+
+def _replace_command_tokens(text: str) -> str:
+    """Replace `{command:...}` locale tokens with command mentions or plain `/path` fallback."""
+    if "{command:" not in text:
+        return text
+
+    def _resolve(match: re.Match[str]) -> str:
+        raw_path = match.group(1)
+        normalized = _normalize_command_path(raw_path)
+        if not normalized:
+            return match.group(0)
+        mention = _command_mentions.get(normalized)
+        return mention if mention else f"/{normalized}"
+
+    return _COMMAND_TOKEN_RE.sub(_resolve, text)
+
+
+def set_command_mentions(command_mentions: dict[str, str] | None) -> None:
+    """Register slash command mention strings used by `{command:...}` locale tokens."""
+    global _command_mentions
+    cleaned: dict[str, str] = {}
+    for path, mention in (command_mentions or {}).items():
+        normalized = _normalize_command_path(str(path))
+        mention_text = str(mention or "").strip()
+        if normalized and mention_text:
+            cleaned[normalized] = mention_text
+    _command_mentions = cleaned
 
 
 def get(key: str, default: str = None, locale: str = None) -> str:
@@ -101,16 +139,16 @@ def get(key: str, default: str = None, locale: str = None) -> str:
     """
     locale = locale or _current_locale
     data = _load_locale(locale)
-    
+
     result = _get_nested(data, key)
-    
+
     if result is None:
         if default is not None:
-            return default
+            return _replace_command_tokens(str(default))
         logging.warning(f"Missing locale key: '{key}' in locale '{locale}'")
         return f"[{key}]"  # Return key wrapped in brackets to make missing strings visible
-    
-    return str(result)
+
+    return _replace_command_tokens(str(result))
 
 
 def fmt(key: str, default: str = None, locale: str = None, **kwargs) -> str:
@@ -135,7 +173,7 @@ def fmt(key: str, default: str = None, locale: str = None, **kwargs) -> str:
         # Returns: "👋 Welcome to PlayCord!"
     """
     template = get(key, default, locale)
-    
+
     try:
         return template.format(**kwargs)
     except KeyError as e:
@@ -143,23 +181,37 @@ def fmt(key: str, default: str = None, locale: str = None, **kwargs) -> str:
         return template
 
 
-def get_error(error_key: str, locale: str = None) -> tuple[str, str]:
+def get_error(error_key: str, locale: str = None) -> str:
     """
-    Get an error message tuple by its key.
+    Get a localized error message by its key.
+
+    This project now stores errors as a single combined message under
+    the `[errors]` table (e.g. `errors.not_in_matchmaking = "..."`).
+
+    For backward compatibility, if the consolidated key is missing we fall
+    back to the legacy nested structure `errors.<key>.description` and
+    `errors.<key>.suggestion` and return a single combined string.
 
     Args:
         error_key: The error identifier (e.g., "not_in_matchmaking")
         locale: Optional locale override
 
     Returns:
-        Tuple of (description, suggestion)
+        A single combined error message string
     """
     locale = locale or _current_locale
 
+    # Try the consolidated single-message key first
+    message = get(f"errors.{error_key}", None, locale)
+    if message is not None:
+        return str(message)
+
+    # Fallback to legacy structure (description + suggestion)
     description = get(f"errors.{error_key}.description", "An error occurred.", locale)
     suggestion = get(f"errors.{error_key}.suggestion", "", locale)
-
-    return description, suggestion
+    if description and suggestion:
+        return f"{description} {suggestion}".strip()
+    return (description or suggestion or "An error occurred.")
 
 
 def get_dict(key: str, locale: str = None) -> dict:
@@ -177,9 +229,9 @@ def get_dict(key: str, locale: str = None) -> dict:
     """
     locale = locale or _current_locale
     data = _load_locale(locale)
-    
+
     result = _get_nested(data, key)
-    
+
     if isinstance(result, dict):
         return result
     return {}
@@ -209,7 +261,7 @@ def reload_locale(locale_code: str = None) -> None:
         locale_code: Specific locale to reload, or None to clear all
     """
     global _locale_cache
-    
+
     if locale_code:
         if locale_code in _locale_cache:
             del _locale_cache[locale_code]

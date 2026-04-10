@@ -8,7 +8,7 @@ from typing import Any
 
 import discord
 from discord import app_commands
-from discord.app_commands.models import AppCommandGroup, Argument
+from discord.app_commands.models import AppCommand, AppCommandGroup, Argument
 from utils.containers import CustomContainer
 from utils.locale import fmt, get
 
@@ -39,11 +39,11 @@ def collect_local_tree(
     return merged
 
 
-def _collect_remote_leaves(ac: discord.AppCommand) -> dict[str, dict[str, Any]]:
+def _collect_remote_leaves(ac: AppCommand) -> dict[str, dict[str, Any]]:
     """Map qualified slash path -> {description, arguments} for leaf commands."""
     out: dict[str, dict[str, Any]] = {}
 
-    def walk(node: discord.AppCommand | AppCommandGroup, parts: tuple[str, ...]) -> None:
+    def walk(node: AppCommand | AppCommandGroup, parts: tuple[str, ...]) -> None:
         options = list(getattr(node, "options", None) or [])
         if not options or all(isinstance(opt, Argument) for opt in options):
             out[" ".join(parts)] = {
@@ -59,7 +59,7 @@ def _collect_remote_leaves(ac: discord.AppCommand) -> dict[str, dict[str, Any]]:
     return out
 
 
-def collect_remote_tree(commands: list[discord.AppCommand]) -> dict[str, dict[str, Any]]:
+def collect_remote_tree(commands: list[AppCommand]) -> dict[str, dict[str, Any]]:
     merged: dict[str, dict[str, Any]] = {}
     for ac in commands:
         merged.update(_collect_remote_leaves(ac))

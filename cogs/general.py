@@ -180,7 +180,7 @@ async def command_play(ctx: discord.Interaction, game: str, rated: bool = True, 
     if game_type is None:
         message = format_user_error_message("game_invalid", game=selected_game)
         if suggestion:
-            message = f"{message}\n\nDid you mean `/play {suggestion}`?"
+            message = f"{message}\n\n{fmt('commands.play.did_you_mean', game=suggestion)}"
         await response_send_message(ctx,
                                     content=message,
                                     ephemeral=True,
@@ -577,7 +577,7 @@ class GeneralCog(commands.Cog):
         games_text = []
         for game_id in list(GAME_TYPES)[:HELP_GAMES_PREVIEW_COUNT]:
             game_name = _GAME_METADATA[game_id]["name"]
-            games_text.append(f"• **{game_name}** (`/play {game_id}`)")
+            games_text.append(fmt("help.games_overview.game_entry", game_name=game_name, game_id=game_id))
 
         if len(GAME_TYPES) > HELP_GAMES_PREVIEW_COUNT:
             games_text.append(
@@ -625,7 +625,8 @@ class GeneralCog(commands.Cog):
         game_name = _GAME_METADATA[game]["name"]
         game_db = db.database.get_game(game)
         if not game_db:
-            await followup_send(ctx, get("errors.game_not_registered.value"), ephemeral=True)
+            # errors are now single-line under [errors]; use format_user_error_message to preserve formatting
+            await followup_send(ctx, content=format_user_error_message("game_not_registered"), ephemeral=True)
             return
 
         if page < 1:
@@ -983,7 +984,7 @@ class GeneralCog(commands.Cog):
 
         game_db = db.database.get_game(game)
         if not game_db:
-            await response_send_message(ctx, get("errors.game_not_registered.value"), ephemeral=True)
+            await response_send_message(ctx, content=format_user_error_message("game_not_registered"), ephemeral=True)
             return
 
         game_name = _GAME_METADATA[game]["name"]

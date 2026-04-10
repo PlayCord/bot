@@ -21,7 +21,6 @@ from configuration.constants import (
     THREAD_POLICY_SPECTATORS_SILENT,
     THREAD_POLICY_WARN_NON_PARTICIPANTS,
     THREAD_POLICY_WARNING_MESSAGE,
-    WELCOME_MESSAGE,
 )
 from utils import analytics as analytics_mod
 from utils import database as db
@@ -61,9 +60,22 @@ class EventsCog(commands.Cog):
         f_log = log.getChild("event.guild_join")
         f_log.info(f"Added to guild {guild.name!r} ! (id={guild.id})")
 
-        container = CustomContainer(title=WELCOME_MESSAGE[0][0], description=WELCOME_MESSAGE[0][1])
-        for line in WELCOME_MESSAGE[1:]:
-            container.add_field(name=line[0], value=line[1])
+        container = CustomContainer(
+            title=fmt("welcome.title", name=get("brand.name")),
+            description=get("welcome.description"),
+        )
+        container.add_field(
+            name=get("welcome.fields.games.name"),
+            value=get("welcome.fields.games.value"),
+        )
+        container.add_field(
+            name=get("welcome.fields.rating.name"),
+            value=get("welcome.fields.rating.value"),
+        )
+        container.add_field(
+            name=get("welcome.fields.help.name"),
+            value=fmt("welcome.fields.help.value", github_url=get("brand.github_url")),
+        )
         container.add_field(
             name=get("welcome.fields.playcord_channel.name"),
             value=get("welcome.fields.playcord_channel.value"),

@@ -25,7 +25,7 @@ from utils.containers import (
     TEXT_DISPLAY_MAX,
     container_to_markdown,
 )
-from utils.locale import get
+from utils.locale import fmt, get
 
 
 async def _noop_button_interaction(interaction: discord.Interaction) -> None:
@@ -632,13 +632,11 @@ class HelpButton(discord.ui.Button):
         for game_id, (module_name, class_name) in list(GAME_TYPES.items())[:HELP_GAMES_PREVIEW_COUNT]:
             game_class = getattr(importlib.import_module(module_name), class_name)
             game_name = getattr(game_class, 'name', game_id)
-            games_text.append(f"• **{game_name}** (`/play {game_id}`)")
+            games_text.append(fmt("help.games_overview.game_entry", game_name=game_name, game_id=game_id))
         
         if len(GAME_TYPES) > HELP_GAMES_PREVIEW_COUNT:
             games_text.append(
-                get("help.games_overview.more_games").format(
-                    count=len(GAME_TYPES) - HELP_GAMES_PREVIEW_COUNT,
-                )
+                fmt("help.games_overview.more_games", count=len(GAME_TYPES) - HELP_GAMES_PREVIEW_COUNT)
             )
         
         container.add_field(

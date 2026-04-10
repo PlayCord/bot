@@ -49,28 +49,29 @@ async def response_send_message(interaction: discord.Interaction, *args: Any, **
 
 def format_user_error_message(error_key: str, **kwargs) -> str:
     """Plain-text user error with a single combined sentence block (no title/container)."""
-    description, suggestion = get_error(error_key)
+    message = get_error(error_key)
+    if not message:
+        return f"{error_key}"
     if kwargs:
-        description = description.format(**kwargs)
-        if suggestion:
-            suggestion = suggestion.format(**kwargs)
-    description = (description or "").strip()
-    suggestion = (suggestion or "").strip()
-    if description and suggestion:
-        return f"{description} {suggestion}".strip()
-    return description or suggestion
+        try:
+            message = message.format(**kwargs)
+        except KeyError as e:
+            log.warning("Missing format variable %r for error key '%s'", e, error_key)
+    return str(message).strip()
 
 
 def get_user_error_embed(error_key: str, **kwargs) -> UserErrorContainer:
     """Get a pre-defined user error container with optional formatting from locale (no title row)."""
-    description, suggestion = get_error(error_key)
-
+    message = get_error(error_key)
+    if not message:
+        message = "An error occurred."
     if kwargs:
-        description = description.format(**kwargs)
-        if suggestion:
-            suggestion = suggestion.format(**kwargs)
+        try:
+            message = message.format(**kwargs)
+        except KeyError as e:
+            log.warning("Missing format variable %r for error key '%s'", e, error_key)
 
-    return UserErrorContainer(description=description, suggestion=suggestion or None)
+    return UserErrorContainer(description=message, suggestion=None)
 
 
 async def send_simple_embed(ctx: discord.Interaction, title: str, description: str, ephemeral: bool = True,
@@ -96,9 +97,9 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
 
     channel = getattr(ctx, "channel", None)
     in_active_game_thread = (
-        channel is not None
-        and getattr(channel, "type", None) == discord.ChannelType.private_thread
-        and getattr(channel, "id", None) in CURRENT_GAMES
+            channel is not None
+            and getattr(channel, "type", None) == discord.ChannelType.private_thread
+            and getattr(channel, "id", None) in CURRENT_GAMES
     )
     command = getattr(ctx, "command", None)
     parent = getattr(command, "parent", None)

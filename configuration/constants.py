@@ -1,6 +1,6 @@
 import discord
 
-from utils.locale import fmt, get, get_dict
+from utils.locale import get, get_dict
 
 VERSION = "0.5.0"
 NAME = get("brand.name")
@@ -21,19 +21,6 @@ MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER = "this"
 # (and team owner_user_id when the app is under a team) is merged at runtime in PlayCordBot.setup_hook.
 OWNERS = [897146430664355850, 1085939954758205561]
 CONFIGURATION = {}
-
-WELCOME_MESSAGE = [
-    (
-        fmt("welcome.title", name=NAME),
-        fmt("welcome.description"),
-    ),
-    (get("welcome.fields.games.name"), get("welcome.fields.games.value")),
-    (get("welcome.fields.rating.name"), get("welcome.fields.rating.value")),
-    (
-        get("welcome.fields.help.name"),
-        fmt("welcome.fields.help.value", github_url=get("brand.github_url")),
-    ),
-]
 
 # Standardized embed colors for consistent UX
 EMBED_COLOR = discord.Color.from_str("#6877ED")  # Primary brand color (purple-blue)
