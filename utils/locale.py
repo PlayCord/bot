@@ -185,33 +185,23 @@ def get_error(error_key: str, locale: str = None) -> str:
     """
     Get a localized error message by its key.
 
-    This project now stores errors as a single combined message under
-    the `[errors]` table (e.g. `errors.not_in_matchmaking = "..."`).
-
-    For backward compatibility, if the consolidated key is missing we fall
-    back to the legacy nested structure `errors.<key>.description` and
-    `errors.<key>.suggestion` and return a single combined string.
+    Errors are stored as a single message under the `[errors]` table
+    (e.g. `errors.not_in_matchmaking = "..."`). This function returns
+    that single message string. Backward-compatibility for the old
+    nested `errors.<key>.description` / `.suggestion` format has been
+    removed.
 
     Args:
         error_key: The error identifier (e.g., "not_in_matchmaking")
         locale: Optional locale override
 
     Returns:
-        A single combined error message string
+        The localized error message string, or a generic fallback.
     """
     locale = locale or _current_locale
 
-    # Try the consolidated single-message key first
-    message = get(f"errors.{error_key}", None, locale)
-    if message is not None:
-        return str(message)
-
-    # Fallback to legacy structure (description + suggestion)
-    description = get(f"errors.{error_key}.description", "An error occurred.", locale)
-    suggestion = get(f"errors.{error_key}.suggestion", "", locale)
-    if description and suggestion:
-        return f"{description} {suggestion}".strip()
-    return (description or suggestion or "An error occurred.")
+    # Return the consolidated single-message entry or None
+    return get(f"errors.{error_key}", None, locale)
 
 
 def get_dict(key: str, locale: str = None) -> dict:
