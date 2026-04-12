@@ -38,6 +38,8 @@ class MatchmakingCog(commands.Cog):
         if custom_id is None:
             return
 
+        log.getChild("on_interaction").debug("on_interaction custom_id=%r user=%s", custom_id, getattr(ctx.user, 'id', None))
+
         if custom_id.startswith(BUTTON_PREFIX_LOBBY_OPT):
             await self.lobby_select_callback(ctx)
         elif custom_id.startswith(BUTTON_PREFIX_LOBBY_ROLE):
@@ -55,9 +57,11 @@ class MatchmakingCog(commands.Cog):
         """Lobby string-select for per-game match options (handled by MatchmakingInterface)."""
         await ctx.response.defer(ephemeral=True)
         f_log = log.getChild("callback.lobby_select")
+        f_log.debug("lobby_select_callback called by user=%s data=%r", getattr(ctx.user, 'id', None), ctx.data)
         data = ctx.data if ctx.data is not None else {}
         cid = data.get("custom_id")
         if not cid or not cid.startswith(BUTTON_PREFIX_LOBBY_OPT):
+            f_log.warning("Invalid lobby_select interaction from user=%s cid=%r", getattr(ctx.user, 'id', None), cid)
             await followup_send(ctx,
                                 content=get("matchmaking.invalid_interaction"),
                                 ephemeral=True,
@@ -73,10 +77,12 @@ class MatchmakingCog(commands.Cog):
         try:
             matchmaking_id = int(mid_str)
         except ValueError:
+            f_log.warning("Invalid matchmaking id in lobby_select from user=%s mid=%r", getattr(ctx.user, 'id', None), mid_str)
             await followup_send(ctx, content=get("matchmaking.invalid_button"), ephemeral=True,
                                 delete_after=EPHEMERAL_DELETE_AFTER)
             return
         if matchmaking_id not in CURRENT_MATCHMAKING:
+            f_log.info("Lobby select for expired matchmaking_id=%s by user=%s", matchmaking_id, getattr(ctx.user, 'id', None))
             await followup_send(ctx, content=get("matchmaking.session_expired"), ephemeral=True,
                                 delete_after=EPHEMERAL_DELETE_AFTER)
             return
@@ -88,9 +94,11 @@ class MatchmakingCog(commands.Cog):
         """Per-player role select for CHOSEN :attr:`role_mode` (handled by MatchmakingInterface)."""
         await ctx.response.defer(ephemeral=True)
         f_log = log.getChild("callback.lobby_role_select")
+        f_log.debug("lobby_role_select_callback called by user=%s data=%r", getattr(ctx.user, 'id', None), ctx.data)
         data = ctx.data if ctx.data is not None else {}
         cid = data.get("custom_id")
         if not cid or not cid.startswith(BUTTON_PREFIX_LOBBY_ROLE):
+            f_log.warning("Invalid lobby_role_select interaction from user=%s cid=%r", getattr(ctx.user, 'id', None), cid)
             await followup_send(ctx, content=get("matchmaking.invalid_interaction"), ephemeral=True,
                                 delete_after=EPHEMERAL_DELETE_AFTER)
             return
@@ -104,10 +112,12 @@ class MatchmakingCog(commands.Cog):
             matchmaking_id = int(mid_str)
             player_id = int(pid_str)
         except ValueError:
+            f_log.warning("Invalid ids in lobby_role_select from user=%s mid=%r pid=%r", getattr(ctx.user, 'id', None), mid_str, pid_str)
             await followup_send(ctx, content=get("matchmaking.invalid_button"), ephemeral=True,
                                 delete_after=EPHEMERAL_DELETE_AFTER)
             return
         if matchmaking_id not in CURRENT_MATCHMAKING:
+            f_log.info("Lobby role select for expired matchmaking_id=%s by user=%s", matchmaking_id, getattr(ctx.user, 'id', None))
             await followup_send(ctx, content=get("matchmaking.session_expired"), ephemeral=True,
                                 delete_after=EPHEMERAL_DELETE_AFTER)
             return
@@ -125,6 +135,7 @@ class MatchmakingCog(commands.Cog):
         data = ctx.data if ctx.data is not None else {}
         cid = data.get("custom_id")
         if not cid:
+            f_log.warning("Empty custom_id in matchmaking_button callback from user=%s", getattr(ctx.user, 'id', None))
             await followup_send(ctx, content=get("matchmaking.invalid_interaction"), ephemeral=True,
                                 delete_after=EPHEMERAL_DELETE_AFTER)
             return
@@ -134,6 +145,7 @@ class MatchmakingCog(commands.Cog):
         f_log.info(
             f"matchmaking button pressed! ID: {cid} context: {interaction_context}"
         )
+        f_log.debug("matchmaking_button cid=%r user=%s", cid, getattr(ctx.user, 'id', None))
 
         # Leading ID of custom ID string
         if cid.startswith(BUTTON_PREFIX_JOIN):
@@ -154,6 +166,7 @@ class MatchmakingCog(commands.Cog):
         try:
             matchmaking_id = int(cid.replace(leading_str, ""))
         except ValueError:
+            f_log.warning("Invalid matchmaking id in button callback from user=%s cid=%r", getattr(ctx.user, 'id', None), cid)
             await followup_send(ctx, content=get("matchmaking.invalid_button"), ephemeral=True,
                                 delete_after=EPHEMERAL_DELETE_AFTER)
             return
@@ -174,10 +187,13 @@ class MatchmakingCog(commands.Cog):
 
         # Call MatchmakingInterface callbacks
         if leading_str == BUTTON_PREFIX_JOIN:
+            f_log.info("Invoking callback_ready_game for matchmaking_id=%s user=%s", matchmaking_id, getattr(ctx.user, 'id', None))
             await matchmaker.callback_ready_game(ctx)
         elif leading_str == BUTTON_PREFIX_LEAVE:
+            f_log.info("Invoking callback_leave_game for matchmaking_id=%s user=%s", matchmaking_id, getattr(ctx.user, 'id', None))
             await matchmaker.callback_leave_game(ctx)
         elif leading_str == BUTTON_PREFIX_READY:
+            f_log.info("Invoking callback_toggle_ready for matchmaking_id=%s user=%s", matchmaking_id, getattr(ctx.user, 'id', None))
             await matchmaker.callback_toggle_ready(ctx)
 
     async def invite_accept_callback(self, ctx: discord.Interaction) -> None:
@@ -186,12 +202,14 @@ class MatchmakingCog(commands.Cog):
         """
         await ctx.response.defer()
         f_log = log.getChild("callback.invite_accept")
+        f_log.debug("invite_accept_callback called by user=%s data=%r", getattr(ctx.user, 'id', None), ctx.data)
 
         data = ctx.data if ctx.data is not None else {}
         cid = data.get("custom_id")
         try:
             matchmaking_id = int(cid.replace(BUTTON_PREFIX_INVITE, ""))
         except (TypeError, ValueError, AttributeError):
+            f_log.warning("Invalid invite custom_id from user=%s cid=%r", getattr(ctx.user, 'id', None), cid)
             await followup_send(ctx, content=get("matchmaking.invalid_button"), ephemeral=True,
                                 delete_after=EPHEMERAL_DELETE_AFTER)
             return
@@ -208,6 +226,7 @@ class MatchmakingCog(commands.Cog):
         success = await matchmaker.accept_invite(ctx)
 
         if success:
+            f_log.info("Invite accepted for matchmaking_id=%s by user=%s", matchmaking_id, getattr(ctx.user, 'id', None))
             await followup_send(ctx, content=get("matchmaking.invite_ok"), ephemeral=True,
                                 delete_after=EPHEMERAL_DELETE_AFTER)
 

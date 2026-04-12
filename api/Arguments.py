@@ -1,5 +1,6 @@
 from discord import app_commands
 from discord.app_commands import Choice
+from typing import Any
 
 
 class Argument:
@@ -25,7 +26,7 @@ class Argument:
         self.autocomplete = autocomplete
         self.force_reload = force_reload
 
-    def arguments(self) -> dict[str, dict[str, str | bool]]:
+    def arguments(self) -> dict[str, dict[str, Any]]:
         """
         Return the arguments as a dictionary.
         format: {name: {"type": type, "optional": optional}} -> name: [type] = [None if optional]
@@ -33,7 +34,7 @@ class Argument:
         """
         pass
 
-    def decorators(self) -> dict[str, dict[str, str]]:
+    def decorators(self) -> dict[str, Any]:
         """
         Return the decorators as a dictionary
         format: {name: {key: value}} -> @app_commands.name(key=value)
@@ -65,7 +66,7 @@ class String(Argument):
         # Class arguments
         self.type = "string"
 
-    def arguments(self) -> dict[str, dict[str, str | bool]]:
+    def arguments(self) -> dict[str, dict[str, Any]]:
         """
         Return the arguments for this String as a dictionary.
         type=str, optional=self.optional, name=self.name
@@ -73,7 +74,7 @@ class String(Argument):
         """
         return {self.name: {"type": str, "optional": self.optional}}
 
-    def decorators(self) -> dict:
+    def decorators(self) -> dict[str, Any]:
         """
         String does not need to be decorated.
         :return: empty dictionary
@@ -108,7 +109,7 @@ class Integer(Argument):
         self.min_value = min_value
         self.max_value = max_value
 
-    def arguments(self) -> dict[str, dict[str, str | bool]]:
+    def arguments(self) -> dict[str, dict[str, Any]]:
         """
         Return the arguments for this Integer as a dictionary.
         type=int, optional=self.optional, name=self.name
@@ -117,7 +118,7 @@ class Integer(Argument):
         return {self.name: {"type": app_commands.Range[int, self.min_value, self.max_value],
                             "optional": self.optional}}
 
-    def decorators(self) -> dict:
+    def decorators(self) -> dict[str, Any]:
         """
         Integer does not need to be decorated.
         :return: empty dictionary
@@ -146,7 +147,7 @@ class Dropdown(Argument):
         self.type = "string"
         self.options = [Choice(name=option[0], value=option[1]) for option in options.items()]
 
-    def arguments(self) -> dict[str, dict[str, str | bool]]:
+    def arguments(self) -> dict[str, dict[str, Any]]:
         """
         Return the arguments for this Dropdown as a dictionary.
         type=Choice[str], optional=self.optional, name=self.name
@@ -154,7 +155,7 @@ class Dropdown(Argument):
         """
         return {self.name: {"type": Choice[str], "optional": self.optional}}
 
-    def decorators(self) -> dict[str, dict[str, str]]:
+    def decorators(self) -> dict[str, Any]:
         """
         Dropdown needs to be decorated with @app_commands.choices(self.name=self.options)
         :return: dictionary representation of this dropdown's decorator

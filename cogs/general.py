@@ -175,6 +175,9 @@ async def autocomplete_game_id(ctx: discord.Interaction, current: str) -> list[C
 @app_commands.guild_only()
 @app_commands.check(interaction_check)
 async def command_play(ctx: discord.Interaction, game: str, rated: bool = True, private: bool = False) -> None:
+    f_log = log.getChild("command.play")
+    f_log.debug("/play called by user=%s game=%r rated=%s private=%s", getattr(ctx.user, 'id', None), game, rated,
+                private)
     selected_game = game.strip()
     game_type, suggestion = _resolve_game_id_input(selected_game)
     if game_type is None:
@@ -236,13 +239,13 @@ class GeneralCog(commands.Cog):
     @command_root.command(name="invite", description=get("commands.invite.description"))
     @app_commands.check(interaction_check)
     @app_commands.describe(
-        user=get("commands.invite.param_user"),
         game=get("commands.invite.param_game"),
+        user=get("commands.invite.param_user"),
         user2=get("commands.invite.param_user2"),
         user3=get("commands.invite.param_user3"),
         user4=get("commands.invite.param_user4"),
         user5=get("commands.invite.param_user5"),
-        bot1=get("commands.invite.param_bot1"),
+        bot=get("commands.invite.param_bot1"),
         bot2=get("commands.invite.param_bot2"),
         bot3=get("commands.invite.param_bot3"),
         bot4=get("commands.invite.param_bot4"),
@@ -250,20 +253,20 @@ class GeneralCog(commands.Cog):
     )
     @app_commands.autocomplete(
         game=autocomplete_game_id,
-        bot1=autocomplete_invite_bot,
+        bot=autocomplete_invite_bot,
         bot2=autocomplete_invite_bot,
         bot3=autocomplete_invite_bot,
         bot4=autocomplete_invite_bot,
         bot5=autocomplete_invite_bot,
     )
     async def command_invite(self, ctx: discord.Interaction,
-                             user: discord.User = None,
                              game: str = None,
+                             user: discord.User = None,
                              user2: discord.User = None,
                              user3: discord.User = None,
                              user4: discord.User = None,
                              user5: discord.User = None,
-                             bot1: str = None,
+                             bot: str = None,
                              bot2: str = None,
                              bot3: str = None,
                              bot4: str = None,
@@ -271,7 +274,9 @@ class GeneralCog(commands.Cog):
         f_log = log.getChild("command.invite")
         f_log.debug(f"/invite called: {contextify(ctx)}")
         invited_users = [candidate for candidate in [user, user2, user3, user4, user5] if candidate is not None]
-        requested_bots = [candidate for candidate in [bot1, bot2, bot3, bot4, bot5] if candidate is not None]
+        requested_bots = [candidate for candidate in [bot, bot2, bot3, bot4, bot5] if candidate is not None]
+        f_log.debug("Invite targets: users=%s bots=%s", [getattr(u, 'id', str(u)) for u in invited_users],
+                    requested_bots)
 
         if not invited_users and not requested_bots:
             if ctx.response.is_done():
@@ -389,6 +394,8 @@ class GeneralCog(commands.Cog):
     )
     async def command_kick(self, ctx: discord.Interaction, user: discord.User, reason: str = None):
         f_log = log.getChild("command.kick")
+        f_log.debug("/kick called by user=%s target=%s reason=%r", ctx.user.id if ctx.user else None,
+                    getattr(user, 'id', None), reason)
         mm_by_user = matchmaking_by_user_id()
 
         if ctx.user.id not in mm_by_user:
@@ -406,6 +413,8 @@ class GeneralCog(commands.Cog):
             return
 
         return_value = await matchmaker.kick(user, reason)
+        f_log.info("Kick executed by %s on %s result=%r", ctx.user.id if ctx.user else None, getattr(user, 'id', None),
+                   return_value)
         await response_send_message(ctx, return_value, ephemeral=True)
 
     @command_root.command(name="ban", description=get("commands.ban.description"))
@@ -416,6 +425,8 @@ class GeneralCog(commands.Cog):
     )
     async def command_ban(self, ctx: discord.Interaction, user: discord.User, reason: str = None):
         f_log = log.getChild("command.ban")
+        f_log.debug("/ban called by user=%s target=%s reason=%r", ctx.user.id if ctx.user else None,
+                    getattr(user, 'id', None), reason)
         mm_by_user = matchmaking_by_user_id()
 
         if ctx.user.id not in mm_by_user:
@@ -433,6 +444,8 @@ class GeneralCog(commands.Cog):
             return
 
         return_value = await matchmaker.ban(user, reason)
+        f_log.info("Ban executed by %s on %s result=%r", ctx.user.id if ctx.user else None, getattr(user, 'id', None),
+                   return_value)
         await response_send_message(ctx, return_value, ephemeral=True)
 
     @command_root.command(name="stats", description=get("commands.stats.description"))

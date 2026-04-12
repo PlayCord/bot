@@ -179,6 +179,9 @@ def fmt(key: str, default: str = None, locale: str = None, **kwargs) -> str:
     except KeyError as e:
         logging.warning(f"Missing format variable {e} for key '{key}'")
         return template
+    except ValueError as e:
+        logging.warning(f"Invalid format string '{template}' for key '{key}': {e}")
+        return template
 
 
 def get_error(error_key: str, locale: str = None) -> str:

@@ -149,6 +149,14 @@ sync_failed = "Could not sync slash commands ({error_type})."
 sync_usage = "Invalid argument. Usage: `{prefix}sync` (global), `{prefix}sync this`, or `{prefix}sync <guild_id>`."
 clear_usage = "Invalid argument. Usage: `{prefix}clear` (global), `{prefix}clear this`, or `{prefix}clear <guild_id>`."
 guild_required_for_this = "Use `this` only in a server channel, or pass a numeric guild id."
+dbreset_all_title = "Database reset complete"
+dbreset_all_description = "Dropped and recreated the full database schema, then rebuilt tracked assets."
+dbreset_game_title = "Game reset complete"
+dbreset_game_description = "Deleted all rows related to game `{entity_id}` and recreated `{game_name}` as game id `{game_id}`."
+dbreset_user_title = "User reset complete"
+dbreset_user_description = "Deleted all rows related to user `{entity_id}` and recreated a blank user record."
+dbreset_guild_title = "Guild reset complete"
+dbreset_guild_description = "Deleted all rows related to guild `{entity_id}` and recreated a blank guild record."
 
 # =============================================================================
 # BOT STARTUP (logging; English operators may still translate for consistency)
@@ -165,7 +173,7 @@ compare_command_tree_failed = "compare_command_tree_on_startup failed: {error}"
 # =============================================================================
 [presence]
 catalog_games = "{count} games • /playcord catalog to list"
-users_playing = "{count} users playing • /playcord stats} for stats"
+users_playing = "{count} users playing • /playcord stats for stats"
 users_matchmaking = "{count} users matchmaking • /play to start a game"
 games_happening_now = "{count} games happening now • /play to start a game"
 
@@ -262,41 +270,41 @@ Use the buttons below to explore different topics, or try these quick commands:
 • {command:playcord profile} - View your stats"""
 
 [help.main.fields.getting_started]
-name = "🎮 Getting Started"
+name = "Getting Started"
 value = "New here? Click **Getting Started** below!"
 
 [help.main.fields.game_list]
-name = "📖 Game List"
+name = "Game List"
 value = "See all available games"
 
 [help.main.fields.commands]
-name = "⚙️ Commands"
+name = "Commands"
 value = "Full command reference"
 
 [help.getting_started]
-title = "🎮 Getting Started with {name}"
+title = "Getting Started with {name}"
 description = "Let's get you playing in under a minute!"
 
 [help.getting_started.fields.step1]
 name = "Step 1: Start a Game"
 value = """Use {command:play} to create a new game lobby.
-**Example:** {command:play} tictactoe
+Example: {command:play} tictactoe
 
 Not sure which game? Try {command:playcord catalog} to browse!"""
 
 [help.getting_started.fields.step2]
 name = "Step 2: Invite Friends (Optional)"
 value = """Your lobby is open to anyone by default.
-• **Public game:** Anyone can click Join
-• **Invite players:** Use {command:playcord invite}"""
+• Public game: Anyone can click Join
+• Invite players: Use {command:playcord invite}"""
 
 [help.getting_started.fields.step3]
 name = "Step 3: Play!"
-value = """Once enough players join, click **Start** to begin.
+value = """Once enough players join, click Start to begin.
 Follow the on-screen instructions to make your moves!"""
 
 [help.getting_started.fields.tips]
-name = "💡 Pro Tips"
+name = "Pro Tips"
 value = """• Games track your rating - compete for the leaderboard!
 • Use {command:playcord profile} to see your stats
 • Click buttons instead of typing when available"""
@@ -318,14 +326,14 @@ name = "Stats & Rankings"
 value = """{command:playcord profile} - View player stats
 {command:playcord leaderboard} - Top players
 {command:playcord history} - Your recent matches (includes match IDs)
-{command:playcord replay} <match_id> - Paginated move log for a match in this server"""
+{command:playcord replay} - Paginated move log for a match in this server"""
 
 [help.commands.fields.info]
 name = "Information"
 value = """{command:playcord help} - This help menu
 {command:playcord about} - About the bot
 {command:playcord stats} - Bot statistics
-{command:playcord feedback} <message> - Send feedback to the team"""
+{command:playcord feedback} - Send feedback to the team"""
 
 [help.game_info]
 title = "How to Play: {game_name}"
@@ -343,10 +351,10 @@ no_description = "No description available."
 unknown = "Unknown"
 
 [help.games_overview]
-title = "🎮 Available Games"
+title = "Available Games"
 description = "Here's a quick overview of what you can play:"
 field_games = "Games"
-field_tip = "💡 Tip"
+field_tip = "Tip"
 tip_value = "Use the buttons below for tutorials, or {command:playcord catalog} for more detail."
 game_entry = "• **{game_name}** ({command:play})"
 more_games = "*...and {count} more!*"
@@ -392,29 +400,29 @@ catalog_redirect = "Use {command:playcord catalog} to browse all games with deta
 # FIRST TIME USER TUTORIAL
 # =============================================================================
 [tutorial]
-title = "🎉 Welcome to {name}!"
+title = "Welcome to {name}!"
 description = "Looks like this is your first time playing! Here's a quick guide to get you started."
 
 [tutorial.fields.how_games_work]
-name = "🎮 How Games Work"
+name = "How Games Work"
 value = """1. Join or Create - Join a lobby or create one with {command:play}
 2. Wait for Players - Once enough players join, the creator starts the game
 3. Play! - Follow the on-screen buttons and instructions to play"""
 
 [tutorial.fields.ratings]
-name = "⭐ Ratings & Leaderboards"
+name = "Ratings & Leaderboards"
 value = """Every rated game affects your skill rating. Win games to climb the leaderboard!
 Check your stats anytime with {command:playcord profile}."""
 
 [tutorial.fields.tips]
-name = "💡 Pro Tips"
-value = """• Use buttons instead of typing when available - it's faster!
+name = "Pro Tips"
+value = """• Buttons are generally faster than commands where available.
 • Invite friends with {command:playcord invite}
 • Need help? Use {command:playcord help} anytime"""
 
 [tutorial.fields.ready_to_play]
-name = "▶️ Ready to Play {game_name}?"
-value = "Good luck and have fun! 🍀"
+name = "Ready to Play {game_name}?"
+value = "Good luck and have fun!"
 
 # =============================================================================
 # ERROR MESSAGES

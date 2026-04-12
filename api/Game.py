@@ -1,9 +1,9 @@
 import random
 from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Sized
 from enum import Enum
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Iterable as TypingIterable, cast
 
 from api.Bot import Bot
 from api.Command import Command
@@ -118,11 +118,20 @@ class Game(ABC):
         :attr:`player_roles` must be chosen exactly once (multiset match).
         """
         roles = getattr(cls, "player_roles", None)
+        # If no roles are defined, validation passes
         if not roles:
             return True
-        if len(selections) != len(roles):
+        # Ensure selections is a mapping with the expected size
+        if (
+                not isinstance(selections, dict)
+                or not isinstance(roles, Iterable)
+                or not isinstance(roles, Sized)
+                or len(selections) != len(roles)
+        ):
             return "Each player must choose a role."
-        expected = Counter(roles)
+        # Prepare a stable list of roles for deterministic comparison
+        list_roles = list(cast(TypingIterable[str], cast(object, roles)))
+        expected = Counter(list_roles)
         chosen = Counter(selections.values())
         if expected != chosen:
             return "Each role must be picked exactly once."
@@ -130,10 +139,10 @@ class Game(ABC):
 
     @classmethod
     def seat_players(
-        cls,
-        players: list[Any],
-        game_type_key: str,
-        selections: dict[int, str] | None = None,
+            cls,
+            players: list[Any],
+            game_type_key: str,
+            selections: dict[int, str] | None = None,
     ) -> list[Any]:
         """
         Reorder lobby participants for asymmetric roles after :attr:`player_order` was applied.
@@ -143,17 +152,21 @@ class Game(ABC):
         ordered = list(players)
         roles = getattr(cls, "player_roles", None)
         mode = getattr(cls, "role_mode", RoleMode.NONE)
-        if not roles or len(roles) != len(ordered):
+        # Require roles to be a sized iterable matching player count
+        if not roles or not isinstance(roles, Iterable) or not isinstance(roles, Sized) or len(roles) != len(ordered):
             return ordered
 
         if mode == RoleMode.NONE:
             return ordered
 
         if mode == RoleMode.CHOSEN:
-            if not selections:
+            if not selections or not isinstance(selections, dict):
                 return ordered
             by_id = {p.id: p for p in ordered}
             pools: defaultdict[str, list[Any]] = defaultdict(list)
+            # Prepare a stable list of roles for deterministic iteration
+            list_roles = list(cast(TypingIterable[str], cast(object, roles)))
+
             for pid, role_key in selections.items():
                 p = by_id.get(pid)
                 if p is not None:
@@ -161,7 +174,8 @@ class Game(ABC):
             for key in pools:
                 pools[key].sort(key=lambda pl: pl.id)
             try:
-                return [pools[r].pop(0) for r in roles]
+                # Use the prepared stable list of roles
+                return [pools[r].pop(0) for r in list_roles]
             except IndexError:
                 return ordered
 

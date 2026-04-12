@@ -316,6 +316,8 @@ class AdminCog(commands.Cog):
         return True
 
     async def _task_dbreset(self, msg: discord.Message) -> bool:
+        f_log = log.getChild("event.on_message")
+        f_log.debug("_task_dbreset called by user=%r content=%r", msg.author.id if msg.author else None, msg.content)
         split = msg.content.split()
         usage = (
             f"`{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET} game <id>`\n"
@@ -333,10 +335,11 @@ class AdminCog(commands.Cog):
                 await msg.reply(**container_send_kwargs(CustomContainer(description=usage, color=INFO_COLOR)))
                 return False
             db.database.reset_all_data()
+            f_log.info("Performed full database reset requested by user %r", msg.author.id if msg.author else None)
             await msg.reply(
                 **container_send_kwargs(CustomContainer(
-                    title="Database reset complete",
-                    description="Dropped and recreated the full database schema, then rebuilt tracked assets.",
+                    title=get("commands.admin.dbreset_all_title"),
+                    description=get("commands.admin.dbreset_all_description"),
                     color=SUCCESS_COLOR,
                 ))
             )
@@ -361,12 +364,15 @@ class AdminCog(commands.Cog):
 
         if target == "game":
             recreated = db.database.reset_game_data(entity_id)
+            f_log.info("Performed game reset for game_id=%r requested by user %r", entity_id, msg.author.id if msg.author else None)
             await msg.reply(
                 **container_send_kwargs(CustomContainer(
-                    title="Game reset complete",
-                    description=(
-                        f"Deleted all rows related to game `{entity_id}` and recreated "
-                        f"`{recreated.game_name}` as game id `{recreated.game_id}`."
+                    title=get("commands.admin.dbreset_game_title"),
+                    description=fmt(
+                        "commands.admin.dbreset_game_description",
+                        entity_id=entity_id,
+                        game_name=recreated.game_name,
+                        game_id=recreated.game_id,
                     ),
                     color=SUCCESS_COLOR,
                 ))
@@ -375,10 +381,11 @@ class AdminCog(commands.Cog):
 
         if target == "user":
             db.database.reset_user_data(entity_id)
+            f_log.info("Performed user reset for user_id=%r requested by user %r", entity_id, msg.author.id if msg.author else None)
             await msg.reply(
                 **container_send_kwargs(CustomContainer(
-                    title="User reset complete",
-                    description=f"Deleted all rows related to user `{entity_id}` and recreated a blank user record.",
+                    title=get("commands.admin.dbreset_user_title"),
+                    description=fmt("commands.admin.dbreset_user_description", entity_id=entity_id),
                     color=SUCCESS_COLOR,
                 ))
             )
@@ -386,10 +393,11 @@ class AdminCog(commands.Cog):
 
         if target == "guild":
             db.database.reset_guild_data(entity_id)
+            f_log.info("Performed guild reset for guild_id=%r requested by user %r", entity_id, msg.author.id if msg.author else None)
             await msg.reply(
                 **container_send_kwargs(CustomContainer(
-                    title="Guild reset complete",
-                    description=f"Deleted all rows related to guild `{entity_id}` and recreated a blank guild record.",
+                    title=get("commands.admin.dbreset_guild_title"),
+                    description=fmt("commands.admin.dbreset_guild_description", entity_id=entity_id),
                     color=SUCCESS_COLOR,
                 ))
             )
