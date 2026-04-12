@@ -33,29 +33,6 @@ PostgreSQL-backed leaderboard with TrueSkill-style ratings.
 - Match with players across different Discord servers
 - Button-based gameplay with emoji support
 
-## Games
-
-### Implemented
-
-| Game            | Players | Description                |
-|-----------------|---------|----------------------------|
-| Tic-Tac-Toe     | 2       | Classic Xs and Os          |
-| Connect Four    | 2       | Drop discs to connect four |
-| Reversi         | 2       | Flip opponent's pieces     |
-| Battleship      | 2       | Sink the enemy fleet       |
-| Liar's Dice     | 2-6     | Bluffing dice game         |
-| Nim             | 2-4     | Take stones strategically  |
-| Mastermind Duel | 2       | Code-breaking game         |
-| No Thanks!      | 3-7     | Card avoidance game        |
-| Blackjack Table | 2-7     | Multiplayer blackjack      |
-
-### Planned
-
-| Game                  | Status         |
-|-----------------------|----------------|
-| Poker (Texas Hold'em) | In Development |
-| Chess                 | In Development |
-
 ## Bot Usage
 
 ### Starting a Game
@@ -64,7 +41,7 @@ PostgreSQL-backed leaderboard with TrueSkill-style ratings.
 /play <game>              Start a new game
 /play tictactoe           Start Tic-Tac-Toe
 /play connectfour rated:false   Start an unrated game
-/play chess private:true   Start a private game
+/play nim private:true   Start a private game
 ```
 
 ### During Games
@@ -78,14 +55,14 @@ PostgreSQL-backed leaderboard with TrueSkill-style ratings.
 ```
 /playcord profile [@user]   View player profile and ratings
 /playcord history <game>    View match history and rating trend
-/leaderboard <game>         View server or global rankings
+/playcord leaderboard <game>         View server or global rankings
 /playcord catalog           Browse available games
 ```
 
 ### Settings
 
 ```
-/playcord settings          Configure game preferences
+/playcord settings          Configure game/bot preferences
 ```
 
 ## Quick Start
