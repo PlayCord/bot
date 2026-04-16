@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any, TYPE_CHECKING
 
-from configuration.constants import LOGGING_ROOT, OWNERS
+from configuration.constants import OWNERS
+from utils.logging_config import get_logger
 
 if TYPE_CHECKING:
     import discord
 
-log = logging.getLogger(LOGGING_ROOT)
+log = get_logger("bot_owners")
 
 # Configured co-owners / operators (always treated as owners).
 STATIC_OWNER_IDS: frozenset[int] = frozenset(int(x) for x in OWNERS)

@@ -4,16 +4,16 @@ Tracks events like game starts, game completions, command usage, etc.
 """
 import io
 import json
-import logging
 import time
 from datetime import datetime
 from typing import Any
 
 import utils.database as _db_module
 from configuration.constants import ANALYTICS_RETENTION_DAYS, VERSION
+from utils.logging_config import get_logger
 from utils.models import EventType
 
-logger = logging.getLogger("playcord.analytics")
+logger = get_logger("analytics")
 
 
 def _db():

@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import traceback
 
 import discord
@@ -32,9 +31,10 @@ from utils.containers import (
     container_send_kwargs,
     lines_to_container_sections,
 )
+from utils.logging_config import get_logger
 from utils.locale import fmt, get
 
-log = logging.getLogger(LOGGING_ROOT)
+log = get_logger()
 
 
 async def _add_processing_reaction(msg: discord.Message) -> None:

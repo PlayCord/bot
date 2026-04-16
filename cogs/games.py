@@ -1,5 +1,4 @@
 import asyncio
-import logging
 
 import discord
 from discord import app_commands
@@ -21,7 +20,6 @@ from configuration.constants import (
     BUTTON_PREFIX_SPECTATE,
     CURRENT_GAMES,
     EPHEMERAL_DELETE_AFTER,
-    LOGGING_ROOT,
     PERMISSION_MSG_NOT_PARTICIPANT,
     PERMISSION_MSG_SPECTATE_DISABLED,
 )
@@ -35,10 +33,11 @@ from utils.discord_utils import (
 )
 from utils.emojis import get_emoji_string
 from utils.interfaces import MatchmakingInterface, user_in_active_game
-from utils.matchmaking_user_map import matchmaking_by_user_id
 from utils.locale import fmt, get
+from utils.logging_config import get_logger
+from utils.matchmaking_user_map import matchmaking_by_user_id
 
-log = logging.getLogger(LOGGING_ROOT)
+log = get_logger()
 
 
 async def _send_game_ended_error(ctx: discord.Interaction) -> None:
@@ -107,7 +106,7 @@ class GamesCog(commands.Cog):
             return
 
         if ctx.type is discord.InteractionType.component and any(
-            custom_id.startswith(p) for p in _PAGINATION_PREFIXES
+                custom_id.startswith(p) for p in _PAGINATION_PREFIXES
         ):
             asyncio.create_task(_pagination_unhandled_fallback(ctx, custom_id))
             return
@@ -130,7 +129,8 @@ class GamesCog(commands.Cog):
     async def game_button_callback(self, ctx: discord.Interaction, current_turn_required: bool = True) -> None:
         await ctx.response.defer()
         f_log = log.getChild("interaction.game_button")
-        f_log.debug("game_button_callback called by user=%s custom_id=%r", getattr(ctx.user, 'id', None), ctx.data.get('custom_id'))
+        f_log.debug("game_button_callback called by user=%s custom_id=%r", getattr(ctx.user, 'id', None),
+                    ctx.data.get('custom_id'))
         leading_str = BUTTON_PREFIX_CURRENT_TURN if current_turn_required else BUTTON_PREFIX_NO_TURN
         try:
             raw = ctx.data["custom_id"].replace(leading_str, "")
@@ -138,9 +138,11 @@ class GamesCog(commands.Cog):
             game_id = int(data[0])
             function_id = data[1]
             arg_blob = data[2] if len(data) > 2 else ""
-            arguments = {arg.split("=")[0]: arg.split("=")[1] for arg in arg_blob.split(",") if "=" in arg} if arg_blob else {}
+            arguments = {arg.split("=")[0]: arg.split("=")[1] for arg in arg_blob.split(",") if
+                         "=" in arg} if arg_blob else {}
         except (KeyError, IndexError, ValueError):
-            f_log.warning("Malformed game button custom_id for user=%s: %r", getattr(ctx.user, 'id', None), ctx.data.get('custom_id'))
+            f_log.warning("Malformed game button custom_id for user=%s: %r", getattr(ctx.user, 'id', None),
+                          ctx.data.get('custom_id'))
             await _send_game_ended_error(ctx)
             return
 
@@ -156,10 +158,10 @@ class GamesCog(commands.Cog):
         if ctx.user.id not in participant_ids:
             f_log.warning("User %s attempted game action but is not participant in game_id=%s", ctx.user.id, game_id)
             await followup_send(ctx,
-                PERMISSION_MSG_NOT_PARTICIPANT,
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                PERMISSION_MSG_NOT_PARTICIPANT,
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
 
         f_log.info("Invoking move_by_button for game_id=%s user=%s func=%s args=%s current_turn_required=%s",
@@ -170,7 +172,8 @@ class GamesCog(commands.Cog):
     async def game_select_callback(self, ctx: discord.Interaction, current_turn_required: bool = True) -> None:
         await ctx.response.defer()
         f_log = log.getChild("interaction.game_select")
-        f_log.debug("game_select_callback called by user=%s custom_id=%r", getattr(ctx.user, 'id', None), ctx.data.get('custom_id'))
+        f_log.debug("game_select_callback called by user=%s custom_id=%r", getattr(ctx.user, 'id', None),
+                    ctx.data.get('custom_id'))
         leading_str = BUTTON_PREFIX_SELECT_CURRENT if current_turn_required else BUTTON_PREFIX_SELECT_NO_TURN
         try:
             raw = ctx.data["custom_id"].replace(leading_str, "")
@@ -178,7 +181,8 @@ class GamesCog(commands.Cog):
             game_id = int(data[0])
             function_id = data[1]
         except (KeyError, IndexError, ValueError):
-            f_log.warning("Malformed game select custom_id from user=%s: %r", getattr(ctx.user, 'id', None), ctx.data.get('custom_id'))
+            f_log.warning("Malformed game select custom_id from user=%s: %r", getattr(ctx.user, 'id', None),
+                          ctx.data.get('custom_id'))
             await _send_game_ended_error(ctx)
             return
 
@@ -193,10 +197,10 @@ class GamesCog(commands.Cog):
         if ctx.user.id not in participant_ids:
             f_log.warning("User %s attempted selection but is not participant in game_id=%s", ctx.user.id, game_id)
             await followup_send(ctx,
-                PERMISSION_MSG_NOT_PARTICIPANT,
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                PERMISSION_MSG_NOT_PARTICIPANT,
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
 
         await game.move_by_select(
@@ -206,11 +210,13 @@ class GamesCog(commands.Cog):
     async def spectate_callback(self, ctx: discord.Interaction) -> None:
         await ctx.response.defer()
         f_log = log.getChild("interaction.spectate")
-        f_log.debug("spectate_callback called by user=%s custom_id=%r", getattr(ctx.user, 'id', None), ctx.data.get('custom_id'))
+        f_log.debug("spectate_callback called by user=%s custom_id=%r", getattr(ctx.user, 'id', None),
+                    ctx.data.get('custom_id'))
         try:
             game_id = int(ctx.data["custom_id"].replace(BUTTON_PREFIX_SPECTATE, ""))
         except (KeyError, ValueError):
-            f_log.warning("Malformed spectate custom_id from user=%s: %r", getattr(ctx.user, 'id', None), ctx.data.get('custom_id'))
+            f_log.warning("Malformed spectate custom_id from user=%s: %r", getattr(ctx.user, 'id', None),
+                          ctx.data.get('custom_id'))
             await _send_game_ended_error(ctx)
             return
         if game_id not in CURRENT_GAMES:
@@ -225,20 +231,20 @@ class GamesCog(commands.Cog):
         if ctx.user.id in participant_ids:
             f_log.debug("User %s tried to spectate but is already participant in game_id=%s", ctx.user.id, game_id)
             await followup_send(ctx,
-                get("success.already_participant"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                get("success.already_participant"),
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
 
         # Check if spectating is allowed for this game (games can disable spectating)
         if hasattr(game.game, 'allow_spectating') and not game.game.allow_spectating:
             f_log.info("User %s attempted to spectate game_id=%s but spectating disabled", ctx.user.id, game_id)
             await followup_send(ctx,
-                PERMISSION_MSG_SPECTATE_DISABLED,
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+                                PERMISSION_MSG_SPECTATE_DISABLED,
+                                ephemeral=True,
+                                delete_after=EPHEMERAL_DELETE_AFTER,
+                                )
             return
 
         await game.thread.add_user(ctx.user)
@@ -248,12 +254,14 @@ class GamesCog(commands.Cog):
     async def peek_callback(self, ctx: discord.Interaction) -> None:
         await ctx.response.defer()
         f_log = log.getChild("interaction.peek")
-        f_log.debug("peek_callback called by user=%s custom_id=%r", getattr(ctx.user, 'id', None), ctx.data.get('custom_id'))
+        f_log.debug("peek_callback called by user=%s custom_id=%r", getattr(ctx.user, 'id', None),
+                    ctx.data.get('custom_id'))
         try:
             data = ctx.data["custom_id"].replace(BUTTON_PREFIX_PEEK, "").split("/")
             game_id = int(data[0])
         except (KeyError, IndexError, ValueError):
-            f_log.warning("Malformed peek custom_id from user=%s: %r", getattr(ctx.user, 'id', None), ctx.data.get('custom_id'))
+            f_log.warning("Malformed peek custom_id from user=%s: %r", getattr(ctx.user, 'id', None),
+                          ctx.data.get('custom_id'))
             await _send_game_ended_error(ctx)
             return
         if game_id in CURRENT_GAMES:
@@ -269,47 +277,49 @@ class GamesCog(commands.Cog):
         from utils.models import MatchStatus
 
         f_log = log.getChild("interaction.rematch")
-        f_log.debug("rematch_button_callback called by user=%s custom_id=%r", getattr(ctx.user, 'id', None), ctx.data.get('custom_id'))
+        f_log.debug("rematch_button_callback called by user=%s custom_id=%r", getattr(ctx.user, 'id', None),
+                    ctx.data.get('custom_id'))
 
         tail = ctx.data["custom_id"].replace(BUTTON_PREFIX_REMATCH, "", 1)
         try:
             mid = int(tail)
         except ValueError:
             f_log.warning("Malformed rematch id from user=%s: %r", getattr(ctx.user, 'id', None), tail)
-            await followup_send(ctx,content=format_user_error_message("rematch_invalid"), ephemeral=True)
+            await followup_send(ctx, content=format_user_error_message("rematch_invalid"), ephemeral=True)
             return
         match = db.database.get_match(mid)
         if not match or match.status != MatchStatus.COMPLETED:
             f_log.info("Rematch requested for mid=%s but not available or not completed (match=%r)", mid, match)
-            await followup_send(ctx,content=format_user_error_message("rematch_unavailable"), ephemeral=True)
+            await followup_send(ctx, content=format_user_error_message("rematch_unavailable"), ephemeral=True)
             return
         human_ids = db.database.get_match_human_user_ids_ordered(mid)
         if ctx.user.id not in human_ids:
             f_log.warning("User %s attempted rematch for mid=%s but is not participant", ctx.user.id, mid)
-            await followup_send(ctx,content=get("rematch.not_participant"), ephemeral=True)
+            await followup_send(ctx, content=get("rematch.not_participant"), ephemeral=True)
             return
         for uid in human_ids:
             if user_in_active_game(uid):
                 f_log.info("Cannot rematch mid=%s because user %s is busy in another game", mid, uid)
-                await followup_send(ctx,content=get("rematch.someone_busy"), ephemeral=True)
+                await followup_send(ctx, content=get("rematch.someone_busy"), ephemeral=True)
                 return
         g = ctx.guild
         if g is None or not isinstance(ctx.channel, discord.TextChannel):
             f_log.warning("Rematch attempted in invalid channel by user=%s", ctx.user.id)
-            await followup_send(ctx,content=get("rematch.bad_channel"), ephemeral=True)
+            await followup_send(ctx, content=get("rematch.bad_channel"), ephemeral=True)
             return
         game_row = db.database.get_game_by_id(match.game_id)
         if not game_row:
             f_log.error("Rematch: game_row not found for game_id=%s (match=%s)", match.game_id, mid)
-            await followup_send(ctx,content=get("rematch.unknown_game"), ephemeral=True)
+            await followup_send(ctx, content=get("rematch.unknown_game"), ephemeral=True)
             return
         game_type = game_row.game_name
-        loading = await ctx.channel.send(**container_send_kwargs(LoadingContainer(message=get_emoji_string("loading")).remove_footer()))
+        loading = await ctx.channel.send(
+            **container_send_kwargs(LoadingContainer(message=get_emoji_string("loading")).remove_footer()))
         mm = MatchmakingInterface(ctx.user, game_type, loading, rated=match.is_rated, private=False)
         if mm.failed is not None:
             f_log.error("MatchmakingInterface failed during rematch seed: %s", mm.failed)
             await loading.edit(content=str(mm.failed), view=None, attachments=[])
-            await followup_send(ctx,content=get("rematch.failed"), ephemeral=True)
+            await followup_send(ctx, content=get("rematch.failed"), ephemeral=True)
             return
         err = await mm.seed_rematch_players(g, human_ids)
         if err:
@@ -318,11 +328,11 @@ class GamesCog(commands.Cog):
             except discord.HTTPException:
                 pass
             f_log.error("Failed to seed rematch players for mid=%s: %s", mid, err)
-            await followup_send(ctx,content=err, ephemeral=True)
+            await followup_send(ctx, content=err, ephemeral=True)
             return
         await mm.update_embed()
         f_log.info("Rematch lobby created for mid=%s by user=%s", mid, ctx.user.id)
-        await followup_send(ctx,content=get("rematch.created"), ephemeral=True)
+        await followup_send(ctx, content=get("rematch.created"), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
@@ -332,7 +342,8 @@ async def setup(bot: commands.Bot):
 async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = True,
                      private: bool = False) -> MatchmakingInterface | None:
     f_log = log.getChild("command.matchmaking")
-    f_log.debug("begin_game called by user=%s game_type=%r rated=%s private=%s", getattr(ctx.user, 'id', None), game_type, rated, private)
+    f_log.debug("begin_game called by user=%s game_type=%r rated=%s private=%s", getattr(ctx.user, 'id', None),
+                game_type, rated, private)
     if user_in_active_game(ctx.user.id):
         await response_send_message(
             ctx,
@@ -406,6 +417,7 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
 async def add_matchmaking_bot(ctx: discord.Interaction, difficulty: str) -> bool:
     f_log = log.getChild("command.add_matchmaking_bot")
     f_log.debug("add_matchmaking_bot called by user=%s difficulty=%r", getattr(ctx.user, 'id', None), difficulty)
+
     async def _send(message: str) -> None:
         if ctx.response.is_done():
             await followup_send(ctx, message, ephemeral=True)
@@ -440,7 +452,8 @@ async def handle_move(ctx: discord.Interaction, name, arguments, current_turn_re
     from utils.analytics import EventType, register_event
 
     f_log = log.getChild("command.move")
-    f_log.debug("handle_move called by user=%s name=%r args=%r current_turn_required=%s", getattr(ctx.user, 'id', None), name, arguments, current_turn_required)
+    f_log.debug("handle_move called by user=%s name=%r args=%r current_turn_required=%s", getattr(ctx.user, 'id', None),
+                name, arguments, current_turn_required)
 
     requested_group = getattr(getattr(getattr(ctx, "command", None), "parent", None), "name", None)
 
@@ -500,7 +513,8 @@ async def handle_move(ctx: discord.Interaction, name, arguments, current_turn_re
     arguments.pop("ctx")
     arguments = {a: await decode_discord_arguments(arguments[a]) for a in arguments}
     AUTOCOMPLETE_CACHE[ctx.channel.id] = {}
-    f_log.info("Dispatching move_by_command for user=%s game_id=%s name=%r args=%r", getattr(ctx.user, 'id', None), ctx.channel.id, name, arguments)
+    f_log.info("Dispatching move_by_command for user=%s game_id=%s name=%r args=%r", getattr(ctx.user, 'id', None),
+               ctx.channel.id, name, arguments)
     await active_game.move_by_command(ctx, name, arguments, current_turn_required=current_turn_required)
 
 

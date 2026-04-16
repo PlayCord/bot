@@ -1,33 +1,23 @@
 import asyncio
-import logging
+import shutil
+import subprocess
 
 import discord
 from discord.ext import commands
 
-from configuration.constants import (
-    ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS,
-    ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS,
-    ANALYTICS_RETENTION_DAYS,
-    CURRENT_GAMES,
-    EPHEMERAL_DELETE_AFTER,
-    ERROR_NO_SYSTEM_CHANNEL,
-    GAME_TYPES,
-    IN_GAME,
-    IN_MATCHMAKING,
-    LOGGING_ROOT,
-    PRESENCE_TIMEOUT,
-    THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES,
-    THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY,
-    THREAD_POLICY_SPECTATORS_SILENT,
-    THREAD_POLICY_WARN_NON_PARTICIPANTS,
-    THREAD_POLICY_WARNING_MESSAGE,
-)
-from utils import analytics as analytics_mod
-from utils import database as db
+from configuration.constants import (ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS,
+                                      ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS, ANALYTICS_RETENTION_DAYS, CURRENT_GAMES,
+                                      EPHEMERAL_DELETE_AFTER, ERROR_NO_SYSTEM_CHANNEL, GAME_TYPES, IN_GAME,
+                                      IN_MATCHMAKING, PRESENCE_TIMEOUT,
+                                      THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES,
+                                      THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY, THREAD_POLICY_SPECTATORS_SILENT,
+                                      THREAD_POLICY_WARNING_MESSAGE, THREAD_POLICY_WARN_NON_PARTICIPANTS, VERSION)
+from utils import analytics as analytics_mod, database as db
 from utils.containers import CustomContainer, container_send_kwargs
-from utils.locale import get, fmt
+from utils.logging_config import get_logger
+from utils.locale import fmt, get
 
-log = logging.getLogger(LOGGING_ROOT)
+log = get_logger()
 
 
 class EventsCog(commands.Cog):
@@ -35,10 +25,49 @@ class EventsCog(commands.Cog):
         self.bot = bot
         self.presence_lock = asyncio.Lock()
         self._warned_users = {}  # {thread_id: {user_id: timestamp}} - track warnings to avoid spam
+        # Build the version presence string. Assume `VERSION` exists.
+        # If git is available and we can read the short commit hash, show:
+        #   vx.y.z • f9ab9b
+        # Otherwise just:
+        #   vx.y.z
+        version_base = f"v{VERSION}"
+        git_executable = shutil.which("git")
+        git_log = log.getChild("git")
+        if not git_executable:
+            # Git isn't installed or isn't in the system's PATH at all
+            git_log.debug("git executable not found in PATH; using version base %s", version_base)
+            self.version = version_base
+        else:
+            try:
+                proc = subprocess.run(
+                    [git_executable, "rev-parse", "--short", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                short = proc.stdout.strip()
+
+                if short:
+                    self.version = f"{version_base} \u2022 {short}"
+                    git_log.info("Using git short commit %s for presence version", short)
+                else:
+                    git_log.debug("Git returned empty short hash; using version base %s", version_base)
+                    self.version = version_base
+
+            except subprocess.CalledProcessError as e:
+                # This catches errors if the command runs but fails
+                # (e.g., the ".." directory is not actually a git repository)
+                git_log.debug("git rev-parse failed: %s; using version base %s", e, version_base)
+                self.version = version_base
+            except FileNotFoundError as e:
+                # Failsafe in case shutil.which lied to us
+                git_log.warning("git executable disappeared or is not runnable: %s; using version base %s", e,
+                                version_base)
+                self.version = version_base
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
-        startup_logger = logging.getLogger(f"{LOGGING_ROOT}.startup")
+        startup_logger = log.getChild("startup")
         startup_logger.info(f"Client connected and ready.")
         self.bot.loop.create_task(self.presence())
         self.bot.loop.create_task(self._analytics_periodic_flush())
@@ -52,7 +81,8 @@ class EventsCog(commands.Cog):
                 analytics_mod.flush_events()
                 if db.database is not None:
                     db.database.cleanup_old_analytics(days=ANALYTICS_RETENTION_DAYS)
-                    log.getChild("analytics.flush").debug("Cleanup_old_analytics completed (retention_days=%s)", ANALYTICS_RETENTION_DAYS)
+                    log.getChild("analytics.flush").debug("Cleanup_old_analytics completed (retention_days=%s)",
+                                                          ANALYTICS_RETENTION_DAYS)
             except Exception:
                 log.exception("Periodic analytics flush/cleanup failed")
             await asyncio.sleep(ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS)
@@ -111,12 +141,15 @@ class EventsCog(commands.Cog):
         """
         # Ignore messages from bots (including ourselves)
         if message.author.bot:
-            log.getChild("event.thread_policy").debug("Ignoring message from bot user %s in channel %s", getattr(message.author, 'id', None), getattr(message.channel, 'id', None))
+            log.getChild("event.thread_policy").debug("Ignoring message from bot user %s in channel %s",
+                                                      getattr(message.author, 'id', None),
+                                                      getattr(message.channel, 'id', None))
             return
 
         # Only apply to private threads (game threads)
         if message.channel.type != discord.ChannelType.private_thread:
-            log.getChild("event.thread_policy").debug("Ignoring non-private-thread message in channel %s", getattr(message.channel, 'id', None))
+            log.getChild("event.thread_policy").debug("Ignoring non-private-thread message in channel %s",
+                                                      getattr(message.channel, 'id', None))
             return
 
         # Check if this thread has an active game
@@ -136,9 +169,11 @@ class EventsCog(commands.Cog):
                 if text and not text.startswith("/"):
                     try:
                         await message.delete()
-                        f_log.info("Deleted non-command message from participant %s in thread %s", message.author.id, message.channel.id)
+                        f_log.info("Deleted non-command message from participant %s in thread %s", message.author.id,
+                                   message.channel.id)
                     except discord.Forbidden:
-                        f_log.warning("Cannot delete participant message - missing permissions in thread %s", message.channel.id)
+                        f_log.warning("Cannot delete participant message - missing permissions in thread %s",
+                                      message.channel.id)
                     except discord.NotFound:
                         f_log.debug("Message to delete was not found (already deleted)")
             return
@@ -150,11 +185,13 @@ class EventsCog(commands.Cog):
         if THREAD_POLICY_SPECTATORS_SILENT or THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES:
             try:
                 await message.delete()
-                f_log.info("Deleted message from non-participant %s in thread %s", message.author.id, message.channel.id)
+                f_log.info("Deleted message from non-participant %s in thread %s", message.author.id,
+                           message.channel.id)
             except discord.Forbidden:
                 f_log.warning("Cannot delete message - missing permissions in thread %s", message.channel.id)
             except discord.NotFound:
-                f_log.debug("Message already deleted when attempting to remove non-participant message in thread %s", message.channel.id)
+                f_log.debug("Message already deleted when attempting to remove non-participant message in thread %s",
+                            message.channel.id)
 
         # Warn the user (with rate limiting to avoid spam)
         if THREAD_POLICY_WARN_NON_PARTICIPANTS:
@@ -180,9 +217,11 @@ class EventsCog(commands.Cog):
                 except discord.Forbidden:
                     f_log.warning("Cannot send warning - missing permissions in thread %s", message.channel.id)
                 except Exception:
-                    f_log.exception("Failed to send/delete warning message in thread %s for user %s", thread_id, user_id)
+                    f_log.exception("Failed to send/delete warning message in thread %s for user %s", thread_id,
+                                    user_id)
             else:
-                f_log.debug("Skipping warning for user %s in thread %s due to rate limiting (last_warned=%s)", user_id, thread_id, last_warned)
+                f_log.debug("Skipping warning for user %s in thread %s due to rate limiting (last_warned=%s)", user_id,
+                            thread_id, last_warned)
 
     async def presence(self) -> None:
         if not self.presence_lock.locked():
@@ -194,6 +233,8 @@ class EventsCog(commands.Cog):
                         fmt("presence.users_matchmaking", count=len(IN_MATCHMAKING)),
                         fmt("presence.games_happening_now", count=len(CURRENT_GAMES)),
                     ]
+                    # Include the version (and commit if available) as one of the rotating presence entries.
+                    options.append(self.version)
                     for option in options:
                         try:
                             activity = discord.Activity(type=discord.ActivityType.playing, name=option)

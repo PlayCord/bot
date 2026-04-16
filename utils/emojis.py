@@ -8,7 +8,6 @@ Provides functionality for:
 - Getting button emojis for UI elements
 - Getting game-specific emojis
 """
-import logging
 from typing import Optional, Union
 
 import discord
@@ -16,8 +15,9 @@ import ruamel.yaml
 from emoji import is_emoji
 
 from configuration.constants import EMOJI_CONFIGURATION_FILE, LONG_SPACE_EMBED
+from utils.logging_config import get_logger
 
-logger = logging.getLogger("playcord.emojis")
+logger = get_logger("emojis")
 
 # Loaded emojis from configuration
 emojis: dict[str, dict] = {}

@@ -4,11 +4,12 @@ Each migration is a list of SQL statements executed in one transaction.
 """
 
 import hashlib
-import logging
 import re
 from typing import List, Tuple
 
-logger = logging.getLogger("playcord.database.migrations")
+from utils.logging_config import get_logger
+
+logger = get_logger("database.migrations")
 
 # (version, description, statements) — version must match database_migrations.chk_version_format
 # Migrations start at 2.4.0 (global per-game ratings). 2.5.0 adds leaderboard index and SQL decay fix.

@@ -4,7 +4,6 @@ Comprehensive database operations with transaction support and connection poolin
 """
 
 import json
-import logging
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -25,17 +24,18 @@ except ImportError:
 from api.Player import Player
 from configuration import constants
 from configuration.constants import GAME_TYPES, MU
-from utils.trueskill_params import get_trueskill_parameters
-from utils.match_codes import generate_match_code
 from utils import db_migrations
+from utils.logging_config import get_logger
+from utils.match_codes import generate_match_code
 from utils.models import (
     User, Guild, Game, Rating, Match, Participant, Move,
     MatchStatus, EventType,
     row_to_user, row_to_guild, row_to_game, row_to_rating,
     row_to_match, row_to_participant, row_to_move
 )
+from utils.trueskill_params import get_trueskill_parameters
 
-logger = logging.getLogger("playcord.database")
+logger = get_logger("database")
 
 
 # ============================================================================

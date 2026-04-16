@@ -1,5 +1,3 @@
-import logging
-
 import discord
 from discord.ext import commands
 
@@ -12,13 +10,13 @@ from configuration.constants import (
     BUTTON_PREFIX_READY,
     CURRENT_MATCHMAKING,
     EPHEMERAL_DELETE_AFTER,
-    LOGGING_ROOT,
 )
 from utils.conversion import contextify
 from utils.discord_utils import followup_send
+from utils.logging_config import get_logger
 from utils.locale import get
 
-log = logging.getLogger(LOGGING_ROOT)
+log = get_logger()
 
 
 class MatchmakingCog(commands.Cog):

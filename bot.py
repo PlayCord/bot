@@ -1,4 +1,3 @@
-import logging
 import os
 import sys
 
@@ -18,19 +17,12 @@ from utils.locale import fmt, get, set_command_mentions
 from utils.bot_owners import STATIC_OWNER_IDS, resolve_effective_owner_ids
 from utils.command_builder import build_function_definitions
 from utils.discord_utils import command_error
-from utils.formatter import Formatter
+from utils.logging_config import configure_logging, configure_logging_from_config, get_logger
 
-# Logging setup
-logging.getLogger("discord").setLevel(logging.INFO)
-logging.basicConfig(level=logging.INFO)
-root_logger = logging.getLogger("root")
-root_logger.setLevel(logging.INFO)
-ch = logging.StreamHandler(stream=sys.stdout)
-ch.setLevel(logging.INFO)
-ch.setFormatter(Formatter())
-root_logger.handlers = [ch]
+# Logging setup: bootstrap first, then reconfigure from loaded config.
+configure_logging("INFO")
 
-log = logging.getLogger(LOGGING_ROOT)
+log = get_logger()
 startup_logger = log.getChild("startup")
 
 startup_logger.info(f"Welcome to {NAME} by @quantumbagel!")
@@ -108,6 +100,9 @@ if config is None:
     sys.exit(1)
 config = apply_environment_overrides(config)
 constants.CONFIGURATION = config
+
+# Reconfigure logging using config value (defaults to INFO).
+configure_logging_from_config(constants.CONFIGURATION)
 
 database_startup_time = Timer().start()
 if not db.startup():

@@ -1,5 +1,4 @@
 import importlib
-import logging
 from datetime import datetime
 from difflib import get_close_matches
 
@@ -45,11 +44,12 @@ from utils.emojis import get_emoji_string, get_game_emoji
 from utils.graphs import generate_elo_chart
 from utils.interfaces import MatchmakingInterface, user_in_active_game
 from utils.locale import fmt, get, plural
+from utils.logging_config import get_logger
 from utils.matchmaking_user_map import matchmaking_by_user_id
 from utils.replay_format import chunk_replay_lines, format_replay_event_line
 from utils.views import HelpView, InviteView, PaginationView
 
-log = logging.getLogger(LOGGING_ROOT)
+log = get_logger()
 
 _GAME_METADATA: dict[str, dict] = {}
 

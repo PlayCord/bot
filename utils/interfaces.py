@@ -2,7 +2,6 @@ import asyncio
 import importlib
 import inspect
 import io
-import logging
 import random
 import typing
 from collections import Counter
@@ -30,7 +29,6 @@ from configuration.constants import (
     INFO_COLOR,
     IN_GAME,
     IN_MATCHMAKING,
-    LOGGING_ROOT,
     LONG_SPACE_EMBED,
     MU,
     PERMISSION_MSG_NOT_YOUR_TURN,
@@ -52,6 +50,7 @@ from utils.conversion import column_creator, column_elo, column_names, column_tu
 from utils.database import InternalPlayer, get_shallow_player, internal_player_to_player
 from utils.discord_utils import followup_send
 from utils.emojis import get_emoji_string
+from utils.logging_config import get_logger
 from utils.locale import fmt, get
 from utils.models import EventType
 from utils.trueskill_params import get_trueskill_parameters
@@ -109,7 +108,7 @@ class GameInterface:
         self.match_options = dict(match_options) if match_options else {}
         # The game type
         self.game_type = game_type
-        self.logger = logging.getLogger(f"GameInterface[{game_type}]")
+        self.logger = get_logger("interfaces.game").getChild(game_type)
         # Who created the lobby
         self.creator = creator
 
@@ -1307,7 +1306,7 @@ class MatchmakingInterface:
             self.allowed_players = player_representative(player_count)
 
         self.outcome = None  # Whether the matchmaking was successful (True, None, or False)
-        self.logger = logging.getLogger(f"playcord.matchmaking_interface[{message.id}]")
+        self.logger = get_logger("interfaces.matchmaking").getChild(game_type)
 
     @property
     def has_bots(self) -> bool:
@@ -1998,11 +1997,15 @@ async def successful_matchmaking(interface: MatchmakingInterface) -> None:
     :return: Nothing
     """
     message = interface.message
-    sm_log = logging.getLogger(f"{LOGGING_ROOT}.successful_matchmaking")
+    sm_log = get_logger("interfaces.successful_matchmaking")
     try:
         await _successful_matchmaking_impl(interface)
     except Exception:
-        sm_log.exception("successful_matchmaking failed")
+        sm_log.exception(
+            "successful_matchmaking failed (message_id=%s game_type=%s)",
+            getattr(message, "id", None),
+            getattr(interface, "game_type", None),
+        )
         try:
             await message.edit(
                 content=get("system_error.internal_what_failed"),
@@ -2087,11 +2090,16 @@ async def _successful_matchmaking_impl(interface: MatchmakingInterface) -> None:
 
         await game.display_game_state()  # Send the game display state
     except Exception:
-        _sm = logging.getLogger(f"{LOGGING_ROOT}.successful_matchmaking")
+        _sm = get_logger("interfaces.successful_matchmaking")
         try:
             db.database.abandon_match(new_game_id, "interface_setup_failed")
         except Exception:
-            _sm.exception("abandon_match failed after setup error")
+            _sm.exception(
+                "abandon_match failed after setup error (match_id=%s message_id=%s game_type=%s)",
+                new_game_id,
+                getattr(message, "id", None),
+                game_type,
+            )
         try:
             register_event(
                 EventType.GAME_ABANDONED,
@@ -2319,8 +2327,10 @@ async def game_over(
         # Rerate the groups
         adjusted_rating_groups = environment.rate(rating_groups=rating_groups, ranks=rankings)
         player_string, player_ratings = await rating_groups_to_string(rankings, adjusted_rating_groups, game_type)
-        logging.getLogger(LOGGING_ROOT).debug(
-            "rated game_over: rankings=%s player_ratings_keys=%s",
+        get_logger("interfaces.ratings").debug(
+            "rated game_over: game_id=%s game_type=%s rankings=%s player_ratings_keys=%s",
+            game_id,
+            game_type,
             rankings,
             list(player_ratings) if player_ratings else None,
         )

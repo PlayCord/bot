@@ -18,11 +18,12 @@ Usage:
     error = get_error("not_in_matchmaking")  # Returns (description, suggestion)
 """
 
-import logging
 import re
 import tomllib
 from pathlib import Path
 from typing import Any
+
+from utils.logging_config import get_logger
 
 # Default locale
 DEFAULT_LOCALE = "en"
@@ -36,6 +37,7 @@ _current_locale = DEFAULT_LOCALE
 # Slash command mention token support (`{command:play}` / `{command:playcord help}`)
 _COMMAND_TOKEN_RE = re.compile(r"\{command:([^{}]+)\}")
 _command_mentions: dict[str, str] = {}
+log = get_logger("locale")
 
 
 def _load_locale(locale_code: str) -> dict:
@@ -48,7 +50,7 @@ def _load_locale(locale_code: str) -> dict:
     if not locale_path.exists():
         if locale_code != DEFAULT_LOCALE:
             # Fall back to default locale
-            logging.warning(f"Locale '{locale_code}' not found, falling back to '{DEFAULT_LOCALE}'")
+            log.warning("Locale %r not found, falling back to %r", locale_code, DEFAULT_LOCALE)
             return _load_locale(DEFAULT_LOCALE)
         else:
             raise FileNotFoundError(f"Default locale file not found: {locale_path}")
@@ -145,7 +147,7 @@ def get(key: str, default: str = None, locale: str = None) -> str:
     if result is None:
         if default is not None:
             return _replace_command_tokens(str(default))
-        logging.warning(f"Missing locale key: '{key}' in locale '{locale}'")
+        log.warning("Missing locale key: %r in locale %r", key, locale)
         return f"[{key}]"  # Return key wrapped in brackets to make missing strings visible
 
     return _replace_command_tokens(str(result))
@@ -177,10 +179,10 @@ def fmt(key: str, default: str = None, locale: str = None, **kwargs) -> str:
     try:
         return template.format(**kwargs)
     except KeyError as e:
-        logging.warning(f"Missing format variable {e} for key '{key}'")
+        log.warning("Missing format variable %s for key %r", e, key)
         return template
     except ValueError as e:
-        logging.warning(f"Invalid format string '{template}' for key '{key}': {e}")
+        log.warning("Invalid format string %r for key %r: %s", template, key, e)
         return template
 
 
@@ -298,4 +300,4 @@ def plural(word: str, count: int) -> str:
 try:
     _load_locale(DEFAULT_LOCALE)
 except FileNotFoundError:
-    logging.error(f"Could not load default locale '{DEFAULT_LOCALE}'")
+    log.error("Could not load default locale %r", DEFAULT_LOCALE)

@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from typing import Any
 
 import discord
@@ -10,9 +9,10 @@ from configuration.constants import CURRENT_GAMES, EPHEMERAL_DELETE_AFTER, INFO_
 from utils.containers import CustomContainer, UserErrorContainer, container_send_kwargs
 from utils.conversion import contextify
 from utils.database import DatabaseConnectionError
+from utils.logging_config import get_logger
 from utils.locale import get, get_error
 
-log = logging.getLogger(LOGGING_ROOT)
+log = get_logger()
 
 
 def schedule_ephemeral_message_delete(message: Any, delay: float | None) -> None:

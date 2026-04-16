@@ -1,4 +1,8 @@
 secret: your-secret-here
+
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR, or CRITICAL
+
 db:
   type: postgresql  # Database type: postgresql (recommended)
   host: db  # Use "db" when running via docker-compose, "localhost" for local runs
