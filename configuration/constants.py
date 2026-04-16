@@ -2,7 +2,7 @@ import discord
 
 from utils.locale import get, get_dict
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 NAME = get("brand.name")
 MANAGED_BY = get("meta.author")
 LOGGING_ROOT = "playcord"
