@@ -6,16 +6,16 @@ import discord
 from discord.ext import commands
 
 from configuration.constants import (ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS,
-                                      ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS, ANALYTICS_RETENTION_DAYS, CURRENT_GAMES,
-                                      EPHEMERAL_DELETE_AFTER, ERROR_NO_SYSTEM_CHANNEL, GAME_TYPES, IN_GAME,
-                                      IN_MATCHMAKING, PRESENCE_TIMEOUT,
-                                      THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES,
-                                      THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY, THREAD_POLICY_SPECTATORS_SILENT,
-                                      THREAD_POLICY_WARNING_MESSAGE, THREAD_POLICY_WARN_NON_PARTICIPANTS, VERSION)
+                                     ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS, ANALYTICS_RETENTION_DAYS, CURRENT_GAMES,
+                                     EPHEMERAL_DELETE_AFTER, ERROR_NO_SYSTEM_CHANNEL, GAME_TYPES, IN_GAME,
+                                     IN_MATCHMAKING, PRESENCE_TIMEOUT,
+                                     THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES,
+                                     THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY, THREAD_POLICY_SPECTATORS_SILENT,
+                                     THREAD_POLICY_WARNING_MESSAGE, THREAD_POLICY_WARN_NON_PARTICIPANTS, VERSION)
 from utils import analytics as analytics_mod, database as db
 from utils.containers import CustomContainer, container_send_kwargs
-from utils.logging_config import get_logger
 from utils.locale import fmt, get
+from utils.logging_config import get_logger
 
 log = get_logger()
 
@@ -25,7 +25,7 @@ class EventsCog(commands.Cog):
         self.bot = bot
         self.presence_lock = asyncio.Lock()
         self._warned_users = {}  # {thread_id: {user_id: timestamp}} - track warnings to avoid spam
-        # Build the version presence string. Assume `VERSION` exists.
+        # Build the version presence string.
         # If git is available and we can read the short commit hash, show:
         #   vx.y.z • f9ab9b
         # Otherwise just:

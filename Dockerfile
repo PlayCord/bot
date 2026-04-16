@@ -8,6 +8,7 @@ ENV PYTHONUNBUFFERED=1
 # Install system deps, fonts and build tools needed for some Python packages
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        git \
         libcairo2 \
         fontconfig \
         fonts-dejavu-core \
