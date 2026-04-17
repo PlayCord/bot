@@ -136,10 +136,18 @@ class MatchmakingView(DynamicButtonView):
         Create a matchmaking view (Join / Leave / optional Ready — no Start; game begins when all ready).
         """
         buttons: list[dict] = [
-            {"label": get("buttons.join"), "style": discord.ButtonStyle.gray, "id": join_button_id,
-             "callback": "none"},
-            {"label": get("buttons.leave"), "style": discord.ButtonStyle.gray, "id": leave_button_id,
-             "callback": "none"},
+            {
+                "label": get("buttons.join"),
+                "style": discord.ButtonStyle.gray,
+                "id": join_button_id,
+                "callback": "none",
+            },
+            {
+                "label": get("buttons.leave"),
+                "style": discord.ButtonStyle.gray,
+                "id": leave_button_id,
+                "callback": "none",
+            },
         ]
         if ready_button_id is not None:
             buttons.append(
@@ -150,7 +158,9 @@ class MatchmakingView(DynamicButtonView):
                     "callback": "none",
                 }
             )
-        super().__init__(buttons, summary_text=summary_text, table_image_url=table_image_url)
+        super().__init__(
+            buttons, summary_text=summary_text, table_image_url=table_image_url
+        )
 
 
 class MatchmakingLobbyView(discord.ui.LayoutView):
@@ -287,18 +297,30 @@ class InviteView(DynamicButtonView):
     View for invitation DM
     """
 
-    def __init__(self, join_button_id=None, game_link=None, summary_text: str | None = None) -> None:
+    def __init__(
+        self, join_button_id=None, game_link=None, summary_text: str | None = None
+    ) -> None:
         """
         Create a invite view
         :param join_button_id: the custom ID of the join button
         :param game_link: the link to the game
         """
-        super().__init__([
-            {"label": get("buttons.join_game"), "style": discord.ButtonStyle.blurple,
-             "id": join_button_id, "callback": "none"},
-            {"label": get("buttons.go_to_game"),
-             "style": discord.ButtonStyle.gray, "link": game_link}
-        ], summary_text=summary_text)
+        super().__init__(
+            [
+                {
+                    "label": get("buttons.join_game"),
+                    "style": discord.ButtonStyle.blurple,
+                    "id": join_button_id,
+                    "callback": "none",
+                },
+                {
+                    "label": get("buttons.go_to_game"),
+                    "style": discord.ButtonStyle.gray,
+                    "link": game_link,
+                },
+            ],
+            summary_text=summary_text,
+        )
 
 
 class SpectateView(DynamicButtonView):
@@ -322,18 +344,32 @@ class SpectateView(DynamicButtonView):
         :param table_image_url: optional attachment:// URL for overview table (same slot as DynamicButtonView)
         """
         buttons = [
-            {"label": get("buttons.spectate"), "style": discord.ButtonStyle.blurple,
-             "id": spectate_button_id, "callback": "none"},
+            {
+                "label": get("buttons.spectate"),
+                "style": discord.ButtonStyle.blurple,
+                "id": spectate_button_id,
+                "callback": "none",
+            },
         ]
         if peek_button_id:
             buttons.append(
-                {"label": get("buttons.peek"), "style": discord.ButtonStyle.gray, "id": peek_button_id,
-                 "callback": "none"}
+                {
+                    "label": get("buttons.peek"),
+                    "style": discord.ButtonStyle.gray,
+                    "id": peek_button_id,
+                    "callback": "none",
+                }
             )
         buttons.append(
-            {"label": get("buttons.go_to_game"), "style": discord.ButtonStyle.gray, "link": game_link}
+            {
+                "label": get("buttons.go_to_game"),
+                "style": discord.ButtonStyle.gray,
+                "link": game_link,
+            }
         )
-        super().__init__(buttons, summary_text=summary_text, table_image_url=table_image_url)
+        super().__init__(
+            buttons, summary_text=summary_text, table_image_url=table_image_url
+        )
 
 
 class PaginationView(discord.ui.LayoutView):
@@ -343,8 +379,15 @@ class PaginationView(discord.ui.LayoutView):
     If the view is not registered (e.g. after restart), GamesCog.on_interaction replies ephemerally.
     """
 
-    def __init__(self, guild_id: int, user_id: int, current_page: int,
-                 max_pages: int, callback_handler, body_text: str | None = None):
+    def __init__(
+        self,
+        guild_id: int,
+        user_id: int,
+        current_page: int,
+        max_pages: int,
+        callback_handler,
+        body_text: str | None = None,
+    ):
         """
         :param guild_id: Guild ID for validation (0 if not in a guild)
         :param user_id: User who invoked the command (only they can use the buttons)
@@ -418,7 +461,8 @@ class PaginationView(discord.ui.LayoutView):
     async def _first_callback(self, interaction: discord.Interaction):
         """Navigate to first page."""
         if not self._validate_interaction(interaction):
-            await response_send_message(interaction,
+            await response_send_message(
+                interaction,
                 get("interactions.pagination_not_yours"),
                 ephemeral=True,
                 delete_after=EPHEMERAL_DELETE_AFTER,
@@ -431,7 +475,8 @@ class PaginationView(discord.ui.LayoutView):
     async def _prev_callback(self, interaction: discord.Interaction):
         """Navigate to previous page."""
         if not self._validate_interaction(interaction):
-            await response_send_message(interaction,
+            await response_send_message(
+                interaction,
                 get("interactions.pagination_not_yours"),
                 ephemeral=True,
                 delete_after=EPHEMERAL_DELETE_AFTER,
@@ -445,7 +490,8 @@ class PaginationView(discord.ui.LayoutView):
     async def _next_callback(self, interaction: discord.Interaction):
         """Navigate to next page."""
         if not self._validate_interaction(interaction):
-            await response_send_message(interaction,
+            await response_send_message(
+                interaction,
                 get("interactions.pagination_not_yours"),
                 ephemeral=True,
                 delete_after=EPHEMERAL_DELETE_AFTER,
@@ -459,7 +505,8 @@ class PaginationView(discord.ui.LayoutView):
     async def _last_callback(self, interaction: discord.Interaction):
         """Navigate to last page."""
         if not self._validate_interaction(interaction):
-            await response_send_message(interaction,
+            await response_send_message(
+                interaction,
                 get("interactions.pagination_not_yours"),
                 ephemeral=True,
                 delete_after=EPHEMERAL_DELETE_AFTER,
@@ -474,119 +521,145 @@ class RematchView(DynamicButtonView):
     """Rematch button; interaction is handled in GamesCog (see callback \"none\")."""
 
     def __init__(self, match_id: int, summary_text: str | None = None):
-        super().__init__([
-            {
-                "label": get("buttons.rematch"),
-                "style": discord.ButtonStyle.success,
-                "id": f"{BUTTON_PREFIX_REMATCH}{match_id}",
-                "disabled": False,
-                "callback": "none",
-            },
-        ], summary_text=summary_text)
+        super().__init__(
+            [
+                {
+                    "label": get("buttons.rematch"),
+                    "style": discord.ButtonStyle.success,
+                    "id": f"{BUTTON_PREFIX_REMATCH}{match_id}",
+                    "disabled": False,
+                    "callback": "none",
+                },
+            ],
+            summary_text=summary_text,
+        )
 
 
 class HelpView(discord.ui.LayoutView):
     """
     Interactive help menu with navigation buttons.
     """
-    
-    def __init__(self, user_id: int, current_section: str = "main", body_text: str | None = None):
+
+    def __init__(
+        self, user_id: int, current_section: str = "main", body_text: str | None = None
+    ):
         super().__init__(timeout=300)
         self.user_id = user_id
         self.current_section = current_section
         self.body_text = body_text
         self._setup_buttons()
-    
+
     def _setup_buttons(self):
         """Set up navigation buttons based on current section."""
         container = discord.ui.Container(
             discord.ui.TextDisplay("### Help Navigation"),
         )
         if self.body_text:
-            container.add_item(discord.ui.TextDisplay(self.body_text[:TEXT_DISPLAY_MAX]))
+            container.add_item(
+                discord.ui.TextDisplay(self.body_text[:TEXT_DISPLAY_MAX])
+            )
             container.add_item(discord.ui.Separator())
         row = discord.ui.ActionRow()
         if self.current_section == "main":
-            row.add_item(HelpButton(
-                label=get("help.buttons.getting_started"),
-                section="getting_started",
-                style=discord.ButtonStyle.green,
-                user_id=self.user_id
-            ))
-            row.add_item(HelpButton(
-                label=get("help.buttons.game_list"),
-                section="games",
-                style=discord.ButtonStyle.primary,
-                user_id=self.user_id
-            ))
-            row.add_item(HelpButton(
-                label=get("help.buttons.commands"),
-                section="commands",
-                style=discord.ButtonStyle.primary,
-                user_id=self.user_id
-            ))
-            row.add_item(HelpButton(
-                label=get("help.buttons.game_tutorials"),
-                section="tutorials",
-                style=discord.ButtonStyle.secondary,
-                user_id=self.user_id
-            ))
-            row.add_item(HelpButton(
-                label=get("help.buttons.faq"),
-                section="faq",
-                style=discord.ButtonStyle.secondary,
-                user_id=self.user_id
-            ))
-        else:
-            row.add_item(HelpButton(
-                label=get("help.buttons.back_to_help"),
-                section="main",
-                style=discord.ButtonStyle.gray,
-                user_id=self.user_id
-            ))
-            
-            if self.current_section == "games":
-                row.add_item(HelpButton(
-                    label=get("help.buttons.view_catalog"),
-                    section="catalog",
-                    style=discord.ButtonStyle.primary,
-                    user_id=self.user_id
-                ))
-            elif self.current_section == "tutorials":
-                row.add_item(HelpButton(
+            row.add_item(
+                HelpButton(
+                    label=get("help.buttons.getting_started"),
+                    section="getting_started",
+                    style=discord.ButtonStyle.green,
+                    user_id=self.user_id,
+                )
+            )
+            row.add_item(
+                HelpButton(
                     label=get("help.buttons.game_list"),
                     section="games",
                     style=discord.ButtonStyle.primary,
-                    user_id=self.user_id
-                ))
+                    user_id=self.user_id,
+                )
+            )
+            row.add_item(
+                HelpButton(
+                    label=get("help.buttons.commands"),
+                    section="commands",
+                    style=discord.ButtonStyle.primary,
+                    user_id=self.user_id,
+                )
+            )
+            row.add_item(
+                HelpButton(
+                    label=get("help.buttons.game_tutorials"),
+                    section="tutorials",
+                    style=discord.ButtonStyle.secondary,
+                    user_id=self.user_id,
+                )
+            )
+            row.add_item(
+                HelpButton(
+                    label=get("help.buttons.faq"),
+                    section="faq",
+                    style=discord.ButtonStyle.secondary,
+                    user_id=self.user_id,
+                )
+            )
+        else:
+            row.add_item(
+                HelpButton(
+                    label=get("help.buttons.back_to_help"),
+                    section="main",
+                    style=discord.ButtonStyle.gray,
+                    user_id=self.user_id,
+                )
+            )
+
+            if self.current_section == "games":
+                row.add_item(
+                    HelpButton(
+                        label=get("help.buttons.view_catalog"),
+                        section="catalog",
+                        style=discord.ButtonStyle.primary,
+                        user_id=self.user_id,
+                    )
+                )
+            elif self.current_section == "tutorials":
+                row.add_item(
+                    HelpButton(
+                        label=get("help.buttons.game_list"),
+                        section="games",
+                        style=discord.ButtonStyle.primary,
+                        user_id=self.user_id,
+                    )
+                )
         container.add_item(row)
         if self.current_section == "tutorials":
             game_row = discord.ui.ActionRow()
             for game_id in list(GAME_TYPES)[:5]:
-                game_row.add_item(GameTutorialButton(game_id=game_id, user_id=self.user_id))
+                game_row.add_item(
+                    GameTutorialButton(game_id=game_id, user_id=self.user_id)
+                )
             container.add_item(game_row)
         self.add_item(container)
 
 
 class HelpButton(discord.ui.Button):
     """Button for help menu navigation."""
-    
-    def __init__(self, label: str, section: str,
-                 style: discord.ButtonStyle, user_id: int):
+
+    def __init__(
+        self, label: str, section: str, style: discord.ButtonStyle, user_id: int
+    ):
         super().__init__(label=label, style=style)
         self.section = section
         self.user_id = user_id
-    
+
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
-            await response_send_message(interaction,
+            await response_send_message(
+                interaction,
                 get("interactions.help_not_yours"),
                 ephemeral=True,
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
-        
-        
+
         if self.section == "main":
             container = HelpMainContainer()
         elif self.section == "getting_started":
@@ -602,7 +675,8 @@ class HelpButton(discord.ui.Button):
             container = HelpTutorialsContainer()
         elif self.section == "catalog":
             # Redirect to catalog command
-            await response_send_message(interaction,
+            await response_send_message(
+                interaction,
                 get("help.buttons.catalog_redirect"),
                 ephemeral=True,
                 delete_after=EPHEMERAL_DELETE_AFTER,
@@ -610,14 +684,14 @@ class HelpButton(discord.ui.Button):
             return
         else:
             container = HelpMainContainer()
-        
+
         view = HelpView(
             user_id=self.user_id,
             current_section=self.section,
             body_text=container_to_markdown(container),
         )
         await interaction.response.edit_message(view=view)
-    
+
     async def _build_games_container(self):
         """Build a quick games overview container."""
         import importlib
@@ -625,32 +699,43 @@ class HelpButton(discord.ui.Button):
         container = CustomContainer(
             title=get("help.games_overview.title"),
             description=get("help.games_overview.description"),
-            color=INFO_COLOR
+            color=INFO_COLOR,
         )
-        
+
         games_text = []
-        for game_id, (module_name, class_name) in list(GAME_TYPES.items())[:HELP_GAMES_PREVIEW_COUNT]:
+        for game_id, (module_name, class_name) in list(GAME_TYPES.items())[
+            :HELP_GAMES_PREVIEW_COUNT
+        ]:
             game_class = getattr(importlib.import_module(module_name), class_name)
-            game_name = getattr(game_class, 'name', game_id)
-            games_text.append(fmt("help.games_overview.game_entry", game_name=game_name, game_id=game_id))
-        
+            game_name = getattr(game_class, "name", game_id)
+            games_text.append(
+                fmt(
+                    "help.games_overview.game_entry",
+                    game_name=game_name,
+                    game_id=game_id,
+                )
+            )
+
         if len(GAME_TYPES) > HELP_GAMES_PREVIEW_COUNT:
             games_text.append(
-                fmt("help.games_overview.more_games", count=len(GAME_TYPES) - HELP_GAMES_PREVIEW_COUNT)
+                fmt(
+                    "help.games_overview.more_games",
+                    count=len(GAME_TYPES) - HELP_GAMES_PREVIEW_COUNT,
+                )
             )
-        
+
         container.add_field(
             name=get("help.games_overview.field_games"),
             value="\n".join(games_text),
-            inline=False
+            inline=False,
         )
-        
+
         container.add_field(
             name=get("help.games_overview.field_tip"),
             value=get("help.games_overview.tip_value"),
-            inline=False
+            inline=False,
         )
-        
+
         return container
 
 
@@ -662,7 +747,8 @@ class GameTutorialButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
-            await response_send_message(interaction,
+            await response_send_message(
+                interaction,
                 get("interactions.help_not_yours"),
                 ephemeral=True,
                 delete_after=EPHEMERAL_DELETE_AFTER,
@@ -688,11 +774,11 @@ class ContextualHelpView(discord.ui.LayoutView):
     A view with a contextual help button that can be added to any embed.
     Shows relevant help information based on the context.
     """
-    
+
     def __init__(self, help_topic: str = "main", timeout: int = 180):
         """
         Initialize contextual help view.
-        
+
         Args:
             help_topic: The help topic to show when clicked (main, games, commands, getting_started)
             timeout: View timeout in seconds
@@ -732,23 +818,29 @@ class QuickActionsView(discord.ui.LayoutView):
     A view with quick action buttons for common operations.
     Can be added to profile, leaderboard, and other embeds.
     """
-    
-    def __init__(self, show_catalog: bool = True, show_help: bool = True, timeout: int = 180):
+
+    def __init__(
+        self, show_catalog: bool = True, show_help: bool = True, timeout: int = 180
+    ):
         super().__init__(timeout=timeout)
         container = discord.ui.Container(discord.ui.TextDisplay("### Quick Actions"))
         row = discord.ui.ActionRow()
         if show_catalog:
-            row.add_item(discord.ui.Button(
-                label=get("buttons.view_catalog"),
-                style=discord.ButtonStyle.primary,
-                custom_id="quick_catalog",
-            ))
-        
+            row.add_item(
+                discord.ui.Button(
+                    label=get("buttons.view_catalog"),
+                    style=discord.ButtonStyle.primary,
+                    custom_id="quick_catalog",
+                )
+            )
+
         if show_help:
-            row.add_item(discord.ui.Button(
-                label=get("buttons.get_help"),
-                style=discord.ButtonStyle.secondary,
-                custom_id="quick_help",
-            ))
+            row.add_item(
+                discord.ui.Button(
+                    label=get("buttons.get_help"),
+                    style=discord.ButtonStyle.secondary,
+                    custom_id="quick_help",
+                )
+            )
         container.add_item(row)
         self.add_item(container)

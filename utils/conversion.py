@@ -24,7 +24,9 @@ def column_names(players: list[InternalPlayer] | set[InternalPlayer]) -> str:
     return "\n".join(rendered_names)
 
 
-def column_elo(players: list[InternalPlayer] | set[InternalPlayer], game_type: str) -> str:
+def column_elo(
+    players: list[InternalPlayer] | set[InternalPlayer], game_type: str
+) -> str:
     """
     Convert a list of players into a string representing the list of players
 
@@ -40,27 +42,42 @@ def column_elo(players: list[InternalPlayer] | set[InternalPlayer], game_type: s
     return "\n".join(ratings)
 
 
-def column_creator(players: list[InternalPlayer] | set[InternalPlayer], creator: InternalPlayer | User) -> str:
+def column_creator(
+    players: list[InternalPlayer] | set[InternalPlayer], creator: InternalPlayer | User
+) -> str:
     """
     Convert a list of players into a string representing the list of players's creator status
 
     Creator
     <blank>
     """
-    return "\n".join([
-        "✅" if (not getattr(u, "is_bot", False) and u.id == creator.id) else LONG_SPACE_EMBED
-        for u in players
-    ])
+    return "\n".join(
+        [
+            (
+                "✅"
+                if (not getattr(u, "is_bot", False) and u.id == creator.id)
+                else LONG_SPACE_EMBED
+            )
+            for u in players
+        ]
+    )
 
 
-def column_turn(players: list[InternalPlayer] | set[InternalPlayer], turn: InternalPlayer | User) -> str:
+def column_turn(
+    players: list[InternalPlayer] | set[InternalPlayer], turn: InternalPlayer | User
+) -> str:
     """
     Convert a list of players into a string representing the list of players and whose turn it is
 
     ✅
     <blank>
     """
-    return "\n".join(["✅" if ((turn is not None) and (u.id == turn.id)) else LONG_SPACE_EMBED for u in players])
+    return "\n".join(
+        [
+            "✅" if ((turn is not None) and (u.id == turn.id)) else LONG_SPACE_EMBED
+            for u in players
+        ]
+    )
 
 
 def textify(basis: dict[str, float], replacements: dict[str, str]) -> str:
@@ -98,7 +115,9 @@ def textify(basis: dict[str, float], replacements: dict[str, str]) -> str:
 
     # Replace the strings with their replacements (great english)
     for replacement in replacements:
-        actually_picked_message = actually_picked_message.replace("{" + replacement + "}", replacements[replacement])
+        actually_picked_message = actually_picked_message.replace(
+            "{" + replacement + "}", replacements[replacement]
+        )
 
     return actually_picked_message
 

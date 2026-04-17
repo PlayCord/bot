@@ -2,6 +2,7 @@
 Analytics module for the bot
 Tracks events like game starts, game completions, command usage, etc.
 """
+
 import io
 import json
 import time
@@ -259,7 +260,9 @@ def render_analytics_markdown_summary(
     lines.append("Events by type:")
     lines.extend(format_ascii_bar_chart(event_counts) or ["_(none)_"])
     lines.append("Games:")
-    lines.extend(format_ascii_bar_chart(game_counts, label_key="game_type") or ["_(none)_"])
+    lines.extend(
+        format_ascii_bar_chart(game_counts, label_key="game_type") or ["_(none)_"]
+    )
     lines.append("Recent events:")
     lines.extend([format_recent_event_row(row) for row in recent[:12]] or ["_(none)_"])
     return lines

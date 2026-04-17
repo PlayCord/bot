@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 
 import discord
+
 try:
     import psycopg  # psycopg3
     from psycopg import errors as pg_errors
@@ -28,10 +29,22 @@ from utils import db_migrations
 from utils.logging_config import get_logger
 from utils.match_codes import generate_match_code
 from utils.models import (
-    User, Guild, Game, Rating, Match, Participant, Move,
-    MatchStatus, EventType,
-    row_to_user, row_to_guild, row_to_game, row_to_rating,
-    row_to_match, row_to_participant, row_to_move
+    User,
+    Guild,
+    Game,
+    Rating,
+    Match,
+    Participant,
+    Move,
+    MatchStatus,
+    EventType,
+    row_to_user,
+    row_to_guild,
+    row_to_game,
+    row_to_rating,
+    row_to_match,
+    row_to_participant,
+    row_to_move,
 )
 from utils.trueskill_params import get_trueskill_parameters
 
@@ -42,13 +55,16 @@ logger = get_logger("database")
 # EXCEPTIONS
 # ============================================================================
 
+
 class DatabaseConnectionError(Exception):
     """Exception raised when failed to connect to the database."""
+
     pass
 
 
 class DatabaseError(Exception):
     """Generic database operation error."""
+
     pass
 
 
@@ -56,8 +72,10 @@ class DatabaseError(Exception):
 # INTERNAL PLAYER CLASSES (for compatibility)
 # ============================================================================
 
+
 class InternalPlayerRatingStatistic:
     """Rating statistic for a specific game"""
+
     def __init__(self, name: str, mu: Optional[float], sigma: Optional[float]):
         self.name = name
         if mu is None:
@@ -75,12 +93,13 @@ class InternalPlayerRatingStatistic:
 
 class InternalPlayer:
     """Internal player representation with ratings"""
+
     def __init__(
         self,
         ratings: Dict[str, Dict[str, float]],
         user: Optional[discord.User | discord.Object] = None,
         metadata: Optional[Dict] = None,
-        id: Optional[int] = None
+        id: Optional[int] = None,
     ):
         # User info
         if user is not None:
@@ -124,10 +143,8 @@ class InternalPlayer:
                 self,
                 key,
                 InternalPlayerRatingStatistic(
-                    key,
-                    ratings[key]["mu"],
-                    ratings[key]["sigma"]
-                )
+                    key, ratings[key]["mu"], ratings[key]["sigma"]
+                ),
             )
 
     @property
@@ -151,7 +168,7 @@ class InternalPlayer:
     ) -> str:
         """
         Get formatted rating string with uncertainty indicator.
-        
+
         :param game_type: The game type key (e.g., 'tictactoe')
         :param include_global_rank: If True, include global rank suffix for top players
         :param game_id: Required if include_global_rank is True
@@ -160,13 +177,13 @@ class InternalPlayer:
         rating = getattr(self, game_type, None)
         if rating is None or rating.mu is None:
             return "No Rating"
-        
+
         # Use 20% uncertainty threshold (sigma vs mu)
         if rating.sigma > 0.20 * rating.mu:
             base_rating = str(round(rating.mu)) + "?"
         else:
             base_rating = str(round(rating.mu))
-        
+
         # Rank decoration is supplied by the caller to avoid hidden DB I/O in the model.
         if include_global_rank and game_id is not None and global_rank is not None:
             if global_rank <= 100:  # Top 100 players
@@ -178,7 +195,7 @@ class InternalPlayer:
                     base_rating += f" ⭐ Top {global_rank} Globally"
                 elif global_rank <= 100:
                     base_rating += f" (Top {global_rank} Globally)"
-        
+
         return base_rating
 
     def __eq__(self, other):
@@ -204,16 +221,24 @@ def get_shallow_player(user: discord.User) -> InternalPlayer:
     return InternalPlayer(ratings={}, user=user)
 
 
-def internal_player_to_player(internal_player: InternalPlayer, game_type: str) -> Player:
+def internal_player_to_player(
+    internal_player: InternalPlayer, game_type: str
+) -> Player:
     """Convert InternalPlayer to API Player object"""
     rating = getattr(internal_player, game_type)
     user = internal_player.user
     if user is not None:
         uid = user.id
-        uname = user.name if isinstance(user, discord.User) else (internal_player.name or f"User {uid}")
+        uname = (
+            user.name
+            if isinstance(user, discord.User)
+            else (internal_player.name or f"User {uid}")
+        )
     else:
         uid = internal_player.id
-        uname = internal_player.name or (f"User {uid}" if uid is not None else "Unknown")
+        uname = internal_player.name or (
+            f"User {uid}" if uid is not None else "Unknown"
+        )
     return Player(
         mu=rating.mu,
         sigma=rating.sigma,
@@ -227,14 +252,24 @@ def internal_player_to_player(internal_player: InternalPlayer, game_type: str) -
 # DATABASE CLASS
 # ============================================================================
 
+
 class Database:
     """
     PostgreSQL database interface for PlayCord.
     Supports transactions, connection pooling, and comprehensive CRUD operations.
     """
 
-    def __init__(self, host: str, port: int, user: str, password: str, database: str,
-                 pool_size: int = 10, max_overflow: int = 20, pool_timeout: int = 30):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        user: str,
+        password: str,
+        database: str,
+        pool_size: int = 10,
+        max_overflow: int = 20,
+        pool_timeout: int = 30,
+    ):
         """
         Initialize database connection pool.
 
@@ -277,7 +312,7 @@ class Database:
                 min_size=2,
                 max_size=self.pool_size,
                 timeout=self.pool_timeout,
-                kwargs={"row_factory": dict_row}
+                kwargs={"row_factory": dict_row},
             )
             logger.info(f"Connected to PostgreSQL database: {self.database}")
         except Exception as e:
@@ -330,7 +365,7 @@ class Database:
     def transaction(self):
         """
         Transaction context manager.
-        
+
         Usage:
             with db.transaction() as conn:
                 cur = conn.cursor()
@@ -352,7 +387,7 @@ class Database:
         query: str,
         params: Optional[Tuple] = None,
         fetchone: bool = False,
-        fetchall: bool = False
+        fetchall: bool = False,
     ):
         """
         Execute a query with automatic connection management.
@@ -391,7 +426,9 @@ class Database:
     # USER OPERATIONS
     # ========================================================================
 
-    def create_user(self, user_id: int, username: str = "Unknown", is_bot: bool = False):
+    def create_user(
+        self, user_id: int, username: str = "Unknown", is_bot: bool = False
+    ):
         """Create a user record"""
         query = """
             INSERT INTO users (user_id, username, is_bot)
@@ -423,9 +460,11 @@ class Database:
 
     def get_user_preferences(self, user_id: int) -> Optional[Dict]:
         """Get user preferences"""
-        query = "SELECT created_at AS joined_at, preferences FROM users WHERE user_id = %s;"
+        query = (
+            "SELECT created_at AS joined_at, preferences FROM users WHERE user_id = %s;"
+        )
         result = self._execute_query(query, (user_id,), fetchone=True)
-        if result and result['preferences']:
+        if result and result["preferences"]:
             # Already a dict from dict_row
             return result
         return result
@@ -484,7 +523,7 @@ class Database:
         """Get guild settings"""
         query = "SELECT settings FROM guilds WHERE guild_id = %s;"
         result = self._execute_query(query, (guild_id,), fetchone=True)
-        return result['settings'] if result else None
+        return result["settings"] if result else None
 
     def merge_guild_settings(self, guild_id: int, patch: Dict[str, Any]) -> None:
         """Merge JSON keys into guilds.settings (creates row if missing)."""
@@ -542,7 +581,7 @@ class Database:
         max_players: int,
         rating_config: Dict[str, float],
         game_metadata: Optional[Dict[str, Any]] = None,
-        game_schema_version: int = 1
+        game_schema_version: int = 1,
     ) -> int:
         """Register a new game type (upsert from code definitions)."""
         config_json = json.dumps(rating_config)
@@ -572,9 +611,9 @@ class Database:
                 metadata_json,
                 game_schema_version,
             ),
-            fetchone=True
+            fetchone=True,
         )
-        game_id = result['game_id'] if result else None
+        game_id = result["game_id"] if result else None
         if game_id is not None:
             self._cache_game(
                 Game(
@@ -591,7 +630,9 @@ class Database:
             )
         return game_id
 
-    def _clamp_rating(self, mu: float, sigma: float, game_id: int) -> Tuple[float, float]:
+    def _clamp_rating(
+        self, mu: float, sigma: float, game_id: int
+    ) -> Tuple[float, float]:
         """Clamp mu/sigma using global config and per-game rating_config floors."""
         cfg = constants.CONFIGURATION.get("ratings", {})
         min_mu = float(cfg.get("min_mu", 0.0))
@@ -706,7 +747,9 @@ class Database:
 
     def deactivate_game(self, game_id: int):
         """Deactivate a game"""
-        query = "UPDATE games SET is_active = FALSE, updated_at = NOW() WHERE game_id = %s;"
+        query = (
+            "UPDATE games SET is_active = FALSE, updated_at = NOW() WHERE game_id = %s;"
+        )
         self._execute_query(query, (game_id,))
 
     def reset_game_data(self, game_id: int) -> Game:
@@ -723,7 +766,9 @@ class Database:
         self.sync_games_from_code()
         recreated = self.get_game(game_name)
         if recreated is None:
-            raise DatabaseError(f"Game {game_name!r} was deleted but not recreated from code")
+            raise DatabaseError(
+                f"Game {game_name!r} was deleted but not recreated from code"
+            )
         return recreated
 
     # ========================================================================
@@ -784,10 +829,7 @@ class Database:
                 updated_at = NOW()
             WHERE user_id = %s AND game_id = %s;
         """
-        self._execute_query(
-            query,
-            (mu, sigma, matches_increment, user_id, game_id)
-        )
+        self._execute_query(query, (mu, sigma, matches_increment, user_id, game_id))
 
     def bulk_update_ratings(self, updates: List[Dict[str, Any]]):
         """Bulk update multiple ratings in a transaction"""
@@ -801,11 +843,17 @@ class Database:
                     WHERE user_id = %s AND game_id = %s;
                 """
                 mu_c, sig_c = self._clamp_rating(
-                    update['mu'], update['sigma'], update['game_id']
+                    update["mu"], update["sigma"], update["game_id"]
                 )
                 cur.execute(
                     query,
-                    (mu_c, sig_c, matches_increment, update['user_id'], update['game_id'])
+                    (
+                        mu_c,
+                        sig_c,
+                        matches_increment,
+                        update["user_id"],
+                        update["game_id"],
+                    ),
                 )
 
     def reset_user_rating(self, user_id: int, game_id: int):
@@ -825,8 +873,7 @@ class Database:
             WHERE user_id = %s AND game_id = %s;
         """
         self._execute_query(
-            query,
-            (game.default_mu, game.default_sigma, user_id, game_id)
+            query, (game.default_mu, game.default_sigma, user_id, game_id)
         )
 
     def delete_user_rating(self, user_id: int, game_id: int):
@@ -847,7 +894,7 @@ class Database:
         game_id: int,
         limit: int = 10,
         offset: int = 0,
-        min_matches: int = 5
+        min_matches: int = 5,
     ) -> List[Dict[str, Any]]:
         """Guild/server leaderboard: same global ratings, filtered to guild members."""
         if not member_user_ids:
@@ -869,18 +916,12 @@ class Database:
             LIMIT %s OFFSET %s;
         """
         results = self._execute_query(
-            query,
-            (game_id, member_user_ids, min_matches, limit, offset),
-            fetchall=True
+            query, (game_id, member_user_ids, min_matches, limit, offset), fetchall=True
         )
         return results if results else []
 
     def get_global_leaderboard(
-        self,
-        game_id: int,
-        limit: int = 10,
-        offset: int = 0,
-        min_matches: int = 10
+        self, game_id: int, limit: int = 10, offset: int = 0, min_matches: int = 10
     ) -> List[Dict[str, Any]]:
         """Global leaderboard (all users with a rating row for this game)."""
         query = """
@@ -898,7 +939,9 @@ class Database:
             ORDER BY conservative_rating DESC
             LIMIT %s OFFSET %s;
         """
-        results = self._execute_query(query, (game_id, min_matches, limit, offset), fetchall=True)
+        results = self._execute_query(
+            query, (game_id, min_matches, limit, offset), fetchall=True
+        )
         return results if results else []
 
     def get_user_rank(
@@ -926,9 +969,11 @@ class Database:
         result = self._execute_query(
             query, (game_id, member_user_ids, min_matches, user_id), fetchone=True
         )
-        return result['rank'] if result else -1
+        return result["rank"] if result else -1
 
-    def get_user_global_rank(self, user_id: int, game_id: int, min_matches: int = 5) -> Optional[int]:
+    def get_user_global_rank(
+        self, user_id: int, game_id: int, min_matches: int = 5
+    ) -> Optional[int]:
         """
         Get user's global rank for a specific game.
 
@@ -948,8 +993,10 @@ class Database:
             )
             SELECT rank FROM ranked WHERE user_id = %s;
         """
-        result = self._execute_query(query, (game_id, min_matches, user_id), fetchone=True)
-        return result['rank'] if result else None
+        result = self._execute_query(
+            query, (game_id, min_matches, user_id), fetchone=True
+        )
+        return result["rank"] if result else None
 
     def get_global_player_count(self, game_id: int, min_matches: int = 5) -> int:
         """
@@ -966,7 +1013,7 @@ class Database:
               AND matches_played >= %s;
         """
         result = self._execute_query(query, (game_id, min_matches), fetchone=True)
-        return result['count'] if result else 0
+        return result["count"] if result else 0
 
     # ========================================================================
     # MATCH OPERATIONS
@@ -980,7 +1027,7 @@ class Database:
         thread_id: Optional[int],
         participants: List[int],  # List of user IDs
         is_rated: bool = True,
-        game_config: Optional[Dict[str, Any]] = None
+        game_config: Optional[Dict[str, Any]] = None,
     ) -> Tuple[int, str]:
         """
         Create a new match and initialize participants.
@@ -1108,7 +1155,9 @@ class Database:
         if global_summary and str(global_summary).strip():
             patch["outcome_global_summary"] = str(global_summary).strip()
         if summaries is not None:
-            patch["outcome_summaries"] = {str(uid): text for uid, text in summaries.items()}
+            patch["outcome_summaries"] = {
+                str(uid): text for uid, text in summaries.items()
+            }
         if not patch:
             return
         payload = json.dumps(patch)
@@ -1136,7 +1185,7 @@ class Database:
         self,
         match_id: int,
         channel_id: Optional[int] = None,
-        thread_id: Optional[int] = None
+        thread_id: Optional[int] = None,
     ):
         """Update channel/thread identifiers for an existing match."""
         updates = []
@@ -1159,12 +1208,14 @@ class Database:
         self,
         match_id: int,
         final_state: Dict[str, Any],
-        results: Dict[int, Dict[str, Any]]  # user_id -> {ranking, mu_delta, sigma_delta, ...}
+        results: Dict[
+            int, Dict[str, Any]
+        ],  # user_id -> {ranking, mu_delta, sigma_delta, ...}
     ):
         """
         End a match with final results and update ratings.
         This is a transactional operation.
-        
+
         Args:
             match_id: Match ID
             final_state: Final game state
@@ -1202,17 +1253,17 @@ class Database:
                     WHERE match_id = %s AND user_id = %s;
                     """,
                     (
-                        result['ranking'],
-                        result.get('score'),
-                        result['mu_delta'],
-                        result['sigma_delta'],
+                        result["ranking"],
+                        result.get("score"),
+                        result["mu_delta"],
+                        result["sigma_delta"],
                         match_id,
-                        user_id
-                    )
+                        user_id,
+                    ),
                 )
 
                 new_mu, new_sigma = self._clamp_rating(
-                    result['new_mu'], result['new_sigma'], match["game_id"]
+                    result["new_mu"], result["new_sigma"], match["game_id"]
                 )
 
                 # Update rating
@@ -1224,12 +1275,7 @@ class Database:
                         updated_at = NOW()
                     WHERE user_id = %s AND game_id = %s;
                     """,
-                    (
-                        new_mu,
-                        new_sigma,
-                        user_id,
-                        match["game_id"]
-                    )
+                    (new_mu, new_sigma, user_id, match["game_id"]),
                 )
 
                 # Record rating history
@@ -1245,11 +1291,11 @@ class Database:
                         match["guild_id"],
                         match["game_id"],
                         match_id,
-                        result.get('mu_before', new_mu - result['mu_delta']),
-                        result.get('sigma_before', new_sigma - result['sigma_delta']),
+                        result.get("mu_before", new_mu - result["mu_delta"]),
+                        result.get("sigma_before", new_sigma - result["sigma_delta"]),
                         new_mu,
-                        new_sigma
-                    )
+                        new_sigma,
+                    ),
                 )
 
             cur.execute(
@@ -1261,7 +1307,7 @@ class Database:
                     updated_at = NOW()
                 WHERE match_id = %s;
                 """,
-                (final_state_json, match_id)
+                (final_state_json, match_id),
             )
 
     def delete_match(self, match_id: int):
@@ -1289,10 +1335,7 @@ class Database:
         return [row_to_match(row) for row in results] if results else []
 
     def get_recent_matches(
-        self,
-        guild_id: int,
-        game_id: int,
-        limit: int = 10
+        self, guild_id: int, game_id: int, limit: int = 10
     ) -> List[Match]:
         """Get recent completed matches"""
         query = """
@@ -1326,7 +1369,7 @@ class Database:
         user_id: int,
         player_number: int,
         mu_before: Optional[float] = None,
-        sigma_before: Optional[float] = None
+        sigma_before: Optional[float] = None,
     ):
         """Add a participant to a match"""
         query = """
@@ -1334,7 +1377,9 @@ class Database:
                 (match_id, user_id, player_number, mu_before, sigma_before)
             VALUES (%s, %s, %s, %s, %s);
         """
-        self._execute_query(query, (match_id, user_id, player_number, mu_before, sigma_before))
+        self._execute_query(
+            query, (match_id, user_id, player_number, mu_before, sigma_before)
+        )
 
     def get_participants(self, match_id: int) -> List[Participant]:
         """Get all participants for a match"""
@@ -1352,7 +1397,7 @@ class Database:
         ranking: int,
         score: Optional[float],
         mu_delta: float,
-        sigma_delta: float
+        sigma_delta: float,
     ):
         """Update participant result"""
         query = """
@@ -1363,7 +1408,9 @@ class Database:
                 sigma_delta = %s
             WHERE participant_id = %s;
         """
-        self._execute_query(query, (ranking, score, mu_delta, sigma_delta, participant_id))
+        self._execute_query(
+            query, (ranking, score, mu_delta, sigma_delta, participant_id)
+        )
 
     def remove_participant(self, match_id: int, user_id: int):
         """Remove a participant from a match"""
@@ -1382,7 +1429,7 @@ class Database:
         move_data: Dict[str, Any],
         game_state_after: Optional[Dict[str, Any]] = None,
         time_taken_ms: Optional[int] = None,
-        is_game_affecting: bool = True
+        is_game_affecting: bool = True,
     ):
         """Record a move in a match"""
         move_json = json.dumps(move_data)
@@ -1404,7 +1451,7 @@ class Database:
                 state_json,
                 time_taken_ms,
                 is_game_affecting,
-            )
+            ),
         )
 
     def append_replay_event(self, match_id: int, event: Dict[str, Any]) -> None:
@@ -1421,7 +1468,9 @@ class Database:
             except (TypeError, ValueError):
                 actor_user_id = None
         with self.transaction() as cur:
-            cur.execute("SELECT 1 FROM matches WHERE match_id = %s FOR UPDATE;", (match_id,))
+            cur.execute(
+                "SELECT 1 FROM matches WHERE match_id = %s FOR UPDATE;", (match_id,)
+            )
             cur.execute(
                 """
                 SELECT COALESCE(MAX(sequence_number), 0) + 1 AS next_sequence
@@ -1449,16 +1498,19 @@ class Database:
 
     def get_replay_events(self, match_id: int) -> List[Dict[str, Any]]:
         """Return replay events in order from the canonical ``replay_events`` table."""
-        rows = self._execute_query(
-            """
+        rows = (
+            self._execute_query(
+                """
             SELECT event_type, actor_user_id, payload
             FROM replay_events
             WHERE match_id = %s
             ORDER BY sequence_number ASC;
             """,
-            (match_id,),
-            fetchall=True,
-        ) or []
+                (match_id,),
+                fetchall=True,
+            )
+            or []
+        )
         events: List[Dict[str, Any]] = []
         for row in rows:
             payload = dict(row.get("payload") or {})
@@ -1482,7 +1534,7 @@ class Database:
         """Get number of moves in a match"""
         query = "SELECT COUNT(*) as count FROM moves WHERE match_id = %s;"
         result = self._execute_query(query, (match_id,), fetchone=True)
-        return result['count'] if result else 0
+        return result["count"] if result else 0
 
     def validate_move_sequence(self, match_id: int) -> bool:
         """Check if move sequence is valid (no gaps)"""
@@ -1496,7 +1548,7 @@ class Database:
         result = self._execute_query(query, (match_id,), fetchone=True)
         if not result:
             return True
-        return result['move_count'] == result['max_move'] or result['move_count'] == 0
+        return result["move_count"] == result["max_move"] or result["move_count"] == 0
 
     # ========================================================================
     # USER HISTORY & STATS
@@ -1508,7 +1560,7 @@ class Database:
         guild_id: Optional[int],
         game_id: Optional[int] = None,
         limit: int = 10,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """Get user's match history"""
         query = """
@@ -1550,10 +1602,7 @@ class Database:
         return results if results else []
 
     def get_head_to_head(
-        self,
-        user1_id: int,
-        user2_id: int,
-        game_id: Optional[int] = None
+        self, user1_id: int, user2_id: int, game_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """Get head-to-head stats between two players"""
         if game_id is not None:
@@ -1573,7 +1622,9 @@ class Database:
                 WHERE m.status = 'completed' AND m.game_id = %s
                 GROUP BY m.game_id, g.display_name;
             """
-            results = self._execute_query(query, (user1_id, user2_id, game_id), fetchall=True)
+            results = self._execute_query(
+                query, (user1_id, user2_id, game_id), fetchall=True
+            )
         else:
             query = """
                 SELECT 
@@ -1596,11 +1647,7 @@ class Database:
 
         return results if results else []
 
-    def get_user_stats(
-        self,
-        user_id: int,
-        game_id: int
-    ) -> Optional[Dict[str, Any]]:
+    def get_user_stats(self, user_id: int, game_id: int) -> Optional[Dict[str, Any]]:
         """Get comprehensive user statistics (global per-game rating)."""
         query = """
             SELECT 
@@ -1618,11 +1665,7 @@ class Database:
         return result
 
     def get_rating_history(
-        self,
-        user_id: int,
-        guild_id: Optional[int],
-        game_id: int,
-        days: int = 30
+        self, user_id: int, guild_id: Optional[int], game_id: int, days: int = 30
     ) -> List[Dict[str, Any]]:
         """Get rating history for a user"""
         query = """
@@ -1662,7 +1705,7 @@ class Database:
         guild_id: Optional[int] = None,
         game_id: Optional[int] = None,
         match_id: Optional[int] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """Record an analytics event"""
         if user_id:
@@ -1677,8 +1720,7 @@ class Database:
             VALUES (%s, %s, %s, %s, %s, %s::jsonb);
         """
         self._execute_query(
-            query,
-            (event_type, user_id, guild_id, game_id, match_id, metadata_json)
+            query, (event_type, user_id, guild_id, game_id, match_id, metadata_json)
         )
 
     def get_events(
@@ -1686,7 +1728,7 @@ class Database:
         event_type: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Get analytics events with optional filters"""
         conditions = []
@@ -1754,7 +1796,9 @@ class Database:
         rows = self._execute_query(query, (hours,), fetchall=True)
         return rows if rows else []
 
-    def get_analytics_recent_events(self, hours: int = 24, limit: int = 60) -> List[Dict[str, Any]]:
+    def get_analytics_recent_events(
+        self, hours: int = 24, limit: int = 60
+    ) -> List[Dict[str, Any]]:
         """Recent analytics rows with ids and metadata for operator review."""
         query = """
             SELECT event_id, event_type, created_at, user_id, guild_id, game_id, match_id, metadata
@@ -1766,7 +1810,9 @@ class Database:
         rows = self._execute_query(query, (hours, limit), fetchall=True)
         return rows if rows else []
 
-    def get_analytics_event_counts_by_game(self, hours: int = 24) -> List[Dict[str, Any]]:
+    def get_analytics_event_counts_by_game(
+        self, hours: int = 24
+    ) -> List[Dict[str, Any]]:
         """Count rows by game slug in the last N hours (via analytics_events.game_id -> games.game_name)."""
         query = """
             SELECT g.game_name AS game_type, COUNT(*)::BIGINT AS cnt
@@ -1784,9 +1830,7 @@ class Database:
     # ========================================================================
 
     def apply_skill_decay(
-        self,
-        days_inactive: int = 30,
-        sigma_increase: float = 0.1
+        self, days_inactive: int = 30, sigma_increase: float = 0.1
     ) -> int:
         """Apply skill decay to inactive players"""
         query = """
@@ -1806,7 +1850,9 @@ class Database:
                 conn.commit()
                 return len(results) if results else 0
 
-    def cleanup_old_analytics(self, days: int = constants.ANALYTICS_RETENTION_DAYS) -> int:
+    def cleanup_old_analytics(
+        self, days: int = constants.ANALYTICS_RETENTION_DAYS
+    ) -> int:
         """Delete old analytics events"""
         query = """
             DELETE FROM analytics_events
@@ -1916,7 +1962,9 @@ class Database:
             ORDER BY match_count DESC;
         """
         results = self._execute_query(query, (guild_id, days), fetchall=True)
-        return {row['game_name']: row['match_count'] for row in results} if results else {}
+        return (
+            {row["game_name"]: row["match_count"] for row in results} if results else {}
+        )
 
     def get_player_retention(self, guild_id: int, days: int = 7) -> float:
         """Share of distinct users who completed a match in this guild recently vs. ever."""
@@ -1947,14 +1995,10 @@ class Database:
             FROM active_players, total_players;
         """
         result = self._execute_query(query, (guild_id, guild_id, days), fetchone=True)
-        return result['retention_rate'] if result else 0.0
+        return result["retention_rate"] if result else 0.0
 
     def get_most_active_players(
-        self,
-        guild_id: int,
-        game_id: int,
-        days: int = 7,
-        limit: int = 10
+        self, guild_id: int, game_id: int, days: int = 7, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Get most active players"""
         query = """
@@ -1973,7 +2017,9 @@ class Database:
             ORDER BY match_count DESC
             LIMIT %s;
         """
-        results = self._execute_query(query, (guild_id, game_id, days, limit), fetchall=True)
+        results = self._execute_query(
+            query, (guild_id, game_id, days, limit), fetchall=True
+        )
         return results if results else []
 
     # ========================================================================
@@ -1981,10 +2027,7 @@ class Database:
     # ========================================================================
 
     def count_matches(
-        self,
-        guild_id: int,
-        game_id: int,
-        is_rated: Optional[bool] = None
+        self, guild_id: int, game_id: int, is_rated: Optional[bool] = None
     ) -> int:
         """Count matches for a game in a guild"""
         if is_rated is not None:
@@ -1992,7 +2035,9 @@ class Database:
                 SELECT COUNT(*) as count FROM matches
                 WHERE guild_id = %s AND game_id = %s AND is_rated = %s;
             """
-            result = self._execute_query(query, (guild_id, game_id, is_rated), fetchone=True)
+            result = self._execute_query(
+                query, (guild_id, game_id, is_rated), fetchone=True
+            )
         else:
             query = """
                 SELECT COUNT(*) as count FROM matches
@@ -2000,9 +2045,11 @@ class Database:
             """
             result = self._execute_query(query, (guild_id, game_id), fetchone=True)
 
-        return result['count'] if result else 0
+        return result["count"] if result else 0
 
-    def count_users(self, guild_id: Optional[int] = None, is_active: bool = True) -> int:
+    def count_users(
+        self, guild_id: Optional[int] = None, is_active: bool = True
+    ) -> int:
         """Count users (optionally: distinct users who completed a match in the guild)."""
         if guild_id is not None:
             query = """
@@ -2019,24 +2066,24 @@ class Database:
             """
             result = self._execute_query(query, (is_active,), fetchone=True)
 
-        return result['count'] if result else 0
+        return result["count"] if result else 0
 
     def get_database_stats(self) -> Dict[str, Any]:
         """Get database statistics"""
         queries = {
-            'total_users': "SELECT COUNT(*) FROM users WHERE is_active = TRUE",
-            'total_guilds': "SELECT COUNT(*) FROM guilds WHERE is_active = TRUE",
-            'total_games': "SELECT COUNT(*) FROM games WHERE is_active = TRUE",
-            'total_matches': "SELECT COUNT(*) FROM matches",
-            'active_matches': "SELECT COUNT(*) FROM matches WHERE status = 'in_progress'",
-            'total_moves': "SELECT COUNT(*) FROM moves",
-            'total_ratings': "SELECT COUNT(*) FROM user_game_ratings"
+            "total_users": "SELECT COUNT(*) FROM users WHERE is_active = TRUE",
+            "total_guilds": "SELECT COUNT(*) FROM guilds WHERE is_active = TRUE",
+            "total_games": "SELECT COUNT(*) FROM games WHERE is_active = TRUE",
+            "total_matches": "SELECT COUNT(*) FROM matches",
+            "active_matches": "SELECT COUNT(*) FROM matches WHERE status = 'in_progress'",
+            "total_moves": "SELECT COUNT(*) FROM moves",
+            "total_ratings": "SELECT COUNT(*) FROM user_game_ratings",
         }
 
         stats = {}
         for key, query in queries.items():
             result = self._execute_query(query, fetchone=True)
-            stats[key] = result['count'] if result else 0
+            stats[key] = result["count"] if result else 0
 
         return stats
 
@@ -2044,7 +2091,7 @@ class Database:
         """Health check - verify database connection"""
         try:
             result = self._execute_query("SELECT 1 as check;", fetchone=True)
-            return result is not None and result['check'] == 1
+            return result is not None and result["check"] == 1
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return False
@@ -2054,32 +2101,38 @@ class Database:
     # ========================================================================
 
     def get_player(
-        self,
-        user: discord.User | discord.Member,
-        guild_id: int
+        self, user: discord.User | discord.Member, guild_id: int
     ) -> Optional[InternalPlayer]:
         """
         Get an InternalPlayer object from the database (global per-game ratings).
         guild_id is ignored; kept for call-site compatibility.
         """
-        user_id = user.id if isinstance(user, (discord.User, discord.Member, InternalPlayer)) else user
+        user_id = (
+            user.id
+            if isinstance(user, (discord.User, discord.Member, InternalPlayer))
+            else user
+        )
         preferences = self.get_user_preferences(user_id)
-        metadata = preferences['preferences'] if preferences and preferences.get('preferences') else {}
+        metadata = (
+            preferences["preferences"]
+            if preferences and preferences.get("preferences")
+            else {}
+        )
 
         all_ratings = self.get_user_all_ratings(user_id)
-        
+
         # Convert to old format {game_name: {mu, sigma}}
         ratings = {}
         for rating in all_ratings:
             game = self.get_game_by_id(rating.game_id)
             if game:
-                ratings[game.game_name] = {'mu': rating.mu, 'sigma': rating.sigma}
+                ratings[game.game_name] = {"mu": rating.mu, "sigma": rating.sigma}
 
         return InternalPlayer(
             ratings=ratings,
             user=user if isinstance(user, (discord.User, discord.Member)) else None,
             metadata=metadata,
-            id=user_id
+            id=user_id,
         )
 
     def record_analytics_event(
@@ -2089,7 +2142,7 @@ class Database:
         guild_id: Optional[int] = None,
         game_type: Optional[str] = None,
         match_id: Optional[int] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Record an analytics row (maps game_type slug to games.game_id; optional match_id).
@@ -2111,7 +2164,7 @@ class Database:
         member_user_ids: List[int],
         game_name: str,
         limit: int = 10,
-        min_matches: int = 5
+        min_matches: int = 5,
     ) -> List[Dict[str, Any]]:
         """Legacy method - maps to get_leaderboard(member_user_ids, ...)."""
         game = self.get_game(game_name)
@@ -2142,13 +2195,15 @@ class Database:
 
         # Return in old format
         return {
-            'mu': rating.mu,
-            'sigma': rating.sigma,
-            'matches_played': rating.matches_played,
-            'last_played': rating.last_played
+            "mu": rating.mu,
+            "sigma": rating.sigma,
+            "matches_played": rating.matches_played,
+            "last_played": rating.last_played,
         }
 
-    def initialize_user_game_ratings(self, user_id: int, game_name: str, guild_id: Optional[int] = None):
+    def initialize_user_game_ratings(
+        self, user_id: int, game_name: str, guild_id: Optional[int] = None
+    ):
         """Legacy method - initialize rating with game name instead of ID (guild_id ignored)."""
         game = self.get_game(game_name)
         if not game:
@@ -2170,18 +2225,21 @@ class Database:
             raise ValueError(f"Game {game_name} not found")
 
         self.update_rating(
-            user_id, game.game_id,
-            mu, sigma, matches_increment=matches_played_increment
+            user_id, game.game_id, mu, sigma, matches_increment=matches_played_increment
         )
 
-    def reset_user_game_ratings(self, user_id: int, game_name: str, guild_id: Optional[int] = None):
+    def reset_user_game_ratings(
+        self, user_id: int, game_name: str, guild_id: Optional[int] = None
+    ):
         """Legacy method - reset rating with game name (guild_id ignored)."""
         game = self.get_game(game_name)
         if not game:
             raise ValueError(f"Game {game_name} not found")
         self.reset_user_rating(user_id, game.game_id)
 
-    def delete_user_game_ratings(self, user_id: int, game_name: str, guild_id: Optional[int] = None):
+    def delete_user_game_ratings(
+        self, user_id: int, game_name: str, guild_id: Optional[int] = None
+    ):
         """Legacy method - delete rating with game name (guild_id ignored)."""
         game = self.get_game(game_name)
         if not game:
@@ -2189,10 +2247,7 @@ class Database:
         self.delete_user_rating(user_id, game.game_id)
 
     def count_matches_for_game(
-        self,
-        guild_id: int,
-        game_name: str,
-        is_rated: Optional[bool] = None
+        self, guild_id: int, game_name: str, is_rated: Optional[bool] = None
     ) -> int:
         """Legacy method - count matches with game name"""
         game = self.get_game(game_name)
@@ -2201,10 +2256,7 @@ class Database:
         return self.count_matches(guild_id, game.game_id, is_rated)
 
     def count_matches_for_user(
-        self,
-        user_id: int,
-        guild_id: int,
-        is_rated: Optional[bool] = None
+        self, user_id: int, guild_id: int, is_rated: Optional[bool] = None
     ) -> int:
         """Legacy method - count user matches"""
         query = """
@@ -2220,24 +2272,24 @@ class Database:
             params.append(is_rated)
         query += ";"
         result = self._execute_query(query, tuple(params), fetchone=True)
-        return result['total_matches'] if result else 0
+        return result["total_matches"] if result else 0
 
     def get_match_details(self, match_id: int) -> Optional[Dict[str, Any]]:
         """Legacy method - get match details"""
         match = self.get_match(match_id)
         if not match:
             return None
-        
+
         # Return dict format for compatibility
         return {
-            'match_id': match.match_id,
-            'match_code': match.match_code,
-            'game_id': match.game_id,
-            'guild_id': match.guild_id,
-            'started': match.started_at,
-            'ended': match.ended_at,
-            'is_rated': match.is_rated,
-            'game_data': match.game_config
+            "match_id": match.match_id,
+            "match_code": match.match_code,
+            "game_id": match.game_id,
+            "guild_id": match.guild_id,
+            "started": match.started_at,
+            "ended": match.ended_at,
+            "is_rated": match.is_rated,
+            "game_data": match.game_config,
         }
 
     def record_new_game(
@@ -2246,7 +2298,7 @@ class Database:
         guild_id: int,
         started_at: datetime,
         is_rated: bool,
-        game_data: Dict[str, Any]
+        game_data: Dict[str, Any],
     ) -> Tuple[int, str]:
         """Legacy method - record new game with game_name. Returns ``(match_id, match_code)``."""
         game = self.get_game(game_name)
@@ -2305,7 +2357,7 @@ class Database:
         is_rated: bool = True,
         channel_id: Optional[int] = None,
         thread_id: Optional[int] = None,
-        game_config: Optional[Dict[str, Any]] = None
+        game_config: Optional[Dict[str, Any]] = None,
     ) -> Tuple[int, str]:
         """
         Legacy compatibility method - create game with game_name instead of game_id.
@@ -2314,7 +2366,7 @@ class Database:
         game = self.get_game(game_name)
         if not game:
             raise ValueError(f"Game {game_name} not found")
-        
+
         resolved_channel_id = channel_id if channel_id is not None else 0
 
         return self.create_match(
@@ -2332,7 +2384,7 @@ class Database:
         match_id: int,
         game_name: str,
         rating_updates: Dict[int, Dict[str, Any]],
-        final_scores: Optional[Dict[int, float]]
+        final_scores: Optional[Dict[int, float]],
     ):
         """
         Legacy compatibility method - end game with old format.
@@ -2341,47 +2393,41 @@ class Database:
         # Convert old format to new format
         # Old: rating_updates = {user_id: {uid, new_mu, new_sigma, mu_delta, sigma_delta, ranking}}
         # New: results = {user_id: {ranking, mu_delta, sigma_delta, new_mu, new_sigma, mu_before, sigma_before}}
-        
+
         results = {}
         for user_id, data in rating_updates.items():
             results[user_id] = {
-                'ranking': data.get('ranking', 1),
-                'mu_delta': data['mu_delta'],
-                'sigma_delta': data['sigma_delta'],
-                'new_mu': data['new_mu'],
-                'new_sigma': data['new_sigma'],
-                'mu_before': data['new_mu'] - data['mu_delta'],
-                'sigma_before': data['new_sigma'] - data['sigma_delta'],
-                'score': final_scores.get(user_id) if final_scores else None,
-                'is_draw': data.get('is_draw', False)
+                "ranking": data.get("ranking", 1),
+                "mu_delta": data["mu_delta"],
+                "sigma_delta": data["sigma_delta"],
+                "new_mu": data["new_mu"],
+                "new_sigma": data["new_sigma"],
+                "mu_before": data["new_mu"] - data["mu_delta"],
+                "sigma_before": data["new_sigma"] - data["sigma_delta"],
+                "score": final_scores.get(user_id) if final_scores else None,
+                "is_draw": data.get("is_draw", False),
             }
-        
-        final_state = {
-            'final_scores': final_scores,
-            'rating_updates': rating_updates
-        }
-        
+
+        final_state = {"final_scores": final_scores, "rating_updates": rating_updates}
+
         # Call new end_match method
         self.end_match(match_id, final_state, results)
 
     def get_recent_matches_for_game(
-        self,
-        guild_id: int,
-        game_name: str,
-        limit: int = 10
+        self, guild_id: int, game_name: str, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Legacy method - get recent matches with game name"""
         game = self.get_game(game_name)
         if not game:
             return []
-        
+
         matches = self.get_recent_matches(guild_id, game.game_id, limit)
         return [
             {
-                'match_id': m.match_id,
-                'started': m.started_at,
-                'ended': m.ended_at,
-                'rated': m.is_rated
+                "match_id": m.match_id,
+                "started": m.started_at,
+                "ended": m.ended_at,
+                "rated": m.is_rated,
             }
             for m in matches
         ]
@@ -2391,30 +2437,31 @@ class Database:
         match = self.get_match(match_id)
         if not match:
             return []
-        
+
         participants = self.get_participants(match_id)
-        
+
         # Return in old format
         results = []
         for p in participants:
             rating = self.get_user_rating(p.user_id, match.game_id)
-            results.append({
-                'match_id': match_id,
-                'game_id': match.game_id,
-                'guild_id': match.guild_id,
-                'started': match.started_at,
-                'ended': match.ended_at,
-                'rated': match.is_rated,
-                'game_data': match.game_config,
-                'user_id': p.user_id,
-                'ranking': p.final_ranking,
-                'mu_delta': p.mu_delta,
-                'sigma_delta': p.sigma_delta,
-                'mu': rating.mu if rating else None,
-                'sigma': rating.sigma if rating else None
-            })
+            results.append(
+                {
+                    "match_id": match_id,
+                    "game_id": match.game_id,
+                    "guild_id": match.guild_id,
+                    "started": match.started_at,
+                    "ended": match.ended_at,
+                    "rated": match.is_rated,
+                    "game_data": match.game_config,
+                    "user_id": p.user_id,
+                    "ranking": p.final_ranking,
+                    "mu_delta": p.mu_delta,
+                    "sigma_delta": p.sigma_delta,
+                    "mu": rating.mu if rating else None,
+                    "sigma": rating.sigma if rating else None,
+                }
+            )
         return results
-
 
 
 # ============================================================================
@@ -2437,7 +2484,7 @@ def startup():
             database=config_db.get("database", "playcord"),
             pool_size=config_db.get("pool_size", 10),
             max_overflow=config_db.get("max_overflow", 20),
-            pool_timeout=config_db.get("pool_timeout", 30)
+            pool_timeout=config_db.get("pool_timeout", 30),
         )
         db_migrations.apply_migrations(db)
         db.refresh_sql_assets()
@@ -2446,7 +2493,10 @@ def startup():
         interrupted = db.interrupt_stale_matches()
         database = db
         if interrupted:
-            logger.warning("Marked %s stale in-progress matches as interrupted during startup", interrupted)
+            logger.warning(
+                "Marked %s stale in-progress matches as interrupted during startup",
+                interrupted,
+            )
         logger.info("Database startup successful")
         return True
     except Exception as err:

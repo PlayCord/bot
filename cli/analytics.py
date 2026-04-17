@@ -14,8 +14,12 @@ def load_configuration() -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Print PlayCord analytics summaries from the database.")
-    parser.add_argument("--hours", type=int, default=24, help="Lookback window in hours (default: 24).")
+    parser = argparse.ArgumentParser(
+        description="Print PlayCord analytics summaries from the database."
+    )
+    parser.add_argument(
+        "--hours", type=int, default=24, help="Lookback window in hours (default: 24)."
+    )
     args = parser.parse_args()
 
     constants.CONFIGURATION = load_configuration()

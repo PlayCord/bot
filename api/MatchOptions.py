@@ -37,10 +37,14 @@ class MatchOptionSpec:
                 raise ValueError(f"MatchOptionSpec {self.key!r}: choices required")
             vals = {v for _, v in self.choices}
             if self.default not in vals:
-                raise ValueError(f"MatchOptionSpec {self.key!r}: default not in choices")
+                raise ValueError(
+                    f"MatchOptionSpec {self.key!r}: default not in choices"
+                )
         elif self.kind == "int":
             if self.min_value is None or self.max_value is None:
-                raise ValueError(f"MatchOptionSpec {self.key!r}: min_value and max_value required for int")
+                raise ValueError(
+                    f"MatchOptionSpec {self.key!r}: min_value and max_value required for int"
+                )
             if self.min_value > self.max_value:
                 raise ValueError(f"MatchOptionSpec {self.key!r}: min_value > max_value")
             span = self.max_value - self.min_value + 1
@@ -53,13 +57,17 @@ class MatchOptionSpec:
                 raise ValueError(f"MatchOptionSpec {self.key!r}: default out of range")
         elif self.kind == "bool":
             if str(self.default) not in {"true", "false"}:
-                raise ValueError(f"MatchOptionSpec {self.key!r}: bool default must be 'true' or 'false'")
+                raise ValueError(
+                    f"MatchOptionSpec {self.key!r}: bool default must be 'true' or 'false'"
+                )
         elif self.kind == "preset":
             if not self.presets:
                 raise ValueError(f"MatchOptionSpec {self.key!r}: presets required")
             preset_names = {name for name, _ in self.presets}
             if str(self.default) not in preset_names:
-                raise ValueError(f"MatchOptionSpec {self.key!r}: default not in presets")
+                raise ValueError(
+                    f"MatchOptionSpec {self.key!r}: default not in presets"
+                )
 
     def allowed_values(self) -> set[str]:
         if self.kind == "choices":

@@ -19,14 +19,14 @@ class Response:
     """
 
     def __init__(
-            self,
-            message: Message | None = None,
-            content: str = None,
-            style: ResponseType = None,
-            ephemeral: bool = False,
-            delete_after: int = None,
-            *,
-            record_replay: bool = False,
+        self,
+        message: Message | None = None,
+        content: str = None,
+        style: ResponseType = None,
+        ephemeral: bool = False,
+        delete_after: int = None,
+        *,
+        record_replay: bool = False,
     ) -> None:
         """
         Create a new Response object.
@@ -60,14 +60,17 @@ class Response:
             return None
         if self.style == ResponseType.normal:
             return self.message
-        return Message(Container(*self.message.children, accent_color=self.color), files=self.message.files)
+        return Message(
+            Container(*self.message.children, accent_color=self.color),
+            files=self.message.files,
+        )
 
     def generate_message(
-            self,
-            message_send_function: Callable[..., Awaitable[Any]],
-            game_id: int = None,
-            enable_embed_components: bool = True,
-            enable_view_components: bool = True,
+        self,
+        message_send_function: Callable[..., Awaitable[Any]],
+        game_id: int = None,
+        enable_embed_components: bool = True,
+        enable_view_components: bool = True,
     ) -> tuple[Awaitable[Any], Callable[[Any], Awaitable[Any] | None]]:
         """
         Generate coroutines responsible for responding to the interaction
@@ -89,5 +92,11 @@ class Response:
         else:
             return dummy(), lambda x: None
 
-        return (message_send_function(**payload),
-                lambda x: x.delete(delay=self.delete_after) if self.delete_after is not None else None)
+        return (
+            message_send_function(**payload),
+            lambda x: (
+                x.delete(delay=self.delete_after)
+                if self.delete_after is not None
+                else None
+            ),
+        )

@@ -30,6 +30,8 @@ _FIELD_VALUE_SAFE = _FIELD_VALUE_MAX - 7
 
 # Discord's maximum embed fields
 MAX_EMBED_FIELDS = 25
+
+
 def _chunk_text(text: str, *, max_len: int = _TEXT_DISPLAY_MAX) -> list[str]:
     if not text:
         return []
@@ -47,11 +49,11 @@ def _chunk_text(text: str, *, max_len: int = _TEXT_DISPLAY_MAX) -> list[str]:
 
 
 def _build_container_view(
-        body_text: str,
-        *,
-        accent_color: discord.Color | int | None = None,
-        media_urls: Iterable[str] | None = None,
-        thumbnail_url: str | None = None,
+    body_text: str,
+    *,
+    accent_color: discord.Color | int | None = None,
+    media_urls: Iterable[str] | None = None,
+    thumbnail_url: str | None = None,
 ) -> discord.ui.LayoutView:
     view = discord.ui.LayoutView(timeout=None)
     container = discord.ui.Container(accent_color=accent_color)
@@ -83,10 +85,10 @@ def container_to_markdown(card: "CustomContainer | str | None") -> str:
 
 
 def container_send_kwargs(
-        card: "CustomContainer | str",
-        *,
-        files: list[discord.File] | None = None,
-        content: str | None = None,
+    card: "CustomContainer | str",
+    *,
+    files: list[discord.File] | None = None,
+    content: str | None = None,
 ) -> dict[str, Any]:
     if isinstance(card, CustomContainer):
         body = card.to_markdown()
@@ -99,7 +101,9 @@ def container_send_kwargs(
         media = []
         thumbnail = None
     kwargs: dict[str, Any] = {
-        "view": _build_container_view(body, accent_color=accent, media_urls=media, thumbnail_url=thumbnail)
+        "view": _build_container_view(
+            body, accent_color=accent, media_urls=media, thumbnail_url=thumbnail
+        )
     }
     if files:
         kwargs["files"] = files
@@ -109,10 +113,10 @@ def container_send_kwargs(
 
 
 def container_edit_kwargs(
-        card: "CustomContainer | str",
-        *,
-        attachments: list[discord.File] | None = None,
-        content: str | None = None,
+    card: "CustomContainer | str",
+    *,
+    attachments: list[discord.File] | None = None,
+    content: str | None = None,
 ) -> dict[str, Any]:
     if isinstance(card, CustomContainer):
         body = card.to_markdown()
@@ -125,7 +129,9 @@ def container_edit_kwargs(
         media = []
         thumbnail = None
     kwargs: dict[str, Any] = {
-        "view": _build_container_view(body, accent_color=accent, media_urls=media, thumbnail_url=thumbnail)
+        "view": _build_container_view(
+            body, accent_color=accent, media_urls=media, thumbnail_url=thumbnail
+        )
     }
     if attachments is not None:
         kwargs["attachments"] = attachments
@@ -135,10 +141,10 @@ def container_edit_kwargs(
 
 
 def lines_to_container_sections(
-        lines: list[str],
-        *,
-        value_max: int = _FIELD_VALUE_MAX,
-        line_max: int = _FIELD_LINE_SAFE_MAX,
+    lines: list[str],
+    *,
+    value_max: int = _FIELD_VALUE_MAX,
+    line_max: int = _FIELD_LINE_SAFE_MAX,
 ) -> list[str]:
     safe: list[str] = []
     for ln in lines:
@@ -165,13 +171,13 @@ def lines_to_container_sections(
 
 
 def append_container_sections(
-        card: "CustomContainer",
-        chunks: list[str],
-        *,
-        first_name: str,
-        more_name: str = "\u200b",
-        truncated_note: str | None = None,
-        max_fields: int = 24,
+    card: "CustomContainer",
+    chunks: list[str],
+    *,
+    first_name: str,
+    more_name: str = "\u200b",
+    truncated_note: str | None = None,
+    max_fields: int = 24,
 ) -> None:
     vm = _FIELD_VALUE_MAX
     for i, chunk in enumerate(chunks):
@@ -261,18 +267,18 @@ class CustomContainer:
         return "\n\n".join(p for p in parts if p).strip()
 
     def to_send_kwargs(
-            self,
-            *,
-            files: list[discord.File] | None = None,
-            content: str | None = None,
+        self,
+        *,
+        files: list[discord.File] | None = None,
+        content: str | None = None,
     ) -> dict[str, Any]:
         return container_send_kwargs(self, files=files, content=content)
 
     def to_edit_kwargs(
-            self,
-            *,
-            attachments: list[discord.File] | None = None,
-            content: str | None = None,
+        self,
+        *,
+        attachments: list[discord.File] | None = None,
+        content: str | None = None,
     ) -> dict[str, Any]:
         return container_edit_kwargs(self, attachments=attachments, content=content)
 
@@ -285,7 +291,10 @@ class CustomContainer:
         if self.footer_text is not None:
             result["footer"] = {"text": self.footer_text}
         if self.fields:
-            result["fields"] = [{"name": f.name, "value": f.value, "inline": f.inline} for f in self.fields]
+            result["fields"] = [
+                {"name": f.name, "value": f.value, "inline": f.inline}
+                for f in self.fields
+            ]
         return result
 
 
@@ -314,7 +323,11 @@ class UserErrorContainer(CustomContainer):
         if description:
             self.description = description
         if suggestion:
-            self.add_field(name=get("embeds.user_error.suggestion_field"), value=suggestion, inline=False)
+            self.add_field(
+                name=get("embeds.user_error.suggestion_field"),
+                value=suggestion,
+                inline=False,
+            )
 
 
 class LoadingContainer(CustomContainer):
@@ -334,10 +347,16 @@ class LoadingContainer(CustomContainer):
 class ErrorContainer(CustomContainer):
     def __init__(self, ctx=None, what_failed=None, reason=None):
         current_directory = os.path.dirname(__file__).rstrip("utils")
-        super().__init__(title=f"{get_emoji_string('facepalm')} {get('system_error.title')}", color=ERROR_COLOR)
+        super().__init__(
+            title=f"{get_emoji_string('facepalm')} {get('system_error.title')}",
+            color=ERROR_COLOR,
+        )
         self.add_field(
             name=f"{get_emoji_string('github')} {get('system_error.report_field')}",
-            value=fmt("system_error.report_value", github_issues_url=get("brand.github_url") + "/issues"),
+            value=fmt(
+                "system_error.report_value",
+                github_issues_url=get("brand.github_url") + "/issues",
+            ),
             inline=False,
         )
         if ctx is not None:
@@ -354,8 +373,11 @@ class ErrorContainer(CustomContainer):
             )
         if reason is not None:
             reason = reason.replace(current_directory, "")
-            text_fields = lines_to_container_sections(reason.split("\n"), value_max=_FIELD_VALUE_SAFE,
-                                                      line_max=_FIELD_LINE_SAFE_MAX)
+            text_fields = lines_to_container_sections(
+                reason.split("\n"),
+                value_max=_FIELD_VALUE_SAFE,
+                line_max=_FIELD_LINE_SAFE_MAX,
+            )
             for i, section in enumerate(text_fields):
                 self.add_field(
                     name=f"{get_emoji_string('hmm')} {fmt('system_error.reason_field', part=i + 1, total=len(text_fields))}",
@@ -367,15 +389,30 @@ class ErrorContainer(CustomContainer):
 
 class GameOverviewContainer(CustomContainer):
     def __init__(self, game_name, game_type, rated, players, turn):
-        title_key = "embeds.game_overview.title_rated" if rated else "embeds.game_overview.title_unrated"
+        title_key = (
+            "embeds.game_overview.title_rated"
+            if rated
+            else "embeds.game_overview.title_unrated"
+        )
         super().__init__(
             title=fmt(title_key, game_name=game_name),
             description=get("embeds.game_overview.description"),
         )
-        self.add_field(name=get("embeds.game_overview.field_players"), value=column_names(players), inline=True)
-        self.add_field(name=get("embeds.game_overview.field_ratings"), value=column_elo(players, game_type),
-                       inline=True)
-        self.add_field(name=get("embeds.game_overview.field_turn"), value=column_turn(players, turn), inline=True)
+        self.add_field(
+            name=get("embeds.game_overview.field_players"),
+            value=column_names(players),
+            inline=True,
+        )
+        self.add_field(
+            name=get("embeds.game_overview.field_ratings"),
+            value=column_elo(players, game_type),
+            inline=True,
+        )
+        self.add_field(
+            name=get("embeds.game_overview.field_turn"),
+            value=column_turn(players, turn),
+            inline=True,
+        )
 
 
 def _outcome_summaries_value(players, summaries: dict[int, str]) -> str:
@@ -389,14 +426,14 @@ def _outcome_summaries_value(players, summaries: dict[int, str]) -> str:
 
 class GameOverContainer(CustomContainer):
     def __init__(
-            self,
-            rankings,
-            game_name,
-            players=None,
-            outcome_summaries: dict[int, str] | None = None,
-            outcome_global_summary: str | None = None,
-            replay_id: str | int | None = None,
-            forfeited_player_ids: set[int] | None = None,
+        self,
+        rankings,
+        game_name,
+        players=None,
+        outcome_summaries: dict[int, str] | None = None,
+        outcome_global_summary: str | None = None,
+        replay_id: str | int | None = None,
+        forfeited_player_ids: set[int] | None = None,
     ):
         super().__init__(
             title=fmt("embeds.game_over.title", game_name=game_name),
@@ -408,7 +445,9 @@ class GameOverContainer(CustomContainer):
                 value=outcome_global_summary[:_FIELD_VALUE_MAX],
                 inline=False,
             )
-        self.add_field(name=get("embeds.game_over.field_rankings"), value=rankings, inline=True)
+        self.add_field(
+            name=get("embeds.game_over.field_rankings"), value=rankings, inline=True
+        )
         if outcome_summaries and players:
             block = _outcome_summaries_value(players, outcome_summaries)
             if block:
@@ -420,7 +459,9 @@ class GameOverContainer(CustomContainer):
 
         # Show forfeit notice if applicable
         if forfeited_player_ids and players:
-            forfeited_mentions = [p.mention for p in players if p.id in forfeited_player_ids]
+            forfeited_mentions = [
+                p.mention for p in players if p.id in forfeited_player_ids
+            ]
             if forfeited_mentions:
                 self.add_field(
                     name=get("embeds.game_over.field_forfeits"),
@@ -577,7 +618,9 @@ class HelpTutorialsContainer(CustomContainer):
 class HelpGameInfoContainer(CustomContainer):
     def __init__(self, game_id: str, game_class):
         game_name = getattr(game_class, "name", game_id)
-        description = getattr(game_class, "description", get("help.game_info.no_description"))
+        description = getattr(
+            game_class, "description", get("help.game_info.no_description")
+        )
         players = resolve_player_count(game_class)
         if players is None:
             players = get("help.game_info.unknown")
@@ -586,7 +629,11 @@ class HelpGameInfoContainer(CustomContainer):
         author = getattr(game_class, "author", get("help.game_info.unknown"))
 
         if isinstance(players, list):
-            player_text = fmt("help.game_info.players_range_format", min=min(players), max=max(players))
+            player_text = fmt(
+                "help.game_info.players_range_format",
+                min=min(players),
+                max=max(players),
+            )
         else:
             player_text = fmt("help.game_info.players_format", count=players)
 
@@ -595,15 +642,23 @@ class HelpGameInfoContainer(CustomContainer):
             description=description,
             color=GAME_COLOR,
         )
-        self.add_field(name=get("help.game_info.field_players"), value=player_text, inline=True)
-        self.add_field(name=get("help.game_info.field_duration"), value=time_est, inline=True)
-        self.add_field(name=get("help.game_info.field_difficulty"), value=difficulty, inline=True)
+        self.add_field(
+            name=get("help.game_info.field_players"), value=player_text, inline=True
+        )
+        self.add_field(
+            name=get("help.game_info.field_duration"), value=time_est, inline=True
+        )
+        self.add_field(
+            name=get("help.game_info.field_difficulty"), value=difficulty, inline=True
+        )
         self.add_field(
             name=get("help.game_info.field_quick_start"),
             value=fmt("help.game_info.field_quick_start_value", game_id=game_id),
             inline=False,
         )
-        self.add_field(name=get("help.game_info.field_author"), value=author, inline=True)
+        self.add_field(
+            name=get("help.game_info.field_author"), value=author, inline=True
+        )
         self.add_field(
             name=get("help.game_info.field_learn_more"),
             value=fmt("help.game_info.field_learn_more_value", game_id=game_id),
@@ -613,31 +668,48 @@ class HelpGameInfoContainer(CustomContainer):
 
 class MatchmakingContainer(CustomContainer):
     def __init__(
-            self,
-            game_name: str,
-            game_id: str,
-            creator,
-            players: list,
-            min_players: int,
-            max_players: int,
-            rated: bool = True,
-            private: bool = False,
+        self,
+        game_name: str,
+        game_id: str,
+        creator,
+        players: list,
+        min_players: int,
+        max_players: int,
+        rated: bool = True,
+        private: bool = False,
     ):
-        status = get("embeds.matchmaking.status_private") if private else get("embeds.matchmaking.status_public")
-        rating_status = get("embeds.matchmaking.rated") if rated else get("embeds.matchmaking.unrated")
+        status = (
+            get("embeds.matchmaking.status_private")
+            if private
+            else get("embeds.matchmaking.status_public")
+        )
+        rating_status = (
+            get("embeds.matchmaking.rated")
+            if rated
+            else get("embeds.matchmaking.unrated")
+        )
         super().__init__(
             title=fmt("embeds.matchmaking.title", game_name=game_name),
-            description=fmt("embeds.matchmaking.description", creator=creator.display_name),
+            description=fmt(
+                "embeds.matchmaking.description", creator=creator.display_name
+            ),
             color=MATCHMAKING_COLOR,
         )
         if players:
             player_list = "\n".join(
-                [f"• {getattr(p, 'display_name', None) or getattr(p, 'name', str(p))}" for p in players]
+                [
+                    f"• {getattr(p, 'display_name', None) or getattr(p, 'name', str(p))}"
+                    for p in players
+                ]
             )
         else:
             player_list = get("embeds.matchmaking.no_players")
         self.add_field(
-            name=fmt("embeds.matchmaking.field_players", current=len(players), max=max_players),
+            name=fmt(
+                "embeds.matchmaking.field_players",
+                current=len(players),
+                max=max_players,
+            ),
             value=player_list,
             inline=True,
         )

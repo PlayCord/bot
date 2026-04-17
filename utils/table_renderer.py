@@ -55,7 +55,9 @@ def _load_font(size: int, *, emoji: bool = False) -> ImageFont.ImageFont:
     else:
         candidates = _TEXT_FONT_CANDIDATES
     layout_enum = getattr(ImageFont, "Layout", None)
-    layout_engine = getattr(layout_enum, "RAQM", None) if layout_enum is not None else None
+    layout_engine = (
+        getattr(layout_enum, "RAQM", None) if layout_enum is not None else None
+    )
     for path in _font_paths(candidates):
         for use_layout in (True, False):
             kwargs = {}
@@ -77,7 +79,19 @@ def _is_emoji_codepoint(codepoint: int) -> bool:
         0x1F300 <= codepoint <= 0x1FAFF
         or 0x2600 <= codepoint <= 0x27BF
         or _is_regional_indicator(codepoint)
-        or codepoint in {0x00A9, 0x00AE, 0x203C, 0x2049, 0x2122, 0x2139, 0x3030, 0x303D, 0x3297, 0x3299}
+        or codepoint
+        in {
+            0x00A9,
+            0x00AE,
+            0x203C,
+            0x2049,
+            0x2122,
+            0x2139,
+            0x3030,
+            0x303D,
+            0x3297,
+            0x3299,
+        }
     )
 
 
@@ -97,7 +111,11 @@ def _split_clusters(text: str) -> list[str]:
             or char == "\u20e3"
             or unicodedata.combining(char)
             or 0x1F3FB <= codepoint <= 0x1F3FF
-            or (_is_regional_indicator(prev_codepoint) and _is_regional_indicator(codepoint) and len(current) == 1)
+            or (
+                _is_regional_indicator(prev_codepoint)
+                and _is_regional_indicator(codepoint)
+                and len(current) == 1
+            )
         ):
             current += char
             continue
@@ -146,7 +164,9 @@ def _segment_metrics(
     return width, height
 
 
-def _measure_text(draw: ImageDraw.ImageDraw, text: str, *, header: bool = False) -> tuple[int, int]:
+def _measure_text(
+    draw: ImageDraw.ImageDraw, text: str, *, header: bool = False
+) -> tuple[int, int]:
     target_size = _HEADER_FONT_SIZE if header else _FONT_SIZE
     base_font = _load_font(target_size)
     width = 0
@@ -154,7 +174,9 @@ def _measure_text(draw: ImageDraw.ImageDraw, text: str, *, header: bool = False)
     for cluster in _split_clusters(text):
         use_emoji = _is_emoji_cluster(cluster)
         font = _load_font(target_size, emoji=True) if use_emoji else base_font
-        cluster_width, cluster_height = _segment_metrics(draw, cluster, font, embedded_color=use_emoji)
+        cluster_width, cluster_height = _segment_metrics(
+            draw, cluster, font, embedded_color=use_emoji
+        )
         width += cluster_width
         height = max(height, cluster_height)
     return max(width, 1), max(height, base_font.size)
@@ -183,7 +205,9 @@ def _draw_text_in_cell(
     for cluster in _split_clusters(text):
         use_emoji = _is_emoji_cluster(cluster)
         font = _load_font(target_size, emoji=True) if use_emoji else base_font
-        segment_width, segment_height = _segment_metrics(draw, cluster, font, embedded_color=use_emoji)
+        segment_width, segment_height = _segment_metrics(
+            draw, cluster, font, embedded_color=use_emoji
+        )
         segment_y = y + max((cell_height - max(total_height, segment_height)) // 2, 0)
         kwargs = {"font": font}
         if use_emoji:
@@ -227,7 +251,9 @@ def render_table_as_png(headers: Sequence[str], rows: Sequence[Sequence[str]]) -
 
     table_width = sum(widths)
     width = table_width + (_TABLE_PADDING * 2)
-    height = (_TABLE_PADDING * 2) + _HEADER_HEIGHT + (len(normalized_rows) * _ROW_HEIGHT)
+    height = (
+        (_TABLE_PADDING * 2) + _HEADER_HEIGHT + (len(normalized_rows) * _ROW_HEIGHT)
+    )
 
     image = Image.new("RGBA", (width, height), _BG)
     draw = ImageDraw.Draw(image)
@@ -247,7 +273,9 @@ def render_table_as_png(headers: Sequence[str], rows: Sequence[Sequence[str]]) -
     y = table_top + _HEADER_HEIGHT
     for row_index in range(len(normalized_rows)):
         fill = _ROW_BG if row_index % 2 == 0 else _ALT_ROW_BG
-        draw.rectangle((table_left, y, table_left + table_width, y + _ROW_HEIGHT), fill=fill)
+        draw.rectangle(
+            (table_left, y, table_left + table_width, y + _ROW_HEIGHT), fill=fill
+        )
         y += _ROW_HEIGHT
 
     x = table_left
@@ -257,7 +285,11 @@ def render_table_as_png(headers: Sequence[str], rows: Sequence[Sequence[str]]) -
 
     y = table_top + _HEADER_HEIGHT
     for _ in normalized_rows:
-        draw.line((table_left, y, width - _TABLE_PADDING, y), fill=_BORDER, width=max(1, _SCALE))
+        draw.line(
+            (table_left, y, width - _TABLE_PADDING, y),
+            fill=_BORDER,
+            width=max(1, _SCALE),
+        )
         y += _ROW_HEIGHT
 
     draw.rounded_rectangle(

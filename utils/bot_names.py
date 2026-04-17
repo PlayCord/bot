@@ -1,6 +1,5 @@
 import random
 
-
 BOT_FIRST_NAMES = [
     "Mary",
     "Alex",

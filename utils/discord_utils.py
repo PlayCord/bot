@@ -5,7 +5,12 @@ import discord
 from discord import app_commands
 from discord.app_commands import CheckFailure
 
-from configuration.constants import CURRENT_GAMES, EPHEMERAL_DELETE_AFTER, INFO_COLOR, LOGGING_ROOT
+from configuration.constants import (
+    CURRENT_GAMES,
+    EPHEMERAL_DELETE_AFTER,
+    INFO_COLOR,
+    LOGGING_ROOT,
+)
 from utils.containers import CustomContainer, UserErrorContainer, container_send_kwargs
 from utils.conversion import contextify
 from utils.database import DatabaseConnectionError
@@ -33,14 +38,18 @@ def schedule_ephemeral_message_delete(message: Any, delay: float | None) -> None
         pass
 
 
-async def followup_send(interaction: discord.Interaction, *args: Any, **kwargs: Any) -> Any:
+async def followup_send(
+    interaction: discord.Interaction, *args: Any, **kwargs: Any
+) -> Any:
     delay = kwargs.pop("delete_after", None)
     msg = await interaction.followup.send(*args, **kwargs)
     schedule_ephemeral_message_delete(msg, delay)
     return msg
 
 
-async def response_send_message(interaction: discord.Interaction, *args: Any, **kwargs: Any) -> Any:
+async def response_send_message(
+    interaction: discord.Interaction, *args: Any, **kwargs: Any
+) -> Any:
     delay = kwargs.pop("delete_after", None)
     msg = await interaction.response.send_message(*args, **kwargs)
     schedule_ephemeral_message_delete(msg, delay)
@@ -74,18 +83,29 @@ def get_user_error_embed(error_key: str, **kwargs) -> UserErrorContainer:
     return UserErrorContainer(description=message, suggestion=None)
 
 
-async def send_simple_embed(ctx: discord.Interaction, title: str, description: str, ephemeral: bool = True,
-                            responded: bool = False) -> None:
+async def send_simple_embed(
+    ctx: discord.Interaction,
+    title: str,
+    description: str,
+    ephemeral: bool = True,
+    responded: bool = False,
+) -> None:
     """Send a short status using the shared container UI."""
-    card = CustomContainer(title=title, description=description or None, color=INFO_COLOR)
+    card = CustomContainer(
+        title=title, description=description or None, color=INFO_COLOR
+    )
     kwargs = {
         **container_send_kwargs(card),
         "ephemeral": ephemeral,
     }
     if not responded:
-        await response_send_message(ctx, **kwargs, delete_after=EPHEMERAL_DELETE_AFTER if ephemeral else None)
+        await response_send_message(
+            ctx, **kwargs, delete_after=EPHEMERAL_DELETE_AFTER if ephemeral else None
+        )
     else:
-        await followup_send(ctx, **kwargs, delete_after=EPHEMERAL_DELETE_AFTER if ephemeral else None)
+        await followup_send(
+            ctx, **kwargs, delete_after=EPHEMERAL_DELETE_AFTER if ephemeral else None
+        )
 
 
 async def interaction_check(ctx: discord.Interaction) -> bool:
@@ -97,20 +117,26 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
 
     channel = getattr(ctx, "channel", None)
     in_active_game_thread = (
-            channel is not None
-            and getattr(channel, "type", None) == discord.ChannelType.private_thread
-            and getattr(channel, "id", None) in CURRENT_GAMES
+        channel is not None
+        and getattr(channel, "type", None) == discord.ChannelType.private_thread
+        and getattr(channel, "id", None) in CURRENT_GAMES
     )
     command = getattr(ctx, "command", None)
     parent = getattr(command, "parent", None)
-    is_playcord_subcommand = parent is not None and getattr(parent, "name", None) == LOGGING_ROOT
+    is_playcord_subcommand = (
+        parent is not None and getattr(parent, "name", None) == LOGGING_ROOT
+    )
     command_name = getattr(command, "name", None)
     if in_active_game_thread and is_playcord_subcommand and command_name != "forfeit":
         msg = get("playcord.active_thread_command_restricted")
         if ctx.response.is_done():
-            await followup_send(ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(
+                ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER
+            )
         else:
-            await response_send_message(ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await response_send_message(
+                ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER
+            )
         return False
 
     return True
@@ -123,12 +149,18 @@ async def command_error(ctx: discord.Interaction, error: app_commands.AppCommand
         return
 
     # Check for database connection error - use friendly message
-    if isinstance(error, app_commands.CommandInvokeError) and isinstance(error.original, DatabaseConnectionError):
+    if isinstance(error, app_commands.CommandInvokeError) and isinstance(
+        error.original, DatabaseConnectionError
+    ):
         msg = format_user_error_message("database_error")
         if ctx.response.is_done():
-            await followup_send(ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(
+                ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER
+            )
         else:
-            await response_send_message(ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await response_send_message(
+                ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER
+            )
         return
 
     cmd_name = getattr(ctx.command, "name", None) or "unknown"
@@ -140,24 +172,28 @@ async def command_error(ctx: discord.Interaction, error: app_commands.AppCommand
             exc_info=error.original,
         )
     else:
-        f_log.error("App command error (cmd=%r): %r %s", cmd_name, error, contextify(ctx))
+        f_log.error(
+            "App command error (cmd=%r): %r %s", cmd_name, error, contextify(ctx)
+        )
 
     if ctx.response.is_done():
         try:
             await ctx.delete_original_response()
         except (discord.HTTPException, discord.NotFound):
             pass
-        await followup_send(ctx,
-                            content=format_user_error_message("generic"),
-                            ephemeral=True,
-                            delete_after=EPHEMERAL_DELETE_AFTER,
-                            )
+        await followup_send(
+            ctx,
+            content=format_user_error_message("generic"),
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
+        )
     else:
-        await response_send_message(ctx,
-                                    content=format_user_error_message("generic"),
-                                    ephemeral=True,
-                                    delete_after=EPHEMERAL_DELETE_AFTER,
-                                    )
+        await response_send_message(
+            ctx,
+            content=format_user_error_message("generic"),
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
+        )
 
 
 from discord.app_commands import Choice

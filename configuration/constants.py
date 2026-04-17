@@ -27,9 +27,13 @@ EMBED_COLOR = discord.Color.from_str("#6877ED")  # Primary brand color (purple-b
 ERROR_COLOR = discord.Color.from_str("#ED6868")  # Errors and failures (red)
 INFO_COLOR = discord.Color.from_str("#9A9CB0")  # Informational embeds (gray)
 SUCCESS_COLOR = discord.Color.from_str("#68ED7B")  # Success messages (green)
-WARNING_COLOR = discord.Color.from_str("#EDC868")  # Warnings and cautions (yellow/orange)
+WARNING_COLOR = discord.Color.from_str(
+    "#EDC868"
+)  # Warnings and cautions (yellow/orange)
 GAME_COLOR = discord.Color.from_str("#68D4ED")  # Game-related embeds (cyan)
-MATCHMAKING_COLOR = discord.Color.from_str("#B068ED")  # Matchmaking/lobby embeds (purple)
+MATCHMAKING_COLOR = discord.Color.from_str(
+    "#B068ED"
+)  # Matchmaking/lobby embeds (purple)
 
 CONFIG_BOT_SECRET = "secret"
 
@@ -38,15 +42,17 @@ EMOJI_CONFIGURATION_FILE = "configuration/emoji.yaml"
 
 ERROR_IMPORTED = "This file is NOT designed to be imported. Please run bot.py directly!"
 ERROR_NO_SYSTEM_CHANNEL = "No system channel is set - not sending anything."
-ERROR_INCORRECT_SETUP = ("This is likely due to:\n"
-                         "1. Internet issues\n"
-                         "2. Incorrect discord token\n"
-                         "3. Incorrectly set up discord bot")
+ERROR_INCORRECT_SETUP = (
+    "This is likely due to:\n"
+    "1. Internet issues\n"
+    "2. Incorrect discord token\n"
+    "3. Incorrectly set up discord bot"
+)
 
 GAME_TYPES = {
     "tictactoe": ["games.TicTacToe", "TicTacToeGame"],
     "connectfour": ["games.ConnectFour", "ConnectFourGame"],
-    "nim": ["games.Nim", "NimGame"]
+    "nim": ["games.Nim", "NimGame"],
 }
 
 MU = 1000
@@ -86,7 +92,9 @@ AUTOCOMPLETE_CACHE = {}
 # - user_id
 # - - current: autocompletes
 
-LONG_SPACE_EMBED = "\u2800"  # discord hides spaces when there is more than one in a row, this fixes it
+LONG_SPACE_EMBED = (
+    "\u2800"  # discord hides spaces when there is more than one in a row, this fixes it
+)
 
 # Button custom_id prefixes
 BUTTON_PREFIX_JOIN = "join/"
@@ -141,8 +149,12 @@ PERMISSION_MSG_NOT_YOUR_TURN = get("permissions.not_your_turn")
 GAME_MSG_ALREADY_OVER = get("game.errors.already_over")
 
 # Thread policy settings
-THREAD_POLICY_WARN_NON_PARTICIPANTS = True  # Warn users who message in game threads without being participants
-THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES = False  # Delete messages from non-participants (more aggressive)
+THREAD_POLICY_WARN_NON_PARTICIPANTS = (
+    True  # Warn users who message in game threads without being participants
+)
+THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES = (
+    False  # Delete messages from non-participants (more aggressive)
+)
 THREAD_POLICY_WARNING_MESSAGE = get("thread_policy.warning")
 # If True, participants may only send messages that look like slash usage (start with '/') in active game threads
 THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY = False

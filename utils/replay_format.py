@@ -28,7 +28,9 @@ def format_replay_event_line(evt: dict[str, Any]) -> str:
     return raw
 
 
-def chunk_replay_lines(lines: list[str], *, per_page: int = 12, max_chars: int = 3200) -> list[str]:
+def chunk_replay_lines(
+    lines: list[str], *, per_page: int = 12, max_chars: int = 3200
+) -> list[str]:
     """Split lines into pages that fit a single embed description (with code fence)."""
     if not lines:
         return ["(no lines)"]

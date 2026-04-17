@@ -20,9 +20,7 @@ from utils.svg_utils import svg_to_png
 
 
 def render_connect_four_board_png(
-        board: list[list[Any | None]],
-        player_one: Any,
-        player_two: Any
+    board: list[list[Any | None]], player_one: Any, player_two: Any
 ) -> bytes | None:
     rows = len(board)
     cols = len(board[0]) if rows else 0
@@ -78,7 +76,12 @@ class ConnectFourGame(Game):
     description = "Drop your disc into a column. First to connect four discs wins."
     name = "Connect Four"
     player_count = 2
-    trueskill_parameters = {"sigma": 1 / 6, "beta": 1 / 12, "tau": 1 / 120, "draw": 1 / 10}
+    trueskill_parameters = {
+        "sigma": 1 / 6,
+        "beta": 1 / 12,
+        "tau": 1 / 120,
+        "draw": 1 / 10,
+    }
     moves = [
         Command(
             name="drop",
@@ -105,7 +108,9 @@ class ConnectFourGame(Game):
         self.players = players
         self.rows = 6
         self.columns = 7
-        self.board: list[list[Player | None]] = [[None for _ in range(self.columns)] for _ in range(self.rows)]
+        self.board: list[list[Player | None]] = [
+            [None for _ in range(self.columns)] for _ in range(self.rows)
+        ]
         self.turn = 0
         self.move_count = 0
         self.winner: Player | None = None
@@ -145,7 +150,9 @@ class ConnectFourGame(Game):
                 )
             ),
         ]
-        board_png = render_connect_four_board_png(self.board, self.players[0], self.players[1])
+        board_png = render_connect_four_board_png(
+            self.board, self.players[0], self.players[1]
+        )
         if board_png is not None:
             body_children.append(MediaGallery(board_png))
         else:
@@ -164,23 +171,35 @@ class ConnectFourGame(Game):
 
     def drop(self, player: Player, column: int):
         if column < 1 or column > self.columns:
-            return Response(content="Column must be between 1 and 7.", ephemeral=True, delete_after=UI_MESSAGE_DELETE_DELAY)
+            return Response(
+                content="Column must be between 1 and 7.",
+                ephemeral=True,
+                delete_after=UI_MESSAGE_DELETE_DELAY,
+            )
 
         col_index = column - 1
         row_index = self._find_open_row(col_index)
         if row_index is None:
-            return Response(content=f"Column {column} is full.", ephemeral=True, delete_after=UI_MESSAGE_DELETE_DELAY)
+            return Response(
+                content=f"Column {column} is full.",
+                ephemeral=True,
+                delete_after=UI_MESSAGE_DELETE_DELAY,
+            )
 
         self.board[row_index][col_index] = player
         self.move_count += 1
 
         if self._is_winning_move(row_index, col_index, player):
             self.winner = player
-            self.last_action = f"{player.mention} dropped in column {column} and connected four."
+            self.last_action = (
+                f"{player.mention} dropped in column {column} and connected four."
+            )
             return None
 
         if self.move_count == self.rows * self.columns:
-            self.last_action = f"{player.mention} dropped in column {column}. The board is full."
+            self.last_action = (
+                f"{player.mention} dropped in column {column}. The board is full."
+            )
             return None
 
         self.turn = (self.turn + 1) % len(self.players)
@@ -230,11 +249,15 @@ class ConnectFourGame(Game):
                 return True
         return False
 
-    def _count_direction(self, row: int, col: int, dr: int, dc: int, player: Player) -> int:
+    def _count_direction(
+        self, row: int, col: int, dr: int, dc: int, player: Player
+    ) -> int:
         count = 0
         r = row + dr
         c = col + dc
-        while 0 <= r < self.rows and 0 <= c < self.columns and self.board[r][c] == player:
+        while (
+            0 <= r < self.rows and 0 <= c < self.columns and self.board[r][c] == player
+        ):
             count += 1
             r += dr
             c += dc

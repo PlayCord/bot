@@ -14,8 +14,8 @@ from utils.locale import fmt, get
 
 
 def _collect_local_leaves(
-        cmd: app_commands.Command | app_commands.Group | app_commands.ContextMenu,
-        prefix: tuple[str, ...]
+    cmd: app_commands.Command | app_commands.Group | app_commands.ContextMenu,
+    prefix: tuple[str, ...],
 ) -> dict[str, app_commands.Command | app_commands.ContextMenu]:
     if isinstance(cmd, app_commands.Group):
         new_p = prefix + (cmd.name,)
@@ -31,7 +31,7 @@ def _collect_local_leaves(
 
 
 def collect_local_tree(
-        tree: app_commands.CommandTree, *, guild: discord.abc.Snowflake | None
+    tree: app_commands.CommandTree, *, guild: discord.abc.Snowflake | None
 ) -> dict[str, app_commands.Command]:
     merged: dict[str, app_commands.Command] = {}
     for top in tree.get_commands(guild=guild):
@@ -52,7 +52,10 @@ def _collect_remote_leaves(ac: AppCommand) -> dict[str, dict[str, Any]]:
             }
             return
         for opt in options:
-            if isinstance(opt, AppCommandGroup) or getattr(opt, "options", None) is not None:
+            if (
+                isinstance(opt, AppCommandGroup)
+                or getattr(opt, "options", None) is not None
+            ):
                 walk(opt, parts + (opt.name,))
 
     walk(ac, (ac.name,))
@@ -67,7 +70,9 @@ def collect_remote_tree(commands: list[AppCommand]) -> dict[str, dict[str, Any]]
 
 
 def _deep_compare_leaf(
-        local_cmd: app_commands.Command, remote_description: str, remote_args: list[Argument]
+    local_cmd: app_commands.Command,
+    remote_description: str,
+    remote_args: list[Argument],
 ) -> list[str]:
     """Compare a local leaf Command to API description + option list."""
     differences: list[str] = []
@@ -92,19 +97,25 @@ def _deep_compare_leaf(
         p = lparams[name]
         r = ropts[name]
         if (p.description or "").strip() != (r.description or "").strip():
-            differences.append(fmt("commands.treediff.diff.param_description_modified", name=name))
+            differences.append(
+                fmt("commands.treediff.diff.param_description_modified", name=name)
+            )
         if p.required != r.required:
-            differences.append(fmt("commands.treediff.diff.param_required_modified", name=name))
+            differences.append(
+                fmt("commands.treediff.diff.param_required_modified", name=name)
+            )
         if p.type.value != r.type.value:
-            differences.append(fmt("commands.treediff.diff.param_type_modified", name=name))
+            differences.append(
+                fmt("commands.treediff.diff.param_type_modified", name=name)
+            )
 
     return differences
 
 
 def analyze_command_tree_drift(
-        *,
-        local_leaves: dict[str, app_commands.Command],
-        remote_leaves: dict[str, dict[str, Any]],
+    *,
+    local_leaves: dict[str, app_commands.Command],
+    remote_leaves: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     added = sorted(set(local_leaves.keys()) - set(remote_leaves.keys()))
     removed = sorted(set(remote_leaves.keys()) - set(local_leaves.keys()))
@@ -267,7 +278,9 @@ def drift_to_container(
     if shown < len(mod_sorted):
         container.add_field(
             name=get("commands.treediff.field_more_modified"),
-            value=fmt("commands.treediff.more_modified_detail", n=len(mod_sorted) - shown),
+            value=fmt(
+                "commands.treediff.more_modified_detail", n=len(mod_sorted) - shown
+            ),
             inline=False,
         )
 
@@ -275,9 +288,11 @@ def drift_to_container(
 
 
 async def fetch_and_analyze_tree(
-        tree: app_commands.CommandTree, *, guild: discord.abc.Snowflake | None = None
+    tree: app_commands.CommandTree, *, guild: discord.abc.Snowflake | None = None
 ) -> dict[str, Any]:
     remote = await tree.fetch_commands(guild=guild)
     local_leaves = collect_local_tree(tree, guild=guild)
     remote_leaves = collect_remote_tree(list(remote))
-    return analyze_command_tree_drift(local_leaves=local_leaves, remote_leaves=remote_leaves)
+    return analyze_command_tree_drift(
+        local_leaves=local_leaves, remote_leaves=remote_leaves
+    )

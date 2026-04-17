@@ -17,7 +17,11 @@ from utils.locale import fmt, get, set_command_mentions
 from utils.bot_owners import STATIC_OWNER_IDS, resolve_effective_owner_ids
 from utils.command_builder import build_function_definitions
 from utils.discord_utils import command_error
-from utils.logging_config import configure_logging, configure_logging_from_config, get_logger
+from utils.logging_config import (
+    configure_logging,
+    configure_logging_from_config,
+    get_logger,
+)
 
 # Logging setup: bootstrap first, then reconfigure from loaded config.
 configure_logging("INFO")
@@ -37,7 +41,9 @@ def load_configuration() -> dict | None:
     except FileNotFoundError:
         startup_logger.critical("Configuration file not found.")
         return
-    startup_logger.debug(f"Successfully loaded configuration file in {begin_load_config.current_time}ms!")
+    startup_logger.debug(
+        f"Successfully loaded configuration file in {begin_load_config.current_time}ms!"
+    )
     return loaded_config_file
 
 
@@ -88,7 +94,10 @@ def _collect_remote_command_mentions(ac: AppCommand) -> dict[str, str]:
                 mentions[" ".join(parts)] = mention
             return
         for opt in options:
-            if isinstance(opt, AppCommandGroup) or getattr(opt, "options", None) is not None:
+            if (
+                isinstance(opt, AppCommandGroup)
+                or getattr(opt, "options", None) is not None
+            ):
                 walk(opt, parts + (opt.name,))
 
     walk(ac, (ac.name,))
@@ -109,12 +118,16 @@ if not db.startup():
     startup_logger.critical("Database failed to connect on startup!")
     sys.exit(1)
 else:
-    startup_logger.info(f"Database startup completed in {database_startup_time.current_time}ms.")
+    startup_logger.info(
+        f"Database startup completed in {database_startup_time.current_time}ms."
+    )
 
 
 class PlayCordBot(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix="!", intents=discord.Intents.all(), help_command=None)
+        super().__init__(
+            command_prefix="!", intents=discord.Intents.all(), help_command=None
+        )
         self._effective_owner_ids: frozenset[int] | None = None
 
     @property
@@ -150,23 +163,28 @@ class PlayCordBot(commands.Bot):
 
             # Shared globals for all commands in this group (so autocomplete callbacks can be found)
             group_exec_globals = {
-                'discord': discord,
-                'app_commands': app_commands,
-                'group': group,
-                'handle_move': handle_move,
-                'handle_autocomplete': handle_autocomplete,
+                "discord": discord,
+                "app_commands": app_commands,
+                "group": group,
+                "handle_move": handle_move,
+                "handle_autocomplete": handle_autocomplete,
             }
 
             for command_str in dynamic_commands[group]:
                 try:
                     exec(command_str, group_exec_globals)
                 except Exception as e:
-                    startup_logger.error(f"Failed to register dynamic command:\n{command_str}\nError: {e}")
+                    startup_logger.error(
+                        f"Failed to register dynamic command:\n{command_str}\nError: {e}"
+                    )
 
         # Add command_root group from GeneralCog manually as it is not built dynamically
         general_cog = self.get_cog("GeneralCog")
         if general_cog:
-            if not any(c.name == general_cog.command_root.name for c in self.tree.get_commands()):
+            if not any(
+                c.name == general_cog.command_root.name
+                for c in self.tree.get_commands()
+            ):
                 self.tree.add_command(general_cog.command_root)
 
         await self._maybe_sync_commands_if_configured()
@@ -180,9 +198,7 @@ class PlayCordBot(commands.Bot):
             return
         try:
             synced = await self.tree.sync()
-            startup_logger.info(
-                fmt("startup.auto_sync_commands_ok", count=len(synced))
-            )
+            startup_logger.info(fmt("startup.auto_sync_commands_ok", count=len(synced)))
         except Exception as e:
             startup_logger.warning(
                 fmt("startup.auto_sync_commands_failed", error=str(e))
@@ -194,7 +210,10 @@ class PlayCordBot(commands.Bot):
         if not cfg.get("compare_command_tree_on_startup"):
             return
         try:
-            from utils.command_tree_diff import fetch_and_analyze_tree, format_drift_report
+            from utils.command_tree_diff import (
+                fetch_and_analyze_tree,
+                format_drift_report,
+            )
 
             drift = await fetch_and_analyze_tree(self.tree, guild=None)
             if drift["added"] or drift["removed"] or drift["modified"]:

@@ -8,8 +8,14 @@ class Argument:
     An Argument is something that can be passed to a Command as an option.
     """
 
-    def __init__(self, argument_name: str, description: str, optional: bool, autocomplete: str | None = None,
-                 force_reload: bool = True):
+    def __init__(
+        self,
+        argument_name: str,
+        description: str,
+        optional: bool,
+        autocomplete: str | None = None,
+        force_reload: bool = True,
+    ):
         """
         Create a new argument.
         :param description: description of the argument.
@@ -49,8 +55,14 @@ class String(Argument):
     A string argument.
     """
 
-    def __init__(self, argument_name: str, description: str, optional: bool = False,
-                 autocomplete: str | None = None, force_reload: bool = False) -> None:
+    def __init__(
+        self,
+        argument_name: str,
+        description: str,
+        optional: bool = False,
+        autocomplete: str | None = None,
+        force_reload: bool = False,
+    ) -> None:
         """
         Create a new string.
         :param description: description of the string argument.
@@ -59,9 +71,13 @@ class String(Argument):
         :param autocomplete: autocomplete string literal of autocomplete function, or None
         :param force_reload: whether to force reload (no autocomplete cache)
         """
-        super().__init__(description=description,
-                         argument_name=argument_name,
-                         optional=optional, autocomplete=autocomplete, force_reload=force_reload)
+        super().__init__(
+            description=description,
+            argument_name=argument_name,
+            optional=optional,
+            autocomplete=autocomplete,
+            force_reload=force_reload,
+        )
 
         # Class arguments
         self.type = "string"
@@ -87,9 +103,16 @@ class Integer(Argument):
     An integer argument.
     """
 
-    def __init__(self, argument_name: str, description: str, optional: bool = False,
-                 autocomplete: str | None = None, force_reload: bool = False, min_value: int = None,
-                 max_value: int = None) -> None:
+    def __init__(
+        self,
+        argument_name: str,
+        description: str,
+        optional: bool = False,
+        autocomplete: str | None = None,
+        force_reload: bool = False,
+        min_value: int = None,
+        max_value: int = None,
+    ) -> None:
         """
         Create a new integer.
         :param description: description of the string argument.
@@ -100,9 +123,13 @@ class Integer(Argument):
         :param min_value: minimum allowed value
         :param max_value: maximum allowed value
         """
-        super().__init__(description=description,
-                         argument_name=argument_name,
-                         optional=optional, autocomplete=autocomplete, force_reload=force_reload)
+        super().__init__(
+            description=description,
+            argument_name=argument_name,
+            optional=optional,
+            autocomplete=autocomplete,
+            force_reload=force_reload,
+        )
 
         # Class arguments
         self.type = "int"
@@ -115,8 +142,12 @@ class Integer(Argument):
         type=int, optional=self.optional, name=self.name
         :return: arguments as a dictionary
         """
-        return {self.name: {"type": app_commands.Range[int, self.min_value, self.max_value],
-                            "optional": self.optional}}
+        return {
+            self.name: {
+                "type": app_commands.Range[int, self.min_value, self.max_value],
+                "optional": self.optional,
+            }
+        }
 
     def decorators(self) -> dict[str, Any]:
         """
@@ -131,21 +162,32 @@ class Dropdown(Argument):
     A dropdown argument.
     """
 
-    def __init__(self, argument_name: str, description: str, options: dict, optional: bool = False) -> None:
+    def __init__(
+        self,
+        argument_name: str,
+        description: str,
+        options: dict,
+        optional: bool = False,
+    ) -> None:
         """
         Create a new dropdown.
         :param description: description of the dropdown argument.
         :param argument_name: name of the dropdown argument.
         :param optional: whether this dropdown argument is optional
         """
-        super().__init__(description=description,
-                         argument_name=argument_name,
-                         optional=optional, autocomplete=None,
-                         force_reload=False)
+        super().__init__(
+            description=description,
+            argument_name=argument_name,
+            optional=optional,
+            autocomplete=None,
+            force_reload=False,
+        )
 
         # Instantiate class options
         self.type = "string"
-        self.options = [Choice(name=option[0], value=option[1]) for option in options.items()]
+        self.options = [
+            Choice(name=option[0], value=option[1]) for option in options.items()
+        ]
 
     def arguments(self) -> dict[str, dict[str, Any]]:
         """

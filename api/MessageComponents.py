@@ -49,7 +49,9 @@ class _BuildContext:
             filename = self._unique_filename(prefix, extension)
             file = discord.File(io.BytesIO(media), filename=filename)
         elif isinstance(media, discord.File):
-            filename = getattr(media, "filename", None) or self._unique_filename(prefix, extension)
+            filename = getattr(media, "filename", None) or self._unique_filename(
+                prefix, extension
+            )
             media.filename = filename
             self._attachment_names.add(filename)
             file = media
@@ -120,7 +122,9 @@ def _display_name_for_table_row(value: Any) -> str:
     return str(value)
 
 
-def _table_headers_and_rows(data: dict[Any, dict[str, Any]]) -> tuple[list[str], list[list[str]]]:
+def _table_headers_and_rows(
+    data: dict[Any, dict[str, Any]],
+) -> tuple[list[str], list[list[str]]]:
     column_names: list[str] = []
     for values in data.values():
         for key in values:
@@ -149,7 +153,9 @@ def format_data_table(data: dict[Any, dict[str, Any]]) -> str:
             widths[index] = max(widths[index], len(value))
 
     def fmt_row(values: Sequence[str]) -> str:
-        return " | ".join(value.ljust(widths[index]) for index, value in enumerate(values))
+        return " | ".join(
+            value.ljust(widths[index]) for index, value in enumerate(values)
+        )
 
     sep = "-+-".join("-" * width for width in widths)
     lines = [fmt_row(headers), sep, *(fmt_row(row) for row in rows)]
@@ -191,14 +197,18 @@ class Thumbnail:
         media = self.media
         if not isinstance(media, str):
             media = ctx.prepare_attachment(media, prefix="thumb")
-        return discord.ui.Thumbnail(media, description=self.description, spoiler=self.spoiler)
+        return discord.ui.Thumbnail(
+            media, description=self.description, spoiler=self.spoiler
+        )
 
 
 @dataclass(slots=True)
 class MediaGallery(_GroupedNode):
     items: tuple[str | bytes | discord.File | discord.MediaGalleryItem, ...]
 
-    def __init__(self, *items: str | bytes | discord.File | discord.MediaGalleryItem) -> None:
+    def __init__(
+        self, *items: str | bytes | discord.File | discord.MediaGalleryItem
+    ) -> None:
         self.items = tuple(items)
 
     def build(self, ctx: _BuildContext) -> discord.ui.MediaGallery:
@@ -232,7 +242,9 @@ class Button:
         if self.arguments:
             args = ",".join(f"{key}={value}" for key, value in self.arguments.items())
         prefix = "c" if self.require_current_turn else "n"
-        cb_name = self.callback.__name__ if callable(self.callback) else str(self.callback)
+        cb_name = (
+            self.callback.__name__ if callable(self.callback) else str(self.callback)
+        )
         return discord.ui.Button(
             style=self.style,
             label=self.label or "\u200b",
@@ -263,11 +275,17 @@ class Select:
                     value=str(item["value"])[:100],
                     emoji=parse_discord_emoji(item.get("emoji")),
                     default=bool(item.get("default", False)),
-                    description=(str(item["description"])[:100] if item.get("description") is not None else None),
+                    description=(
+                        str(item["description"])[:100]
+                        if item.get("description") is not None
+                        else None
+                    ),
                 )
             )
         prefix = "select_c" if self.require_current_turn else "select_n"
-        cb_name = self.callback.__name__ if callable(self.callback) else str(self.callback)
+        cb_name = (
+            self.callback.__name__ if callable(self.callback) else str(self.callback)
+        )
         return discord.ui.Select(
             options=options,
             min_values=self.min_values,
@@ -297,7 +315,9 @@ class Section(_GroupedNode):
     children: tuple[str | TextDisplay, ...]
     accessory: Button | Thumbnail
 
-    def __init__(self, *children: str | TextDisplay, accessory: Button | Thumbnail) -> None:
+    def __init__(
+        self, *children: str | TextDisplay, accessory: Button | Thumbnail
+    ) -> None:
         self.children = tuple(children)
         self.accessory = accessory
 
@@ -329,7 +349,9 @@ class Container(_GroupedNode):
                 f"Container has {len(normalized_children)} children, exceeds limit of {MAX_CONTAINER_CHILDREN}"
             )
         built = [build_child(child, ctx) for child in normalized_children]
-        return discord.ui.Container(*built, accent_color=self.accent_color, spoiler=self.spoiler)
+        return discord.ui.Container(
+            *built, accent_color=self.accent_color, spoiler=self.spoiler
+        )
 
 
 def build_child(child: Any, ctx: _BuildContext) -> discord.ui.Item:
@@ -349,7 +371,9 @@ class Message:
         self.children = tuple(children)
         self.files = files
 
-    def _build(self, game_id: int | None = None) -> tuple[discord.ui.LayoutView, list[discord.File]]:
+    def _build(
+        self, game_id: int | None = None
+    ) -> tuple[discord.ui.LayoutView, list[discord.File]]:
         ctx = _BuildContext(game_id)
         if self.files:
             for file in self.files:
@@ -363,7 +387,9 @@ class Message:
         view, _ = self._build(game_id)
         return view
 
-    def to_send_kwargs(self, game_id: int | None = None, *, content: str | None = None) -> dict[str, Any]:
+    def to_send_kwargs(
+        self, game_id: int | None = None, *, content: str | None = None
+    ) -> dict[str, Any]:
         view, files = self._build(game_id)
         kwargs: dict[str, Any] = {"view": view}
         if content is not None:
@@ -372,7 +398,9 @@ class Message:
             kwargs["files"] = files
         return kwargs
 
-    def to_edit_kwargs(self, game_id: int | None = None, *, content: str | None = None) -> dict[str, Any]:
+    def to_edit_kwargs(
+        self, game_id: int | None = None, *, content: str | None = None
+    ) -> dict[str, Any]:
         view, files = self._build(game_id)
         kwargs: dict[str, Any] = {"view": view, "attachments": files}
         if content is not None:

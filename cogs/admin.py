@@ -80,10 +80,12 @@ class AdminCog(commands.Cog):
         except Exception:
             log.exception("Owner admin message task failed")
             try:
-                await msg.reply(content=_admin_error_text(
-                    get("commands.admin.task_unexpected_error"),
-                    traceback.format_exc(),
-                ))
+                await msg.reply(
+                    content=_admin_error_text(
+                        get("commands.admin.task_unexpected_error"),
+                        traceback.format_exc(),
+                    )
+                )
             except discord.HTTPException:
                 pass
             ok = False
@@ -130,15 +132,19 @@ class AdminCog(commands.Cog):
             try:
                 await self.bot.tree.sync()
             except Exception as e:
-                await msg.reply(content=_admin_error_text(
-                    fmt(
-                        "commands.admin.sync_failed",
-                        error_type=type(e).__name__,
-                    ),
-                    traceback.format_exc(),
-                ))
+                await msg.reply(
+                    content=_admin_error_text(
+                        fmt(
+                            "commands.admin.sync_failed",
+                            error_type=type(e).__name__,
+                        ),
+                        traceback.format_exc(),
+                    )
+                )
                 return False
-            f_log.info(f"Performed authorized sync from user {msg.author.id} to all guilds.")
+            f_log.info(
+                f"Performed authorized sync from user {msg.author.id} to all guilds."
+            )
             return True
 
         if split[1] == MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER:
@@ -150,22 +156,28 @@ class AdminCog(commands.Cog):
             try:
                 g = discord.Object(id=int(split[1]))
             except ValueError:
-                await msg.reply(fmt("commands.admin.sync_usage", prefix=f"{LOGGING_ROOT}/"))
+                await msg.reply(
+                    fmt("commands.admin.sync_usage", prefix=f"{LOGGING_ROOT}/")
+                )
                 return False
 
         self.bot.tree.copy_global_to(guild=g)
         try:
             await self.bot.tree.sync(guild=g)
         except Exception as e:
-            await msg.reply(content=_admin_error_text(
-                fmt(
-                    "commands.admin.sync_failed",
-                    error_type=type(e).__name__,
-                ),
-                traceback.format_exc(),
-            ))
+            await msg.reply(
+                content=_admin_error_text(
+                    fmt(
+                        "commands.admin.sync_failed",
+                        error_type=type(e).__name__,
+                    ),
+                    traceback.format_exc(),
+                )
+            )
             return False
-        f_log.info(f"Performed authorized sync from user {msg.author.id} to guild {g.id}")
+        f_log.info(
+            f"Performed authorized sync from user {msg.author.id} to guild {g.id}"
+        )
         return True
 
     async def _task_analytics(self, msg: discord.Message) -> bool:
@@ -193,10 +205,14 @@ class AdminCog(commands.Cog):
         recent = db.database.get_analytics_recent_events(hours=hours, limit=60)
         if not counts and not recent and not by_game:
             await msg.reply(
-                **container_send_kwargs(CustomContainer(
-                    title=fmt("commands.analytics.embed_title", hours=hours),
-                    description=fmt("commands.analytics.message_empty", hours=hours),
-                ))
+                **container_send_kwargs(
+                    CustomContainer(
+                        title=fmt("commands.analytics.embed_title", hours=hours),
+                        description=fmt(
+                            "commands.analytics.message_empty", hours=hours
+                        ),
+                    )
+                )
             )
             return True
 
@@ -215,7 +231,9 @@ class AdminCog(commands.Cog):
             chart_buf.seek(0)
             main_container.set_image(url="attachment://playcord-analytics.png")
 
-        recent_lines: list[str] = render_analytics_markdown_summary(counts, by_game, recent, hours)
+        recent_lines: list[str] = render_analytics_markdown_summary(
+            counts, by_game, recent, hours
+        )
         append_container_sections(
             main_container,
             lines_to_container_sections(recent_lines),
@@ -267,20 +285,27 @@ class AdminCog(commands.Cog):
                     )
                     return False
         try:
-            from utils.command_tree_diff import drift_to_container, fetch_and_analyze_tree
+            from utils.command_tree_diff import (
+                drift_to_container,
+                fetch_and_analyze_tree,
+            )
 
             drift = await fetch_and_analyze_tree(self.bot.tree, guild=guild)
         except discord.HTTPException as e:
-            await msg.reply(content=_admin_error_text(
-                get("commands.treediff.message_failed"),
-                str(e),
-            ))
+            await msg.reply(
+                content=_admin_error_text(
+                    get("commands.treediff.message_failed"),
+                    str(e),
+                )
+            )
             return False
         except Exception:
-            await msg.reply(content=_admin_error_text(
-                get("commands.treediff.message_failed"),
-                traceback.format_exc(),
-            ))
+            await msg.reply(
+                content=_admin_error_text(
+                    get("commands.treediff.message_failed"),
+                    traceback.format_exc(),
+                )
+            )
             return False
         diff_container = drift_to_container(
             drift,
@@ -296,7 +321,9 @@ class AdminCog(commands.Cog):
         if len(split) == 1:
             self.bot.tree.clear_commands(guild=None)
             await self.bot.tree.sync()
-            f_log.info(f"Performed authorized command tree clear from user {msg.author.id} to all guilds.")
+            f_log.info(
+                f"Performed authorized command tree clear from user {msg.author.id} to all guilds."
+            )
             return True
 
         if split[1] == MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER:
@@ -308,16 +335,24 @@ class AdminCog(commands.Cog):
             try:
                 g = discord.Object(id=int(split[1]))
             except ValueError:
-                await msg.reply(fmt("commands.admin.clear_usage", prefix=f"{LOGGING_ROOT}/"))
+                await msg.reply(
+                    fmt("commands.admin.clear_usage", prefix=f"{LOGGING_ROOT}/")
+                )
                 return False
         self.bot.tree.clear_commands(guild=g)
         await self.bot.tree.sync(guild=g)
-        f_log.info(f"Performed authorized command tree clear from user {msg.author.id} to guild {g.id}")
+        f_log.info(
+            f"Performed authorized command tree clear from user {msg.author.id} to guild {g.id}"
+        )
         return True
 
     async def _task_dbreset(self, msg: discord.Message) -> bool:
         f_log = log.getChild("event.on_message")
-        f_log.debug("_task_dbreset called by user=%r content=%r", msg.author.id if msg.author else None, msg.content)
+        f_log.debug(
+            "_task_dbreset called by user=%r content=%r",
+            msg.author.id if msg.author else None,
+            msg.content,
+        )
         split = msg.content.split()
         usage = (
             f"`{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET} game <id>`\n"
@@ -326,27 +361,44 @@ class AdminCog(commands.Cog):
             f"`{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET} guild <id|{MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER}>`"
         )
         if len(split) < 2:
-            await msg.reply(**container_send_kwargs(CustomContainer(description=usage, color=INFO_COLOR)))
+            await msg.reply(
+                **container_send_kwargs(
+                    CustomContainer(description=usage, color=INFO_COLOR)
+                )
+            )
             return False
 
         target = split[1].lower()
         if target == "all":
             if len(split) != 2:
-                await msg.reply(**container_send_kwargs(CustomContainer(description=usage, color=INFO_COLOR)))
+                await msg.reply(
+                    **container_send_kwargs(
+                        CustomContainer(description=usage, color=INFO_COLOR)
+                    )
+                )
                 return False
             db.database.reset_all_data()
-            f_log.info("Performed full database reset requested by user %r", msg.author.id if msg.author else None)
+            f_log.info(
+                "Performed full database reset requested by user %r",
+                msg.author.id if msg.author else None,
+            )
             await msg.reply(
-                **container_send_kwargs(CustomContainer(
-                    title=get("commands.admin.dbreset_all_title"),
-                    description=get("commands.admin.dbreset_all_description"),
-                    color=SUCCESS_COLOR,
-                ))
+                **container_send_kwargs(
+                    CustomContainer(
+                        title=get("commands.admin.dbreset_all_title"),
+                        description=get("commands.admin.dbreset_all_description"),
+                        color=SUCCESS_COLOR,
+                    )
+                )
             )
             return True
 
         if len(split) != 3:
-            await msg.reply(**container_send_kwargs(CustomContainer(description=usage, color=INFO_COLOR)))
+            await msg.reply(
+                **container_send_kwargs(
+                    CustomContainer(description=usage, color=INFO_COLOR)
+                )
+            )
             return False
 
         raw_id = split[2]
@@ -359,51 +411,83 @@ class AdminCog(commands.Cog):
             else:
                 entity_id = int(raw_id)
         except ValueError:
-            await msg.reply(**container_send_kwargs(CustomContainer(description=usage, color=INFO_COLOR)))
+            await msg.reply(
+                **container_send_kwargs(
+                    CustomContainer(description=usage, color=INFO_COLOR)
+                )
+            )
             return False
 
         if target == "game":
             recreated = db.database.reset_game_data(entity_id)
-            f_log.info("Performed game reset for game_id=%r requested by user %r", entity_id, msg.author.id if msg.author else None)
+            f_log.info(
+                "Performed game reset for game_id=%r requested by user %r",
+                entity_id,
+                msg.author.id if msg.author else None,
+            )
             await msg.reply(
-                **container_send_kwargs(CustomContainer(
-                    title=get("commands.admin.dbreset_game_title"),
-                    description=fmt(
-                        "commands.admin.dbreset_game_description",
-                        entity_id=entity_id,
-                        game_name=recreated.game_name,
-                        game_id=recreated.game_id,
-                    ),
-                    color=SUCCESS_COLOR,
-                ))
+                **container_send_kwargs(
+                    CustomContainer(
+                        title=get("commands.admin.dbreset_game_title"),
+                        description=fmt(
+                            "commands.admin.dbreset_game_description",
+                            entity_id=entity_id,
+                            game_name=recreated.game_name,
+                            game_id=recreated.game_id,
+                        ),
+                        color=SUCCESS_COLOR,
+                    )
+                )
             )
             return True
 
         if target == "user":
             db.database.reset_user_data(entity_id)
-            f_log.info("Performed user reset for user_id=%r requested by user %r", entity_id, msg.author.id if msg.author else None)
+            f_log.info(
+                "Performed user reset for user_id=%r requested by user %r",
+                entity_id,
+                msg.author.id if msg.author else None,
+            )
             await msg.reply(
-                **container_send_kwargs(CustomContainer(
-                    title=get("commands.admin.dbreset_user_title"),
-                    description=fmt("commands.admin.dbreset_user_description", entity_id=entity_id),
-                    color=SUCCESS_COLOR,
-                ))
+                **container_send_kwargs(
+                    CustomContainer(
+                        title=get("commands.admin.dbreset_user_title"),
+                        description=fmt(
+                            "commands.admin.dbreset_user_description",
+                            entity_id=entity_id,
+                        ),
+                        color=SUCCESS_COLOR,
+                    )
+                )
             )
             return True
 
         if target == "guild":
             db.database.reset_guild_data(entity_id)
-            f_log.info("Performed guild reset for guild_id=%r requested by user %r", entity_id, msg.author.id if msg.author else None)
+            f_log.info(
+                "Performed guild reset for guild_id=%r requested by user %r",
+                entity_id,
+                msg.author.id if msg.author else None,
+            )
             await msg.reply(
-                **container_send_kwargs(CustomContainer(
-                    title=get("commands.admin.dbreset_guild_title"),
-                    description=fmt("commands.admin.dbreset_guild_description", entity_id=entity_id),
-                    color=SUCCESS_COLOR,
-                ))
+                **container_send_kwargs(
+                    CustomContainer(
+                        title=get("commands.admin.dbreset_guild_title"),
+                        description=fmt(
+                            "commands.admin.dbreset_guild_description",
+                            entity_id=entity_id,
+                        ),
+                        color=SUCCESS_COLOR,
+                    )
+                )
             )
             return True
 
-        await msg.reply(**container_send_kwargs(CustomContainer(description=usage, color=INFO_COLOR)))
+        await msg.reply(
+            **container_send_kwargs(
+                CustomContainer(description=usage, color=INFO_COLOR)
+            )
+        )
         return False
 
 

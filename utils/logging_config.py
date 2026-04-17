@@ -61,7 +61,9 @@ def configure_logging_from_config(
     return configure_logging(level_name, root_name=root_name)
 
 
-def get_logger(name: str | None = None, *, root_name: str = DEFAULT_LOGGING_ROOT) -> logging.Logger:
+def get_logger(
+    name: str | None = None, *, root_name: str = DEFAULT_LOGGING_ROOT
+) -> logging.Logger:
     if name is None or not str(name).strip():
         return logging.getLogger(root_name)
 

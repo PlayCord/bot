@@ -31,13 +31,12 @@ def resolve_player_count(game: object) -> int | list[int] | None:
     if callable(resolver):
         return _normalize_player_count_spec(resolver())
 
-    return _normalize_player_count_spec(
-        getattr(game, "player_count", None)
-    )
+    return _normalize_player_count_spec(getattr(game, "player_count", None))
 
 
 class PlayerOrder(Enum):
     """Enum for specifying player order behavior."""
+
     RANDOM = "random"  # Randomize player order (default)
     PRESERVE = "preserve"  # Keep the order players joined
     CREATOR_FIRST = "creator_first"  # Creator always goes first, rest randomized
@@ -77,6 +76,7 @@ class Game(ABC):
         role_mode (RoleMode): How roles map to seats (default: NONE)
         player_roles (tuple[str, ...] | None): Role id per seat when using roles
     """
+
     summary: str
     move_command_group_description: str
     description: str
@@ -123,10 +123,10 @@ class Game(ABC):
             return True
         # Ensure selections is a mapping with the expected size
         if (
-                not isinstance(selections, dict)
-                or not isinstance(roles, Iterable)
-                or not isinstance(roles, Sized)
-                or len(selections) != len(roles)
+            not isinstance(selections, dict)
+            or not isinstance(roles, Iterable)
+            or not isinstance(roles, Sized)
+            or len(selections) != len(roles)
         ):
             return "Each player must choose a role."
         # Prepare a stable list of roles for deterministic comparison
@@ -139,10 +139,10 @@ class Game(ABC):
 
     @classmethod
     def seat_players(
-            cls,
-            players: list[Any],
-            game_type_key: str,
-            selections: dict[int, str] | None = None,
+        cls,
+        players: list[Any],
+        game_type_key: str,
+        selections: dict[int, str] | None = None,
     ) -> list[Any]:
         """
         Reorder lobby participants for asymmetric roles after :attr:`player_order` was applied.
@@ -153,7 +153,12 @@ class Game(ABC):
         roles = getattr(cls, "player_roles", None)
         mode = getattr(cls, "role_mode", RoleMode.NONE)
         # Require roles to be a sized iterable matching player count
-        if not roles or not isinstance(roles, Iterable) or not isinstance(roles, Sized) or len(roles) != len(ordered):
+        if (
+            not roles
+            or not isinstance(roles, Iterable)
+            or not isinstance(roles, Sized)
+            or len(roles) != len(ordered)
+        ):
             return ordered
 
         if mode == RoleMode.NONE:
@@ -230,9 +235,7 @@ class Game(ABC):
     @classmethod
     def required_player_count(cls) -> int | list[int] | None:
         """Return allowed player counts, including legacy metadata fallback."""
-        return _normalize_player_count_spec(
-            getattr(cls, "player_count", None)
-        )
+        return _normalize_player_count_spec(getattr(cls, "player_count", None))
 
     def attach_replay_logger(self, log_fn: Callable[[dict], None] | None) -> None:
         """Called by GameInterface so games can log stochastic events (shuffle, RNG) to replay JSONL."""

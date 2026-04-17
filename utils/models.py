@@ -8,13 +8,14 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 from enum import Enum
 
-
 # ============================================================================
 # ENUMS
 # ============================================================================
 
+
 class MatchStatus(str, Enum):
     """Status of a match"""
+
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     INTERRUPTED = "interrupted"
@@ -24,6 +25,7 @@ class MatchStatus(str, Enum):
 
 class EventType(str, Enum):
     """Analytics event types (single source of truth; used by utils.analytics.register_event)."""
+
     GAME_STARTED = "game_started"
     GAME_COMPLETED = "game_completed"
     GAME_ABANDONED = "game_abandoned"
@@ -52,9 +54,11 @@ class EventType(str, Enum):
 # DATA CLASSES
 # ============================================================================
 
+
 @dataclass
 class Guild:
     """Represents a Discord guild/server"""
+
     guild_id: int
     joined_at: datetime
     settings: Dict[str, Any] = field(default_factory=dict)
@@ -74,6 +78,7 @@ class Guild:
 @dataclass
 class User:
     """Represents a Discord user"""
+
     user_id: int
     username: str
     joined_at: datetime
@@ -100,6 +105,7 @@ class User:
 @dataclass
 class Game:
     """Represents a game type"""
+
     game_id: int
     game_name: str
     display_name: str
@@ -118,32 +124,33 @@ class Game:
 
     @property
     def sigma(self) -> float:
-        return self.get_trueskill_param('sigma')
+        return self.get_trueskill_param("sigma")
 
     @property
     def beta(self) -> float:
-        return self.get_trueskill_param('beta')
+        return self.get_trueskill_param("beta")
 
     @property
     def tau(self) -> float:
-        return self.get_trueskill_param('tau')
+        return self.get_trueskill_param("tau")
 
     @property
     def draw_probability(self) -> float:
-        return self.get_trueskill_param('draw')
+        return self.get_trueskill_param("draw")
 
     @property
     def default_mu(self) -> float:
-        return self.get_trueskill_param('default_mu')
+        return self.get_trueskill_param("default_mu")
 
     @property
     def default_sigma(self) -> float:
-        return self.get_trueskill_param('default_sigma')
+        return self.get_trueskill_param("default_sigma")
 
 
 @dataclass
 class Rating:
     """Represents a user's global rating for a specific game (one row per user per game)."""
+
     rating_id: int
     user_id: int
     game_id: int
@@ -174,6 +181,7 @@ class Rating:
 @dataclass
 class Match:
     """Represents a game match"""
+
     match_id: int
     game_id: int
     guild_id: int
@@ -200,7 +208,12 @@ class Match:
     @property
     def is_finished(self) -> bool:
         """Check if match is finished"""
-        return self.status in (MatchStatus.COMPLETED, MatchStatus.INTERRUPTED, MatchStatus.ABANDONED, MatchStatus.DISPUTED)
+        return self.status in (
+            MatchStatus.COMPLETED,
+            MatchStatus.INTERRUPTED,
+            MatchStatus.ABANDONED,
+            MatchStatus.DISPUTED,
+        )
 
     @property
     def is_in_progress(self) -> bool:
@@ -211,6 +224,7 @@ class Match:
 @dataclass
 class Participant:
     """Represents a participant in a match"""
+
     participant_id: int
     match_id: int
     user_id: int
@@ -247,6 +261,7 @@ class Participant:
 @dataclass
 class Move:
     """Represents a single move in a match"""
+
     move_id: int
     match_id: int
     user_id: Optional[int]  # None for system moves
@@ -273,6 +288,7 @@ class Move:
 @dataclass
 class AnalyticsEvent:
     """Represents an analytics event"""
+
     event_id: int
     event_type: EventType
     created_at: datetime
@@ -286,6 +302,7 @@ class AnalyticsEvent:
 @dataclass
 class RatingHistory:
     """Represents a historical rating change"""
+
     history_id: int
     user_id: int
     guild_id: int
@@ -319,114 +336,115 @@ class RatingHistory:
 # HELPER FUNCTIONS
 # ============================================================================
 
+
 def row_to_user(row: Dict[str, Any]) -> User:
     """Convert database row to User object"""
     return User(
-        user_id=row['user_id'],
-        username=row['username'],
-        joined_at=row.get('joined_at') or row.get('created_at'),
-        preferences=row.get('preferences', {}),
-        is_bot=row.get('is_bot', False),
-        is_active=row.get('is_active', True),
-        created_at=row.get('created_at'),
-        updated_at=row.get('updated_at')
+        user_id=row["user_id"],
+        username=row["username"],
+        joined_at=row.get("joined_at") or row.get("created_at"),
+        preferences=row.get("preferences", {}),
+        is_bot=row.get("is_bot", False),
+        is_active=row.get("is_active", True),
+        created_at=row.get("created_at"),
+        updated_at=row.get("updated_at"),
     )
 
 
 def row_to_guild(row: Dict[str, Any]) -> Guild:
     """Convert database row to Guild object"""
     return Guild(
-        guild_id=row['guild_id'],
-        joined_at=row.get('joined_at') or row.get('created_at'),
-        settings=row.get('settings', {}),
-        is_active=row.get('is_active', True),
-        created_at=row.get('created_at'),
-        updated_at=row.get('updated_at')
+        guild_id=row["guild_id"],
+        joined_at=row.get("joined_at") or row.get("created_at"),
+        settings=row.get("settings", {}),
+        is_active=row.get("is_active", True),
+        created_at=row.get("created_at"),
+        updated_at=row.get("updated_at"),
     )
 
 
 def row_to_game(row: Dict[str, Any]) -> Game:
     """Convert database row to Game object"""
     return Game(
-        game_id=row['game_id'],
-        game_name=row['game_name'],
-        display_name=row['display_name'],
-        min_players=row['min_players'],
-        max_players=row['max_players'],
-        rating_config=row['rating_config'],
-        game_metadata=row.get('game_metadata', {}),
-        game_schema_version=row.get('game_schema_version', 1),
-        is_active=row.get('is_active', True),
-        created_at=row.get('created_at'),
-        updated_at=row.get('updated_at')
+        game_id=row["game_id"],
+        game_name=row["game_name"],
+        display_name=row["display_name"],
+        min_players=row["min_players"],
+        max_players=row["max_players"],
+        rating_config=row["rating_config"],
+        game_metadata=row.get("game_metadata", {}),
+        game_schema_version=row.get("game_schema_version", 1),
+        is_active=row.get("is_active", True),
+        created_at=row.get("created_at"),
+        updated_at=row.get("updated_at"),
     )
 
 
 def row_to_rating(row: Dict[str, Any]) -> Rating:
     """Convert database row to Rating object"""
     return Rating(
-        rating_id=row['rating_id'],
-        user_id=row['user_id'],
-        game_id=row['game_id'],
-        mu=row['mu'],
-        sigma=row['sigma'],
-        matches_played=row.get('matches_played', 0),
-        last_played=row.get('last_played'),
-        last_sigma_increase=row.get('last_sigma_increase'),
-        created_at=row.get('created_at'),
-        updated_at=row.get('updated_at')
+        rating_id=row["rating_id"],
+        user_id=row["user_id"],
+        game_id=row["game_id"],
+        mu=row["mu"],
+        sigma=row["sigma"],
+        matches_played=row.get("matches_played", 0),
+        last_played=row.get("last_played"),
+        last_sigma_increase=row.get("last_sigma_increase"),
+        created_at=row.get("created_at"),
+        updated_at=row.get("updated_at"),
     )
 
 
 def row_to_match(row: Dict[str, Any]) -> Match:
     """Convert database row to Match object"""
     return Match(
-        match_id=row['match_id'],
-        game_id=row['game_id'],
-        guild_id=row['guild_id'],
-        channel_id=row['channel_id'],
-        thread_id=row.get('thread_id'),
-        started_at=row['started_at'],
-        ended_at=row.get('ended_at'),
-        status=MatchStatus(row['status']),
-        is_rated=row.get('is_rated', True),
-        game_config=row.get('game_config', {}),
-        match_code=row.get('match_code'),
-        final_state=row.get('final_state'),
-        metadata=row.get('metadata', {}),
-        created_at=row.get('created_at'),
-        updated_at=row.get('updated_at'),
+        match_id=row["match_id"],
+        game_id=row["game_id"],
+        guild_id=row["guild_id"],
+        channel_id=row["channel_id"],
+        thread_id=row.get("thread_id"),
+        started_at=row["started_at"],
+        ended_at=row.get("ended_at"),
+        status=MatchStatus(row["status"]),
+        is_rated=row.get("is_rated", True),
+        game_config=row.get("game_config", {}),
+        match_code=row.get("match_code"),
+        final_state=row.get("final_state"),
+        metadata=row.get("metadata", {}),
+        created_at=row.get("created_at"),
+        updated_at=row.get("updated_at"),
     )
 
 
 def row_to_participant(row: Dict[str, Any]) -> Participant:
     """Convert database row to Participant object"""
     return Participant(
-        participant_id=row['participant_id'],
-        match_id=row['match_id'],
-        user_id=row['user_id'],
-        player_number=row['player_number'],
-        final_ranking=row.get('final_ranking'),
-        score=row.get('score'),
-        mu_before=row.get('mu_before'),
-        sigma_before=row.get('sigma_before'),
-        mu_delta=row.get('mu_delta', 0.0),
-        sigma_delta=row.get('sigma_delta', 0.0),
-        joined_at=row.get('joined_at'),
-        updated_at=row.get('updated_at'),
+        participant_id=row["participant_id"],
+        match_id=row["match_id"],
+        user_id=row["user_id"],
+        player_number=row["player_number"],
+        final_ranking=row.get("final_ranking"),
+        score=row.get("score"),
+        mu_before=row.get("mu_before"),
+        sigma_before=row.get("sigma_before"),
+        mu_delta=row.get("mu_delta", 0.0),
+        sigma_delta=row.get("sigma_delta", 0.0),
+        joined_at=row.get("joined_at"),
+        updated_at=row.get("updated_at"),
     )
 
 
 def row_to_move(row: Dict[str, Any]) -> Move:
     """Convert database row to Move object"""
     return Move(
-        move_id=row['move_id'],
-        match_id=row['match_id'],
-        user_id=row.get('user_id'),
-        move_number=row['move_number'],
-        move_data=row['move_data'],
-        game_state_after=row.get('game_state_after'),
-        is_game_affecting=row.get('is_game_affecting', True),
-        created_at=row.get('created_at'),
-        time_taken_ms=row.get('time_taken_ms')
+        move_id=row["move_id"],
+        match_id=row["match_id"],
+        user_id=row.get("user_id"),
+        move_number=row["move_number"],
+        move_data=row["move_data"],
+        game_state_after=row.get("game_state_after"),
+        is_game_affecting=row.get("is_game_affecting", True),
+        created_at=row.get("created_at"),
+        time_taken_ms=row.get("time_taken_ms"),
     )

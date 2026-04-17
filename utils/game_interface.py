@@ -28,8 +28,12 @@ from configuration.constants import (
 )
 from utils import database as db
 from utils.analytics import Timer, register_event
-from utils.containers import ErrorContainer, LoadingContainer, container_send_kwargs, \
-    container_to_markdown
+from utils.containers import (
+    ErrorContainer,
+    LoadingContainer,
+    container_send_kwargs,
+    container_to_markdown,
+)
 from utils.conversion import contextify, textify
 from utils.database import InternalPlayer, internal_player_to_player
 from utils.discord_utils import followup_send
@@ -49,11 +53,18 @@ class GameInterface:
     Discord <--> Bot <--> GameInterface <--> Game
     """
 
-    def __init__(self, game_type: str, status_message: discord.InteractionMessage, creator: discord.User,
-                 players: list[InternalPlayer | Player], rated: bool, game_id: int,
-                 match_options: dict[str, typing.Any] | None = None,
-                 match_public_code: str | None = None,
-                 role_selections: dict[int, str] | None = None) -> None:
+    def __init__(
+        self,
+        game_type: str,
+        status_message: discord.InteractionMessage,
+        creator: discord.User,
+        players: list[InternalPlayer | Player],
+        rated: bool,
+        game_id: int,
+        match_options: dict[str, typing.Any] | None = None,
+        match_public_code: str | None = None,
+        role_selections: dict[int, str] | None = None,
+    ) -> None:
         """
         Create the GameInterface
         :param game_type: The game type as defined in constants.py
@@ -66,7 +77,9 @@ class GameInterface:
         """
         # The message created by the bot outside the not-yet-existent thread
         self.game_id = game_id
-        self.match_public_code = match_public_code if match_public_code else str(game_id)
+        self.match_public_code = (
+            match_public_code if match_public_code else str(game_id)
+        )
         self.status_message = status_message
         self.match_options = dict(match_options) if match_options else {}
         # The game type
@@ -80,7 +93,7 @@ class GameInterface:
         game_class = getattr(self.module, GAME_TYPES[game_type][1])
 
         # Order players based on game's player_order setting
-        player_order = getattr(game_class, 'player_order', PlayerOrder.RANDOM)
+        player_order = getattr(game_class, "player_order", PlayerOrder.RANDOM)
 
         if player_order == PlayerOrder.RANDOM:
             random.shuffle(players)
@@ -113,8 +126,12 @@ class GameInterface:
         self.players = players
         self.rated = rated  # Is the game rated?
         self.thread = None  # The thread object after self.setup() is called
-        self.game_message = None  # The message representing the game after self.setup() is called
-        self.info_message = None  # The message showing game info, whose turn, and what players.
+        self.game_message = (
+            None  # The message representing the game after self.setup() is called
+        )
+        self.info_message = (
+            None  # The message showing game info, whose turn, and what players.
+        )
         # also made by self.setup()
         # Game class instantiated with the players
         game_players: list[Player] = []
@@ -130,7 +147,11 @@ class GameInterface:
                         sigma=MU * get_trueskill_parameters(self.game_type)["sigma"],
                         ranking=None,
                         id=participant.id,
-                        name=getattr(participant, "name", synthetic_bot_name_from_id(participant.id)),
+                        name=getattr(
+                            participant,
+                            "name",
+                            synthetic_bot_name_from_id(participant.id),
+                        ),
                         is_bot=True,
                         bot_difficulty=getattr(participant, "bot_difficulty", None),
                     )
@@ -208,7 +229,9 @@ class GameInterface:
         """
         log = self.logger.getChild("setup")
         setup_timer = Timer().start()
-        log.debug(f"Setting up game interface for a new game. matchmaker ID: {self.status_message.id}")
+        log.debug(
+            f"Setting up game interface for a new game. matchmaker ID: {self.status_message.id}"
+        )
         rated_prefix = get("queue.thread_rated_prefix") if self.rated else ""
 
         game_thread = await self.status_message.channel.create_thread(  # Create the private thread.
@@ -218,7 +241,9 @@ class GameInterface:
                 game=self.game.name,
                 match_code=self.match_public_code,
             ),
-            type=discord.ChannelType.private_thread, invitable=False)  # Don't allow people to add themselves
+            type=discord.ChannelType.private_thread,
+            invitable=False,
+        )  # Don't allow people to add themselves
 
         for player in self.players:
             if hasattr(player, "user") and player.user is not None:
@@ -234,14 +259,24 @@ class GameInterface:
         # Set the thread and game message in the class
         self.thread = game_thread
 
-        self.info_message = await self.thread.send(**container_send_kwargs(LoadingContainer().remove_footer()))
-        self.game_message = await self.thread.send(**container_send_kwargs(LoadingContainer().remove_footer()))
+        self.info_message = await self.thread.send(
+            **container_send_kwargs(LoadingContainer().remove_footer())
+        )
+        self.game_message = await self.thread.send(
+            **container_send_kwargs(LoadingContainer().remove_footer())
+        )
         log.debug(
             f"Finished game setup for a new game in {setup_timer.stop()}ms."
-            f" matchmaker ID: {self.status_message.id} game ID: {self.thread.id}")
+            f" matchmaker ID: {self.status_message.id} game ID: {self.thread.id}"
+        )
 
-    async def move_by_command(self, ctx: discord.Interaction, name: str, arguments: dict[str, typing.Any],
-                              current_turn_required: bool = True) -> None:
+    async def move_by_command(
+        self,
+        ctx: discord.Interaction,
+        name: str,
+        arguments: dict[str, typing.Any],
+        current_turn_required: bool = True,
+    ) -> None:
         """
         Make a move by command. This function is called dynamically by handle_move in the main program.
         Game move handlers must be synchronous (return ``Response`` or ``None``).
@@ -276,13 +311,13 @@ class GameInterface:
         )
 
     async def _guard_move_interaction(
-            self,
-            *,
-            ctx: discord.Interaction,
-            interaction_kind: str,
-            command_name: str,
-            current_turn_required: bool,
-            log,
+        self,
+        *,
+        ctx: discord.Interaction,
+        interaction_kind: str,
+        command_name: str,
+        current_turn_required: bool,
+        log,
     ) -> bool:
         if ctx.user.id in self.forfeited_player_ids:
             self._track_move_event(
@@ -308,7 +343,9 @@ class GameInterface:
                 command_name=command_name,
                 reason="game_already_over",
             )
-            message = await followup_send(ctx, content=GAME_MSG_ALREADY_OVER, ephemeral=True)
+            message = await followup_send(
+                ctx, content=GAME_MSG_ALREADY_OVER, ephemeral=True
+            )
             await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
             return False
 
@@ -321,7 +358,9 @@ class GameInterface:
                 command_name=command_name,
                 reason="bot_turn",
             )
-            message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+            message = await followup_send(
+                ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True
+            )
             await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
             return False
 
@@ -339,20 +378,22 @@ class GameInterface:
                 command_name=command_name,
                 reason="not_your_turn",
             )
-            message = await followup_send(ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True)
+            message = await followup_send(
+                ctx, content=PERMISSION_MSG_NOT_YOUR_TURN, ephemeral=True
+            )
             await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
             return False
 
         return True
 
     async def _send_interaction_move_response(
-            self,
-            *,
-            ctx: discord.Interaction,
-            move_response: Any,
-            delete_original_response_when_empty: bool,
-            log,
-            command_name: str,
+        self,
+        *,
+        ctx: discord.Interaction,
+        move_response: Any,
+        delete_original_response_when_empty: bool,
+        log,
+        command_name: str,
     ) -> None:
         if move_response is None:
             if delete_original_response_when_empty:
@@ -390,12 +431,12 @@ class GameInterface:
             await hook
 
     async def _get_move_actor(
-            self,
-            *,
-            ctx: discord.Interaction,
-            interaction_kind: str,
-            command_name: str,
-            logger_name: str,
+        self,
+        *,
+        ctx: discord.Interaction,
+        interaction_kind: str,
+        command_name: str,
+        logger_name: str,
     ) -> Player | None:
         log = self.logger.getChild(logger_name)
         if ctx.guild is None:
@@ -433,17 +474,17 @@ class GameInterface:
         return internal_player_to_player(internal_player, self.game_type)
 
     async def _run_move_interaction(
-            self,
-            *,
-            ctx: discord.Interaction,
-            logger_name: str,
-            interaction_kind: str,
-            command_name: str,
-            python_callback_name: str,
-            current_turn_required: bool,
-            call_move: typing.Callable[[], Any],
-            persist_args: dict[str, Any],
-            delete_original_response_when_empty: bool = False,
+        self,
+        *,
+        ctx: discord.Interaction,
+        logger_name: str,
+        interaction_kind: str,
+        command_name: str,
+        python_callback_name: str,
+        current_turn_required: bool,
+        call_move: typing.Callable[[], Any],
+        persist_args: dict[str, Any],
+        delete_original_response_when_empty: bool = False,
     ) -> None:
         log = self.logger.getChild(logger_name)
         if self.ending_game:
@@ -462,11 +503,11 @@ class GameInterface:
                 contextify(ctx),
             )
             if not await self._guard_move_interaction(
-                    ctx=ctx,
-                    interaction_kind=interaction_kind,
-                    command_name=command_name,
-                    current_turn_required=current_turn_required,
-                    log=log,
+                ctx=ctx,
+                interaction_kind=interaction_kind,
+                command_name=command_name,
+                current_turn_required=current_turn_required,
+                log=log,
             ):
                 return
 
@@ -537,7 +578,9 @@ class GameInterface:
                 await self._send_move_processing_error(ctx)
 
     @staticmethod
-    def _convert_typed_move_arguments(callback_function: typing.Callable, arguments: dict[str, Any]) -> dict[str, Any]:
+    def _convert_typed_move_arguments(
+        callback_function: typing.Callable, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
         signature = inspect.signature(callback_function).parameters
         converted: dict[str, Any] = {}
         for arg, value in arguments.items():
@@ -559,17 +602,19 @@ class GameInterface:
         return command_name if callback is None else callback
 
     async def _send_move_processing_error(self, ctx: discord.Interaction) -> None:
-        await followup_send(ctx, content=get("move.unexpected_processing_error"), ephemeral=True)
+        await followup_send(
+            ctx, content=get("move.unexpected_processing_error"), ephemeral=True
+        )
 
     def _track_move_event(
-            self,
-            event_type: Any,
-            *,
-            ctx: discord.Interaction | None,
-            interaction_kind: str,
-            command_name: str,
-            reason: str | None = None,
-            extra: dict[str, Any] | None = None,
+        self,
+        event_type: Any,
+        *,
+        ctx: discord.Interaction | None,
+        interaction_kind: str,
+        command_name: str,
+        reason: str | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         metadata = {
             "interaction_kind": interaction_kind,
@@ -586,7 +631,11 @@ class GameInterface:
             guild_id = ctx.guild.id
         register_event(
             event_type,
-            user_id=getattr(getattr(ctx, "user", None), "id", None) if ctx is not None else None,
+            user_id=(
+                getattr(getattr(ctx, "user", None), "id", None)
+                if ctx is not None
+                else None
+            ),
             guild_id=guild_id,
             game_type=self.game_type,
             match_id=self.game_id,
@@ -601,7 +650,9 @@ class GameInterface:
             row.setdefault("type", "game_event")
             db.database.append_replay_event(self.game_id, row)
         except Exception as e:
-            self.logger.getChild("replay").warning("append_replay_event failed: %s", e, exc_info=True)
+            self.logger.getChild("replay").warning(
+                "append_replay_event failed: %s", e, exc_info=True
+            )
 
     def _lookup_move_command(self, python_callback_name: str):
         for cmd in self.game.moves:
@@ -611,14 +662,14 @@ class GameInterface:
         return None
 
     async def _move_postamble(
-            self,
-            *,
-            ctx: discord.Interaction,
-            move_response: Any,
-            python_callback_name: str,
-            persist_user_id: int,
-            persist_args: dict[str, Any],
-            interaction_kind: str,
+        self,
+        *,
+        ctx: discord.Interaction,
+        move_response: Any,
+        python_callback_name: str,
+        persist_user_id: int,
+        persist_args: dict[str, Any],
+        interaction_kind: str,
     ) -> None:
         log = self.logger.getChild("move[postamble]")
         await self.display_game_state()
@@ -628,7 +679,9 @@ class GameInterface:
         command_name = _cmd.name if _cmd is not None else python_callback_name
         game_affecting = _cmd.is_game_affecting if _cmd is not None else True
         should_persist = self._should_persist_move_replay(move_response, _cmd)
-        response_type = type(move_response).__name__ if move_response is not None else "None"
+        response_type = (
+            type(move_response).__name__ if move_response is not None else "None"
+        )
         if not game_affecting:
             self._track_move_event(
                 EventType.MOVE_VALID,
@@ -656,7 +709,9 @@ class GameInterface:
                 extra={
                     "game_affecting": True,
                     "response_type": response_type,
-                    "record_replay": bool(getattr(move_response, "record_replay", False)),
+                    "record_replay": bool(
+                        getattr(move_response, "record_replay", False)
+                    ),
                 },
             )
         if should_persist:
@@ -669,7 +724,9 @@ class GameInterface:
                 outcome,
                 contextify(ctx),
             )
-            message = await followup_send(ctx, content=get("game.over_short"), ephemeral=True)
+            message = await followup_send(
+                ctx, content=get("game.over_short"), ephemeral=True
+            )
             await message.delete(delay=UI_MESSAGE_DELETE_DELAY)
             await game_over(self, outcome)
 
@@ -686,7 +743,9 @@ class GameInterface:
             return False
         if move_response is None:
             return True
-        if isinstance(move_response, Response) and getattr(move_response, "record_replay", False):
+        if isinstance(move_response, Response) and getattr(
+            move_response, "record_replay", False
+        ):
             return True
         return False
 
@@ -695,7 +754,9 @@ class GameInterface:
         if value is None or isinstance(value, (bool, int, float, str)):
             return value
         if isinstance(value, dict):
-            return {str(k): GameInterface._json_safe_for_move(v) for k, v in value.items()}
+            return {
+                str(k): GameInterface._json_safe_for_move(v) for k, v in value.items()
+            }
         if isinstance(value, (list, tuple)):
             return [GameInterface._json_safe_for_move(v) for v in value]
         if hasattr(value, "id") and hasattr(value, "name"):
@@ -707,11 +768,11 @@ class GameInterface:
         return str(value)
 
     def _persist_move_and_replay(
-            self,
-            python_callback_name: str,
-            user_id: int | None,
-            arguments: dict[str, Any],
-            source: str,
+        self,
+        python_callback_name: str,
+        user_id: int | None,
+        arguments: dict[str, Any],
+        source: str,
     ) -> None:
         try:
             cmd = self._lookup_move_command(python_callback_name)
@@ -744,7 +805,9 @@ class GameInterface:
             }
             db.database.append_replay_event(self.game_id, evt)
         except Exception as e:
-            self.logger.getChild("replay").warning("persist move failed: %s", e, exc_info=True)
+            self.logger.getChild("replay").warning(
+                "persist move failed: %s", e, exc_info=True
+            )
 
     async def _send_bot_response(self, move_response: Response) -> None:
         async def send_to_thread(**kwargs):
@@ -784,13 +847,21 @@ class GameInterface:
                 available_bots = getattr(self.game, "bots", {})
                 bot_definition = available_bots.get(bot_difficulty)
                 if bot_definition is None:
-                    await self.thread.send(fmt("game.bot_failed_move", player=self.current_turn.mention))
+                    await self.thread.send(
+                        fmt("game.bot_failed_move", player=self.current_turn.mention)
+                    )
                     return
 
-                callback_name = bot_definition.callback if bot_definition.callback is not None else bot_difficulty
+                callback_name = (
+                    bot_definition.callback
+                    if bot_definition.callback is not None
+                    else bot_difficulty
+                )
                 callback = getattr(self.game, callback_name, None)
                 if callback is None:
-                    await self.thread.send(fmt("game.bot_failed_move", player=self.current_turn.mention))
+                    await self.thread.send(
+                        fmt("game.bot_failed_move", player=self.current_turn.mention)
+                    )
                     return
 
                 await self.display_game_state()
@@ -804,18 +875,26 @@ class GameInterface:
                     command_name = bot_result.get("name") or bot_result.get("command")
                     command_arguments = bot_result.get("arguments", {})
                     if command_name is None:
-                        await self.thread.send(fmt("game.bot_failed_move", player=self.current_turn.mention))
+                        await self.thread.send(
+                            fmt(
+                                "game.bot_failed_move", player=self.current_turn.mention
+                            )
+                        )
                         return
                     function_name = self._resolve_move_callable(command_name)
                     replay_python_fn = function_name
                     replay_args = dict(command_arguments)
-                    move_response = getattr(self.game, function_name)(self.current_turn, **command_arguments)
+                    move_response = getattr(self.game, function_name)(
+                        self.current_turn, **command_arguments
+                    )
                 elif isinstance(bot_result, tuple) and len(bot_result) == 2:
                     command_name, command_arguments = bot_result
                     function_name = self._resolve_move_callable(command_name)
                     replay_python_fn = function_name
                     replay_args = dict(command_arguments)
-                    move_response = getattr(self.game, function_name)(self.current_turn, **command_arguments)
+                    move_response = getattr(self.game, function_name)(
+                        self.current_turn, **command_arguments
+                    )
                 elif isinstance(bot_result, str):
                     function_name = self._resolve_move_callable(bot_result)
                     replay_python_fn = function_name
@@ -836,7 +915,9 @@ class GameInterface:
                 uid = getattr(self.current_turn, "id", None)
                 _bcmd = self._lookup_move_command(replay_python_fn)
                 if self._should_persist_move_replay(move_response, _bcmd):
-                    self._persist_move_and_replay(replay_python_fn, uid, replay_args, "bot")
+                    self._persist_move_and_replay(
+                        replay_python_fn, uid, replay_args, "bot"
+                    )
 
             if (outcome := self.game.outcome()) is not None:
                 await game_over(self, outcome)
@@ -848,13 +929,21 @@ class GameInterface:
                     await self.thread.send(get("move.unexpected_processing_error"))
                 except Exception:
                     await self.thread.send(
-                        fmt("game.bot_failed_move", player=getattr(self.current_turn, "mention", "Bot"))
+                        fmt(
+                            "game.bot_failed_move",
+                            player=getattr(self.current_turn, "mention", "Bot"),
+                        )
                     )
         finally:
             self.processing_bot_turn = False
 
-    async def move_by_button(self, ctx: discord.Interaction, name, arguments: dict[str, typing.Any],
-                             current_turn_required: bool = True) -> None:
+    async def move_by_button(
+        self,
+        ctx: discord.Interaction,
+        name,
+        arguments: dict[str, typing.Any],
+        current_turn_required: bool = True,
+    ) -> None:
         """
         Callback for a move triggered by a button. This function is called dynamically by
         game_button_callback in the main program.
@@ -876,7 +965,9 @@ class GameInterface:
 
         callback_function = getattr(self.game, name)
         try:
-            converted_arguments = self._convert_typed_move_arguments(callback_function, arguments)
+            converted_arguments = self._convert_typed_move_arguments(
+                callback_function, arguments
+            )
         except Exception:
             log = self.logger.getChild("move[button]")
             log.exception(
@@ -905,7 +996,9 @@ class GameInterface:
             persist_args=dict(converted_arguments),
         )
 
-    async def move_by_select(self, ctx: discord.Interaction, name: str, current_turn_required: bool = True):
+    async def move_by_select(
+        self, ctx: discord.Interaction, name: str, current_turn_required: bool = True
+    ):
         """
         Select-menu moves: the game's callback receives ``(player, ctx.data['values'])``.
         Handlers must be synchronous like ``move_by_button``.
@@ -950,7 +1043,9 @@ class GameInterface:
             current_turn=self.current_turn,
             thread_id=self.thread.id,
             game_message_id=self.game_message.id,
-            info_jump_url=self.info_message.jump_url if self.info_message is not None else None,
+            info_jump_url=(
+                self.info_message.jump_url if self.info_message is not None else None
+            ),
             peek_button_prefix=BUTTON_PREFIX_PEEK,
             spectate_button_prefix=BUTTON_PREFIX_SPECTATE,
         )
@@ -960,7 +1055,11 @@ class GameInterface:
             return
         turn_index = getattr(self.game, "turn", None)
         players = getattr(self.game, "players", None)
-        if not isinstance(turn_index, int) or not isinstance(players, list) or not players:
+        if (
+            not isinstance(turn_index, int)
+            or not isinstance(players, list)
+            or not players
+        ):
             return
         for _ in range(len(players)):
             current = players[turn_index % len(players)]
@@ -972,7 +1071,9 @@ class GameInterface:
     async def _sync_thread_messages(self) -> None:
         log = self.logger.getChild("_sync_thread_messages")
         try:
-            desired = {item.key: item.content for item in (self.game.thread_messages() or [])}
+            desired = {
+                item.key: item.content for item in (self.game.thread_messages() or [])
+            }
 
             for key in list(self._thread_messages):
                 if key not in desired:
@@ -984,23 +1085,39 @@ class GameInterface:
 
             for key, message in desired.items():
                 if key in self._thread_messages:
-                    await self._thread_messages[key].edit(**message.to_edit_kwargs(self.thread.id))
+                    await self._thread_messages[key].edit(
+                        **message.to_edit_kwargs(self.thread.id)
+                    )
                 else:
-                    self._thread_messages[key] = await self.thread.send(**message.to_send_kwargs(self.thread.id))
+                    self._thread_messages[key] = await self.thread.send(
+                        **message.to_send_kwargs(self.thread.id)
+                    )
         except Exception as e:
             log.exception("Failed to sync thread messages")
 
     async def _dispatch_private_updates(self, ctx: discord.Interaction) -> None:
-        actor = db.database.get_player(ctx.user, ctx.guild.id) if ctx.guild is not None else None
+        actor = (
+            db.database.get_player(ctx.user, ctx.guild.id)
+            if ctx.guild is not None
+            else None
+        )
         if actor is not None:
-            private_message = self.game.player_state(internal_player_to_player(actor, self.game_type))
+            private_message = self.game.player_state(
+                internal_player_to_player(actor, self.game_type)
+            )
             if private_message is not None:
-                await followup_send(ctx, **private_message.to_send_kwargs(self.thread.id), ephemeral=True)
+                await followup_send(
+                    ctx,
+                    **private_message.to_send_kwargs(self.thread.id),
+                    ephemeral=True,
+                )
 
         if getattr(self.game, "notify_on_turn", False):
             turn_player = self.game.current_turn()
             if getattr(turn_player, "id", None) == getattr(ctx.user, "id", None):
-                await followup_send(ctx, self.game.turn_notification(turn_player), ephemeral=True)
+                await followup_send(
+                    ctx, self.game.turn_notification(turn_player), ephemeral=True
+                )
 
     async def display_game_state(self) -> None:
         """
@@ -1015,9 +1132,13 @@ class GameInterface:
                 self._advance_past_forfeited_players()
                 self.current_turn = self.game.current_turn()
             if getattr(self.current_turn, "is_bot", False):
-                turn_description = fmt("game.bot_turn_computing", player=self.current_turn.mention)
+                turn_description = fmt(
+                    "game.bot_turn_computing", player=self.current_turn.mention
+                )
             else:
-                turn_description = textify(TEXTIFY_CURRENT_GAME_TURN, {"player": self.current_turn.mention})
+                turn_description = textify(
+                    TEXTIFY_CURRENT_GAME_TURN, {"player": self.current_turn.mention}
+                )
             info_message = self._build_info_message(turn_description)
             game_state = self.game.state()
             if game_state is None:
@@ -1040,7 +1161,9 @@ class GameInterface:
             async def edit_game_message():
                 while self.game_message is None:
                     await asyncio.sleep(1)
-                await self.game_message.edit(**game_state.to_edit_kwargs(self.thread.id))
+                await self.game_message.edit(
+                    **game_state.to_edit_kwargs(self.thread.id)
+                )
 
             self._track_ui_task(edit_game_message())
 
@@ -1049,14 +1172,22 @@ class GameInterface:
                 while self.status_message is None:
                     await asyncio.sleep(1)
                 status_view, attachments = self._build_status_view()
-                await self.status_message.edit(view=status_view, attachments=attachments)
+                await self.status_message.edit(
+                    view=status_view, attachments=attachments
+                )
 
             self._track_ui_task(edit_status_message())
 
-            log.debug(f"Finished game state update task in {update_timer.stop()}ms."
-                      f" game_id={self.thread.id} game_type={self.game_type}")
+            log.debug(
+                f"Finished game state update task in {update_timer.stop()}ms."
+                f" game_id={self.thread.id} game_type={self.game_type}"
+            )
 
-            if getattr(self.current_turn, "is_bot", False) and not self.ending_game and not self.processing_bot_turn:
+            if (
+                getattr(self.current_turn, "is_bot", False)
+                and not self.ending_game
+                and not self.processing_bot_turn
+            ):
                 asyncio.create_task(self.execute_bot_turn())
 
         except Exception as e:
@@ -1064,11 +1195,15 @@ class GameInterface:
             self.ending_game = True
 
             # Determine what component failed
-            if isinstance(e, ValueError) and "maximum number of children exceeded" in str(e):
-                what_failed = "Discord API: Message component limit exceeded (too many elements)"
+            if isinstance(
+                e, ValueError
+            ) and "maximum number of children exceeded" in str(e):
+                what_failed = (
+                    "Discord API: Message component limit exceeded (too many elements)"
+                )
             elif "maximum number of children exceeded" in str(e):
                 what_failed = "Discord API: Component limit exceeded"
-            elif hasattr(e, '__module__') and 'discord' in e.__module__:
+            elif hasattr(e, "__module__") and "discord" in e.__module__:
                 what_failed = f"Discord API: {type(e).__name__}"
             else:
                 what_failed = f"Game Engine: {type(e).__name__}"
@@ -1077,14 +1212,16 @@ class GameInterface:
             error_message = Message(error_embed)
 
             try:
-                await self.game_message.edit(**error_message.to_edit_kwargs(self.thread.id))
+                await self.game_message.edit(
+                    **error_message.to_edit_kwargs(self.thread.id)
+                )
             except Exception:
                 try:
                     await self.game_message.edit(
                         content="❌ An error occurred while updating the game display. The game has ended.",
                         embeds=[],
                         view=None,
-                        attachments=[]
+                        attachments=[],
                     )
                 except Exception:
                     log.exception("Failed to send error message to game_message")
@@ -1096,8 +1233,14 @@ class GameInterface:
         if user_id in self.forfeited_player_ids:
             return get("forfeit.already_forfeited")
 
-        active_players = [p for p in self.players if getattr(p, "id", None) not in self.forfeited_player_ids]
-        forfeiting_player = next((p for p in active_players if getattr(p, "id", None) == user_id), None)
+        active_players = [
+            p
+            for p in self.players
+            if getattr(p, "id", None) not in self.forfeited_player_ids
+        ]
+        forfeiting_player = next(
+            (p for p in active_players if getattr(p, "id", None) == user_id), None
+        )
         if forfeiting_player is None:
             return get("forfeit.not_in_game")
 

@@ -8,6 +8,7 @@ Provides functionality for:
 - Getting button emojis for UI elements
 - Getting game-specific emojis
 """
+
 from typing import Optional, Union
 
 import discord
@@ -48,10 +49,14 @@ def initialize_emojis() -> bool:
         emojis = config.get("emojis", {})
         button_emojis = config.get("button_emojis", {})
         game_emojis = config.get("game_emojis", {})
-        logger.info(f"Loaded {len(emojis)} emojis, {len(button_emojis)} button emojis, and {len(game_emojis)} game emojis from configuration.")
+        logger.info(
+            f"Loaded {len(emojis)} emojis, {len(button_emojis)} button emojis, and {len(game_emojis)} game emojis from configuration."
+        )
         return True
     except FileNotFoundError:
-        logger.critical(f"Emoji configuration file not found: {EMOJI_CONFIGURATION_FILE}")
+        logger.critical(
+            f"Emoji configuration file not found: {EMOJI_CONFIGURATION_FILE}"
+        )
         return False
     except Exception as e:
         logger.critical(f"Failed to load emoji configuration file: {e}")
@@ -70,11 +75,10 @@ def register_emoji(name: str, emoji_id: int, animated: bool = False) -> bool:
     if name in emojis or name in runtime_emojis:
         logger.warning(f"Emoji {name!r} already exists. Overwriting.")
 
-    runtime_emojis[name] = {
-        "id": emoji_id,
-        "animated": animated
-    }
-    logger.debug(f"Registered runtime emoji: {name} (id={emoji_id}, animated={animated})")
+    runtime_emojis[name] = {"id": emoji_id, "animated": animated}
+    logger.debug(
+        f"Registered runtime emoji: {name} (id={emoji_id}, animated={animated})"
+    )
     return True
 
 
@@ -127,8 +131,10 @@ def get_emoji_string(name: str) -> str:
 
     if emoji is None:
         if emojis:  # Only warn if we actually have emojis loaded
-            logger.warning(f"Emoji {name!r} not found in configuration file. This emoji will not be used"
-                           f" and a long space will fill its place.")
+            logger.warning(
+                f"Emoji {name!r} not found in configuration file. This emoji will not be used"
+                f" and a long space will fill its place."
+            )
         return LONG_SPACE_EMBED
 
     try:
@@ -168,7 +174,7 @@ def get_emoji_count() -> tuple[int, int]:
 def get_button_emoji(name: str) -> Optional[str]:
     """
     Get a button emoji by name.
-    
+
     Button emojis are simple unicode emojis used for UI elements like
     join/leave/start buttons. They fall back gracefully if not configured.
 
@@ -177,14 +183,14 @@ def get_button_emoji(name: str) -> Optional[str]:
     """
     if not initialized:
         initialize_emojis()
-    
+
     return button_emojis.get(name)
 
 
 def get_game_emoji(game_id: str) -> str:
     """
     Get the emoji for a specific game type.
-    
+
     Returns a default game emoji (🎮) if no specific emoji is configured.
 
     :param game_id: The game ID (e.g., 'tictactoe', 'chess')
@@ -192,7 +198,7 @@ def get_game_emoji(game_id: str) -> str:
     """
     if not initialized:
         initialize_emojis()
-    
+
     return game_emojis.get(game_id, "🎮")
 
 

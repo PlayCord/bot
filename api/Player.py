@@ -11,9 +11,16 @@ class Player:
     DEFAULT_SIGMA_RATIO = 1 / 6  # sigma = mu * ratio
     BOT_ID_BASE = 9_000_000_000_000
 
-    def __init__(self, mu: float = None, sigma: float = None,
-                 ranking: int = None, id: int = None, name: str = None,
-                 is_bot: bool = False, bot_difficulty: str | None = None):
+    def __init__(
+        self,
+        mu: float = None,
+        sigma: float = None,
+        ranking: int = None,
+        id: int = None,
+        name: str = None,
+        is_bot: bool = False,
+        bot_difficulty: str | None = None,
+    ):
         """
         Create a new Player.
 
@@ -85,8 +92,14 @@ class Player:
         return f"Player(id={self.id}, mu={self.mu}, sigma={self.sigma}, is_bot={self.is_bot})"
 
     @classmethod
-    def create_bot(cls, name: str, difficulty: str, bot_index: int = 0,
-                   mu: float = None, sigma: float = None) -> "Player":
+    def create_bot(
+        cls,
+        name: str,
+        difficulty: str,
+        bot_index: int = 0,
+        mu: float = None,
+        sigma: float = None,
+    ) -> "Player":
         """
         Create a bot player with a synthetic unique ID.
 
@@ -103,5 +116,5 @@ class Player:
             id=cls.BOT_ID_BASE + bot_index,
             name=name,
             is_bot=True,
-            bot_difficulty=difficulty
+            bot_difficulty=difficulty,
         )

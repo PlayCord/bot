@@ -7,9 +7,20 @@ import trueskill
 
 from api.Game import RoleMode
 from api.Player import Player
-from configuration.constants import CURRENT_GAMES, CURRENT_MATCHMAKING, IN_GAME, IN_MATCHMAKING, LONG_SPACE_EMBED, MU
+from configuration.constants import (
+    CURRENT_GAMES,
+    CURRENT_MATCHMAKING,
+    IN_GAME,
+    IN_MATCHMAKING,
+    LONG_SPACE_EMBED,
+    MU,
+)
 from utils import database as db
-from utils.containers import GameOverContainer, container_send_kwargs, container_to_markdown
+from utils.containers import (
+    GameOverContainer,
+    container_send_kwargs,
+    container_to_markdown,
+)
 from utils.database import InternalPlayer
 from utils.locale import get
 from utils.logging_config import get_logger
@@ -64,7 +75,9 @@ async def successful_matchmaking(interface: Any, game_interface_cls: type[Any]) 
             pass
 
 
-async def _successful_matchmaking_impl(interface: Any, game_interface_cls: type[Any]) -> None:
+async def _successful_matchmaking_impl(
+    interface: Any, game_interface_cls: type[Any]
+) -> None:
     game_class = interface.game
     rated = interface.rated
     players = interface.queued_players
@@ -169,9 +182,9 @@ def pre_match_mu_sigma(player: Any, game_type: str) -> tuple[float, float]:
 
 
 async def rating_groups_to_string(
-        rankings: list[int],
-        groups: list[dict[Any, trueskill.Rating]],
-        game_type: str,
+    rankings: list[int],
+    groups: list[dict[Any, trueskill.Rating]],
+    game_type: str,
 ) -> tuple[str, dict[int, dict[str, str | bool | int | Any]]]:
     player_ratings = {}
     current_place = 1
@@ -191,33 +204,42 @@ async def rating_groups_to_string(
             nums_current_place = 1
 
         starting_mu, starting_sigma = pre_match_mu_sigma(pre_rated_player, game_type)
-        aftermath_mu, aftermath_sigma = all_ratings[pre_rated_player].mu, all_ratings[pre_rated_player].sigma
+        aftermath_mu, aftermath_sigma = (
+            all_ratings[pre_rated_player].mu,
+            all_ratings[pre_rated_player].sigma,
+        )
         mu_delta = str(round(aftermath_mu - starting_mu))
         if not mu_delta.startswith("-"):
             mu_delta = "+" + mu_delta
 
-        player_ratings.update({
-            pre_rated_player.id: {
-                "old_mu": round(starting_mu),
-                "delta": mu_delta,
-                "place": current_place,
-                "tied": rank_tie_counts[rankings[i]] > 1,
-                "new_mu": aftermath_mu,
-                "old_sigma": starting_sigma,
-                "new_sigma": aftermath_sigma,
+        player_ratings.update(
+            {
+                pre_rated_player.id: {
+                    "old_mu": round(starting_mu),
+                    "delta": mu_delta,
+                    "place": current_place,
+                    "tied": rank_tie_counts[rankings[i]] > 1,
+                    "new_mu": aftermath_mu,
+                    "old_sigma": starting_sigma,
+                    "new_sigma": aftermath_sigma,
+                }
             }
-        })
+        )
 
-    player_string = "\n".join([
-        f"{player_ratings[p]['place']}{'T' if player_ratings[p]['tied'] else ''}."
-        f"{LONG_SPACE_EMBED}<@{p}>{LONG_SPACE_EMBED}{player_ratings[p]['old_mu']}"
-        f"{LONG_SPACE_EMBED}({player_ratings[p]['delta']})"
-        for p in player_ratings
-    ])
+    player_string = "\n".join(
+        [
+            f"{player_ratings[p]['place']}{'T' if player_ratings[p]['tied'] else ''}."
+            f"{LONG_SPACE_EMBED}<@{p}>{LONG_SPACE_EMBED}{player_ratings[p]['old_mu']}"
+            f"{LONG_SPACE_EMBED}({player_ratings[p]['delta']})"
+            for p in player_ratings
+        ]
+    )
     return player_string, player_ratings
 
 
-async def non_rated_groups_to_string(rankings: list[int], groups: list[InternalPlayer]) -> str:
+async def non_rated_groups_to_string(
+    rankings: list[int], groups: list[InternalPlayer]
+) -> str:
     player_ratings = []
     current_place = 1
     nums_current_place = 0
@@ -233,13 +255,15 @@ async def non_rated_groups_to_string(rankings: list[int], groups: list[InternalP
             nums_current_place = 1
 
         show_tied = "T" if rank_tie_counts[rankings[i]] > 1 else ""
-        player_ratings.append(f"{current_place}{show_tied}.{LONG_SPACE_EMBED}{pre_rated_player.mention}")
+        player_ratings.append(
+            f"{current_place}{show_tied}.{LONG_SPACE_EMBED}{pre_rated_player.mention}"
+        )
     return "\n".join(player_ratings)
 
 
 async def game_over(
-        interface: Any,
-        outcome: str | Player | InternalPlayer | list[list[InternalPlayer | Player]],
+    interface: Any,
+    outcome: str | Player | InternalPlayer | list[list[InternalPlayer | Player]],
 ) -> None:
     interface.ending_game = True
     game_type = interface.game_type
@@ -263,7 +287,9 @@ async def game_over(
         error_text = f"{get('game.error_during_move')} {str(outcome).strip()}".strip()
         await outbound_message.edit(content=error_text, view=None, attachments=[])
         await interface.await_pending_ui_tasks()
-        await thread.edit(locked=True, archived=True, reason=get("threads.game_crashed"))
+        await thread.edit(
+            locked=True, archived=True, reason=get("threads.game_crashed")
+        )
         await thread.send(error_text)
         try:
             from utils.analytics import EventType, register_event
@@ -297,7 +323,9 @@ async def game_over(
             for placement in outcome:
                 for player in placement:
                     rankings.append(current_ranking)
-                    rating_groups.append({player: environment.create_rating(player.mu, player.sigma)})
+                    rating_groups.append(
+                        {player: environment.create_rating(player.mu, player.sigma)}
+                    )
                 current_ranking += 1
 
         if interface.forfeited_player_ids:
@@ -308,11 +336,18 @@ async def game_over(
             if rankings:
                 max_ranking = max(rankings)
                 for i, player_obj in enumerate(player_order):
-                    if getattr(player_obj, "id", None) in interface.forfeited_player_ids:
+                    if (
+                        getattr(player_obj, "id", None)
+                        in interface.forfeited_player_ids
+                    ):
                         rankings[i] = max_ranking + 1
 
-        adjusted_rating_groups = environment.rate(rating_groups=rating_groups, ranks=rankings)
-        player_string, player_ratings = await rating_groups_to_string(rankings, adjusted_rating_groups, game_type)
+        adjusted_rating_groups = environment.rate(
+            rating_groups=rating_groups, ranks=rankings
+        )
+        player_string, player_ratings = await rating_groups_to_string(
+            rankings, adjusted_rating_groups, game_type
+        )
         get_logger("interfaces.ratings").debug(
             "rated game_over: game_id=%s game_type=%s rankings=%s player_ratings_keys=%s",
             game_id,
@@ -321,24 +356,33 @@ async def game_over(
             list(player_ratings) if player_ratings else None,
         )
         player_ids_in_order = list(player_ratings)
-        ranking_display = {pid: rankings[i] + 1 for i, pid in enumerate(player_ids_in_order)}
+        ranking_display = {
+            pid: rankings[i] + 1 for i, pid in enumerate(player_ids_in_order)
+        }
         ratings = {}
         for player in player_ratings:
             data = player_ratings[player]
             new_mu = data["new_mu"]
             new_sigma = data["new_sigma"]
-            ratings.update({
-                player: {
-                    "uid": player,
-                    "new_mu": new_mu,
-                    "new_sigma": new_sigma,
-                    "mu_delta": new_mu - data["old_mu"],
-                    "sigma_delta": new_sigma - data["old_sigma"],
-                    "ranking": data.get("ranking", ranking_display[player]),
+            ratings.update(
+                {
+                    player: {
+                        "uid": player,
+                        "new_mu": new_mu,
+                        "new_sigma": new_sigma,
+                        "mu_delta": new_mu - data["old_mu"],
+                        "sigma_delta": new_sigma - data["old_sigma"],
+                        "ranking": data.get("ranking", ranking_display[player]),
+                    }
                 }
-            })
+            )
 
-        db.database.end_game(match_id=game_id, game_name=game_type, rating_updates=ratings, final_scores=None)
+        db.database.end_game(
+            match_id=game_id,
+            game_name=game_type,
+            rating_updates=ratings,
+            final_scores=None,
+        )
     else:
         rankings = []
         groups = []
@@ -410,7 +454,8 @@ async def game_over(
             match_id=game_id,
             metadata={
                 "rated": bool(rated),
-                "has_outcome_summary": outcome_summaries is not None or outcome_global_summary is not None,
+                "has_outcome_summary": outcome_summaries is not None
+                or outcome_global_summary is not None,
             },
         )
     except Exception:
@@ -428,10 +473,16 @@ async def game_over(
         outcome_summaries=outcome_summaries,
         outcome_global_summary=outcome_global_summary,
         replay_id=replay_id,
-        forfeited_player_ids=interface.forfeited_player_ids if interface.forfeited_player_ids else None,
+        forfeited_player_ids=(
+            interface.forfeited_player_ids if interface.forfeited_player_ids else None
+        ),
     )
 
     await thread.send(**container_send_kwargs(game_over_container))
-    await outbound_message.edit(view=RematchView(game_id, summary_text=container_to_markdown(game_over_container)))
+    await outbound_message.edit(
+        view=RematchView(
+            game_id, summary_text=container_to_markdown(game_over_container)
+        )
+    )
     await interface.await_pending_ui_tasks()
     await thread.edit(locked=True, archived=True, reason=get("threads.game_over"))

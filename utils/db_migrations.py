@@ -438,7 +438,9 @@ def apply_migrations(database) -> None:
         if row:
             continue
         logger.warning("Applying database migration %s", version)
-        checksum = hashlib.sha256("\n".join(stmt.strip() for stmt in statements).encode("utf-8")).hexdigest()
+        checksum = hashlib.sha256(
+            "\n".join(stmt.strip() for stmt in statements).encode("utf-8")
+        ).hexdigest()
         try:
             with database.transaction() as cur:
                 for stmt in statements:

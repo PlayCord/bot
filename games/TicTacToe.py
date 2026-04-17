@@ -4,7 +4,15 @@ from api.Arguments import String
 from api.Bot import Bot
 from api.Command import Command
 from api.Game import Game
-from api.MessageComponents import Button, ButtonStyle, Container, MediaGallery, Message, TextDisplay, format_data_table_image
+from api.MessageComponents import (
+    Button,
+    ButtonStyle,
+    Container,
+    MediaGallery,
+    Message,
+    TextDisplay,
+    format_data_table_image,
+)
 from api.Player import Player
 from api.Response import Response, ResponseType
 from configuration.constants import UI_MESSAGE_DELETE_DELAY
@@ -13,16 +21,37 @@ from configuration.constants import UI_MESSAGE_DELETE_DELAY
 class TicTacToeGame(Game):
     summary = "The classic game of Xs and Os, brought to discord"
     move_command_group_description = "Commands for TicTacToe"
-    description = ("Tic-Tac-Toe on Discord! The game is pretty self-explanatory,"
-                   " just take turns placing Xs and Os until one player gets three in a row!")
+    description = (
+        "Tic-Tac-Toe on Discord! The game is pretty self-explanatory,"
+        " just take turns placing Xs and Os until one player gets three in a row!"
+    )
     name = "Tic-Tac-Toe"
     player_count = 2
-    trueskill_parameters = {"sigma": 1 / 6, "beta": 1 / 12, "tau": 1 / 100, "draw": 9 / 10}
-    moves = [Command(name="move", description="Place a piece down.",
-                     options=[String(argument_name="move", description="description", autocomplete="ac_move")])]
+    trueskill_parameters = {
+        "sigma": 1 / 6,
+        "beta": 1 / 12,
+        "tau": 1 / 100,
+        "draw": 9 / 10,
+    }
+    moves = [
+        Command(
+            name="move",
+            description="Place a piece down.",
+            options=[
+                String(
+                    argument_name="move",
+                    description="description",
+                    autocomplete="ac_move",
+                )
+            ],
+        )
+    ]
     bots = {
         "easy": Bot(description="Picks a random legal move", callback="bot_easy"),
-        "medium": Bot(description="Tries to win or block; otherwise picks center or random", callback="bot_medium"),
+        "medium": Bot(
+            description="Tries to win or block; otherwise picks center or random",
+            callback="bot_medium",
+        ),
         "hard": Bot(description="Never misses a winning move", callback="bot_hard"),
     }
     author = "@quantumbagel"
@@ -66,12 +95,22 @@ class TicTacToeGame(Game):
                 else:
                     color = ButtonStyle.gray
 
-                button = Button(label=name, emoji=emoji, callback=self.move, row=row, style=color,
-                                arguments={"move": str(col) + str(row)})
+                button = Button(
+                    label=name,
+                    emoji=emoji,
+                    callback=self.move,
+                    row=row,
+                    style=color,
+                    arguments={"move": str(col) + str(row)},
+                )
                 buttons.append(button)
         return Message(
             Container(
-                MediaGallery(format_data_table_image({self.x: {"Team:": ":x:"}, self.o: {"Team:": ":o:"}})),
+                MediaGallery(
+                    format_data_table_image(
+                        {self.x: {"Team:": ":x:"}, self.o: {"Team:": ":o:"}}
+                    )
+                ),
             ),
             *buttons,
         )
@@ -81,8 +120,17 @@ class TicTacToeGame(Game):
 
     def ac_move(self, player):
         moves = []
-        all_moves = {'00': 'Top Left', '01': 'Top Mid', '02': 'Top Right', '10': 'Mid Left', '11': 'Mid Mid',
-                     '12': 'Mid Right', '20': 'Bottom Left', '21': 'Bottom Mid', '22': 'Bottom Right'}
+        all_moves = {
+            "00": "Top Left",
+            "01": "Top Mid",
+            "02": "Top Right",
+            "10": "Mid Left",
+            "11": "Mid Mid",
+            "12": "Mid Right",
+            "20": "Bottom Left",
+            "21": "Bottom Mid",
+            "22": "Bottom Right",
+        }
         for row in range(self.size):
             for column in range(self.size):
                 if self.board[row][column].id is None:
@@ -95,8 +143,12 @@ class TicTacToeGame(Game):
 
     def move(self, player, move):
         if self.board[int(move[1])][int(move[0])].id is not None:
-            return Response(content="That tile is already taken.", style=ResponseType.error, ephemeral=True,
-                            delete_after=UI_MESSAGE_DELETE_DELAY)
+            return Response(
+                content="That tile is already taken.",
+                style=ResponseType.error,
+                ephemeral=True,
+                delete_after=UI_MESSAGE_DELETE_DELAY,
+            )
         self.board[int(move[1])][int(move[0])].take(self.players[self.turn])
         self.turn += 1
         if self.turn == len(self.players):
@@ -114,7 +166,9 @@ class TicTacToeGame(Game):
         for move in self._available_moves():
             col, row = int(move[0]), int(move[1])
             self.board[row][col].id = player_id
-            self.board[row][col].owner = next((p for p in self.players if p.id == player_id), None)
+            self.board[row][col].owner = next(
+                (p for p in self.players if p.id == player_id), None
+            )
             won = self.outcome()
             self.board[row][col].id = None
             self.board[row][col].owner = None
@@ -210,14 +264,20 @@ class TicTacToeGame(Game):
 
         # Check columns
         for col in range(self.size):
-            if (self.board[0][col].id is not None and
-                    all(self.board[row][col].id == self.board[0][col].id for row in range(self.size))):
+            if self.board[0][col].id is not None and all(
+                self.board[row][col].id == self.board[0][col].id
+                for row in range(self.size)
+            ):
                 return self.board[0][col].owner  # Return the winner's owner
 
         # Check diagonals
-        if self.board[0][0].id is not None and all(self.board[i][i].id == self.board[0][0].id for i in range(self.size)):
+        if self.board[0][0].id is not None and all(
+            self.board[i][i].id == self.board[0][0].id for i in range(self.size)
+        ):
             return self.board[0][0].owner  # Return the winner's owner
-        if self.board[0][2].id is not None and all(self.board[i][2 - i].id == self.board[0][2].id for i in range(self.size)):
+        if self.board[0][2].id is not None and all(
+            self.board[i][2 - i].id == self.board[0][2].id for i in range(self.size)
+        ):
             return self.board[0][2].owner  # Return the winner's owner
 
         # Check for a draw (self.board is full and no winner)

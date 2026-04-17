@@ -2,7 +2,13 @@ from api.Arguments import Integer
 from api.Command import Command
 from api.Game import Game
 from api.MatchOptions import MatchOptionSpec
-from api.MessageComponents import Container, MediaGallery, Message, TextDisplay, format_data_table_image
+from api.MessageComponents import (
+    Container,
+    MediaGallery,
+    Message,
+    TextDisplay,
+    format_data_table_image,
+)
 from api.Player import Player
 from api.Response import Response
 from configuration.constants import UI_MESSAGE_DELETE_DELAY
@@ -35,8 +41,18 @@ class NimGame(Game):
             name="take",
             description="Take stones from a pile.",
             options=[
-                Integer(argument_name="pile", description="Pile number (1-3)", min_value=1, max_value=3),
-                Integer(argument_name="count", description="Stones to remove", min_value=1, max_value=20),
+                Integer(
+                    argument_name="pile",
+                    description="Pile number (1-3)",
+                    min_value=1,
+                    max_value=3,
+                ),
+                Integer(
+                    argument_name="count",
+                    description="Stones to remove",
+                    min_value=1,
+                    max_value=20,
+                ),
             ],
             callback="take",
         )
@@ -48,7 +64,9 @@ class NimGame(Game):
     time = "3min"
     difficulty = "Easy"
 
-    def __init__(self, players: list[Player], match_options: dict | None = None) -> None:
+    def __init__(
+        self, players: list[Player], match_options: dict | None = None
+    ) -> None:
         self.players = players
         self.turn = 0
         self.piles = [3, 5, 7]
@@ -68,12 +86,21 @@ class NimGame(Game):
             if self.winner
             else f"➡️ Turn: {self.current_turn().mention}{rule_note}"
         )
-        board = "\n".join([f"Pile {i + 1}: {'🪨' * n} ({n})" for i, n in enumerate(self.piles)])
+        board = "\n".join(
+            [f"Pile {i + 1}: {'🪨' * n} ({n})" for i, n in enumerate(self.piles)]
+        )
         description = f"{status}\n\n{board}\n\n{self.last_action}"
         return Message(
             Container(
                 TextDisplay(description),
-                MediaGallery(format_data_table_image({p: {"Active": "✅" if p != self.winner else "🏆"} for p in self.players})),
+                MediaGallery(
+                    format_data_table_image(
+                        {
+                            p: {"Active": "✅" if p != self.winner else "🏆"}
+                            for p in self.players
+                        }
+                    )
+                ),
             )
         )
 
@@ -83,11 +110,23 @@ class NimGame(Game):
     def take(self, player: Player, pile: int, count: int):
         pile_index = pile - 1
         if pile_index < 0 or pile_index >= len(self.piles):
-            return Response(content="Pile must be 1, 2, or 3.", ephemeral=True, delete_after=UI_MESSAGE_DELETE_DELAY)
+            return Response(
+                content="Pile must be 1, 2, or 3.",
+                ephemeral=True,
+                delete_after=UI_MESSAGE_DELETE_DELAY,
+            )
         if count <= 0:
-            return Response(content="Count must be at least 1.", ephemeral=True, delete_after=UI_MESSAGE_DELETE_DELAY)
+            return Response(
+                content="Count must be at least 1.",
+                ephemeral=True,
+                delete_after=UI_MESSAGE_DELETE_DELAY,
+            )
         if self.piles[pile_index] < count:
-            return Response(content="That pile doesn't have enough stones.", ephemeral=True, delete_after=UI_MESSAGE_DELETE_DELAY)
+            return Response(
+                content="That pile doesn't have enough stones.",
+                ephemeral=True,
+                delete_after=UI_MESSAGE_DELETE_DELAY,
+            )
 
         self.piles[pile_index] -= count
         self.last_action = f"{player.mention} removed {count} from pile {pile}."

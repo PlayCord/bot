@@ -17,7 +17,8 @@ from configuration.constants import (
     CURRENT_MATCHMAKING,
     EPHEMERAL_DELETE_AFTER,
     GAME_TYPES,
-    IN_MATCHMAKING, LONG_SPACE_EMBED,
+    IN_MATCHMAKING,
+    LONG_SPACE_EMBED,
 )
 from utils import database as db
 from utils.analytics import Timer
@@ -28,12 +29,20 @@ from utils.containers import (
     container_send_kwargs,
     container_to_markdown,
 )
-from utils.conversion import column_creator, column_elo, column_names, contextify, player_representative, \
-    player_verification_function
+from utils.conversion import (
+    column_creator,
+    column_elo,
+    column_names,
+    contextify,
+    player_representative,
+    player_verification_function,
+)
 from utils.database import InternalPlayer, get_shallow_player
 from utils.discord_utils import followup_send
 from utils.game_interface import GameInterface
-from utils.interface_lifecycle import successful_matchmaking as lifecycle_successful_matchmaking
+from utils.interface_lifecycle import (
+    successful_matchmaking as lifecycle_successful_matchmaking,
+)
 from utils.interfaces import user_in_active_game, user_in_active_matchmaking
 from utils.locale import fmt, get
 from utils.logging_config import get_logger
@@ -46,8 +55,14 @@ class MatchmakingInterface:
     via the successful_matchmaking function.
     """
 
-    def __init__(self, creator: discord.User, game_type: str, message: discord.InteractionMessage,
-                 rated: bool, private: bool):
+    def __init__(
+        self,
+        creator: discord.User,
+        game_type: str,
+        message: discord.InteractionMessage,
+        rated: bool,
+        private: bool,
+    ):
 
         # Whether the startup of the matchmaking interaction failed
         self.failed = None
@@ -80,7 +95,9 @@ class MatchmakingInterface:
         # The message context to edit when making updates
         self.message = message
 
-        if self.queued_players == {None}:  # Couldn't get information on the creator, so fail now
+        if self.queued_players == {
+            None
+        }:  # Couldn't get information on the creator, so fail now
             self.failed = (
                 f"{get('queue.db_connect_failed_what')} "
                 f"{get('queue.db_connect_failed_reason')}"
@@ -94,7 +111,9 @@ class MatchmakingInterface:
 
         self.rated_requested = self.rated
         self._specs = tuple(getattr(self.game, "customizable_options", ()) or ())
-        self.match_settings: dict[str, str | int] = {s.key: s.default for s in self._specs}
+        self.match_settings: dict[str, str | int] = {
+            s.key: s.default for s in self._specs
+        }
         self.role_selections: dict[int, str] = {}
         self.ready_players: set[int] = set()
         self._sync_rated_flag()
@@ -106,10 +125,14 @@ class MatchmakingInterface:
             self.player_verification_function = lambda x: True
             self.allowed_players = get("queue.any_players")
         else:
-            self.player_verification_function = player_verification_function(player_count)
+            self.player_verification_function = player_verification_function(
+                player_count
+            )
             self.allowed_players = player_representative(player_count)
 
-        self.outcome = None  # Whether the matchmaking was successful (True, None, or False)
+        self.outcome = (
+            None  # Whether the matchmaking was successful (True, None, or False)
+        )
         self.logger = get_logger("interfaces.matchmaking").getChild(game_type)
 
     @property
@@ -127,9 +150,11 @@ class MatchmakingInterface:
             self.rated = False
             return
         if (
-                self._specs
-                and getattr(self.game, "customization_forces_unrated_when_non_default", True)
-                and not self._match_settings_are_default()
+            self._specs
+            and getattr(
+                self.game, "customization_forces_unrated_when_non_default", True
+            )
+            and not self._match_settings_are_default()
         ):
             self.rated = False
             return
@@ -185,7 +210,12 @@ class MatchmakingInterface:
             )
         cur = len(self.all_players())
         needed = self._needed_players_display()
-        return fmt("queue.lobby_header_recruiting", game=self.game.name, current=cur, needed=needed)
+        return fmt(
+            "queue.lobby_header_recruiting",
+            game=self.game.name,
+            current=cur,
+            needed=needed,
+        )
 
     async def _maybe_auto_start_from_lobby(self) -> bool:
         """When roster + ready checks pass, start immediately (no Start button)."""
@@ -202,7 +232,9 @@ class MatchmakingInterface:
             self._reset_ready_state()
             return False
         self.outcome = True
-        await self.message.edit(**container_send_kwargs(LoadingContainer().remove_footer()))
+        await self.message.edit(
+            **container_send_kwargs(LoadingContainer().remove_footer())
+        )
         await lifecycle_successful_matchmaking(self, GameInterface)
         return True
 
@@ -280,7 +312,9 @@ class MatchmakingInterface:
         elif isinstance(player_count, int) and (current_count + 1) != player_count:
             return get("queue.bot_too_many_for_game")
 
-        used_names = {getattr(p, "name", None) for p in self.bots if getattr(p, "name", None)}
+        used_names = {
+            getattr(p, "name", None) for p in self.bots if getattr(p, "name", None)
+        }
         bot_name = generate_bot_name(used_names)
         bot_player = Player.create_bot(
             name=bot_name,
@@ -296,20 +330,22 @@ class MatchmakingInterface:
         """Handle string select for a lobby :attr:`customizable_options` key (creator only)."""
         log = self.logger.getChild("lobby_option")
         if ctx.user.id != self.creator.id:
-            await followup_send(ctx,
-                                get("queue.only_creator_lobby_options"),
-                                ephemeral=True,
-                                delete_after=EPHEMERAL_DELETE_AFTER,
-                                )
+            await followup_send(
+                ctx,
+                get("queue.only_creator_lobby_options"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         spec = next((s for s in self._specs if s.key == key), None)
         if spec is None:
             log.warning("unknown lobby option key=%r lobby=%s", key, self.message.id)
-            await followup_send(ctx,
-                                get("matchmaking.invalid_interaction"),
-                                ephemeral=True,
-                                delete_after=EPHEMERAL_DELETE_AFTER,
-                                )
+            await followup_send(
+                ctx,
+                get("matchmaking.invalid_interaction"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         raw = (ctx.data.get("values") or [""])[0]
         self.match_settings[key] = spec.coerce(raw)
@@ -317,43 +353,51 @@ class MatchmakingInterface:
         if preset_values:
             for other_spec in self._specs:
                 if other_spec.key in preset_values:
-                    self.match_settings[other_spec.key] = other_spec.coerce(str(preset_values[other_spec.key]))
+                    self.match_settings[other_spec.key] = other_spec.coerce(
+                        str(preset_values[other_spec.key])
+                    )
         self._sync_rated_flag()
         getattr(self, "_reset_ready_state", lambda: None)()
         await self.update_embed()
-        await followup_send(ctx,
-                            get("queue.lobby_option_updated"),
-                            ephemeral=True,
-                            delete_after=EPHEMERAL_DELETE_AFTER,
-                            )
+        await followup_send(
+            ctx,
+            get("queue.lobby_option_updated"),
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
+        )
 
-    async def callback_role_select(self, ctx: discord.Interaction, player_id: int) -> None:
+    async def callback_role_select(
+        self, ctx: discord.Interaction, player_id: int
+    ) -> None:
         """Handle per-player role string select for CHOSEN :attr:`role_mode`."""
         log = self.logger.getChild("lobby_role_select")
         if ctx.user.id != player_id:
-            await followup_send(ctx,
-                                get("queue.role_select_not_yours"),
-                                ephemeral=True,
-                                delete_after=EPHEMERAL_DELETE_AFTER,
-                                )
+            await followup_send(
+                ctx,
+                get("queue.role_select_not_yours"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         if getattr(self.game, "role_mode", RoleMode.NONE) != RoleMode.CHOSEN:
             log.warning("role select on non-CHOSEN lobby lobby=%s", self.message.id)
-            await followup_send(ctx,
-                                get("matchmaking.invalid_interaction"),
-                                ephemeral=True,
-                                delete_after=EPHEMERAL_DELETE_AFTER,
-                                )
+            await followup_send(
+                ctx,
+                get("matchmaking.invalid_interaction"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         raw = (ctx.data.get("values") or [""])[0]
         self.role_selections[player_id] = str(raw)
         getattr(self, "_reset_ready_state", lambda: None)()
         await self.update_embed()
-        await followup_send(ctx,
-                            get("queue.role_select_updated"),
-                            ephemeral=True,
-                            delete_after=EPHEMERAL_DELETE_AFTER,
-                            )
+        await followup_send(
+            ctx,
+            get("queue.role_select_updated"),
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
+        )
 
     async def update_embed(self) -> None:
         """
@@ -368,16 +412,20 @@ class MatchmakingInterface:
             return
 
         game_rated_text = get("queue.rated") if self.rated else get("queue.not_rated")
-        private_text = get("queue.private_status") if self.private else get("queue.public_status")
+        private_text = (
+            get("queue.private_status") if self.private else get("queue.public_status")
+        )
 
         desc_suffix = ""
         if (
-                self._specs
-                and self.rated_requested
-                and not self.rated
-                and not self.has_bots
-                and not self._match_settings_are_default()
-                and getattr(self.game, "customization_forces_unrated_when_non_default", True)
+            self._specs
+            and self.rated_requested
+            and not self.rated
+            and not self.has_bots
+            and not self._match_settings_are_default()
+            and getattr(
+                self.game, "customization_forces_unrated_when_non_default", True
+            )
         ):
             desc_suffix = f"\n\n{get('queue.customization_unrated_note')}"
 
@@ -415,31 +463,47 @@ class MatchmakingInterface:
                     get("queue.field_creator"): creator_marker,
                 }
                 for player, rating, creator_marker in zip(
-                all_players,
-                column_elo(all_players, self.game_type).split("\n"),
-                column_creator(all_players, self.creator).split("\n"),
-                strict=False,
-            )
+                    all_players,
+                    column_elo(all_players, self.game_type).split("\n"),
+                    column_creator(all_players, self.creator).split("\n"),
+                    strict=False,
+                )
             }
         )
-        table_file = discord.File(io.BytesIO(matchmaking_table), filename="matchmaking_table.png")
+        table_file = discord.File(
+            io.BytesIO(matchmaking_table), filename="matchmaking_table.png"
+        )
         table_image_url = f"attachment://{table_file.filename}"
 
         # Add whitelist or blacklist depending on private status
         if self.private:
-            container.add_field(name=get("queue.field_whitelist"), value=column_names(self.whitelist), inline=True)
+            container.add_field(
+                name=get("queue.field_whitelist"),
+                value=column_names(self.whitelist),
+                inline=True,
+            )
         elif len(self.blacklist):
-            container.add_field(name=get("queue.field_blacklist"), value=column_names(self.blacklist), inline=True)
+            container.add_field(
+                name=get("queue.field_blacklist"),
+                value=column_names(self.blacklist),
+                inline=True,
+            )
 
         try:
             container.set_footer(text=self.game.description)
         except Exception:
             # Fallback: if footer cannot be set for some reason, add as normal fields
             if self.game.description:
-                container.add_field(name=get("queue.field_game_info"), value=self.game.description, inline=False)
+                container.add_field(
+                    name=get("queue.field_game_info"),
+                    value=self.game.description,
+                    inline=False,
+                )
             auth = game_metadata.get("author")
             if auth:
-                container.add_field(name=get("queue.field_game_by"), value=str(auth), inline=False)
+                container.add_field(
+                    name=get("queue.field_game_by"), value=str(auth), inline=False
+                )
 
         if self._specs:
             opt_lines = []
@@ -456,11 +520,11 @@ class MatchmakingInterface:
         pr_roles = getattr(self.game, "player_roles", None)
         layout_ok_chosen = len(self._specs) + len(self.all_players()) <= 4
         show_role_selects = (
-                role_mode == RoleMode.CHOSEN
-                and not self.has_bots
-                and pr_roles is not None
-                and len(pr_roles) == len(self.all_players())
-                and layout_ok_chosen
+            role_mode == RoleMode.CHOSEN
+            and not self.has_bots
+            and pr_roles is not None
+            and len(pr_roles) == len(self.all_players())
+            and layout_ok_chosen
         )
         if role_mode == RoleMode.CHOSEN:
             if self.has_bots:
@@ -484,10 +548,16 @@ class MatchmakingInterface:
                         if picked:
                             pick_lines.append(f"**{label}** → `{picked}`")
                         else:
-                            pick_lines.append(f"**{label}** → {get('queue.role_picks_none')}")
+                            pick_lines.append(
+                                f"**{label}** → {get('queue.role_picks_none')}"
+                            )
                     container.add_field(
                         name=get("queue.role_picks_field"),
-                        value="\n".join(pick_lines) if pick_lines else get("queue.role_picks_none"),
+                        value=(
+                            "\n".join(pick_lines)
+                            if pick_lines
+                            else get("queue.role_picks_none")
+                        ),
                         inline=False,
                     )
             elif pr_roles:
@@ -499,7 +569,11 @@ class MatchmakingInterface:
 
         join_id = f"{BUTTON_PREFIX_JOIN}{self.message.id}"
         leave_id = f"{BUTTON_PREFIX_LEAVE}{self.message.id}"
-        ready_id = f"{BUTTON_PREFIX_READY}{self.message.id}" if self._base_start_conditions_met() else None
+        ready_id = (
+            f"{BUTTON_PREFIX_READY}{self.message.id}"
+            if self._base_start_conditions_met()
+            else None
+        )
         ready_label = get("buttons.ready_toggle")
         role_specs_list: list[tuple[int, str, tuple[str, ...]]] = []
         if show_role_selects and pr_roles is not None:
@@ -535,7 +609,9 @@ class MatchmakingInterface:
         await self.message.edit(view=view, attachments=[table_file])
         log.debug(f"Finished matchmaking update task in {update_timer.stop()}ms.")
 
-    async def seed_rematch_players(self, guild: discord.Guild, user_ids: list[int]) -> str | None:
+    async def seed_rematch_players(
+        self, guild: discord.Guild, user_ids: list[int]
+    ) -> str | None:
         """Add humans from a finished match to this lobby (creator is already queued)."""
         present = {p.id for p in self.queued_players}
         for uid in user_ids:
@@ -562,13 +638,16 @@ class MatchmakingInterface:
 
         # Get logger
         log = self.logger.getChild("accept_invite")
-        log.debug(f"Attempting to accept invite for player {player} for matchmaker id={self.message.id}"
-                  f" {contextify(ctx)}")
+        log.debug(
+            f"Attempting to accept invite for player {player} for matchmaker id={self.message.id}"
+            f" {contextify(ctx)}"
+        )
 
         if player is None:
             log.warning(
                 f"Player.py {player} attempted to accept invite, but we couldn't connect to the database!"
-                f"{contextify(ctx)}")
+                f"{contextify(ctx)}"
+            )
             await followup_send(
                 ctx,
                 get("queue.couldnt_connect_db"),
@@ -577,31 +656,43 @@ class MatchmakingInterface:
             )
             return False
 
-        if MatchmakingInterface._is_queued_player(self, player.id):  # Can't join if you are already in
+        if MatchmakingInterface._is_queued_player(
+            self, player.id
+        ):  # Can't join if you are already in
             log.debug(
                 f"Player.py {player} attempted to accept invite, but they are already in the game! "
-                f"{contextify(ctx)}")
-            await followup_send(ctx, get("queue.already_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+                f"{contextify(ctx)}"
+            )
+            await followup_send(
+                ctx,
+                get("queue.already_in_game"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return False
         if user_in_active_game(player.id):
-            log.info(f"Player.py {player} attempted to accept invite while already in another active game."
-                     f" {contextify(ctx)}")
-            await followup_send(ctx,
-                                get("queue.already_in_active_game_other_server"),
-                                ephemeral=True,
-                                delete_after=EPHEMERAL_DELETE_AFTER,
-                                )
+            log.info(
+                f"Player.py {player} attempted to accept invite while already in another active game."
+                f" {contextify(ctx)}"
+            )
+            await followup_send(
+                ctx,
+                get("queue.already_in_active_game_other_server"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return False
         if user_in_active_matchmaking(player.id):
             log.info(
                 f"Player.py {player} attempted to accept invite while already queued in another lobby."
                 f" {contextify(ctx)}"
             )
-            await followup_send(ctx,
-                                get("queue.already_in_another_queue"),
-                                ephemeral=True,
-                                delete_after=EPHEMERAL_DELETE_AFTER,
-                                )
+            await followup_send(
+                ctx,
+                get("queue.already_in_another_queue"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return False
         # Add to whitelist or remove from blacklist, depending on private/public status
         if self.private:
@@ -612,7 +703,8 @@ class MatchmakingInterface:
         MatchmakingInterface._add_queued_player(self, player)
         log.debug(
             f"Successfully accepted invite for {player.id} ({player.name})!"
-            f"{contextify(ctx)}")
+            f"{contextify(ctx)}"
+        )
         await self.update_embed()
         return True
 
@@ -647,8 +739,15 @@ class MatchmakingInterface:
         # If private game: remove from whitelist
         # If public game: add to blacklist
         if self.private:
-            if MatchmakingInterface._discard_player_from_set(self.whitelist, new_player.id) is None:
-                log.info(f"Ban of player {new_player} in private lobby failed: not on whitelist anyway.")
+            if (
+                MatchmakingInterface._discard_player_from_set(
+                    self.whitelist, new_player.id
+                )
+                is None
+            ):
+                log.info(
+                    f"Ban of player {new_player} in private lobby failed: not on whitelist anyway."
+                )
                 return get("queue.cant_ban_not_whitelisted")
         else:
             self.blacklist.add(new_player)
@@ -656,11 +755,14 @@ class MatchmakingInterface:
         await self.update_embed()  # Update embed now that we have done all operations
 
         if kicked:
-            log.info(f"Successfully kicked and banned {new_player}"
-                     f" from the game for reason {reason!r}")
+            log.info(
+                f"Successfully kicked and banned {new_player}"
+                f" from the game for reason {reason!r}"
+            )
             return fmt("queue.kicked_and_banned", player=player.mention, reason=reason)
-        log.info(f"Successfully banned {new_player}"
-                 f" from the game for reason {reason!r}")
+        log.info(
+            f"Successfully banned {new_player}" f" from the game for reason {reason!r}"
+        )
         return fmt("queue.banned", player=player.mention, reason=reason)
 
     async def kick(self, player: discord.User, reason: str) -> str | None:
@@ -678,7 +780,9 @@ class MatchmakingInterface:
             return get("queue.couldnt_connect_db")
 
         kicked = False
-        if MatchmakingInterface._remove_queued_player(self, new_player.id) is not None:  # Kick if already in
+        if (
+            MatchmakingInterface._remove_queued_player(self, new_player.id) is not None
+        ):  # Kick if already in
             kicked = True
             await self.update_embed()
 
@@ -692,11 +796,14 @@ class MatchmakingInterface:
         MatchmakingInterface._rotate_creator_if_needed(self, player.id)
 
         if kicked:
-            log.info(f"Successfully kicked {new_player} ({player.name})"
-                     f" from the game for reason {reason!r}")
+            log.info(
+                f"Successfully kicked {new_player} ({player.name})"
+                f" from the game for reason {reason!r}"
+            )
             return fmt("queue.kicked", player=player.mention, reason=reason)
-        log.info(f"Couldn't kick {new_player}"
-                 f" from the game: they weren't in the lobby!")
+        log.info(
+            f"Couldn't kick {new_player}" f" from the game: they weren't in the lobby!"
+        )
         return fmt("queue.didnt_kick", player=player.mention)
 
     async def callback_ready_game(self, ctx: discord.Interaction) -> None:
@@ -709,60 +816,86 @@ class MatchmakingInterface:
         new_player = get_shallow_player(ctx.user)
         log.debug(f"Attempting to join the game... {contextify(ctx)}")
         if new_player is None:
-            log.warning("Attempted to join but player lookup failed. %s", contextify(ctx))
-            await followup_send(ctx,
-                                get("queue.couldnt_connect_db"),
-                                ephemeral=True,
-                                delete_after=EPHEMERAL_DELETE_AFTER,
-                                )
+            log.warning(
+                "Attempted to join but player lookup failed. %s", contextify(ctx)
+            )
+            await followup_send(
+                ctx,
+                get("queue.couldnt_connect_db"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
-        if MatchmakingInterface._is_queued_player(self, ctx.user.id):  # Can't join if you are already in
-            log.info(f"Attempted to join player {new_player} but failed because they were already in the queue."
-                     f" {contextify(ctx)}")
-            await followup_send(ctx, get("queue.already_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+        if MatchmakingInterface._is_queued_player(
+            self, ctx.user.id
+        ):  # Can't join if you are already in
+            log.info(
+                f"Attempted to join player {new_player} but failed because they were already in the queue."
+                f" {contextify(ctx)}"
+            )
+            await followup_send(
+                ctx,
+                get("queue.already_in_game"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
         elif user_in_active_game(new_player.id):
-            log.info(f"Attempted to join player {new_player} but failed because they are already in another game."
-                     f" {contextify(ctx)}")
-            await followup_send(ctx,
-                                get("queue.already_in_active_game_other_server"),
-                                ephemeral=True,
-                                delete_after=EPHEMERAL_DELETE_AFTER,
-                                )
+            log.info(
+                f"Attempted to join player {new_player} but failed because they are already in another game."
+                f" {contextify(ctx)}"
+            )
+            await followup_send(
+                ctx,
+                get("queue.already_in_active_game_other_server"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         elif user_in_active_matchmaking(new_player.id):
             log.info(
                 f"Attempted to join player {new_player} but failed because they are already queued elsewhere."
                 f" {contextify(ctx)}"
             )
-            await followup_send(ctx,
-                                get("queue.already_in_another_queue"),
-                                ephemeral=True,
-                                delete_after=EPHEMERAL_DELETE_AFTER,
-                                )
+            await followup_send(
+                ctx,
+                get("queue.already_in_another_queue"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         else:
             if not self.private:
-                if MatchmakingInterface._contains_player_id(self.blacklist, new_player.id):
-                    log.info(f"Attempted to join player {new_player} but failed because they are banned."
-                             f" {contextify(ctx)}")
-                    await followup_send(ctx,
-                                        fmt("queue.banned_message", creator=self.creator.mention),
-                                        ephemeral=True,
-                                        delete_after=EPHEMERAL_DELETE_AFTER,
-                                        )
+                if MatchmakingInterface._contains_player_id(
+                    self.blacklist, new_player.id
+                ):
+                    log.info(
+                        f"Attempted to join player {new_player} but failed because they are banned."
+                        f" {contextify(ctx)}"
+                    )
+                    await followup_send(
+                        ctx,
+                        fmt("queue.banned_message", creator=self.creator.mention),
+                        ephemeral=True,
+                        delete_after=EPHEMERAL_DELETE_AFTER,
+                    )
                     return
                 MatchmakingInterface._add_queued_player(self, new_player)
                 await self.update_embed()  # Update embed on discord side
             else:
-                if not MatchmakingInterface._contains_player_id(self.whitelist, new_player.id):
-                    log.info(f"Attempted to join player {new_player} to private game but failed because"
-                             f" they were not on the whitelist."
-                             f" {contextify(ctx)}")
-                    await followup_send(ctx,
-                                        get("queue.not_on_whitelist"),
-                                        ephemeral=True,
-                                        delete_after=EPHEMERAL_DELETE_AFTER,
-                                        )
+                if not MatchmakingInterface._contains_player_id(
+                    self.whitelist, new_player.id
+                ):
+                    log.info(
+                        f"Attempted to join player {new_player} to private game but failed because"
+                        f" they were not on the whitelist."
+                        f" {contextify(ctx)}"
+                    )
+                    await followup_send(
+                        ctx,
+                        get("queue.not_on_whitelist"),
+                        ephemeral=True,
+                        delete_after=EPHEMERAL_DELETE_AFTER,
+                    )
                     return
                 MatchmakingInterface._add_queued_player(self, new_player)
                 await self.update_embed()  # Update embed on discord side
@@ -778,14 +911,20 @@ class MatchmakingInterface:
             )
             return
         if not MatchmakingInterface._is_queued_player(self, player.id):
-            await followup_send(ctx, get("queue.not_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+            await followup_send(
+                ctx,
+                get("queue.not_in_game"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         if not self._base_start_conditions_met():
-            await followup_send(ctx,
-                                get("queue.ready_requirements_not_met"),
-                                ephemeral=True,
-                                delete_after=EPHEMERAL_DELETE_AFTER,
-                                )
+            await followup_send(
+                ctx,
+                get("queue.ready_requirements_not_met"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
             return
         ready_players = getattr(self, "ready_players", set())
         if player.id in ready_players:
@@ -795,7 +934,9 @@ class MatchmakingInterface:
             ready_players.add(player.id)
             notice = get("queue.ready_confirmed")
         await self.update_embed()
-        await followup_send(ctx, notice, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+        await followup_send(
+            ctx, notice, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER
+        )
 
     async def callback_leave_game(self, ctx: discord.Interaction) -> None:
         """
@@ -815,22 +956,39 @@ class MatchmakingInterface:
             )
             return
 
-        if not MatchmakingInterface._is_queued_player(self, player.id):  # Can't leave if you weren't even there
-            log.info(f"Attempted to remove player {player} but failed because they weren't in the queue to begin with."
-                     f" {contextify(ctx)}")
-            await followup_send(ctx, get("queue.not_in_game"), ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+        if not MatchmakingInterface._is_queued_player(
+            self, player.id
+        ):  # Can't leave if you weren't even there
+            log.info(
+                f"Attempted to remove player {player} but failed because they weren't in the queue to begin with."
+                f" {contextify(ctx)}"
+            )
+            await followup_send(
+                ctx,
+                get("queue.not_in_game"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
         else:
             MatchmakingInterface._remove_queued_player(self, player.id)
             # Nobody is left lol
             if not len(self.queued_players):
-                log.info(f"Call to leave_game left no players in lobby, so ending game. {contextify(ctx)}")
-                await followup_send(ctx, get("queue.game_cancelled_last_player"),
-                                    ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER)
+                log.info(
+                    f"Call to leave_game left no players in lobby, so ending game. {contextify(ctx)}"
+                )
+                await followup_send(
+                    ctx,
+                    get("queue.game_cancelled_last_player"),
+                    ephemeral=True,
+                    delete_after=EPHEMERAL_DELETE_AFTER,
+                )
                 await self.message.delete()  # Remove matchmaking message
                 self.outcome = False
                 return
 
-            if player.id == self.creator.id:  # Update creator if the person leaving was the creator.
+            if (
+                player.id == self.creator.id
+            ):  # Update creator if the person leaving was the creator.
                 MatchmakingInterface._rotate_creator_if_needed(self, player.id)
                 log.debug(
                     "Successful leave_game removed creator=%s and reassigned creator=%s. %s",

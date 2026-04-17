@@ -7,13 +7,13 @@ future localization support.
 
 Usage:
     from utils.locale import get, fmt
-    
+
     # Simple string retrieval
     title = get("help.main.title")  # Returns the string
-    
+
     # String with variable formatting
     welcome = fmt("welcome.title", name="PlayCord")  # Returns formatted string
-    
+
     # Get error messages
     error = get_error("not_in_matchmaking")  # Returns (description, suggestion)
 """
@@ -45,12 +45,19 @@ def _load_locale(locale_code: str) -> dict:
     if locale_code in _locale_cache:
         return _locale_cache[locale_code]
 
-    locale_path = Path(__file__).parent.parent / "configuration" / "locale" / f"{locale_code}.toml"
+    locale_path = (
+        Path(__file__).parent.parent
+        / "configuration"
+        / "locale"
+        / f"{locale_code}.toml"
+    )
 
     if not locale_path.exists():
         if locale_code != DEFAULT_LOCALE:
             # Fall back to default locale
-            log.warning("Locale %r not found, falling back to %r", locale_code, DEFAULT_LOCALE)
+            log.warning(
+                "Locale %r not found, falling back to %r", locale_code, DEFAULT_LOCALE
+            )
             return _load_locale(DEFAULT_LOCALE)
         else:
             raise FileNotFoundError(f"Default locale file not found: {locale_path}")
@@ -78,8 +85,8 @@ def get_locale() -> str:
 def _get_nested(data: dict, key: str, default: Any = None) -> Any:
     """
     Get a value from a nested dictionary using dot notation.
-    
-    Example: _get_nested(data, "help.main.title") 
+
+    Example: _get_nested(data, "help.main.title")
              returns data["help"]["main"]["title"]
     """
     keys = key.split(".")
@@ -130,12 +137,12 @@ def set_command_mentions(command_mentions: dict[str, str] | None) -> None:
 def get(key: str, default: str = None, locale: str = None) -> str:
     """
     Get a localized string by its key.
-    
+
     Args:
         key: Dot-notation path to the string (e.g., "help.main.title")
         default: Default value if key is not found (defaults to key itself)
         locale: Optional locale override (uses current locale if not specified)
-    
+
     Returns:
         The localized string, or the default/key if not found
     """
@@ -148,7 +155,9 @@ def get(key: str, default: str = None, locale: str = None) -> str:
         if default is not None:
             return _replace_command_tokens(str(default))
         log.warning("Missing locale key: %r in locale %r", key, locale)
-        return f"[{key}]"  # Return key wrapped in brackets to make missing strings visible
+        return (
+            f"[{key}]"  # Return key wrapped in brackets to make missing strings visible
+        )
 
     return _replace_command_tokens(str(result))
 
@@ -156,19 +165,19 @@ def get(key: str, default: str = None, locale: str = None) -> str:
 def fmt(key: str, default: str = None, locale: str = None, **kwargs) -> str:
     """
     Get a localized string and format it with the provided variables.
-    
+
     Uses Python's str.format() for variable substitution.
     Variables in the string should be marked with {variable_name}.
-    
+
     Args:
         key: Dot-notation path to the string
         default: Default value if key is not found
         locale: Optional locale override
         **kwargs: Variables to substitute in the string
-    
+
     Returns:
         The formatted localized string
-    
+
     Example:
         fmt("welcome.title", name="PlayCord")
         # If welcome.title = "👋 Welcome to {name}!"
@@ -212,13 +221,13 @@ def get_error(error_key: str, locale: str = None) -> str:
 def get_dict(key: str, locale: str = None) -> dict:
     """
     Get a dictionary of strings from a locale section.
-    
+
     Useful for getting all values in a section, like textify variations.
-    
+
     Args:
         key: Dot-notation path to the section (e.g., "buttons.textify.join")
         locale: Optional locale override
-    
+
     Returns:
         The dictionary at that key, or empty dict if not found
     """
@@ -235,11 +244,11 @@ def get_dict(key: str, locale: str = None) -> dict:
 def has_key(key: str, locale: str = None) -> bool:
     """
     Check if a locale key exists.
-    
+
     Args:
         key: Dot-notation path to check
         locale: Optional locale override
-    
+
     Returns:
         True if the key exists, False otherwise
     """
@@ -251,7 +260,7 @@ def has_key(key: str, locale: str = None) -> bool:
 def reload_locale(locale_code: str = None) -> None:
     """
     Clear the cache and reload a locale file.
-    
+
     Args:
         locale_code: Specific locale to reload, or None to clear all
     """
@@ -283,11 +292,11 @@ def button(name: str) -> str:
 def plural(word: str, count: int) -> str:
     """
     Get the correct singular/plural form.
-    
+
     Args:
-        word: Base word (e.g., "game", "player")  
+        word: Base word (e.g., "game", "player")
         count: The count to determine plurality
-    
+
     Returns:
         The singular or plural form
     """

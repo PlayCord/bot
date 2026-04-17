@@ -32,4 +32,3 @@ def render_key_value_svg(
         y += row_height
     lines.append("</svg>")
     return "".join(lines).encode("utf-8")
-
