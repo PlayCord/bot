@@ -32,7 +32,8 @@ from utils.discord_utils import (
     response_send_message,
 )
 from utils.emojis import get_emoji_string
-from utils.interfaces import MatchmakingInterface, user_in_active_game
+from utils.interfaces import user_in_active_game
+from utils.matchmaking_interface import MatchmakingInterface
 from utils.locale import fmt, get
 from utils.logging_config import get_logger
 from utils.matchmaking_user_map import matchmaking_by_user_id
@@ -314,7 +315,7 @@ class GamesCog(commands.Cog):
             return
         game_type = game_row.game_name
         loading = await ctx.channel.send(
-            **container_send_kwargs(LoadingContainer(message=get_emoji_string("loading")).remove_footer()))
+            **container_send_kwargs(LoadingContainer().remove_footer()))
         mm = MatchmakingInterface(ctx.user, game_type, loading, rated=match.is_rated, private=False)
         if mm.failed is not None:
             f_log.error("MatchmakingInterface failed during rematch seed: %s", mm.failed)
@@ -382,7 +383,7 @@ async def begin_game(ctx: discord.Interaction, game_type: str, rated: bool = Tru
 
     await response_send_message(
         ctx,
-        **container_send_kwargs(LoadingContainer(message=get_emoji_string("loading")).remove_footer()),
+        **container_send_kwargs(LoadingContainer().remove_footer()),
     )
     game_overview_message = await ctx.original_response()
     try:

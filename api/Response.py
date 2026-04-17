@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Any
 
 from api.MessageComponents import Container, Message
+from api.exceptions import ContainerValidationError
 from configuration.constants import ERROR_COLOR, INFO_COLOR
 
 

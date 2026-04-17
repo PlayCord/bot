@@ -10,11 +10,15 @@ import discord
 from discord import SelectOption
 
 from api.Player import Player
+from api.exceptions import ContainerValidationError
 from utils.emojis import parse_discord_emoji
 from utils.table_renderer import render_table_as_png
 
 ButtonStyle = discord.ButtonStyle
 SeparatorSpacing = discord.SeparatorSpacing
+
+# Discord embed field limit
+MAX_CONTAINER_CHILDREN = 25
 
 
 class _BuildContext:
@@ -319,7 +323,12 @@ class Container(_GroupedNode):
         self.spoiler = spoiler
 
     def build(self, ctx: _BuildContext) -> discord.ui.Container:
-        built = [build_child(child, ctx) for child in _normalize_row_children(self.children)]
+        normalized_children = _normalize_row_children(self.children)
+        if len(normalized_children) > MAX_CONTAINER_CHILDREN:
+            raise ContainerValidationError(
+                f"Container has {len(normalized_children)} children, exceeds limit of {MAX_CONTAINER_CHILDREN}"
+            )
+        built = [build_child(child, ctx) for child in normalized_children]
         return discord.ui.Container(*built, accent_color=self.accent_color, spoiler=self.spoiler)
 
 

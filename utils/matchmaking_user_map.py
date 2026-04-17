@@ -8,5 +8,5 @@ from configuration.constants import IN_MATCHMAKING
 
 
 def matchmaking_by_user_id() -> dict[int, Any]:
-    """Map Discord user id -> :class:`~utils.interfaces.MatchmakingInterface` (mirrors ``IN_MATCHMAKING`` keys)."""
+    """Map Discord user id -> :class:`~utils.matchmaking_interface.MatchmakingInterface` (mirrors ``IN_MATCHMAKING`` keys)."""
     return {p.id: q for p, q in IN_MATCHMAKING.items()}

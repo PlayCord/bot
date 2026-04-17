@@ -72,7 +72,7 @@ db_failed = "Could not load player data for rematch."
 description = "View a paginated move replay for a completed match in this server"
 param_match_ref = "Public match code (thread title) or legacy numeric match id"
 title = "Replay · {id} · {game}"
-no_data = "No replay log was stored for `{match_display}`."
+no_data = "No replay log available for `{match_display}`.\n\nReplays are only stored for games that complete normally (not crashes)."
 empty_page = "Empty page."
 
 [commands.feedback]
@@ -468,7 +468,7 @@ rematch_invalid = "That rematch control is not valid. Start a new lobby with {co
 
 rematch_unavailable = "That match can't be rematched right now. It may still be in progress or missing from the database."
 
-replay_not_found = "No match with that ID exists in this server, or you may not view it here. Use {command:playcord history} to find match IDs from your recent games."
+replay_not_found = "🔍 Match ID `{match_ref}` not found.\n\nUse {command:playcord history} to browse your recent games and find valid match IDs."
 
 player_not_found = "I couldn't find any data for **{player_name}**. This player may not have played any games yet."
 
@@ -511,8 +511,22 @@ default_title = "Warning"
 # LOADING MESSAGES
 # =============================================================================
 [loading]
-default = "Loading..."
-description = "Please wait while we fetch your data..."
+default = "Fetching your data"
+description_options = [
+    "Burning rubber...",
+    "Getting the board ready...",
+    "Shuffling the deck...",
+    "Spinning up the servers...",
+    "Loading the fun...",
+    "Waking up the bots...",
+    "Setting up the game...",
+    "Preparing for battle...",
+    "Charging the engines...",
+    "Warming up...",
+    "Almost there...",
+    "Just a moment...",
+    "If you follow @quantumbagel on GitHub, it'll load faster..."
+]
 
 # =============================================================================
 # SYSTEM ERROR EMBED
@@ -555,6 +569,8 @@ description = "Thanks so much for playing! Here are the rankings:"
 field_global_summary = "Result"
 field_rankings = "Rankings:"
 field_summary = "How it ended"
+field_forfeits = "Forfeited"
+footer_with_id = "Replay ID: {replay_id}"
 
 # =============================================================================
 # EMBEDS - INVITE

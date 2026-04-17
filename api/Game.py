@@ -255,7 +255,7 @@ class Game(ABC):
         """
         Return True when :meth:`outcome` is non-None (match decided: win, draw, etc.).
 
-        Used by :class:`~utils.interfaces.GameInterface` to reject moves after the game ends.
+        Used by :class:`~utils.game_interface.GameInterface` to reject moves after the game ends.
         """
         return self.outcome() is not None
 

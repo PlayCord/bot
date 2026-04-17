@@ -36,14 +36,5 @@ button_emojis:
 # Game emojis - Unicode emojis for each game type
 game_emojis:
   tictactoe: "❌"
-  liars: "🎲"
-  test: "🧪"
   connectfour: "🔴"
-  reversi: "⚫"
   nim: "🎯"
-  mastermind: "🧩"
-  battleship: "🚢"
-  nothanks: "🃏"
-  blackjack: "🂡"
-  poker: "♠️"
-  chess: "♟️"

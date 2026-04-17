@@ -1,4 +1,5 @@
 import os
+import random
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, Iterable
@@ -6,6 +7,7 @@ from typing import Any, Iterable
 import discord
 
 from api.Game import resolve_player_count
+from api.exceptions import ContainerValidationError
 from configuration.constants import (
     ERROR_COLOR,
     GAME_COLOR,
@@ -16,7 +18,7 @@ from configuration.constants import (
 )
 from utils.conversion import column_elo, column_names, column_turn, contextify
 from utils.emojis import get_emoji_string
-from utils.locale import fmt, get
+from utils.locale import fmt, get, get_dict
 
 _TEXT_DISPLAY_MAX = 4000
 # Discord TextDisplay / message content limit (public alias for callers outside this module)
@@ -26,7 +28,8 @@ _FIELD_LINE_SAFE_MAX = 500
 # Embed field value max minus small safety margin for markdown/formatting overhead
 _FIELD_VALUE_SAFE = _FIELD_VALUE_MAX - 7
 
-
+# Discord's maximum embed fields
+MAX_EMBED_FIELDS = 25
 def _chunk_text(text: str, *, max_len: int = _TEXT_DISPLAY_MAX) -> list[str]:
     if not text:
         return []
@@ -44,11 +47,11 @@ def _chunk_text(text: str, *, max_len: int = _TEXT_DISPLAY_MAX) -> list[str]:
 
 
 def _build_container_view(
-    body_text: str,
-    *,
-    accent_color: discord.Color | int | None = None,
-    media_urls: Iterable[str] | None = None,
-    thumbnail_url: str | None = None,
+        body_text: str,
+        *,
+        accent_color: discord.Color | int | None = None,
+        media_urls: Iterable[str] | None = None,
+        thumbnail_url: str | None = None,
 ) -> discord.ui.LayoutView:
     view = discord.ui.LayoutView(timeout=None)
     container = discord.ui.Container(accent_color=accent_color)
@@ -80,10 +83,10 @@ def container_to_markdown(card: "CustomContainer | str | None") -> str:
 
 
 def container_send_kwargs(
-    card: "CustomContainer | str",
-    *,
-    files: list[discord.File] | None = None,
-    content: str | None = None,
+        card: "CustomContainer | str",
+        *,
+        files: list[discord.File] | None = None,
+        content: str | None = None,
 ) -> dict[str, Any]:
     if isinstance(card, CustomContainer):
         body = card.to_markdown()
@@ -106,10 +109,10 @@ def container_send_kwargs(
 
 
 def container_edit_kwargs(
-    card: "CustomContainer | str",
-    *,
-    attachments: list[discord.File] | None = None,
-    content: str | None = None,
+        card: "CustomContainer | str",
+        *,
+        attachments: list[discord.File] | None = None,
+        content: str | None = None,
 ) -> dict[str, Any]:
     if isinstance(card, CustomContainer):
         body = card.to_markdown()
@@ -132,10 +135,10 @@ def container_edit_kwargs(
 
 
 def lines_to_container_sections(
-    lines: list[str],
-    *,
-    value_max: int = _FIELD_VALUE_MAX,
-    line_max: int = _FIELD_LINE_SAFE_MAX,
+        lines: list[str],
+        *,
+        value_max: int = _FIELD_VALUE_MAX,
+        line_max: int = _FIELD_LINE_SAFE_MAX,
 ) -> list[str]:
     safe: list[str] = []
     for ln in lines:
@@ -162,13 +165,13 @@ def lines_to_container_sections(
 
 
 def append_container_sections(
-    card: "CustomContainer",
-    chunks: list[str],
-    *,
-    first_name: str,
-    more_name: str = "\u200b",
-    truncated_note: str | None = None,
-    max_fields: int = 24,
+        card: "CustomContainer",
+        chunks: list[str],
+        *,
+        first_name: str,
+        more_name: str = "\u200b",
+        truncated_note: str | None = None,
+        max_fields: int = 24,
 ) -> None:
     vm = _FIELD_VALUE_MAX
     for i, chunk in enumerate(chunks):
@@ -211,6 +214,11 @@ class CustomContainer:
         return self
 
     def add_field(self, *, name: str, value: Any, inline: bool = True):
+        if len(self.fields) >= MAX_EMBED_FIELDS:
+            raise ContainerValidationError(
+                f"Cannot add field: container already has {MAX_EMBED_FIELDS} fields (Discord's limit). "
+                f"Field name: {name[:50]}"
+            )
         self.fields.append(ContainerField(str(name), str(value), inline))
         return self
 
@@ -233,6 +241,13 @@ class CustomContainer:
             out.append(self.image_url)
         return out
 
+    def validate(self) -> None:
+        """Validate container doesn't exceed Discord's limits."""
+        if len(self.fields) > MAX_EMBED_FIELDS:
+            raise ContainerValidationError(
+                f"Container has {len(self.fields)} fields, exceeds limit of {MAX_EMBED_FIELDS}"
+            )
+
     def to_markdown(self) -> str:
         parts: list[str] = []
         if self.title:
@@ -246,18 +261,18 @@ class CustomContainer:
         return "\n\n".join(p for p in parts if p).strip()
 
     def to_send_kwargs(
-        self,
-        *,
-        files: list[discord.File] | None = None,
-        content: str | None = None,
+            self,
+            *,
+            files: list[discord.File] | None = None,
+            content: str | None = None,
     ) -> dict[str, Any]:
         return container_send_kwargs(self, files=files, content=content)
 
     def to_edit_kwargs(
-        self,
-        *,
-        attachments: list[discord.File] | None = None,
-        content: str | None = None,
+            self,
+            *,
+            attachments: list[discord.File] | None = None,
+            content: str | None = None,
     ) -> dict[str, Any]:
         return container_edit_kwargs(self, attachments=attachments, content=content)
 
@@ -304,9 +319,15 @@ class UserErrorContainer(CustomContainer):
 
 class LoadingContainer(CustomContainer):
     def __init__(self, message: str = None, **kwargs):
-        kwargs["color"] = INFO_COLOR
-        kwargs["title"] = f"⏳ {message or get('loading.default')}"
-        kwargs["description"] = get("loading.description")
+        kwargs["title"] = f"{message or get('loading.default')}"
+        # Get random tagline from the list
+        loading_dict = get_dict("loading")
+        taglines = loading_dict.get("description_options", [])
+        if taglines:
+            description = random.choice(taglines)
+        else:
+            description = "{no_taglines}"  # Make it clear it's missing data
+        kwargs["description"] = description
         super().__init__(**kwargs)
 
 
@@ -333,7 +354,8 @@ class ErrorContainer(CustomContainer):
             )
         if reason is not None:
             reason = reason.replace(current_directory, "")
-            text_fields = lines_to_container_sections(reason.split("\n"), value_max=_FIELD_VALUE_SAFE, line_max=_FIELD_LINE_SAFE_MAX)
+            text_fields = lines_to_container_sections(reason.split("\n"), value_max=_FIELD_VALUE_SAFE,
+                                                      line_max=_FIELD_LINE_SAFE_MAX)
             for i, section in enumerate(text_fields):
                 self.add_field(
                     name=f"{get_emoji_string('hmm')} {fmt('system_error.reason_field', part=i + 1, total=len(text_fields))}",
@@ -351,7 +373,8 @@ class GameOverviewContainer(CustomContainer):
             description=get("embeds.game_overview.description"),
         )
         self.add_field(name=get("embeds.game_overview.field_players"), value=column_names(players), inline=True)
-        self.add_field(name=get("embeds.game_overview.field_ratings"), value=column_elo(players, game_type), inline=True)
+        self.add_field(name=get("embeds.game_overview.field_ratings"), value=column_elo(players, game_type),
+                       inline=True)
         self.add_field(name=get("embeds.game_overview.field_turn"), value=column_turn(players, turn), inline=True)
 
 
@@ -366,12 +389,14 @@ def _outcome_summaries_value(players, summaries: dict[int, str]) -> str:
 
 class GameOverContainer(CustomContainer):
     def __init__(
-        self,
-        rankings,
-        game_name,
-        players=None,
-        outcome_summaries: dict[int, str] | None = None,
-        outcome_global_summary: str | None = None,
+            self,
+            rankings,
+            game_name,
+            players=None,
+            outcome_summaries: dict[int, str] | None = None,
+            outcome_global_summary: str | None = None,
+            replay_id: str | int | None = None,
+            forfeited_player_ids: set[int] | None = None,
     ):
         super().__init__(
             title=fmt("embeds.game_over.title", game_name=game_name),
@@ -392,6 +417,21 @@ class GameOverContainer(CustomContainer):
                     value=block,
                     inline=False,
                 )
+
+        # Show forfeit notice if applicable
+        if forfeited_player_ids and players:
+            forfeited_mentions = [p.mention for p in players if p.id in forfeited_player_ids]
+            if forfeited_mentions:
+                self.add_field(
+                    name=get("embeds.game_over.field_forfeits"),
+                    value=", ".join(forfeited_mentions),
+                    inline=False,
+                )
+
+        # Add replay ID footer
+        if replay_id:
+            footer_text = fmt("embeds.game_over.footer_with_id", replay_id=replay_id)
+            self.set_footer(text=footer_text)
 
 
 class InviteContainer(CustomContainer):
@@ -573,15 +613,15 @@ class HelpGameInfoContainer(CustomContainer):
 
 class MatchmakingContainer(CustomContainer):
     def __init__(
-        self,
-        game_name: str,
-        game_id: str,
-        creator,
-        players: list,
-        min_players: int,
-        max_players: int,
-        rated: bool = True,
-        private: bool = False,
+            self,
+            game_name: str,
+            game_id: str,
+            creator,
+            players: list,
+            min_players: int,
+            max_players: int,
+            rated: bool = True,
+            private: bool = False,
     ):
         status = get("embeds.matchmaking.status_private") if private else get("embeds.matchmaking.status_public")
         rating_status = get("embeds.matchmaking.rated") if rated else get("embeds.matchmaking.unrated")

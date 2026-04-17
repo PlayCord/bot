@@ -42,7 +42,8 @@ from utils.conversion import contextify
 from utils.discord_utils import followup_send, format_user_error_message, interaction_check, response_send_message
 from utils.emojis import get_emoji_string, get_game_emoji
 from utils.graphs import generate_elo_chart
-from utils.interfaces import MatchmakingInterface, user_in_active_game
+from utils.interfaces import user_in_active_game
+from utils.matchmaking_interface import MatchmakingInterface
 from utils.locale import fmt, get, plural
 from utils.logging_config import get_logger
 from utils.matchmaking_user_map import matchmaking_by_user_id
