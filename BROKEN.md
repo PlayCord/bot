@@ -3,6 +3,10 @@
 The idea of this file is to store everything known to be broken, as well as the new features I want to add. When this is
 empty, I will release 1.0.0
 
+Note: the 2026 internal architecture refactor (typed `playcord/` package, programmatic command tree, DI container,
+tooling/CI, and shared UI/error primitives) is now tracked in code rather than in this backlog file. Items below are
+product-facing follow-up work that still remains.
+
 ## Features (focus on this)
 
 - No match replay functionality (viewer / sharing)
@@ -20,7 +24,7 @@ empty, I will release 1.0.0
   - **Still TODO:** Web or richer replay UI, ensuring every randomizing game logs stochastic outcomes, broader testing.
 - We need a way to prevent people from sending messages in game thread that are not commands, or people spectating
 from sending anything at all. The issue is that the app command and send message privileges are combined.
-  - **Partial:** `THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY` in `configuration/constants.py` (default off) deletes
+  - **Partial:** `THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY` in `playcord/infrastructure/app_constants.py` (default off) deletes
   non-`/` messages from **participants** in active game threads. Spectators are still non-participants (existing
   warn/delete policy applies); true “spectators silent” may need permission tweaks or stricter deletion.
 - Better match history summaries (foundation)

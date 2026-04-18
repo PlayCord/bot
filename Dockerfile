@@ -1,11 +1,9 @@
 FROM python:3.12-slim
 
-# Create app dir
 WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1
 
-# Install system deps, fonts and build tools needed for some Python packages
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git \
@@ -20,21 +18,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -f -v || true
 
-# Install Python dependencies. Keep this layer above copying source so rebuilds are faster
-RUN pip install --no-cache-dir \
-    ruamel.yaml \
-    discord \
-    cairosvg \
-    svg.py \
-    trueskill \
-    mpmath \
-    emoji \
-    psutil \
-    "psycopg[binary,pool]" \
-    matplotlib
+COPY pyproject.toml README.md /app/
+COPY playcord /app/playcord
+RUN pip install --no-cache-dir ".[dev]"
 
-# Copy project files (can be overridden by docker-compose bind mount in dev)
-COPY . /app
-
-CMD ["python", "bot.py"]
+CMD ["python", "-m", "playcord.presentation.bot"]
 

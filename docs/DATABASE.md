@@ -3,7 +3,11 @@
 ## Overview
 
 PlayCord uses **PostgreSQL 14+** (recommended: 16) for persistent storage of game data, user ratings, match history, and
-analytics. The database is designed for:
+analytics. Runtime access now flows through `playcord/infrastructure/db/`, where `PoolManager` owns connections,
+`MigrationRunner` handles startup maintenance, and repositories (`PlayerRepository`, `GameRepository`, `MatchRepository`,
+`ReplayRepository`, `AnalyticsRepository`) provide the application-layer interface.
+
+The database is designed for:
 
 - **Extensibility**: Easy to add new games and features
 - **Data Integrity**: Comprehensive constraints and foreign keys

@@ -16,8 +16,8 @@
 ## About
 
 PlayCord aims to provide an easy-to-use framework and bot that can host classic paper-and-pencil games on Discord. The
-project focuses on an extensible game API, server-side match state management, SVG rendering for game boards, and a
-PostgreSQL-backed leaderboard with TrueSkill-style ratings.
+project now uses a layered `playcord/` package for domain logic, repositories, services, commands, and UI, while
+legacy modules remain only as compatibility shims during the migration.
 
 ### TLDR: Games, on Discord, without needing Activities.
 
@@ -72,8 +72,8 @@ PostgreSQL-backed leaderboard with TrueSkill-style ratings.
 - Docker & Docker Compose
 - Discord bot token
 
-> **Note:** Docker Compose is the only officially supported setup method. Everything runs in containers - you do not
-> need Python installed locally.
+> **Note:** Docker Compose is the easiest supported setup method. The repo also supports local Python development via
+> `pip install -e .[dev]`.
 
 ### Installation
 
@@ -87,11 +87,11 @@ cd playcord
 2. **Configure the bot:**
 
 ```bash
-cp configuration/config.yaml.example configuration/config.yaml
+cp playcord/configuration/config.yaml.example playcord/configuration/config.yaml
 # Edit config.yaml with your Discord bot token
 ```
 
-Open `configuration/config.yaml` and add your Discord bot token and any other settings you want to customize.
+Open `playcord/configuration/config.yaml` and add your Discord bot token and any other settings you want to customize.
 
 3. **Start everything with Docker Compose:**
 
@@ -100,20 +100,20 @@ docker compose up -d
 ```
 
 This will start both the PostgreSQL database and the bot in containers. The database will be automatically initialized
-with the schema on first run.
+with the schema on first run, and the bot entrypoint will run through `playcord.presentation.bot`.
 
 That's it! Your bot is now running. Use `docker compose logs -f bot` to view the bot logs.
 
 ## API Usage
 
-PlayCord provides a simple API for creating new games. See [docs/API.md](docs/API.md) for full documentation.
+PlayCord provides a plugin API for creating new games. See [docs/API.md](docs/API.md) for the current plugin contract.
 
 ### Quick Example
 
 ```python
-from api.Game import Game
-from api.Command import Command
-from api.MessageComponents import Description, Button
+from playcord.discord_games.command import Command
+from playcord.discord_games.game import Game
+from playcord.discord_games.message_components import Message, TextDisplay
 
 
 class MyGame(Game):
@@ -126,7 +126,7 @@ class MyGame(Game):
         self.turn = 0
 
     def state(self):
-        return [Description(f"Turn: {self.current_turn().mention}")]
+        return Message(TextDisplay(f"Turn: {self.current_turn().mention}"))
 
     def current_turn(self):
         return self.players[self.turn]
@@ -157,24 +157,28 @@ Connect Four, and Battleship peek views when `cairosvg` is available.
 
 ## Project Structure
 
+Runtime code and bundled assets live under the `playcord` Python package:
+
 ```
 playcord/
-├── api/                 # Game API interfaces
-│   ├── Game.py         # Base game class
-│   ├── Player.py       # Player representation
-│   ├── Command.py      # Move/action definitions
-│   └── MessageComponents.py  # UI components
-├── games/              # Game implementations
-├── cogs/               # Discord bot commands
-├── utils/              # Utilities (database, views, etc.)
-├── configuration/      # Config files
-├── docs/               # Documentation
-└── tests/              # Test suite
+├── domain/              # Pure game/rating/player abstractions
+├── infrastructure/      # Config, locale, logging, DB pool/repos, SQL assets
+├── application/       # Matchmaking/session/replay/stats services
+├── presentation/      # Bot entry, commands, cogs, UI, interaction router
+├── games/             # Plugin registry (metadata + legacy game loader)
+├── games_impl/        # Bundled Discord game classes (Tic-tac-toe, Nim, Connect Four)
+├── discord_games/     # Shared Discord primitives (Game ABC, components, Response)
+├── utils/             # Database layer, Discord helpers, analytics, locale shim
+├── configuration/   # config.yaml, emoji.yaml, locale TOML
+└── cli/               # `playcord-cli` entrypoints
+
+docs/                    # Documentation (outside the installable package)
+tests/                   # Test suite
 ```
 
-## Planned features
+## Status
 
-See [BROKEN.md](BROKEN.md) for a running list of known issues and planned features.
+See [BROKEN.md](BROKEN.md) for the remaining product backlog and follow-up work.
 
 ## License
 

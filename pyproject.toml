@@ -1,6 +1,23 @@
 [project]
 name = "playcord"
 version = "0.6.0"
+description = "PlayCord is a discord bot for playing minigames."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+    { name = "Julian Reder" },
+]
+maintainers = [
+    { name = "Julian Reder" }
+]
+keywords = ["discord-bot", "games", "playcord"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Private :: Do Not Upload"
+]
 dependencies = [
     "ruamel.yaml",
     "discord.py>=2.7",
@@ -14,24 +31,70 @@ dependencies = [
     "psutil",
     "matplotlib"
 ]
-requires-python = ">=3.10"
-authors = [
-    { name = "Julian Reder" },
-]
-maintainers = [
-    { name = "Julian Reder" }
-]
-description = "PlayCord is a discord bot for playing minigames."
-readme = "README.md"
-keywords = ["discord-bot"]
-classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
-    "Programming Language :: Python",
-    "Private :: Do Not Upload"
+
+[project.optional-dependencies]
+dev = [
+    "black>=25.1.0",
+    "mypy>=1.15.0",
+    "pre-commit>=4.2.0",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=6.1.1",
+    "ruff>=0.11.7",
 ]
 
-
+[project.scripts]
+playcord = "playcord.presentation.bot:main"
+playcord-cli = "playcord.cli.__main__:main"
 
 [project.urls]
 Repository = "https://github.com/PlayCord/bot.git"
 "Bug Tracker" = "https://github.com/PlayCord/bot/issues"
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+strict_equality = true
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+mypy_path = ["."]
+exclude = ["^tests/"]
+
+[[tool.mypy.overrides]]
+module = [
+    "discord.*",
+    "trueskill",
+    "cairosvg",
+    "svg",
+    "emoji",
+    "matplotlib.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra"
+testpaths = ["tests"]
+pythonpath = ["."]

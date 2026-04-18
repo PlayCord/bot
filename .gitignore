@@ -1,1 +1,14 @@
-configuration/config.yaml
+playcord/configuration/config.yaml
+.DS_Store
+.idea/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.coverage
+.mypy_cache/
+.ruff_cache/
+.venv/
+changes.diff
+playcord.git/

@@ -11,10 +11,10 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./database/views.sql:/docker-entrypoint-initdb.d/02-views.sql
-      - ./database/functions.sql:/docker-entrypoint-initdb.d/03-functions.sql
-      - ./database/seed.sql:/docker-entrypoint-initdb.d/04-seed.sql
+      - ./playcord/infrastructure/db/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./playcord/infrastructure/db/sql/views.sql:/docker-entrypoint-initdb.d/02-views.sql
+      - ./playcord/infrastructure/db/sql/functions.sql:/docker-entrypoint-initdb.d/03-functions.sql
+      - ./playcord/infrastructure/db/sql/seed.sql:/docker-entrypoint-initdb.d/04-seed.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U playcord"]
       interval: 10s
@@ -41,8 +41,7 @@ services:
       PLAYCORD_DB_NAME: playcord
     volumes:
       - ./:/app
-    # Use the Dockerfile build which installs fonts and Python deps at build time.
-    command: ["python", "bot.py"]
+    command: ["python", "-m", "playcord.presentation.bot"]
     networks:
       - playcord_network
 

@@ -1,344 +1,136 @@
-# PlayCord API Documentation
+# PlayCord Plugin API
 
-This document describes the core API for creating games in PlayCord.
+The refactored PlayCord runtime is organized around a typed core plus an explicit plugin registry. New games are
+registered under `playcord/games/` and expose metadata that the command tree, lobby UI, rating system, and replay
+pipeline can all consume without special-case code.
 
-## Overview
+## Architecture
 
-PlayCord uses a component-based architecture where games inherit from the `Game` base class and implement required
-methods. The framework handles Discord integration, turn management, and rating updates.
+PlayCord is now split into four layers:
 
-## Quick Start
+- `playcord/domain/`: pure game, rating, replay, and player abstractions
+- `playcord/infrastructure/`: config, locale, logging, DB pools, migrations, repositories
+- `playcord/application/`: session, replay, matchmaking, stats, and analytics services
+- `playcord/presentation/`: Discord commands, interaction routing, error handling, and UI views
+
+Game plugins live under `playcord/games/<name>/` and are loaded explicitly from `playcord/games/__init__.py`.
+
+## Plugin Contract
+
+Every game package exposes a `plugin` object implementing the `GamePlugin` protocol from `playcord/games/plugin.py`.
+
+Current built-in games still use `LegacyGamePlugin` adapters:
 
 ```python
-from api.Game import Game
-from api.Command import Command
-from api.Arguments import Integer
-from api.Player import Player
-from api.MessageComponents import Description, Button, ButtonStyle
-from api.Response import Response
+from playcord.games.plugin import LegacyGamePlugin
+
+plugin = LegacyGamePlugin("tictactoe", "games.TicTacToe", "TicTacToeGame")
+```
+
+The long-term native shape is:
+
+```python
+from playcord.domain import Game, GameMetadata, Move, MoveParameter, ParameterKind
 
 
 class MyGame(Game):
-    name = "My Game"
-    player_count = 2
-    moves = [Command(name="move", description="Make a move", callback="do_move")]
-
-    def __init__(self, players):
-        self.players = players
-        self.turn = 0
-
-    def state(self):
-        return [Description(f"Turn: {self.current_turn().mention}")]
+    metadata = GameMetadata(
+        key="mygame",
+        name="My Game",
+        summary="A short one-line summary",
+        description="Longer explanation of how the game works.",
+        move_group_description="Commands for My Game",
+        player_count=2,
+        author="@you",
+        version="1.0",
+        author_link="https://github.com/you",
+        source_link="https://github.com/you/mygame",
+        time="5min",
+        difficulty="Easy",
+        moves=(
+            Move(
+                name="move",
+                description="Make a move",
+                options=(
+                    MoveParameter(
+                        name="column",
+                        description="Column number",
+                        kind=ParameterKind.integer,
+                        min_value=1,
+                        max_value=7,
+                    ),
+                ),
+                callback="move",
+            ),
+        ),
+    )
 
     def current_turn(self):
-        return self.players[self.turn]
-
-    def do_move(self, player):
-        self.turn = (self.turn + 1) % len(self.players)
-        return None  # Silent success
+        ...
 
     def outcome(self):
-        return None  # Game ongoing
+        ...
 ```
 
----
+## Canonical Domain Types
 
-## Core Classes
+Use `playcord/domain/` as the source of truth:
 
-### Game (api/Game.py)
+- `Player`: canonical player model for Discord users, bots, and ratings
+- `Rating`: TrueSkill wrapper with conservative/display helpers
+- `Move` and `MoveParameter`: typed command metadata
+- `MatchOptionSpec`: lobby customization definition
+- `GameMetadata`: plugin-facing metadata consumed by commands and UI
+- `DomainError` hierarchy: `ValidationError`, `RuleViolation`, `IllegalMove`, `NotPlayersTurn`
 
-The base class for all games. Inherit from this and implement required methods.
+Discord-facing game primitives (base `Game` class, `Message`/`Container` trees, `Command`/`Response`, etc.) live in
+`playcord/discord_games/`. Domain types (`playcord/domain/`) stay separate from Discord presentation.
 
-#### Class Attributes
+## Command Registration
 
-| Attribute                        | Type               | Description                                    |
-|----------------------------------|--------------------|------------------------------------------------|
-| `name`                           | `str`              | Human-readable game name                       |
-| `player_count`                   | `int \| list[int]` | Allowed player counts (e.g., `2` or `[2,3,4]`) |
-| `description`                    | `str`              | Full game description                          |
-| `summary`                        | `str`              | Short description for `/play` command          |
-| `move_command_group_description` | `str`              | Description for move commands                  |
-| `moves`                          | `list[Command]`    | Available player commands                      |
-| `bots`                           | `dict[str, Bot]`   | Optional bot difficulties (for AI opponents)   |
-| `author`, `version`              | `str`              | Game metadata                                  |
-| `time`, `difficulty`             | `str`              | Estimated duration and difficulty              |
-| `player_order`                   | `PlayerOrder`      | How to order players (default: `RANDOM`)       |
+Slash commands are built programmatically in `playcord/presentation/commands/tree.py`. The runtime no longer relies on
+generated source strings or `exec()` to define move commands.
 
-#### Required Methods
+The command tree reads plugin metadata and creates:
 
-```python
-def __init__(self, players: list[Player]) -> None:
-    """Initialize game state with the given players."""
+- one top-level `/play` command
+- one slash group per registered game
+- one move command per `Move`
+- autocomplete handlers from `MoveParameter.autocomplete`
 
+## UI Model
 
-def state(self) -> list[MessageComponent]:
-    """Return current game state as UI components."""
+Shared UI primitives live under `playcord/presentation/ui/`:
 
+- `View`
+- `Container`
+- `Section`
+- `TextDisplay`
+- `Button`
+- `Select`
+- `Media`
 
-def current_turn(self) -> Player:
-    """Return the player whose turn it is. Should be O(1)."""
+High-level views such as `ErrorView`, `UserErrorView`, `LobbyView`, and `BoardView` wrap those primitives so commands
+and interaction handlers can share one styling surface.
 
+## Error Handling
 
-def outcome(self) -> Player | list[list[Player]] | None:
-    """
-    Return game result:
-    - Single Player: That player won
-    - list[list[Player]]: Ranked groups [[1st], [2nd], ...]
-    - None: Game still in progress
-    """
-```
+App command failures route through `playcord/presentation/interactions/errors.py`, which maps exception types to
+localized user-visible responses. Domain and application code should raise typed exceptions instead of raw `ValueError`
+or bare strings.
 
-#### PlayerOrder Enum
+## Repository Pattern
 
-```python
-from api.Game import PlayerOrder
+Database access is owned by `playcord/infrastructure/db/`:
 
+- `PoolManager`: connection lifecycle
+- `MigrationRunner`: schema/application startup tasks
+- `PlayerRepository`, `GameRepository`, `MatchRepository`, `ReplayRepository`, `AnalyticsRepository`
 
-class MyGame(Game):
-    player_order = PlayerOrder.CREATOR_FIRST  # Creator goes first
-    # Options: RANDOM, PRESERVE, CREATOR_FIRST, REVERSE
-```
+Application services consume repositories through `ApplicationContainer`.
 
----
+## Migration Notes
 
-### Player (api/Player.py)
-
-Represents a player with TrueSkill rating support.
-
-#### Properties
-
-| Property              | Type    | Description                              |
-|-----------------------|---------|------------------------------------------|
-| `id`                  | `int`   | Discord user ID                          |
-| `name`                | `str`   | Display name                             |
-| `mu`                  | `float` | TrueSkill skill estimate (default: 1000) |
-| `sigma`               | `float` | TrueSkill uncertainty                    |
-| `mention`             | `str`   | Discord mention string `<@id>`           |
-| `conservative_rating` | `float` | `mu - 3*sigma` (for leaderboards)        |
-| `display_rating`      | `int`   | Rounded mu                               |
-| `player_data`         | `dict`  | Store arbitrary game-specific data       |
-
-#### Methods
-
-```python
-player.get_formatted_elo(uncertainty_threshold=0.20)  # Returns "1000" or "1000?"
-```
-
----
-
-### Command (api/Command.py)
-
-Defines a player action/move.
-
-```python
-Command(
-    name="drop",  # Slash command name
-    description="Drop a disc",  # Help text
-    options=[Integer(...)],  # Arguments (optional)
-    callback="drop_disc",  # Method name to call
-    require_current_turn=True  # Only current player can use
-)
-```
-
----
-
-### Bot (api/Bot.py)
-
-Defines one AI difficulty option for a game.
-
-```python
-from api.Bot import Bot
-
-class MyGame(Game):
-    bots = {
-        "easy": Bot(description="Random legal move", callback="bot_easy"),
-        "hard": Bot(description="Strong tactical play", callback="bot_hard"),
-    }
-
-    def bot_easy(self, bot_player):
-        return {"name": "move", "arguments": {"pos": "1,1"}}
-```
-
-Bot callbacks can return:
-
-- `{"name": "<move_command>", "arguments": {...}}`
-- `("<move_command>", {...})`
-- A direct move callback result (`Response` or `None`)
-
-### Arguments (api/Arguments.py)
-
-Argument types for commands.
-
-#### String
-
-```python
-String(argument_name="move", description="Board position", autocomplete="ac_move")
-```
-
-#### Integer
-
-```python
-Integer(argument_name="column", description="Column (1-7)", min_value=1, max_value=7)
-```
-
-#### Dropdown
-
-```python
-Dropdown(argument_name="choice", description="Pick one",
-         options={"Option A": "a", "Option B": "b"})
-```
-
----
-
-### MessageComponents (api/MessageComponents.py)
-
-UI components returned by `state()`.
-
-#### Embed Components
-
-```python
-Description("Game status text")  # Embed description
-Field("Title", "Value", inline=False)  # Embed field
-DataTable({player: {"Score": 10}})  # Auto-formatted player data
-Image(png_bytes)  # Attach image
-Footer("Footer text")  # Embed footer
-```
-
-#### Interactive Components
-
-```python
-Button(
-    label="Click Me",
-    callback=self.on_click,
-    emoji="🎮",
-    row=0,  # 0-4
-    style=ButtonStyle.success,  # blurple/grey/green/red
-    arguments={"x": 1, "y": 2},  # Passed to callback
-    require_current_turn=True,
-    disabled=False
-)
-
-Dropdown(
-    data=[{"label": "A", "value": "a"}],
-    callback=self.on_select,
-    placeholder="Choose...",
-    min_values=1,
-    max_values=1
-)
-```
-
----
-
-### Response (api/Response.py)
-
-Return from move callbacks to send messages.
-
-```python
-# Error message (only player sees, auto-deletes)
-return Response(
-    content="Invalid move!",
-    ephemeral=True,
-    delete_after=5
-)
-
-# Silent success (framework updates display)
-return None
-```
-
----
-
-## Patterns & Best Practices
-
-### Turn Management
-
-```python
-def __init__(self, players):
-    self.players = players
-    self.turn = 0
-
-
-def current_turn(self):
-    return self.players[self.turn]
-
-
-def advance_turn(self):
-    self.turn = (self.turn + 1) % len(self.players)
-```
-
-### Move Validation
-
-```python
-def drop(self, player, column):
-    if column < 1 or column > 7:
-        return Response(content="Invalid column!", ephemeral=True, delete_after=5)
-
-    if self.column_full(column):
-        return Response(content="Column is full!", ephemeral=True, delete_after=5)
-
-    # Valid move - apply it
-    self.board[column].append(player)
-    self.advance_turn()
-    return None  # Success
-```
-
-### Outcome Formats
-
-```python
-# Single winner
-def outcome(self):
-    if self.winner:
-        return self.winner
-    return None
-
-
-# Ranked results (multiplayer)
-def outcome(self):
-    if self.game_over:
-        # [[1st place], [2nd place], [3rd place]]
-        return [[self.winner], [self.second], [self.third]]
-    return None
-
-
-# Draw (tie for 1st)
-def outcome(self):
-    if self.draw:
-        return [[player1, player2]]  # Both tied for 1st
-    return None
-```
-
-### Autocomplete
-
-```python
-class MyGame(Game):
-    moves = [Command(name="move", options=[
-        String(argument_name="pos", autocomplete="ac_positions")
-    ])]
-
-    def ac_positions(self, player):
-        # Return list of {display: value} dicts
-        return [
-            {"Top Left": "0,0"},
-            {"Center": "1,1"},
-        ]
-```
-
----
-
-## File Structure
-
-```
-api/
-├── Game.py           # Base Game class
-├── Player.py         # Player representation
-├── Command.py        # Move/action definitions
-├── Arguments.py      # Command argument types
-├── MessageComponents.py  # UI components
-└── Response.py       # Response handling
-
-games/
-├── TicTacToe.py      # Example: 2-player, simple
-├── ConnectFour.py    # Example: 2-player, board game
-├── LiarsDice.py      # Example: 2-6 players
-├── NoThanks.py       # Example: 3-7 players, card game
-└── ...
-```
+Current built-in games (`tictactoe`, `connectfour`, `nim`) still use `LegacyGamePlugin` adapters while the older game
+implementations are being folded into the new package structure. New games should be authored directly against the
+`playcord/domain/` and `playcord/presentation/ui/` APIs.
