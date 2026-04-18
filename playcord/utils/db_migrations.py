@@ -21,6 +21,21 @@ MIGRATIONS: List[Tuple[str, str, List[str]]] = [
         "Baseline schema is provided by schema.sql; no historical patch chain remains.",
         [],
     ),
+    (
+        "1.0.1",
+        "Register game_errored analytics type (some paths / buffered events use this name).",
+        [
+            """
+            INSERT INTO analytics_event_types (event_type, description)
+            VALUES (
+                'game_errored',
+                'Game or match error (legacy name; prefer error_occurred in new code)'
+            )
+            ON CONFLICT (event_type) DO UPDATE SET
+                description = EXCLUDED.description;
+            """,
+        ],
+    ),
 ]
 
 

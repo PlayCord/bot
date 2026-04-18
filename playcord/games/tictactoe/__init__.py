@@ -13,7 +13,6 @@ from playcord.games.api import (
     GameContext,
     GamePlugin,
     MessageLayout,
-    NotifyTurn,
     Outcome,
     UpsertMessage,
 )
@@ -75,7 +74,6 @@ class TicTacToePlugin(GamePlugin):
                 require_current_turn=True,
             ),
         ),
-        notify_on_turn=True,
     )
     name = metadata.name
     summary = metadata.summary
@@ -93,7 +91,6 @@ class TicTacToePlugin(GamePlugin):
     customizable_options = metadata.customizable_options
     role_mode = metadata.role_mode
     player_roles = metadata.player_roles
-    notify_on_turn = metadata.notify_on_turn
 
     def __init__(self, players: list[Player], *, match_options: dict | None = None) -> None:
         super().__init__(players, match_options=match_options)
@@ -118,11 +115,11 @@ class TicTacToePlugin(GamePlugin):
             return Outcome(kind="draw", placements=[list(self.players)])
         return None
 
-    def render(self, ctx: GameContext) -> tuple[UpsertMessage | NotifyTurn, ...]:
+    def render(self, ctx: GameContext) -> tuple[UpsertMessage, ...]:
         board_status = self._status_line()
         buttons = tuple(
             ButtonSpec(
-                label=(self.board[row][col] if self.board[row][col] != " " else " "),
+                label=self.board[row][col] if self.board[row][col] != " " else "·",
                 action_name="move",
                 arguments={"move": f"{col}{row}"},
                 style=self._button_style(row, col),
@@ -131,14 +128,15 @@ class TicTacToePlugin(GamePlugin):
             for row in range(3)
             for col in range(3)
         )
-        actions: list[UpsertMessage | NotifyTurn] = [
+        actions: list[UpsertMessage] = [
             UpsertMessage(
                 target="thread",
                 key="board",
                 purpose="board",
                 layout=MessageLayout(
-                    content=f"{board_status}\n\n`/tictactoe move` also works.\n\n{self._board_text()}",
+                    content=f"{board_status}\n\n`/tictactoe move` also works.",
                     buttons=buttons,
+                    button_row_width=3,
                 ),
             ),
             UpsertMessage(
@@ -148,15 +146,6 @@ class TicTacToePlugin(GamePlugin):
                 layout=MessageLayout(content=self._overview_text(ctx)),
             ),
         ]
-        current = self.current_turn()
-        if self.outcome() is None and current is not None and not current.is_bot:
-            actions.append(
-                NotifyTurn(
-                    target="ephemeral",
-                    player_id=int(current.id),
-                    content=f"It's your turn, {current.mention}.",
-                )
-            )
         return tuple(actions)
 
     def apply_move(
@@ -167,7 +156,7 @@ class TicTacToePlugin(GamePlugin):
         *,
         source: str,
         ctx: GameContext,
-    ) -> tuple[UpsertMessage | NotifyTurn, ...]:
+    ) -> tuple[UpsertMessage, ...]:
         if move_name != "move":
             raise IllegalMove(f"Unknown move {move_name!r}")
         current = self.current_turn()
@@ -230,7 +219,7 @@ class TicTacToePlugin(GamePlugin):
         return {"move_name": "move", "arguments": {"move": random.choice(available)}}
 
     def peek(self, ctx: GameContext) -> str | None:
-        return f"{self._status_line()}\n{self._board_text()}"
+        return self._status_line()
 
     def _available_moves(self) -> list[str]:
         moves: list[str] = []
@@ -259,21 +248,12 @@ class TicTacToePlugin(GamePlugin):
             return "Draw game."
         return f"Turn: {self.current_turn().mention}"
 
-    def _overview_text(self, ctx: GameContext) -> str:
+    def _overview_text(self, _ctx: GameContext) -> str:
         lines = [
             f"**{self.metadata.name}**",
-            f"Replay code: `{ctx.match_id}`",
             self._status_line(),
-            self._board_text(),
         ]
         return "\n".join(lines)
-
-    def _board_text(self) -> str:
-        rows = []
-        for row in self.board:
-            cells = [cell if cell != " " else "·" for cell in row]
-            rows.append(" ".join(cells))
-        return "\n".join(rows)
 
     def _button_style(self, row: int, col: int) -> str:
         value = self.board[row][col]

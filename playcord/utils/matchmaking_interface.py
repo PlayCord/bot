@@ -506,6 +506,24 @@ class MatchmakingInterface:
                 inline=False,
             )
 
+        if self._base_start_conditions_met() and self.queued_players:
+            ready_lines = []
+            for p in sorted(self.queued_players, key=lambda x: x.id):
+                mention = getattr(p, "mention", None) or getattr(p, "name", None) or str(
+                    getattr(p, "id", p)
+                )
+                state = (
+                    get("queue.ready_state_ready")
+                    if p.id in self.ready_players
+                    else get("queue.ready_state_waiting")
+                )
+                ready_lines.append(fmt("queue.ready_state_line", player=mention, state=state))
+            container.add_field(
+                name=get("queue.field_ready_state"),
+                value="\n".join(ready_lines),
+                inline=False,
+            )
+
         # Add whitelist or blacklist depending on private status
         if self.private:
             container.add_field(

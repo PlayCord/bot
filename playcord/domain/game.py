@@ -93,7 +93,6 @@ class GameMetadata:
         default_factory=lambda: dict(DEFAULT_TRUESKILL_PARAMETERS)
     )
     customizable_options: tuple[MatchOptionSpec, ...] = ()
-    notify_on_turn: bool = False
 
 
 class Game(ABC):
@@ -181,9 +180,6 @@ class Game(ABC):
 
     def is_finished(self) -> bool:
         return self.outcome() is not None
-
-    def turn_notification(self, player: Player) -> str:
-        return f"It's your turn, {player.mention}!"
 
     def match_global_summary(self, outcome: object) -> str | None:
         return None

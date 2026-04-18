@@ -332,7 +332,11 @@ VALUES
     ('move_invalid', 'A move was rejected as invalid'),
     ('move_rejected', 'A move could not be routed or executed'),
     ('rating_updated', 'A player rating row changed'),
-    ('skill_decay_applied', 'Inactivity-based sigma decay was applied')
+    ('skill_decay_applied', 'Inactivity-based sigma decay was applied'),
+    (
+        'game_errored',
+        'Game or match error (legacy name; prefer error_occurred in new code)'
+    )
 ON CONFLICT (event_type) DO UPDATE SET
     description = EXCLUDED.description;
 

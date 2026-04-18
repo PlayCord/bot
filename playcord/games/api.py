@@ -17,7 +17,6 @@ MessagePurpose = Literal[
     "board",
     "announcement",
     "ephemeral",
-    "turn_notification",
     "custom",
     "overview",
 ]
@@ -64,6 +63,8 @@ class MessageLayout:
     buttons: tuple[ButtonSpec, ...] = ()
     selects: tuple[SelectSpec, ...] = ()
     attachments: tuple[BinaryAsset, ...] = ()
+    # When set, buttons are grouped into discord.ui.ActionRow chunks of this width (e.g. 3 for a grid).
+    button_row_width: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,12 +82,6 @@ class UpsertMessage(ChannelAction):
 @dataclass(frozen=True, slots=True)
 class DeleteMessage(ChannelAction):
     key: str
-
-
-@dataclass(frozen=True, slots=True)
-class NotifyTurn(ChannelAction):
-    player_id: int
-    content: str
 
 
 @dataclass(frozen=True, slots=True)

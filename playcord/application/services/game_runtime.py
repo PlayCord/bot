@@ -18,7 +18,6 @@ from playcord.games.api import (
     GameContext,
     GamePlugin,
     MessageLayout,
-    NotifyTurn,
     OwnedMessage,
     SelectSpec,
     UpsertMessage,
@@ -29,6 +28,7 @@ from playcord.infrastructure.app_constants import (
 )
 from playcord.presentation.interactions.router import CustomId
 from playcord.utils import database as db
+from playcord.utils.containers import TEXT_DISPLAY_MAX
 from playcord.utils.discord_utils import followup_send
 from playcord.utils.locale import get
 from playcord.utils.logging_config import get_logger
@@ -45,7 +45,9 @@ class RuntimeMoveResult:
     finished: bool = False
 
 
-class RuntimeView(discord.ui.View):
+class RuntimeView(discord.ui.LayoutView):
+    """Game UI: components v2 (LayoutView + Container), like lobbies and help."""
+
     def __init__(self) -> None:
         super().__init__(timeout=None)
 
@@ -340,76 +342,54 @@ class GameRuntime:
         for action in actions:
             if isinstance(action, UpsertMessage):
                 await self._upsert_message(action)
-            elif isinstance(action, NotifyTurn):
-                await self._send_turn_notice(action)
             elif isinstance(action, DeleteMessage):
                 await self._delete_owned_message(action.key)
 
     async def _upsert_message(self, action: UpsertMessage) -> None:
         if action.target == "overview":
             view = self._build_overview_view(action.layout)
-            await self._safe_edit_message(self.status_message, content=action.layout.content, view=view, attachments=[])
+            if view is not None:
+                await self._safe_edit_message(
+                    self.status_message,
+                    view=view,
+                    attachments=[],
+                )
+            else:
+                await self._safe_edit_message(
+                    self.status_message,
+                    content=action.layout.content,
+                    attachments=[],
+                )
             return
         if self.thread is None:
             return
         existing = self.owned_messages.get(action.key)
         view = self._build_view(action.layout)
-        files = [discord.File(fp=asset_to_file(asset), filename=asset.filename) for asset in action.layout.attachments]
+        files = [
+            discord.File(fp=asset_to_file(asset), filename=asset.filename)
+            for asset in action.layout.attachments
+        ]
         if existing is None:
-            message = await self.thread.send(content=action.layout.content, view=view, files=files)
+            if view is None:
+                message = await self.thread.send(
+                    content=action.layout.content,
+                    files=files or None,
+                )
+            else:
+                send_kw: dict[str, Any] = {"view": view}
+                if files:
+                    send_kw["files"] = files
+                message = await self.thread.send(**send_kw)
             self.owned_messages[action.key] = message
             self._record_owned_message(action.key, action.purpose, message, action.layout)
             return
-        await self._safe_edit_message(existing, content=action.layout.content, view=view, attachments=files)
-        self._record_owned_message(action.key, action.purpose, existing, action.layout)
-
-    async def _send_turn_notice(self, action: NotifyTurn) -> None:
-        # Ephemeral: DM the player. Non-ephemeral: post/edit in the game thread.
-        if getattr(action, "target", None) == "ephemeral":
-            user = self._discord_user_for_player_id(action.player_id)
-            if user is None:
-                return
-            try:
-                await user.send(action.content)
-            except discord.HTTPException:
-                self.logger.debug(
-                    "Could not DM turn notice to user_id=%s", action.player_id
-                )
-            return
-        if self.thread is None:
-            return
-        try:
-            existing = self.owned_messages.get("turn_notice")
-            if existing is None:
-                message = await self.thread.send(action.content)
-                self.owned_messages["turn_notice"] = message
-                self._record_owned_message(
-                    "turn_notice",
-                    "turn_notification",
-                    message,
-                    MessageLayout(content=action.content),
-                )
-                return
-            await self._safe_edit_message(existing, content=action.content, view=None, attachments=[])
-            self._record_owned_message(
-                "turn_notice",
-                "turn_notification",
-                existing,
-                MessageLayout(content=action.content),
+        if view is None:
+            await self._safe_edit_message(
+                existing, content=action.layout.content, attachments=files
             )
-        except Exception:
-            self.logger.debug("Could not update turn notice for %s", action.player_id)
-
-    def _discord_user_for_player_id(self, player_id: int) -> discord.abc.User | None:
-        for player in self.players:
-            if int(getattr(player, "id", 0)) != int(player_id):
-                continue
-            wrapped = getattr(player, "user", None)
-            if wrapped is not None:
-                return wrapped
-            if isinstance(player, discord.abc.User):
-                return player
-        return None
+        else:
+            await self._safe_edit_message(existing, view=view, attachments=files)
+        self._record_owned_message(action.key, action.purpose, existing, action.layout)
 
     async def _delete_owned_message(self, key: str) -> None:
         message = self.owned_messages.pop(key, None)
@@ -490,35 +470,95 @@ class GameRuntime:
         except (TypeError, ValueError):
             return False
 
-    def _build_view(self, layout: MessageLayout) -> discord.ui.View | None:
-        if not layout.buttons and not layout.selects:
+    @staticmethod
+    def _text_chunks_v2(text: str) -> list[str]:
+        max_len = int(TEXT_DISPLAY_MAX)
+        raw = (text or "").strip()
+        if not raw:
+            return []
+        chunks: list[str] = []
+        current = ""
+        for line in raw.splitlines(keepends=True):
+            if len(current) + len(line) > max_len and current:
+                chunks.append(current.rstrip("\n"))
+                current = line
+            else:
+                current += line
+        if current:
+            chunks.append(current.rstrip("\n"))
+        return chunks or [raw[:max_len]]
+
+    def _build_interactive_view(
+        self,
+        layout: MessageLayout,
+        trailing_buttons: tuple[discord.ui.Button, ...] = (),
+    ) -> RuntimeView | None:
+        has_body = bool((layout.content or "").strip())
+        has_game = bool(layout.buttons or layout.selects)
+        has_trail = bool(trailing_buttons)
+        if not has_body and not has_game and not has_trail:
             return None
+
         view = RuntimeView()
-        for button in layout.buttons:
-            view.add_item(self._make_button(button))
+        container = discord.ui.Container()
+        for chunk in self._text_chunks_v2(layout.content or ""):
+            container.add_item(discord.ui.TextDisplay(chunk))
+        if has_body and (has_game or has_trail):
+            container.add_item(discord.ui.Separator())
+        width = layout.button_row_width
+        if width and width > 0 and layout.buttons:
+            row_buttons: list[discord.ui.Button] = []
+            for button in layout.buttons:
+                row_buttons.append(self._make_button(button))
+                if len(row_buttons) >= width:
+                    ar = discord.ui.ActionRow()
+                    for item in row_buttons:
+                        ar.add_item(item)
+                    container.add_item(ar)
+                    row_buttons = []
+            if row_buttons:
+                ar = discord.ui.ActionRow()
+                for item in row_buttons:
+                    ar.add_item(item)
+                container.add_item(ar)
+        else:
+            for button in layout.buttons:
+                ar = discord.ui.ActionRow()
+                ar.add_item(self._make_button(button))
+                container.add_item(ar)
         for select in layout.selects:
-            view.add_item(self._make_select(select))
+            ar = discord.ui.ActionRow()
+            ar.add_item(self._make_select(select))
+            container.add_item(ar)
+        if has_trail:
+            if has_game:
+                container.add_item(discord.ui.Separator())
+            tr = discord.ui.ActionRow()
+            for btn in trailing_buttons:
+                tr.add_item(btn)
+            container.add_item(tr)
+        view.add_item(container)
         return view
 
-    def _build_overview_view(self, layout: MessageLayout) -> discord.ui.View | None:
-        view = self._build_view(layout) or RuntimeView()
+    def _build_view(self, layout: MessageLayout) -> RuntimeView | None:
+        return self._build_interactive_view(layout, ())
+
+    def _build_overview_view(self, layout: MessageLayout) -> RuntimeView | None:
         if self.thread is None:
-            return view
-        view.add_item(
+            return self._build_interactive_view(layout, ())
+        trail = (
             discord.ui.Button(
                 label="Spectate",
                 style=discord.ButtonStyle.secondary,
                 custom_id=f"{BUTTON_PREFIX_SPECTATE}{self.thread.id}",
-            )
-        )
-        view.add_item(
+            ),
             discord.ui.Button(
                 label="Peek",
                 style=discord.ButtonStyle.secondary,
                 custom_id=f"{BUTTON_PREFIX_PEEK}{self.thread.id}",
-            )
+            ),
         )
-        return view
+        return self._build_interactive_view(layout, trail)
 
     def _make_button(self, spec: ButtonSpec) -> discord.ui.Button:
         style_map = {
