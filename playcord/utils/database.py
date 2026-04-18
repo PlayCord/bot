@@ -22,7 +22,7 @@ except ImportError:
         "psycopg3 is required. Install with: pip install 'psycopg[binary,pool]'"
     )
 
-from playcord.discord_games.player import Player
+from playcord.domain.player import Player
 from playcord.infrastructure.app_constants import GAME_TYPES, MU
 from playcord.infrastructure.runtime_config import get_settings
 from playcord.utils import db_migrations
@@ -127,6 +127,8 @@ class InternalPlayer:
         self.ratings = ratings
         self.player_data = {}
         self.moves_made = 0
+        self.is_bot = False
+        self.bot_difficulty = None
 
         self._update_ratings(self.ratings)
 
@@ -655,7 +657,7 @@ class Database:
         """Upsert all games from code-defined metadata and TrueSkill fractions."""
         import importlib
 
-        from playcord.discord_games.game import resolve_player_count
+        from playcord.games.plugin import resolve_player_count
 
         cfg = get_settings().ratings
         default_min_mu = float(cfg.min_mu)
@@ -1113,8 +1115,26 @@ class Database:
         result = self._execute_query(query, (match_id,), fetchone=True)
         return row_to_match(result) if result else None
 
-    def update_match_status(self, match_id: int, status: str):
+    def update_match_status(
+        self,
+        match_id: int,
+        status: str,
+        metadata_patch: Dict[str, Any] | None = None,
+    ):
         """Update match status"""
+        if metadata_patch:
+            payload = json.dumps(metadata_patch)
+            query = """
+                UPDATE matches
+                SET status = %s,
+                    updated_at = NOW(),
+                    ended_at = CASE WHEN %s = 'in_progress' THEN ended_at ELSE COALESCE(ended_at, NOW()) END,
+                    metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                WHERE match_id = %s;
+            """
+            self._execute_query(query, (status, status, payload, match_id))
+            return
+
         query = """
             UPDATE matches
             SET status = %s,
@@ -1223,7 +1243,7 @@ class Database:
             results: Dict mapping user_id to result data:
                      {ranking, mu_delta, sigma_delta, new_mu, new_sigma}
         """
-        final_state_json = json.dumps(final_state)
+        metadata_patch_json = json.dumps({"final_state": final_state})
 
         with self.transaction() as cur:
             cur.execute(
@@ -1304,11 +1324,11 @@ class Database:
                 UPDATE matches
                 SET status = 'completed',
                     ended_at = NOW(),
-                    final_state = %s::jsonb,
+                    metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb,
                     updated_at = NOW()
                 WHERE match_id = %s;
                 """,
-                (final_state_json, match_id),
+                (metadata_patch_json, match_id),
             )
 
     def delete_match(self, match_id: int):
@@ -1431,16 +1451,17 @@ class Database:
         game_state_after: Optional[Dict[str, Any]] = None,
         time_taken_ms: Optional[int] = None,
         is_game_affecting: bool = True,
+        kind: str = "move",
     ):
         """Record a move in a match"""
         move_json = json.dumps(move_data)
         state_json = json.dumps(game_state_after) if game_state_after else None
 
         query = """
-            INSERT INTO moves
-                (match_id, user_id, move_number, move_data, game_state_after,
+            INSERT INTO match_moves
+                (match_id, user_id, move_number, kind, move_data, game_state_after,
                  time_taken_ms, is_game_affecting)
-            VALUES (%s, %s, %s, %s::jsonb, %s::jsonb, %s, %s);
+            VALUES (%s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s);
         """
         self._execute_query(
             query,
@@ -1448,6 +1469,7 @@ class Database:
                 match_id,
                 user_id,
                 move_number,
+                kind,
                 move_json,
                 state_json,
                 time_taken_ms,
@@ -1497,6 +1519,90 @@ class Database:
                 ),
             )
 
+    def upsert_bot_message(
+        self,
+        *,
+        match_id: int,
+        discord_message_id: int,
+        channel_id: int,
+        message_key: str,
+        purpose: str,
+        payload_digest: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        query = """
+            INSERT INTO bot_messages (
+                match_id,
+                discord_message_id,
+                channel_id,
+                message_key,
+                purpose,
+                payload_digest,
+                metadata
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
+            ON CONFLICT (discord_message_id) DO UPDATE SET
+                channel_id = EXCLUDED.channel_id,
+                message_key = EXCLUDED.message_key,
+                purpose = EXCLUDED.purpose,
+                payload_digest = EXCLUDED.payload_digest,
+                metadata = EXCLUDED.metadata,
+                deleted_at = NULL,
+                updated_at = NOW();
+        """
+        self._execute_query(
+            query,
+            (
+                match_id,
+                discord_message_id,
+                channel_id,
+                message_key,
+                purpose,
+                payload_digest,
+                json.dumps(metadata or {}),
+            ),
+        )
+
+    def mark_bot_message_deleted(self, discord_message_id: int) -> None:
+        self._execute_query(
+            """
+            UPDATE bot_messages
+            SET deleted_at = NOW(), updated_at = NOW()
+            WHERE discord_message_id = %s;
+            """,
+            (discord_message_id,),
+        )
+
+    def get_bot_message(self, discord_message_id: int) -> dict[str, Any] | None:
+        return self._execute_query(
+            """
+            SELECT *
+            FROM bot_messages
+            WHERE discord_message_id = %s;
+            """,
+            (discord_message_id,),
+            fetchone=True,
+        )
+
+    def list_bot_messages(
+        self, match_id: int, *, purpose: str | None = None
+    ) -> list[dict[str, Any]]:
+        if purpose is None:
+            query = """
+                SELECT *
+                FROM bot_messages
+                WHERE match_id = %s AND deleted_at IS NULL
+                ORDER BY created_at ASC;
+            """
+            return self._execute_query(query, (match_id,), fetchall=True) or []
+        query = """
+            SELECT *
+            FROM bot_messages
+            WHERE match_id = %s AND purpose = %s AND deleted_at IS NULL
+            ORDER BY created_at ASC;
+        """
+        return self._execute_query(query, (match_id, purpose), fetchall=True) or []
+
     def get_replay_events(self, match_id: int) -> List[Dict[str, Any]]:
         """Return replay events in order from the canonical ``replay_events`` table."""
         rows = (
@@ -1524,7 +1630,7 @@ class Database:
     def get_match_moves(self, match_id: int) -> List[Move]:
         """Get all moves for a match in order"""
         query = """
-            SELECT * FROM moves
+            SELECT * FROM match_moves
             WHERE match_id = %s
             ORDER BY move_number ASC;
         """
@@ -1533,7 +1639,7 @@ class Database:
 
     def get_move_count(self, match_id: int) -> int:
         """Get number of moves in a match"""
-        query = "SELECT COUNT(*) as count FROM moves WHERE match_id = %s;"
+        query = "SELECT COUNT(*) as count FROM match_moves WHERE match_id = %s;"
         result = self._execute_query(query, (match_id,), fetchone=True)
         return result["count"] if result else 0
 
@@ -1542,14 +1648,21 @@ class Database:
         query = """
             SELECT 
                 COUNT(*) as move_count,
-                MAX(move_number) as max_move
-            FROM moves
+                MAX(move_number) as max_move,
+                MIN(move_number) as min_move
+            FROM match_moves
             WHERE match_id = %s;
         """
         result = self._execute_query(query, (match_id,), fetchone=True)
         if not result:
             return True
-        return result["move_count"] == result["max_move"] or result["move_count"] == 0
+        return (
+            result["move_count"] == 0
+            or (
+                result["move_count"] == result["max_move"]
+                and result["min_move"] == 1
+            )
+        )
 
     # ========================================================================
     # USER HISTORY & STATS
@@ -2077,7 +2190,7 @@ class Database:
             "total_games": "SELECT COUNT(*) FROM games WHERE is_active = TRUE",
             "total_matches": "SELECT COUNT(*) FROM matches",
             "active_matches": "SELECT COUNT(*) FROM matches WHERE status = 'in_progress'",
-            "total_moves": "SELECT COUNT(*) FROM moves",
+            "total_moves": "SELECT COUNT(*) FROM match_moves",
             "total_ratings": "SELECT COUNT(*) FROM user_game_ratings",
         }
 

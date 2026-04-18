@@ -144,60 +144,6 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
     return True
 
 
-async def command_error(ctx: discord.Interaction, error: app_commands.AppCommandError):
-    f_log = log.getChild("error")
-
-    if isinstance(error, CheckFailure):
-        return
-
-    # Check for database connection error - use friendly message
-    if isinstance(error, app_commands.CommandInvokeError) and isinstance(
-        error.original, DatabaseConnectionError
-    ):
-        msg = format_user_error_message("database_error")
-        if ctx.response.is_done():
-            await followup_send(
-                ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER
-            )
-        else:
-            await response_send_message(
-                ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER
-            )
-        return
-
-    cmd_name = getattr(ctx.command, "name", None) or "unknown"
-    if isinstance(error, app_commands.CommandInvokeError) and error.original:
-        f_log.error(
-            "Command failed (cmd=%r): %s",
-            cmd_name,
-            contextify(ctx),
-            exc_info=error.original,
-        )
-    else:
-        f_log.error(
-            "App command error (cmd=%r): %r %s", cmd_name, error, contextify(ctx)
-        )
-
-    if ctx.response.is_done():
-        try:
-            await ctx.delete_original_response()
-        except (discord.HTTPException, discord.NotFound):
-            pass
-        await followup_send(
-            ctx,
-            content=format_user_error_message("generic"),
-            ephemeral=True,
-            delete_after=EPHEMERAL_DELETE_AFTER,
-        )
-    else:
-        await response_send_message(
-            ctx,
-            content=format_user_error_message("generic"),
-            ephemeral=True,
-            delete_after=EPHEMERAL_DELETE_AFTER,
-        )
-
-
 from discord.app_commands import Choice
 import typing
 

@@ -1,13 +1,17 @@
 """Shared interface helpers used across matchmaking and game modules."""
 
+from typing import Any
+
 from playcord import state as session_state
 
 IN_GAME = session_state.IN_GAME
 IN_MATCHMAKING = session_state.IN_MATCHMAKING
 
 
-def _user_in_player_map(mapping: dict, user_id: int) -> bool:
-    """True if any key in ``mapping`` is a player-like object with matching ``id``."""
+def _user_in_player_map(mapping: dict[Any, Any], user_id: int) -> bool:
+    """True if any key in ``mapping`` is a user id or a player-like object with matching ``id``."""
+    if user_id in mapping:
+        return True
     for player in mapping:
         if getattr(player, "id", None) == user_id:
             return True

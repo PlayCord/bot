@@ -18,8 +18,18 @@ class MatchRepository:
     def get_by_code(self, code: str) -> Any | None:
         return self.database.get_match_by_code(code)
 
-    def update_status(self, match_id: int, status: str) -> None:
-        self.database.update_match_status(match_id, status)
+    def update_status(
+        self,
+        match_id: int,
+        status: str,
+        *,
+        metadata_patch: dict[str, Any] | None = None,
+    ) -> None:
+        self.database.update_match_status(
+            match_id,
+            status,
+            metadata_patch=metadata_patch,
+        )
 
     def get_history_for_user(self, user_id: int, *, limit: int = 20) -> list[Any]:
         return self.database.get_match_history_for_user(user_id, limit=limit)
@@ -38,4 +48,5 @@ class ReplayRepository:
         event_type: str,
         payload: dict[str, Any],
     ) -> None:
-        self.database.append_replay_event(match_id, event_type, payload)
+        event: dict[str, Any] = {"type": event_type, **(payload or {})}
+        self.database.append_replay_event(match_id, event)

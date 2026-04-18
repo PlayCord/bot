@@ -92,7 +92,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         m.game_id,
         g.display_name,
         COUNT(*) as total_matches,
@@ -127,7 +127,7 @@ DECLARE
 BEGIN
     DELETE FROM analytics_events
     WHERE created_at < NOW() - (days_to_keep || ' days')::INTERVAL;
-    
+
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
 END;
@@ -156,7 +156,7 @@ BEGIN
     WHERE ended_at < NOW() - (days_old || ' days')::INTERVAL
       AND status = 'completed'
       AND NOT (metadata ? 'archived' AND (metadata->>'archived')::boolean = true);
-    
+
     GET DIAGNOSTICS archived_count = ROW_COUNT;
     RETURN archived_count;
 END;
@@ -178,10 +178,17 @@ DECLARE
 BEGIN
     SELECT COUNT(*), MAX(move_number)
     INTO move_count, max_move_number
-    FROM moves
+    FROM match_moves
     WHERE match_id = p_match_id;
 
-    RETURN (move_count = max_move_number) OR (move_count = 0);
+    RETURN (move_count = 0)
+        OR (
+            move_count = max_move_number
+            AND max_move_number IS NOT NULL
+            AND (
+                SELECT MIN(move_number) FROM match_moves WHERE match_id = p_match_id
+            ) = 1
+        );
 END;
 $$ LANGUAGE plpgsql;
 
@@ -211,21 +218,29 @@ RETURNS TABLE (
 BEGIN
     RETURN QUERY
     WITH match_stats AS (
-        SELECT 
+        SELECT
             COUNT(*)::BIGINT as match_count,
             SUM(CASE WHEN mp.final_ranking = 1 THEN 1 ELSE 0 END)::BIGINT as wins,
             SUM(CASE WHEN mp.final_ranking > 1 THEN 1 ELSE 0 END)::BIGINT as losses,
-            SUM(CASE WHEN mp.final_ranking IS NULL THEN 1 ELSE 0 END)::BIGINT as draws,
+            SUM(CASE WHEN mp.final_ranking IS NULL THEN 1 ELSE 0 END)::BIGINT as unknown_results,
+            SUM(CASE WHEN mp.final_ranking = 1 AND COALESCE(r1.rank1_count, 0) > 1 THEN 1 ELSE 0 END)::BIGINT as draws,
             COUNT(DISTINCT m.game_id)::INTEGER as game_count,
             COUNT(DISTINCT m.guild_id)::INTEGER as guild_count,
             COUNT(*)::NUMERIC / NULLIF(p_days, 0) as matches_per_day
         FROM match_participants mp
         JOIN matches m ON mp.match_id = m.match_id
+        LEFT JOIN (
+            SELECT match_id, COUNT(*)::INTEGER AS rank1_count
+            FROM match_participants
+            WHERE final_ranking = 1
+            GROUP BY match_id
+        ) r1 ON r1.match_id = mp.match_id
         WHERE mp.user_id = p_user_id
           AND m.ended_at > NOW() - (p_days || ' days')::INTERVAL
+          AND m.status = 'completed'
     ),
     game_stats AS (
-        SELECT 
+        SELECT
             g.display_name as fav_game,
             COUNT(*) as game_match_count
         FROM match_participants mp
@@ -238,7 +253,7 @@ BEGIN
         LIMIT 1
     ),
     best_game_stats AS (
-        SELECT 
+        SELECT
             g.display_name as best_game_name
         FROM user_game_ratings ugr
         JOIN games g ON ugr.game_id = g.game_id
@@ -248,7 +263,7 @@ BEGIN
         LIMIT 1
     ),
     guild_stats AS (
-        SELECT 
+        SELECT
             m.guild_id as most_active_guild_id
         FROM match_participants mp
         JOIN matches m ON mp.match_id = m.match_id
@@ -258,7 +273,7 @@ BEGIN
         ORDER BY COUNT(*) DESC
         LIMIT 1
     )
-    SELECT 
+    SELECT
         COALESCE(ms.match_count, 0),
         COALESCE(ms.wins, 0),
         COALESCE(ms.losses, 0),
@@ -346,7 +361,12 @@ COMMENT ON FUNCTION sync_games_played_counts IS
 CREATE OR REPLACE FUNCTION apply_completed_match_to_rating_counts()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.status = 'completed' AND COALESCE(OLD.status, '') <> 'completed' THEN
+        -- OLD.status is an enum type (match_status). Coalescing it with a text
+        -- literal ('') causes an invalid input value error when OLD.status is
+        -- NULL because COALESCE attempts to resolve a common type between the
+        -- arguments. Cast the enum to text first so COALESCE operates on text and
+        -- avoids invalid enum literal errors.
+        IF NEW.status = 'completed' AND COALESCE(OLD.status::text, '') <> 'completed' THEN
         UPDATE user_game_ratings ugr
         SET
             matches_played = matches_played + 1,

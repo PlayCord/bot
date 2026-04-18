@@ -6,8 +6,8 @@ from typing import Any, Iterable
 
 import discord
 
-from playcord.discord_games.game import resolve_player_count
-from playcord.discord_games.exceptions import ContainerValidationError
+from playcord.games.exceptions import ContainerValidationError
+from playcord.games.plugin import resolve_player_count
 from playcord.infrastructure.app_constants import (
     ERROR_COLOR,
     GAME_COLOR,

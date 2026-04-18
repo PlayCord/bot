@@ -14,17 +14,10 @@ from playcord.infrastructure.app_constants import (
     HELP_GAMES_PREVIEW_COUNT,
     INFO_COLOR,
 )
+from playcord.utils.containers import (CustomContainer, HelpCommandsContainer, HelpFaqContainer,
+                                       HelpGettingStartedContainer, HelpMainContainer, HelpTutorialsContainer,
+                                       TEXT_DISPLAY_MAX, container_to_markdown)
 from playcord.utils.discord_utils import followup_send, response_send_message
-from playcord.utils.containers import (
-    CustomContainer,
-    HelpCommandsContainer,
-    HelpFaqContainer,
-    HelpGettingStartedContainer,
-    HelpTutorialsContainer,
-    HelpMainContainer,
-    TEXT_DISPLAY_MAX,
-    container_to_markdown,
-)
 from playcord.utils.locale import fmt, get
 
 
@@ -75,7 +68,10 @@ class DynamicButtonView(discord.ui.LayoutView):
                     button[argument] = None
 
             item = discord.ui.Button(
-                label=button["label"],
+                # Discord requires a label or emoji. If callers omit a label
+                # provide a  zero-width space so the component is valid
+                # but visually empty.
+                label=button["label"] if button["label"] is not None else "\u200b",
                 style=button["style"],
                 custom_id=button["id"],
                 disabled=button["disabled"],

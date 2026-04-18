@@ -7,7 +7,7 @@ from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
 
-from playcord.discord_games.game import resolve_player_count
+from playcord.games.plugin import resolve_player_count
 from playcord import state as session_state
 from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_INVITE,

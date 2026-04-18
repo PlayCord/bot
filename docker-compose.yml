@@ -27,6 +27,10 @@ services:
     build: .
     container_name: playcord_bot
     restart: unless-stopped
+    # Reduce how long docker-compose waits before forcibly killing the container.
+    # This makes `docker-compose down` stop the bot quickly (after 1s) instead of
+    # waiting the default timeout for a graceful shutdown.
+    stop_grace_period: 1s
     working_dir: /app
     depends_on:
       db:

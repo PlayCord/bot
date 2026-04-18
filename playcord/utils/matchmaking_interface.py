@@ -7,9 +7,9 @@ from typing import Any
 
 import discord
 
-from playcord.discord_games.game import RoleMode, resolve_player_count
-from playcord.discord_games.message_components import format_data_table_image
-from playcord.discord_games.player import Player
+from playcord.application.services.match_lifecycle import start_match_from_lobby
+from playcord.domain.player import Player
+from playcord.games.plugin import RoleMode, resolve_player_count
 from playcord import state as session_state
 from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_JOIN,
@@ -41,10 +41,6 @@ from playcord.utils.conversion import (
 )
 from playcord.utils.database import InternalPlayer, get_shallow_player
 from playcord.utils.discord_utils import followup_send
-from playcord.utils.game_interface import GameInterface
-from playcord.utils.interface_lifecycle import (
-    successful_matchmaking as lifecycle_successful_matchmaking,
-)
 from playcord.utils.interfaces import user_in_active_game, user_in_active_matchmaking
 from playcord.utils.locale import fmt, get
 from playcord.utils.logging_config import get_logger
@@ -53,8 +49,9 @@ from playcord.utils.views import MatchmakingLobbyView, MatchmakingView
 
 class MatchmakingInterface:
     """
-    MatchmakingInterface - the class that handles matchmaking for a game, where control is promptly handed off to a GameInterface
-    via the successful_matchmaking function.
+    MatchmakingInterface - the class that handles matchmaking for a game, where
+    control is promptly handed off to the new GameRuntime via
+    `start_match_from_lobby`.
     """
 
     def __init__(
@@ -106,7 +103,8 @@ class MatchmakingInterface:
             )
             return
         CURRENT_MATCHMAKING.update({self.message.id: self})
-        IN_MATCHMAKING.update({p: self for p in self.queued_players})
+        for player in self.queued_players:
+            IN_MATCHMAKING[MatchmakingInterface._coerce_player_id(player)] = self
 
         # Game class
         self.game = getattr(self.module, GAME_TYPES[game_type][1])
@@ -174,8 +172,8 @@ class MatchmakingInterface:
         elif isinstance(player_count, int) and total_players != player_count:
             return False
 
-        role_mode = getattr(self.game, "role_mode", RoleMode.NONE)
-        if role_mode == RoleMode.CHOSEN:
+        role_mode = getattr(self.game, "role_mode", RoleMode.none)
+        if role_mode == RoleMode.chosen:
             if self.has_bots:
                 return False
             if len(self._specs) + len(self.all_players()) > 4:
@@ -237,11 +235,21 @@ class MatchmakingInterface:
         await self.message.edit(
             **container_send_kwargs(LoadingContainer().remove_footer())
         )
-        await lifecycle_successful_matchmaking(self, GameInterface)
+        await start_match_from_lobby(self, self.game)
         return True
 
     def all_players(self) -> list[InternalPlayer | Player]:
         return [*sorted(self.queued_players, key=lambda p: p.id), *self.bots]
+
+    @staticmethod
+    def _coerce_player_id(player: Any) -> int:
+        player_id = getattr(player, "id", None)
+        try:
+            return int(player_id)
+        except (TypeError, ValueError) as exc:
+            raise TypeError(
+                f"Player object must expose an int-like id, got {player!r}"
+            ) from exc
 
     @staticmethod
     def _find_player_by_id(players: typing.Iterable[Any], user_id: int) -> Any | None:
@@ -263,17 +271,30 @@ class MatchmakingInterface:
 
     @staticmethod
     def _pop_active_matchmaking_entry(user_id: int) -> None:
-        key = MatchmakingInterface._find_player_by_id(IN_MATCHMAKING.keys(), user_id)
-        if key is not None:
-            IN_MATCHMAKING.pop(key, None)
+        IN_MATCHMAKING.pop(int(user_id), None)
 
     def _is_queued_player(self, user_id: int) -> bool:
         queued_players = getattr(self, "queued_players", set())
         return MatchmakingInterface._contains_player_id(queued_players, user_id)
 
     def _add_queued_player(self, player: InternalPlayer | Player) -> None:
-        self.queued_players.add(player)
-        IN_MATCHMAKING[player] = self
+        player_id = MatchmakingInterface._coerce_player_id(player)
+        queued_players = getattr(self, "queued_players", [])
+        if isinstance(queued_players, set):
+            try:
+                queued_players.add(player)
+            except TypeError:
+                queued_list = list(queued_players)
+                if not MatchmakingInterface._contains_player_id(queued_list, player_id):
+                    queued_list.append(player)
+                self.queued_players = queued_list
+        else:
+            if not isinstance(queued_players, list):
+                queued_players = list(queued_players)
+                self.queued_players = queued_players
+            if not MatchmakingInterface._contains_player_id(queued_players, player_id):
+                queued_players.append(player)
+        IN_MATCHMAKING[player_id] = self
         reset_ready = getattr(self, "_reset_ready_state", None)
         if callable(reset_ready):
             reset_ready()
@@ -282,7 +303,14 @@ class MatchmakingInterface:
         found = MatchmakingInterface._find_player_by_id(self.queued_players, user_id)
         if found is None:
             return None
-        self.queued_players.discard(found)
+        if isinstance(self.queued_players, set):
+            self.queued_players.discard(found)
+        else:
+            self.queued_players = [
+                player
+                for player in self.queued_players
+                if getattr(player, "id", None) != user_id
+            ]
         MatchmakingInterface._pop_active_matchmaking_entry(user_id)
         role_selections = getattr(self, "role_selections", None)
         if isinstance(role_selections, dict):
@@ -381,7 +409,7 @@ class MatchmakingInterface:
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
-        if getattr(self.game, "role_mode", RoleMode.NONE) != RoleMode.CHOSEN:
+        if getattr(self.game, "role_mode", RoleMode.none) != RoleMode.chosen:
             log.warning("role select on non-CHOSEN lobby lobby=%s", self.message.id)
             await followup_send(
                 ctx,
@@ -458,24 +486,25 @@ class MatchmakingInterface:
         )
 
         all_players = self.all_players()
-        matchmaking_table = format_data_table_image(
-            {
-                player: {
-                    get("queue.field_rating"): rating,
-                    get("queue.field_creator"): creator_marker,
-                }
-                for player, rating, creator_marker in zip(
-                    all_players,
-                    column_elo(all_players, self.game_type).split("\n"),
-                    column_creator(all_players, self.creator).split("\n"),
-                    strict=False,
-                )
-            }
-        )
-        table_file = discord.File(
-            io.BytesIO(matchmaking_table), filename="matchmaking_table.png"
-        )
-        table_image_url = f"attachment://{table_file.filename}"
+        table_rows = []
+        for player, rating, creator_marker in zip(
+            all_players,
+            column_elo(all_players, self.game_type).split("\n"),
+            column_creator(all_players, self.creator).split("\n"),
+            strict=False,
+        ):
+            table_rows.append(
+                f"- {getattr(player, 'mention', getattr(player, 'name', 'Unknown'))}: "
+                f"{get('queue.field_rating')} {rating} · {get('queue.field_creator')} {creator_marker}"
+            )
+        table_image_url = None
+        table_file = None
+        if table_rows:
+            container.add_field(
+                name=get("queue.field_players"),
+                value="\n".join(table_rows),
+                inline=False,
+            )
 
         # Add whitelist or blacklist depending on private status
         if self.private:
@@ -518,17 +547,17 @@ class MatchmakingInterface:
                 inline=False,
             )
 
-        role_mode = getattr(self.game, "role_mode", RoleMode.NONE)
+        role_mode = getattr(self.game, "role_mode", RoleMode.none)
         pr_roles = getattr(self.game, "player_roles", None)
         layout_ok_chosen = len(self._specs) + len(self.all_players()) <= 4
         show_role_selects = (
-            role_mode == RoleMode.CHOSEN
+            role_mode == RoleMode.chosen
             and not self.has_bots
             and pr_roles is not None
             and len(pr_roles) == len(self.all_players())
             and layout_ok_chosen
         )
-        if role_mode == RoleMode.CHOSEN:
+        if role_mode == RoleMode.chosen:
             if self.has_bots:
                 container.add_field(
                     name=get("queue.role_picks_field"),
@@ -608,7 +637,8 @@ class MatchmakingInterface:
                 table_image_url=table_image_url,
             )
 
-        await self.message.edit(view=view, attachments=[table_file])
+        attachments = [table_file] if table_file is not None else []
+        await self.message.edit(view=view, attachments=attachments)
         log.debug(f"Finished matchmaking update task in {update_timer.stop()}ms.")
 
     async def seed_rematch_players(

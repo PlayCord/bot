@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from playcord.application import ApplicationContainer
+from playcord.application.container import ApplicationContainer
 from playcord.infrastructure import Translator, load_settings
 from playcord.infrastructure.db import MigrationRunner, PoolManager
 from playcord.infrastructure.logging import configure_logging, get_logger

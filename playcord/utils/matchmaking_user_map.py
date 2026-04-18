@@ -11,4 +11,12 @@ IN_MATCHMAKING = session_state.IN_MATCHMAKING
 
 def matchmaking_by_user_id() -> dict[int, Any]:
     """Map Discord user id -> :class:`~utils.matchmaking_interface.MatchmakingInterface` (mirrors ``IN_MATCHMAKING`` keys)."""
-    return {p.id: q for p, q in IN_MATCHMAKING.items()}
+    result: dict[int, Any] = {}
+    for key, queue in IN_MATCHMAKING.items():
+        if isinstance(key, int):
+            result[key] = queue
+            continue
+        player_id = getattr(key, "id", None)
+        if isinstance(player_id, int):
+            result[player_id] = queue
+    return result

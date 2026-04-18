@@ -136,11 +136,6 @@ SELECT
     END as win_rate_pct,
     ugr.last_played,
     EXTRACT(EPOCH FROM (NOW() - ugr.last_played))::INTEGER / 86400 as days_since_last_game,
-    CASE 
-        WHEN ugr.sigma > ((g.rating_config->>'sigma')::DOUBLE PRECISION) * ugr.mu * 0.5
-        THEN TRUE
-        ELSE FALSE
-    END as is_uncertain,
     rh.created_at as last_rating_change,
     rh.mu_before as previous_mu,
     rh.sigma_before as previous_sigma,
@@ -235,7 +230,7 @@ FROM matches m
 JOIN games g ON m.game_id = g.game_id
 LEFT JOIN (
     SELECT match_id, COUNT(*)::BIGINT AS cnt
-    FROM moves
+    FROM match_moves
     GROUP BY match_id
 ) mc ON mc.match_id = m.match_id
 LEFT JOIN match_participants mp ON m.match_id = mp.match_id

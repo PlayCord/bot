@@ -23,6 +23,13 @@ class GameSessionService:
             if getattr(player, "id", None) is not None:
                 self.registry.user_to_game[int(player.id)] = session
 
+    def register_runtime(self, runtime: Any) -> None:
+        thread = getattr(runtime, "thread", None)
+        thread_id = getattr(thread, "id", None)
+        if thread_id is None:
+            raise ValueError("runtime thread is not ready yet")
+        self.register(int(thread_id), runtime)
+
     def unregister(self, thread_id: int) -> None:
         session = self.registry.games_by_thread_id.pop(thread_id, None)
         if session is None:
@@ -34,3 +41,6 @@ class GameSessionService:
 
     def get(self, thread_id: int) -> Any | None:
         return self.registry.games_by_thread_id.get(thread_id)
+
+    def by_user_id(self, user_id: int) -> Any | None:
+        return self.registry.user_to_game.get(user_id)

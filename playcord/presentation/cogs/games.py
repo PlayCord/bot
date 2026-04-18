@@ -20,11 +20,12 @@ from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_SPECTATE,
     EPHEMERAL_DELETE_AFTER,
     PERMISSION_MSG_NOT_PARTICIPANT,
-    PERMISSION_MSG_SPECTATE_DISABLED,
 )
 
 AUTOCOMPLETE_CACHE = session_state.AUTOCOMPLETE_CACHE
 CURRENT_GAMES = session_state.CURRENT_GAMES
+from playcord.presentation.interactions.error_reporter import ErrorSurface, report
+from playcord.presentation.interactions.router import InteractionRouter
 from playcord.utils import database as db
 from playcord.utils.containers import LoadingContainer, container_send_kwargs
 from playcord.utils.discord_utils import (
@@ -33,14 +34,14 @@ from playcord.utils.discord_utils import (
     format_user_error_message,
     response_send_message,
 )
-from playcord.utils.emojis import get_emoji_string
 from playcord.utils.interfaces import user_in_active_game
-from playcord.utils.matchmaking_interface import MatchmakingInterface
 from playcord.utils.locale import fmt, get
 from playcord.utils.logging_config import get_logger
+from playcord.utils.matchmaking_interface import MatchmakingInterface
 from playcord.utils.matchmaking_user_map import matchmaking_by_user_id
 
 log = get_logger()
+GAME_COMPONENT_ROUTER = InteractionRouter()
 
 
 async def _send_game_ended_error(ctx: discord.Interaction) -> None:
@@ -106,6 +107,12 @@ async def _pagination_unhandled_fallback(
 class GamesCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        GAME_COMPONENT_ROUTER.register("game", "move", self._route_runtime_move)
+        GAME_COMPONENT_ROUTER.register("game", "select", self._route_runtime_select)
+
+    @property
+    def _translator(self):
+        return getattr(getattr(self.bot, "container", None), "translator", None)
 
     @commands.Cog.listener()
     async def on_interaction(self, ctx: discord.Interaction) -> None:
@@ -120,20 +127,62 @@ class GamesCog(commands.Cog):
             asyncio.create_task(_pagination_unhandled_fallback(ctx, custom_id))
             return
 
-        if custom_id.startswith(BUTTON_PREFIX_SELECT_CURRENT):
-            await self.game_select_callback(ctx, current_turn_required=True)
-        elif custom_id.startswith(BUTTON_PREFIX_SELECT_NO_TURN):
-            await self.game_select_callback(ctx, current_turn_required=False)
-        elif custom_id.startswith(BUTTON_PREFIX_CURRENT_TURN):
-            await self.game_button_callback(ctx, current_turn_required=True)
-        elif custom_id.startswith(BUTTON_PREFIX_NO_TURN):
-            await self.game_button_callback(ctx, current_turn_required=False)
-        elif custom_id.startswith(BUTTON_PREFIX_SPECTATE):
-            await self.spectate_callback(ctx)
-        elif custom_id.startswith(BUTTON_PREFIX_PEEK):
-            await self.peek_callback(ctx)
-        elif custom_id.startswith(BUTTON_PREFIX_REMATCH):
-            await self.rematch_button_callback(ctx)
+        try:
+            if custom_id.startswith("game:"):
+                parsed, handler = GAME_COMPONENT_ROUTER.resolve(custom_id)
+                await handler(ctx, parsed)
+            elif custom_id.startswith(BUTTON_PREFIX_SELECT_CURRENT):
+                await self.game_select_callback(ctx, current_turn_required=True)
+            elif custom_id.startswith(BUTTON_PREFIX_SELECT_NO_TURN):
+                await self.game_select_callback(ctx, current_turn_required=False)
+            elif custom_id.startswith(BUTTON_PREFIX_CURRENT_TURN):
+                await self.game_button_callback(ctx, current_turn_required=True)
+            elif custom_id.startswith(BUTTON_PREFIX_NO_TURN):
+                await self.game_button_callback(ctx, current_turn_required=False)
+            elif custom_id.startswith(BUTTON_PREFIX_SPECTATE):
+                await self.spectate_callback(ctx)
+            elif custom_id.startswith(BUTTON_PREFIX_PEEK):
+                await self.peek_callback(ctx)
+            elif custom_id.startswith(BUTTON_PREFIX_REMATCH):
+                await self.rematch_button_callback(ctx)
+        except Exception as exc:
+            await report(
+                ctx,
+                exc,
+                surface=ErrorSurface.COMPONENT,
+                translator=self._translator,
+            )
+
+    async def _route_runtime_move(self, ctx: discord.Interaction, parsed) -> None:
+        await ctx.response.defer()
+        runtime = CURRENT_GAMES.get(parsed.resource_id)
+        if runtime is None:
+            await _send_game_ended_error(ctx)
+            return
+        name, arguments, current_turn_required = runtime.decode_component_payload(
+            parsed.payload
+        )
+        await runtime.move_by_button(
+            ctx,
+            name=name,
+            arguments=arguments,
+            current_turn_required=current_turn_required,
+        )
+
+    async def _route_runtime_select(self, ctx: discord.Interaction, parsed) -> None:
+        await ctx.response.defer()
+        runtime = CURRENT_GAMES.get(parsed.resource_id)
+        if runtime is None:
+            await _send_game_ended_error(ctx)
+            return
+        name, _arguments, current_turn_required = runtime.decode_component_payload(
+            parsed.payload
+        )
+        await runtime.move_by_select(
+            ctx,
+            name=name,
+            current_turn_required=current_turn_required,
+        )
 
     async def game_button_callback(
         self, ctx: discord.Interaction, current_turn_required: bool = True
@@ -299,15 +348,8 @@ class GamesCog(commands.Cog):
             return
 
         game = CURRENT_GAMES[game_id]
-
-        # Check if user is already a participant (they're already in the thread)
         participant_ids = {p.id for p in game.players}
         if ctx.user.id in participant_ids:
-            f_log.debug(
-                "User %s tried to spectate but is already participant in game_id=%s",
-                ctx.user.id,
-                game_id,
-            )
             await followup_send(
                 ctx,
                 get("success.already_participant"),
@@ -315,30 +357,7 @@ class GamesCog(commands.Cog):
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
-
-        # Check if spectating is allowed for this game (games can disable spectating)
-        if hasattr(game.game, "allow_spectating") and not game.game.allow_spectating:
-            f_log.info(
-                "User %s attempted to spectate game_id=%s but spectating disabled",
-                ctx.user.id,
-                game_id,
-            )
-            await followup_send(
-                ctx,
-                PERMISSION_MSG_SPECTATE_DISABLED,
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
-            return
-
-        await game.thread.add_user(ctx.user)
-        f_log.info("User %s added as spectate to game_id=%s", ctx.user.id, game_id)
-        await followup_send(
-            ctx,
-            get("success.spectating"),
-            ephemeral=True,
-            delete_after=EPHEMERAL_DELETE_AFTER,
-        )
+        await game.handle_spectate(ctx)
 
     async def peek_callback(self, ctx: discord.Interaction) -> None:
         await ctx.response.defer()
@@ -360,11 +379,7 @@ class GamesCog(commands.Cog):
             await _send_game_ended_error(ctx)
             return
         if game_id in CURRENT_GAMES:
-            # Just resend the latest game state to the user ephemerally
-            f_log.debug(
-                "Resending game state for game_id=%s to user=%s", game_id, ctx.user.id
-            )
-            await CURRENT_GAMES[game_id].display_game_state(ctx)
+            await CURRENT_GAMES[game_id].handle_peek(ctx)
         else:
             f_log.info(
                 "Peek referenced non-active game_id=%s from user=%s",
@@ -559,16 +574,17 @@ async def begin_game(
             metadata={"lobby_message_id": game_overview_message.id},
         )
         return interface
-    except Exception:
+    except Exception as exc:
         f_log.exception("begin_game failed for game_type=%r", game_type)
-        try:
-            await game_overview_message.edit(
-                content=get("system_error.internal_what_failed"),
-                view=None,
-                attachments=[],
-            )
-        except Exception:
-            pass
+        await report(
+            ctx,
+            exc,
+            surface=ErrorSurface.SLASH,
+            translator=getattr(getattr(ctx, "client", None), "container", None).translator
+            if getattr(getattr(ctx, "client", None), "container", None) is not None
+            else None,
+            status_message=game_overview_message,
+        )
         return None
 
 
@@ -692,8 +708,11 @@ async def handle_move(
             delete_after=EPHEMERAL_DELETE_AFTER,
         )
         return
-    arguments.pop("ctx")
-    arguments = {a: await decode_discord_arguments(arguments[a]) for a in arguments}
+    work_args = dict(arguments)
+    work_args.pop("ctx", None)
+    arguments = {
+        a: await decode_discord_arguments(work_args[a]) for a in work_args
+    }
     AUTOCOMPLETE_CACHE[ctx.channel.id] = {}
     f_log.info(
         "Dispatching move_by_command for user=%s game_id=%s name=%r args=%r",
@@ -711,59 +730,27 @@ async def handle_autocomplete(
     ctx: discord.Interaction, function, current: str, argument
 ) -> list[Choice[str]]:
     try:
-        game_view = CURRENT_GAMES[ctx.channel.id]
+        runtime = CURRENT_GAMES[ctx.channel.id]
     except KeyError:
         return [
             app_commands.Choice(name=get("autocomplete.no_game_in_channel"), value="")
         ]
-    if game_view.game.is_game_finished():
+    if runtime.plugin.outcome() is not None:
         return [app_commands.Choice(name=get("autocomplete.game_finished"), value="-")]
     player = db.database.get_player(ctx.user, ctx.guild.id)
-    try:
-        player_options = AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][function][
-            argument
-        ][current]
-    except KeyError:
-        ac_callback = None
-        matched_option = None
-        for move in game_view.game.moves:
-            if move.options is None:
-                continue
-            for option in move.options:
-                if option.name == argument:
-                    ac_callback = getattr(game_view.game, option.autocomplete, None)
-                    matched_option = option
-                    break
-            if matched_option is not None:
-                break
-        if matched_option is None or ac_callback is None:
-            return [
-                app_commands.Choice(name=get("autocomplete.function_missing"), value="")
-            ]
-        if not matched_option.force_reload:
-            player_options = ac_callback(player)
-            if ctx.channel.id not in AUTOCOMPLETE_CACHE:
-                AUTOCOMPLETE_CACHE[ctx.channel.id] = {}
-            if ctx.user.id not in AUTOCOMPLETE_CACHE[ctx.channel.id]:
-                AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id] = {}
-            if function not in AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id]:
-                AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][function] = {}
-            if (
-                argument
-                not in AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][function]
-            ):
-                AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][function][argument] = {}
-                AUTOCOMPLETE_CACHE[ctx.channel.id][ctx.user.id][function][
-                    argument
-                ].update({current: player_options})
-        else:
-            player_options = ac_callback(player)
+    player_options = runtime.plugin.autocomplete(
+        actor=player,
+        move_name=function,
+        argument_name=argument,
+        current=current,
+        ctx=runtime.build_context(),
+    )
 
     valid_player_options = []
     for o in player_options:
         if not o:
             continue
-        label, value = next(iter(o.items()))
+        label, value = o
         if current.lower() in label.lower():
             valid_player_options.append([label, value])
     final_autocomplete = sorted(

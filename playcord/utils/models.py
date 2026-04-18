@@ -20,7 +20,6 @@ class MatchStatus(str, Enum):
     COMPLETED = "completed"
     INTERRUPTED = "interrupted"
     ABANDONED = "abandoned"
-    DISPUTED = "disputed"
 
 
 class EventType(str, Enum):
@@ -193,7 +192,6 @@ class Match:
     is_rated: bool = True
     game_config: Dict[str, Any] = field(default_factory=dict)
     match_code: Optional[str] = None
-    final_state: Optional[Dict[str, Any]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -212,7 +210,6 @@ class Match:
             MatchStatus.COMPLETED,
             MatchStatus.INTERRUPTED,
             MatchStatus.ABANDONED,
-            MatchStatus.DISPUTED,
         )
 
     @property
@@ -267,6 +264,7 @@ class Move:
     user_id: Optional[int]  # None for system moves
     move_number: int
     move_data: Dict[str, Any]
+    kind: str = "move"
     game_state_after: Optional[Dict[str, Any]] = None
     is_game_affecting: bool = True
     created_at: Optional[datetime] = None
@@ -410,7 +408,6 @@ def row_to_match(row: Dict[str, Any]) -> Match:
         is_rated=row.get("is_rated", True),
         game_config=row.get("game_config", {}),
         match_code=row.get("match_code"),
-        final_state=row.get("final_state"),
         metadata=row.get("metadata", {}),
         created_at=row.get("created_at"),
         updated_at=row.get("updated_at"),
@@ -442,6 +439,7 @@ def row_to_move(row: Dict[str, Any]) -> Move:
         match_id=row["match_id"],
         user_id=row.get("user_id"),
         move_number=row["move_number"],
+        kind=row.get("kind", "move"),
         move_data=row["move_data"],
         game_state_after=row.get("game_state_after"),
         is_game_affecting=row.get("is_game_affecting", True),

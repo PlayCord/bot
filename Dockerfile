@@ -14,7 +14,7 @@ RUN apt-get update \
         fonts-noto-color-emoji \
         build-essential \
         libpq-dev \
-        libraqm-dev \
+        libraqm-dev  \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -f -v || true
 

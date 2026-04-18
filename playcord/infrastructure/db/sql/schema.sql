@@ -1,19 +1,25 @@
 -- PlayCord PostgreSQL Database Schema
--- Version: 2.4
+-- Version: 1.0.0
 -- Description: Comprehensive database schema for Discord game bot with TrueSkill rating system
 --
 -- Key Features:
--- - Per-guild and global rating tracking
--- - Full move history for game replay
--- - Seasonal leaderboards
--- - Analytics event tracking
--- - Proper constraints and indexes for data integrity and performance
+-- - Global per-game rating tracking
+-- - Match move, replay, and bot-owned message history
+-- - Analytics event taxonomy
+-- - Plugin-driven game registry with no seeded default games
 
 -- Drop existing database if exists (development only)
 -- Uncomment for fresh start: DROP DATABASE IF EXISTS playcord;
 
 -- Create database (run manually if needed)
 -- CREATE DATABASE playcord WITH ENCODING 'UTF8' LC_COLLATE='en_US.UTF-8' LC_CTYPE='en_US.UTF-8';
+
+CREATE TYPE match_status AS ENUM (
+    'in_progress',
+    'completed',
+    'abandoned',
+    'interrupted'
+);
 
 -- ============================================================================
 -- TABLE: guilds
@@ -162,11 +168,10 @@ CREATE TABLE IF NOT EXISTS matches
     thread_id   BIGINT,
     started_at  TIMESTAMPTZ DEFAULT NOW()         NOT NULL,
     ended_at    TIMESTAMPTZ,
-    status      VARCHAR(20) DEFAULT 'in_progress' NOT NULL,
+    status      match_status DEFAULT 'in_progress' NOT NULL,
     is_rated    BOOLEAN     DEFAULT TRUE          NOT NULL,
     game_config JSONB       DEFAULT '{}'::jsonb,
     match_code  VARCHAR(8),
-    final_state JSONB,
     metadata    JSONB       DEFAULT '{}'::jsonb,
     created_at  TIMESTAMPTZ DEFAULT NOW()         NOT NULL,
     updated_at  TIMESTAMPTZ DEFAULT NOW()         NOT NULL,
@@ -175,9 +180,6 @@ CREATE TABLE IF NOT EXISTS matches
         REFERENCES games (game_id) ON DELETE CASCADE,
     CONSTRAINT fk_match_guild FOREIGN KEY (guild_id)
         REFERENCES guilds (guild_id) ON DELETE CASCADE,
-    CONSTRAINT chk_match_status CHECK (
-        status IN ('in_progress', 'completed', 'interrupted', 'abandoned', 'disputed')
-        ),
     CONSTRAINT chk_match_end_time CHECK (
         ended_at IS NULL OR ended_at > started_at
         )
@@ -204,8 +206,7 @@ CREATE INDEX IF NOT EXISTS idx_matches_channel ON matches (channel_id, status);
 
 COMMENT ON TABLE matches IS 'Game matches (completed and in-progress)';
 COMMENT ON COLUMN matches.game_config IS 'Game-specific settings used for this match';
-COMMENT ON COLUMN matches.final_state IS 'Final board/game state at completion';
-COMMENT ON COLUMN matches.metadata IS 'Spectators, timeout info, etc.: {"spectators": [...], "timeouts": [...]}';
+COMMENT ON COLUMN matches.metadata IS 'Structured metadata including reason payloads such as {"reason": {"type": "error", "exception": "...", "detail": "..."}}';
 
 
 -- ============================================================================
@@ -251,21 +252,23 @@ COMMENT ON COLUMN match_participants.sigma_before IS 'Uncertainty before this ma
 
 
 -- ============================================================================
--- TABLE: moves
+-- TABLE: match_moves
 -- Full move history for game replay and audit
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS moves
+CREATE TABLE IF NOT EXISTS match_moves
 (
     move_id          BIGSERIAL PRIMARY KEY,
     match_id         BIGINT                    NOT NULL,
     user_id          BIGINT,
     move_number      INTEGER                   NOT NULL,
-    move_data         JSONB                     NOT NULL,
-    game_state_after  JSONB,
+    kind             VARCHAR(20) DEFAULT 'move' NOT NULL,
+    move_data        JSONB                     NOT NULL,
+    game_state_after JSONB,
     is_game_affecting BOOLEAN     DEFAULT TRUE  NOT NULL,
-    created_at        TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    created_at       TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     time_taken_ms    INTEGER,
 
+    CONSTRAINT chk_match_move_kind CHECK (kind IN ('move', 'system', 'reset')),
     CONSTRAINT uq_match_move_number UNIQUE (match_id, move_number),
     CONSTRAINT fk_move_match FOREIGN KEY (match_id)
         REFERENCES matches (match_id) ON DELETE CASCADE,
@@ -276,18 +279,62 @@ CREATE TABLE IF NOT EXISTS moves
 );
 
 -- Index for sequential move replay
-CREATE INDEX IF NOT EXISTS idx_moves_match_sequence ON moves (match_id, move_number ASC);
-CREATE INDEX IF NOT EXISTS idx_moves_user ON moves (user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_moves_created_at ON moves (created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_moves_game_affecting ON moves (is_game_affecting)
+CREATE INDEX IF NOT EXISTS idx_match_moves_match_sequence ON match_moves (match_id, move_number ASC);
+CREATE INDEX IF NOT EXISTS idx_match_moves_user ON match_moves (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_match_moves_created_at ON match_moves (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_match_moves_game_affecting ON match_moves (is_game_affecting)
     WHERE is_game_affecting = TRUE;
 
-COMMENT ON TABLE moves IS 'Complete move history for game replay and auditing';
-COMMENT ON COLUMN moves.user_id IS 'Player who made the move (NULL for system/automatic moves)';
-COMMENT ON COLUMN moves.move_data IS 'Game-specific move format: {"position": "e4", "piece": "pawn", ...}';
-COMMENT ON COLUMN moves.game_state_after IS 'Optional: Full game state after this move for replay';
-COMMENT ON COLUMN moves.time_taken_ms IS 'Thinking time in milliseconds';
-COMMENT ON COLUMN moves.is_game_affecting IS 'False for cosmetic/no-op moves excluded from replay logic';
+COMMENT ON TABLE match_moves IS 'Complete move history for game replay and auditing';
+COMMENT ON COLUMN match_moves.user_id IS 'Player who made the move (NULL for system/automatic moves)';
+COMMENT ON COLUMN match_moves.kind IS 'move, system, or reset';
+COMMENT ON COLUMN match_moves.move_data IS 'Game-specific move format: {"position": "e4", "piece": "pawn", ...}';
+COMMENT ON COLUMN match_moves.game_state_after IS 'Optional: Full game state after this move for replay';
+COMMENT ON COLUMN match_moves.time_taken_ms IS 'Thinking time in milliseconds';
+COMMENT ON COLUMN match_moves.is_game_affecting IS 'False for cosmetic/no-op moves excluded from replay logic';
+
+
+-- ============================================================================
+-- TABLE: analytics_event_types
+-- Known analytics event type taxonomy
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS analytics_event_types
+(
+    event_type  VARCHAR(100) PRIMARY KEY,
+    description TEXT,
+    is_active   BOOLEAN     DEFAULT TRUE  NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+COMMENT ON TABLE analytics_event_types IS 'Known analytics event names used by PlayCord';
+
+INSERT INTO analytics_event_types (event_type, description)
+VALUES
+    ('bot_started', 'Bot process booted successfully'),
+    ('command_used', 'A slash command or move command was executed'),
+    ('error_occurred', 'An unexpected runtime or infrastructure error occurred'),
+    ('game_abandoned', 'A match was abandoned before completion'),
+    ('game_completed', 'A match reached a completed outcome'),
+    ('game_interrupted', 'A match was interrupted before completion'),
+    ('game_started', 'A new match runtime was started'),
+    ('guild_joined', 'Bot joined a guild'),
+    ('guild_left', 'Bot left a guild'),
+    ('matchmaking_joined', 'A player joined a matchmaking lobby'),
+    ('matchmaking_left', 'A player left a matchmaking lobby'),
+    ('matchmaking_matched', 'A lobby transitioned into an active match'),
+    ('matchmaking_started', 'A matchmaking lobby was created'),
+    ('matchmaking_completed', 'A matchmaking lobby completed successfully'),
+    ('matchmaking_cancelled', 'A matchmaking lobby ended without a game'),
+    ('player_joined', 'A player joined a match'),
+    ('player_left', 'A player left a match'),
+    ('move_made', 'A match move or equivalent interaction was applied'),
+    ('move_valid', 'A move was accepted'),
+    ('move_invalid', 'A move was rejected as invalid'),
+    ('move_rejected', 'A move could not be routed or executed'),
+    ('rating_updated', 'A player rating row changed'),
+    ('skill_decay_applied', 'Inactivity-based sigma decay was applied')
+ON CONFLICT (event_type) DO UPDATE SET
+    description = EXCLUDED.description;
 
 
 -- ============================================================================
@@ -305,6 +352,8 @@ CREATE TABLE IF NOT EXISTS analytics_events
     match_id   BIGINT,
     metadata   JSONB       DEFAULT '{}'::jsonb,
 
+    CONSTRAINT fk_event_type FOREIGN KEY (event_type)
+        REFERENCES analytics_event_types (event_type) ON DELETE RESTRICT,
     CONSTRAINT fk_event_user FOREIGN KEY (user_id)
         REFERENCES users (user_id) ON DELETE SET NULL,
     CONSTRAINT fk_event_guild FOREIGN KEY (guild_id)
@@ -399,6 +448,42 @@ COMMENT ON COLUMN replay_events.payload IS 'Arbitrary replay event payload. even
 
 
 -- ============================================================================
+-- TABLE: bot_messages
+-- Track every message owned by the bot runtime for a match
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS bot_messages
+(
+    bot_message_id     BIGSERIAL PRIMARY KEY,
+    match_id           BIGINT                    NOT NULL,
+    discord_message_id BIGINT                    NOT NULL,
+    channel_id         BIGINT                    NOT NULL,
+    message_key        VARCHAR(100)              NOT NULL,
+    purpose            VARCHAR(32)               NOT NULL,
+    payload_digest     VARCHAR(64),
+    metadata           JSONB       DEFAULT '{}'::jsonb NOT NULL,
+    deleted_at         TIMESTAMPTZ,
+    created_at         TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at         TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+
+    CONSTRAINT fk_bot_messages_match FOREIGN KEY (match_id)
+        REFERENCES matches (match_id) ON DELETE CASCADE,
+    CONSTRAINT uq_bot_messages_discord_id UNIQUE (discord_message_id),
+    CONSTRAINT uq_bot_messages_key UNIQUE (match_id, message_key),
+    CONSTRAINT chk_bot_message_purpose CHECK (
+        purpose IN ('board', 'announcement', 'ephemeral', 'turn_notification', 'custom', 'overview')
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_bot_messages_match ON bot_messages (match_id, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_bot_messages_purpose ON bot_messages (match_id, purpose, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_bot_messages_channel ON bot_messages (channel_id, created_at DESC);
+
+COMMENT ON TABLE bot_messages IS 'Messages owned by the runtime for a match';
+COMMENT ON COLUMN bot_messages.message_key IS 'Stable key such as board, status, or turn_notice';
+COMMENT ON COLUMN bot_messages.metadata IS 'Runtime metadata, including summaries and lookup hints';
+
+
+-- ============================================================================
 -- TABLE: database_migrations
 -- Track applied database migrations for version control
 -- ============================================================================
@@ -469,21 +554,20 @@ CREATE TRIGGER tr_match_participants_updated_at
     FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER tr_bot_messages_updated_at
+    BEFORE UPDATE
+    ON bot_messages
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
 
 -- ============================================================================
--- INITIAL MIGRATION RECORD (baseline; app migrations start at 2.4.0)
+-- INITIAL MIGRATION RECORD
 -- ============================================================================
 INSERT INTO database_migrations (version, description)
 VALUES (
-    '2.4.0',
-    'Baseline schema: global per-game ratings, replay log, migration track from 2.4.0 onward'
-)
-ON CONFLICT (version) DO NOTHING;
-
-INSERT INTO database_migrations (version, description)
-VALUES (
-    '2.5.0',
-    'Guild leaderboard index; apply_skill_decay without guild_id (fresh installs)'
+    '1.0.0',
+    'Clean-slate schema: plugin registry, match_status enum, match_moves, bot_messages'
 )
 ON CONFLICT (version) DO NOTHING;
 
