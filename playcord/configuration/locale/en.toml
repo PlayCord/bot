@@ -621,14 +621,18 @@ footer = "Page {page}/{total} • Use {command:playcord help} for tutorials and 
 # =============================================================================
 [embeds.profile]
 title = "{username}'s Profile"
-field_ratings = "Game Ratings"
-field_ratings_empty = "No games played yet! Start with {command:play} "
-field_recent_matches = "Recent Matches"
+field_snapshot = "Snapshot"
+snapshot_format = "• Total Played: {total_matches} {games_word}\n• Rated Games: {rated_games} {rated_games_word}\n• Top Game: {top_game}"
+top_game_empty = "No games yet"
+field_ratings = "Ratings"
+field_ratings_empty = "No games played yet! Start with {command:play}"
+field_recent_matches = "Recent Activity"
 field_recent_matches_empty = "No recent matches."
-field_total_games = "Total Games Played"
-rating_format = "**{game_name}**: {rating} ({matches} {games_word})"
-rating_format_ranked = "**{game_name}**: {rating} ({matches} {games_word}) {badge} #{rank} Global"
-match_format = "**{game_name}** - {ranking}/{player_count} | seat #{seat} | {rated_status} | {status} | ({delta})"
+rating_format = "{medal} **{game_name}** · {rating} ({matches} {games_word})"
+rating_format_ranked = "{medal} **{game_name}** · {rating} ({matches} {games_word}) {badge} #{rank} Global"
+match_format = "**{game_name}** · {ranking}/{player_count} | seat #{seat} | {rated_status} | {status} | {delta}"
+match_summary_suffix = " — {summary}"
+footer = "Tip: use /playcord history <game> for detailed trends."
 
 # =============================================================================
 # EMBEDS - LEADERBOARD

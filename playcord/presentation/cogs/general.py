@@ -1,6 +1,7 @@
 import importlib
 from datetime import datetime
 from difflib import get_close_matches
+from typing import Any
 
 import discord
 from discord import app_commands
@@ -112,6 +113,49 @@ def _history_status_label(status: str | None) -> str:
         "abandoned": "abandoned",
     }
     return status_map.get((status or "").lower(), "completed")
+
+
+def _rank_badge_for_global_rank(global_rank: int | None) -> str:
+    if global_rank is None:
+        return ""
+    if global_rank == 1:
+        return get("format.rank_badge_1")
+    if global_rank <= 3:
+        return get("format.rank_badge_top3")
+    if global_rank <= 10:
+        return get("format.rank_badge_top10")
+    return ""
+
+
+def _match_summary_for_user(
+    metadata: object, user_id: int, *, max_len: int = 72
+) -> str | None:
+    if not isinstance(metadata, dict):
+        return None
+
+    summary = None
+    by_player = metadata.get("outcome_summaries")
+    if isinstance(by_player, dict):
+        summary = by_player.get(str(user_id))
+    if summary is None:
+        summary = metadata.get("outcome_global_summary") or metadata.get(
+            "outcome_summary"
+        )
+    if summary is None:
+        return None
+
+    text = str(summary).strip()
+    if not text:
+        return None
+    if len(text) > max_len:
+        text = text[: max_len - 3] + "..."
+    return text
+
+
+def _profile_supports_compact_avatar() -> bool:
+    # Current container rendering shows thumbnails as media cards (large visual block).
+    # Only display avatars here when compact thumbnail rendering is available.
+    return False
 
 
 def resolve_match_for_replay(raw: str, guild_id: int):
@@ -1073,69 +1117,100 @@ class GeneralCog(commands.Cog):
             title=fmt("embeds.profile.title", username=user.display_name),
             color=INFO_COLOR,
         )
-        container.set_thumbnail(url=user.display_avatar.url)
+        if _profile_supports_compact_avatar():
+            container.set_thumbnail(url=user.display_avatar.url)
 
-        game_stats = []
-        for game_id in GAME_TYPES:
-            game_name = _GAME_METADATA[game_id]["name"]
-            rating_info = db.database.get_user_game_ratings(user.id, game_id)
-            if rating_info and rating_info.get("matches_played", 0) > 0:
-                mu = rating_info.get("mu", MU)
-                matches = rating_info.get("matches_played", 0)
+        games = db.database.get_all_games(active_only=False)
+        game_by_id = {g.game_id: g for g in games}
+        rating_rows: list[dict[str, Any]] = []
+        for rating in db.database.get_user_all_ratings(user.id):
+            matches = int(getattr(rating, "matches_played", 0) or 0)
+            if matches <= 0:
+                continue
+            game_obj = game_by_id.get(getattr(rating, "game_id", -1))
+            if game_obj is None:
+                continue
 
-                # Check for global rank
-                game_db = db.database.get_game(game_id)
-                if game_db:
-                    global_rank = db.database.get_user_global_rank(
-                        user.id, game_db.game_id
+            game_key = game_obj.game_name
+            game_name = (
+                game_obj.display_name
+                or str(_GAME_METADATA.get(game_key, {}).get("name") or game_key)
+            )
+            global_rank = db.database.get_user_global_rank(user.id, game_obj.game_id)
+            rating_rows.append(
+                {
+                    "game_name": game_name,
+                    "mu": float(getattr(rating, "mu", MU) or MU),
+                    "matches": matches,
+                    "global_rank": global_rank,
+                    "rank_badge": _rank_badge_for_global_rank(global_rank),
+                }
+            )
+        rating_rows.sort(key=lambda row: (row["matches"], row["mu"]), reverse=True)
+
+        total_matches = sum(int(row["matches"]) for row in rating_rows)
+        rated_games = len(rating_rows)
+        top_game = (
+            str(rating_rows[0]["game_name"])
+            if rating_rows
+            else get("embeds.profile.top_game_empty")
+        )
+        container.add_field(
+            name=get("embeds.profile.field_snapshot"),
+            value=fmt(
+                "embeds.profile.snapshot_format",
+                total_matches=total_matches,
+                games_word=plural("game", total_matches),
+                rated_games=rated_games,
+                rated_games_word=plural("game", rated_games),
+                top_game=top_game,
+            ),
+            inline=False,
+        )
+
+        if rating_rows:
+            game_stats = []
+            for idx, row in enumerate(rating_rows, start=1):
+                medal = (
+                    get("format.rank_medal_1")
+                    if idx == 1
+                    else (
+                        get("format.rank_medal_2")
+                        if idx == 2
+                        else (
+                            get("format.rank_medal_3")
+                            if idx == 3
+                            else fmt("format.rank_number", rank=idx)
+                        )
                     )
-                    if global_rank is not None and global_rank <= 100:
-                        rank_badge = (
-                            get("format.rank_badge_1")
-                            if global_rank == 1
-                            else (
-                                get("format.rank_badge_top3")
-                                if global_rank <= 3
-                                else (
-                                    get("format.rank_badge_top10")
-                                    if global_rank <= 10
-                                    else ""
-                                )
-                            )
+                )
+                if (
+                    row["global_rank"] is not None
+                    and int(row["global_rank"]) <= 100
+                ):
+                    game_stats.append(
+                        fmt(
+                            "embeds.profile.rating_format_ranked",
+                            medal=medal,
+                            game_name=row["game_name"],
+                            rating=round(float(row["mu"])),
+                            matches=row["matches"],
+                            games_word=plural("game", int(row["matches"])),
+                            badge=row["rank_badge"],
+                            rank=row["global_rank"],
                         )
-                        game_stats.append(
-                            fmt(
-                                "embeds.profile.rating_format_ranked",
-                                game_name=game_name,
-                                rating=round(mu),
-                                matches=matches,
-                                games_word=plural("game", matches),
-                                badge=rank_badge,
-                                rank=global_rank,
-                            )
-                        )
-                    else:
-                        game_stats.append(
-                            fmt(
-                                "embeds.profile.rating_format",
-                                game_name=game_name,
-                                rating=round(mu),
-                                matches=matches,
-                                games_word=plural("game", matches),
-                            )
-                        )
+                    )
                 else:
                     game_stats.append(
                         fmt(
                             "embeds.profile.rating_format",
-                            game_name=game_name,
-                            rating=round(mu),
-                            matches=matches,
-                            games_word=plural("game", matches),
+                            medal=medal,
+                            game_name=row["game_name"],
+                            rating=round(float(row["mu"])),
+                            matches=row["matches"],
+                            games_word=plural("game", int(row["matches"])),
                         )
                     )
-
-        if game_stats:
             container.add_field(
                 name=get("embeds.profile.field_ratings"),
                 value="\n".join(game_stats),
@@ -1152,8 +1227,9 @@ class GeneralCog(commands.Cog):
             user.id, ctx.guild.id, limit=5
         )
         if match_history:
-            history_lines = [
-                fmt(
+            history_lines = []
+            for m in match_history:
+                line = fmt(
                     "embeds.profile.match_format",
                     game_name=m.get("game_name", get("help.game_info.unknown")),
                     ranking=(
@@ -1171,8 +1247,12 @@ class GeneralCog(commands.Cog):
                     status=_history_status_label(m.get("status")),
                     delta=f"{'+' if m.get('mu_delta', 0) >= 0 else ''}{round(m.get('mu_delta', 0))}",
                 )
-                for m in match_history
-            ]
+                summary = _match_summary_for_user(
+                    m.get("metadata"), user.id, max_len=56
+                )
+                if summary:
+                    line += fmt("embeds.profile.match_summary_suffix", summary=summary)
+                history_lines.append(line)
             container.add_field(
                 name=get("embeds.profile.field_recent_matches"),
                 value="\n".join(history_lines),
@@ -1184,17 +1264,7 @@ class GeneralCog(commands.Cog):
                 value=get("embeds.profile.field_recent_matches_empty"),
                 inline=False,
             )
-
-        total_matches = 0
-        for game_id in GAME_TYPES:
-            rating_info = db.database.get_user_game_ratings(user.id, game_id)
-            if rating_info:
-                total_matches += int(rating_info.get("matches_played", 0))
-        container.add_field(
-            name=get("embeds.profile.field_total_games"),
-            value=f"{total_matches} {plural('game', total_matches)}",
-            inline=True,
-        )
+        container.set_footer(text=get("embeds.profile.footer"))
         await followup_send(ctx, **container_send_kwargs(container))
 
     @command_root.command(
@@ -1319,21 +1389,10 @@ class GeneralCog(commands.Cog):
             for row in display_history:
                 rank_text = _ordinal(row.get("final_ranking"))
                 delta = row.get("mu_delta", 0)
-                meta = row.get("metadata") or {}
-                if not isinstance(meta, dict):
-                    meta = {}
-                summ = None
-                by_player = meta.get("outcome_summaries")
-                if isinstance(by_player, dict):
-                    summ = by_player.get(str(user.id))
-                if summ is None:
-                    summ = meta.get("outcome_summary")
+                summ = _match_summary_for_user(row.get("metadata"), user.id)
                 summ_txt = ""
                 if summ:
-                    s = str(summ)
-                    if len(s) > 72:
-                        s = s[:69] + "..."
-                    summ_txt = f" — {s}"
+                    summ_txt = f" — {summ}"
                 mid = row.get("match_code") or row.get("match_id", "?")
                 gkey = row.get("game_key") or "?"
                 lines.append(
