@@ -10,7 +10,7 @@ import discord
 from playcord.games import PLUGINS
 from playcord.infrastructure.locale import Translator
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 NAME = ""
 MANAGED_BY = ""
 LOGGING_ROOT = "playcord"
