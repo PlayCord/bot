@@ -20,7 +20,7 @@ class CustomId:
         return ":".join(parts)
 
     @classmethod
-    def decode(cls, raw: str) -> "CustomId":
+    def decode(cls, raw: str) -> CustomId:
         parts = raw.split(":", 3)
         if len(parts) < 3:
             raise ValueError(f"Invalid custom_id: {raw!r}")

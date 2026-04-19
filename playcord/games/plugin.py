@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Type
 
 from playcord.domain.game import GameMetadata, PlayerOrder, RoleMode
 from playcord.games.api import GamePlugin
@@ -21,7 +20,7 @@ def resolve_player_count(game_class: type[GamePlugin]) -> int | list[int] | None
 @dataclass(frozen=True, slots=True)
 class RegisteredGamePlugin:
     key: str
-    game_class: Type[GamePlugin]
+    game_class: type[GamePlugin]
 
     @property
     def module_name(self) -> str:

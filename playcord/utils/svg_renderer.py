@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import html
-from typing import Iterable
+from collections.abc import Iterable
 
 
 def render_key_value_svg(

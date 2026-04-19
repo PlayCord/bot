@@ -51,7 +51,7 @@ async def interrupt_match(
     if getattr(interface, "_interrupt_started", False):
         return
 
-    setattr(interface, "_interrupt_started", True)
+    interface._interrupt_started = True
     interface.ending_game = True
 
     reason_payload = _reason_payload(error, trace_id=trace_id)

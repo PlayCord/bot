@@ -20,7 +20,9 @@ def get_seed_trueskill_parameters(game_type_key: str) -> dict[str, float]:
     if plugin is None:
         return dict(DEFAULT_TRUESKILL_PARAMETERS)
     try:
-        return dict(plugin.metadata().trueskill_parameters or DEFAULT_TRUESKILL_PARAMETERS)
+        return dict(
+            plugin.metadata().trueskill_parameters or DEFAULT_TRUESKILL_PARAMETERS
+        )
     except (AttributeError, ImportError, TypeError, ValueError) as exc:
         log.warning(
             "Failed to load seed TrueSkill parameters for %s: %s",

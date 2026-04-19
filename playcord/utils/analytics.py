@@ -6,7 +6,6 @@ Tracks events like game starts, game completions, command usage, etc.
 import io
 import json
 import time
-from datetime import datetime
 from typing import Any
 
 import playcord.utils.database as _db_module

@@ -21,7 +21,6 @@ from playcord.infrastructure.app_constants import (
 )
 from playcord.utils import database as db
 from playcord.utils.analytics import (
-    format_recent_event_row,
     render_analytics_markdown_summary,
     render_analytics_matplotlib_summary,
 )
@@ -31,8 +30,8 @@ from playcord.utils.containers import (
     container_send_kwargs,
     lines_to_container_sections,
 )
-from playcord.utils.logging_config import get_logger
 from playcord.utils.locale import fmt, get
+from playcord.utils.logging_config import get_logger
 
 log = get_logger()
 

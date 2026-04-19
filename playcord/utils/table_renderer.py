@@ -3,8 +3,8 @@ from __future__ import annotations
 import io
 import os
 import unicodedata
-from functools import lru_cache
-from typing import Sequence
+from collections.abc import Sequence
+from functools import cache
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -48,7 +48,7 @@ def _font_paths(candidates: Sequence[str]) -> list[str]:
     return [path for path in candidates if os.path.exists(path)]
 
 
-@lru_cache(maxsize=None)
+@cache
 def _load_font(size: int, *, emoji: bool = False) -> ImageFont.ImageFont:
     if emoji:
         candidates: Sequence[str] = (*_EMOJI_FONT_CANDIDATES, *_TEXT_FONT_CANDIDATES)

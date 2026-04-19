@@ -2,8 +2,6 @@ import asyncio
 from typing import Any
 
 import discord
-from discord import app_commands
-from discord.app_commands import CheckFailure
 
 from playcord import state as session_state
 from playcord.infrastructure.app_constants import (
@@ -13,11 +11,13 @@ from playcord.infrastructure.app_constants import (
 )
 
 CURRENT_GAMES = session_state.CURRENT_GAMES
-from playcord.utils.containers import CustomContainer, UserErrorContainer, container_send_kwargs
-from playcord.utils.conversion import contextify
-from playcord.utils.database import DatabaseConnectionError
-from playcord.utils.logging_config import get_logger
+from playcord.utils.containers import (
+    CustomContainer,
+    UserErrorContainer,
+    container_send_kwargs,
+)
 from playcord.utils.locale import get, get_error
+from playcord.utils.logging_config import get_logger
 
 log = get_logger()
 
@@ -144,8 +144,9 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
     return True
 
 
-from discord.app_commands import Choice
 import typing
+
+from discord.app_commands import Choice
 
 
 async def decode_discord_arguments(argument: Choice | typing.Any) -> typing.Any:

@@ -5,8 +5,8 @@ Data classes representing database entities for type safety and easier data hand
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any, List
 from enum import Enum
+from typing import Any
 
 # ============================================================================
 # ENUMS
@@ -60,10 +60,10 @@ class Guild:
 
     guild_id: int
     joined_at: datetime
-    settings: Dict[str, Any] = field(default_factory=dict)
+    settings: dict[str, Any] = field(default_factory=dict)
     is_active: bool = True
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     def get_setting(self, key: str, default: Any = None) -> Any:
         """Get a guild setting with optional default"""
@@ -81,11 +81,11 @@ class User:
     user_id: int
     username: str
     joined_at: datetime
-    preferences: Dict[str, Any] = field(default_factory=dict)
+    preferences: dict[str, Any] = field(default_factory=dict)
     is_bot: bool = False
     is_active: bool = True
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     def get_preference(self, key: str, default: Any = None) -> Any:
         """Get a user preference with optional default"""
@@ -110,12 +110,12 @@ class Game:
     display_name: str
     min_players: int
     max_players: int
-    rating_config: Dict[str, float]
-    game_metadata: Dict[str, Any] = field(default_factory=dict)
+    rating_config: dict[str, float]
+    game_metadata: dict[str, Any] = field(default_factory=dict)
     game_schema_version: int = 1
     is_active: bool = True
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     def get_trueskill_param(self, param: str) -> float:
         """Get a TrueSkill parameter"""
@@ -156,10 +156,10 @@ class Rating:
     mu: float
     sigma: float
     matches_played: int = 0
-    last_played: Optional[datetime] = None
-    last_sigma_increase: Optional[datetime] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    last_played: datetime | None = None
+    last_sigma_increase: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     @property
     def conservative_rating(self) -> float:
@@ -185,19 +185,19 @@ class Match:
     game_id: int
     guild_id: int
     channel_id: int
-    thread_id: Optional[int]
+    thread_id: int | None
     started_at: datetime
-    ended_at: Optional[datetime]
+    ended_at: datetime | None
     status: MatchStatus
     is_rated: bool = True
-    game_config: Dict[str, Any] = field(default_factory=dict)
-    match_code: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    game_config: dict[str, Any] = field(default_factory=dict)
+    match_code: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     @property
-    def duration_seconds(self) -> Optional[int]:
+    def duration_seconds(self) -> int | None:
         """Match duration in seconds"""
         if self.ended_at is None:
             return None
@@ -226,24 +226,24 @@ class Participant:
     match_id: int
     user_id: int
     player_number: int
-    final_ranking: Optional[int] = None
-    score: Optional[float] = None
-    mu_before: Optional[float] = None
-    sigma_before: Optional[float] = None
+    final_ranking: int | None = None
+    score: float | None = None
+    mu_before: float | None = None
+    sigma_before: float | None = None
     mu_delta: float = 0.0
     sigma_delta: float = 0.0
-    joined_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    joined_at: datetime | None = None
+    updated_at: datetime | None = None
 
     @property
-    def mu_after(self) -> Optional[float]:
+    def mu_after(self) -> float | None:
         """Rating after the match"""
         if self.mu_before is None:
             return None
         return self.mu_before + self.mu_delta
 
     @property
-    def sigma_after(self) -> Optional[float]:
+    def sigma_after(self) -> float | None:
         """Uncertainty after the match"""
         if self.sigma_before is None:
             return None
@@ -261,14 +261,14 @@ class Move:
 
     move_id: int
     match_id: int
-    user_id: Optional[int]  # None for system moves
+    user_id: int | None  # None for system moves
     move_number: int
-    move_data: Dict[str, Any]
+    move_data: dict[str, Any]
     kind: str = "move"
-    game_state_after: Optional[Dict[str, Any]] = None
+    game_state_after: dict[str, Any] | None = None
     is_game_affecting: bool = True
-    created_at: Optional[datetime] = None
-    time_taken_ms: Optional[int] = None
+    created_at: datetime | None = None
+    time_taken_ms: int | None = None
 
     @property
     def is_system_move(self) -> bool:
@@ -276,7 +276,7 @@ class Move:
         return self.user_id is None
 
     @property
-    def time_taken_seconds(self) -> Optional[float]:
+    def time_taken_seconds(self) -> float | None:
         """Time taken in seconds"""
         if self.time_taken_ms is None:
             return None
@@ -290,11 +290,11 @@ class AnalyticsEvent:
     event_id: int
     event_type: EventType
     created_at: datetime
-    user_id: Optional[int] = None
-    guild_id: Optional[int] = None
-    game_id: Optional[int] = None
-    match_id: Optional[int] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    user_id: int | None = None
+    guild_id: int | None = None
+    game_id: int | None = None
+    match_id: int | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -335,7 +335,7 @@ class RatingHistory:
 # ============================================================================
 
 
-def row_to_user(row: Dict[str, Any]) -> User:
+def row_to_user(row: dict[str, Any]) -> User:
     """Convert database row to User object"""
     return User(
         user_id=row["user_id"],
@@ -349,7 +349,7 @@ def row_to_user(row: Dict[str, Any]) -> User:
     )
 
 
-def row_to_guild(row: Dict[str, Any]) -> Guild:
+def row_to_guild(row: dict[str, Any]) -> Guild:
     """Convert database row to Guild object"""
     return Guild(
         guild_id=row["guild_id"],
@@ -361,7 +361,7 @@ def row_to_guild(row: Dict[str, Any]) -> Guild:
     )
 
 
-def row_to_game(row: Dict[str, Any]) -> Game:
+def row_to_game(row: dict[str, Any]) -> Game:
     """Convert database row to Game object"""
     return Game(
         game_id=row["game_id"],
@@ -378,7 +378,7 @@ def row_to_game(row: Dict[str, Any]) -> Game:
     )
 
 
-def row_to_rating(row: Dict[str, Any]) -> Rating:
+def row_to_rating(row: dict[str, Any]) -> Rating:
     """Convert database row to Rating object"""
     return Rating(
         rating_id=row["rating_id"],
@@ -394,7 +394,7 @@ def row_to_rating(row: Dict[str, Any]) -> Rating:
     )
 
 
-def row_to_match(row: Dict[str, Any]) -> Match:
+def row_to_match(row: dict[str, Any]) -> Match:
     """Convert database row to Match object"""
     return Match(
         match_id=row["match_id"],
@@ -414,7 +414,7 @@ def row_to_match(row: Dict[str, Any]) -> Match:
     )
 
 
-def row_to_participant(row: Dict[str, Any]) -> Participant:
+def row_to_participant(row: dict[str, Any]) -> Participant:
     """Convert database row to Participant object"""
     return Participant(
         participant_id=row["participant_id"],
@@ -432,7 +432,7 @@ def row_to_participant(row: Dict[str, Any]) -> Participant:
     )
 
 
-def row_to_move(row: Dict[str, Any]) -> Move:
+def row_to_move(row: dict[str, Any]) -> Move:
     """Convert database row to Move object"""
     return Move(
         move_id=row["move_id"],

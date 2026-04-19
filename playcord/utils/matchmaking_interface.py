@@ -1,16 +1,15 @@
 """Discord matchmaking lobby interface implementation."""
 
-import io
 import importlib
 import typing
 from typing import Any
 
 import discord
 
+from playcord import state as session_state
 from playcord.application.services.match_lifecycle import start_match_from_lobby
 from playcord.domain.player import Player
 from playcord.games.plugin import RoleMode, resolve_player_count
-from playcord import state as session_state
 from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_JOIN,
     BUTTON_PREFIX_LEAVE,
@@ -509,15 +508,19 @@ class MatchmakingInterface:
         if self._base_start_conditions_met() and self.queued_players:
             ready_lines = []
             for p in sorted(self.queued_players, key=lambda x: x.id):
-                mention = getattr(p, "mention", None) or getattr(p, "name", None) or str(
-                    getattr(p, "id", p)
+                mention = (
+                    getattr(p, "mention", None)
+                    or getattr(p, "name", None)
+                    or str(getattr(p, "id", p))
                 )
                 state = (
                     get("queue.ready_state_ready")
                     if p.id in self.ready_players
                     else get("queue.ready_state_waiting")
                 )
-                ready_lines.append(fmt("queue.ready_state_line", player=mention, state=state))
+                ready_lines.append(
+                    fmt("queue.ready_state_line", player=mention, state=state)
+                )
             container.add_field(
                 name=get("queue.field_ready_state"),
                 value="\n".join(ready_lines),

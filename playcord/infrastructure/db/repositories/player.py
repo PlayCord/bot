@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from playcord.domain.player import Player
-
 from playcord.utils.database import Database
 
 

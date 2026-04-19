@@ -15,8 +15,8 @@ from playcord.infrastructure.app_constants import (
 CURRENT_MATCHMAKING = session_state.CURRENT_MATCHMAKING
 from playcord.utils.conversion import contextify
 from playcord.utils.discord_utils import followup_send
-from playcord.utils.logging_config import get_logger
 from playcord.utils.locale import get
+from playcord.utils.logging_config import get_logger
 
 log = get_logger()
 

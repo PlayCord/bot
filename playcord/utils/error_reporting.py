@@ -4,20 +4,23 @@ Provides a single async function `try_send_error_embed` which attempts multiple 
 strategies (edit game message, post to thread, post to status channel, edit status message)
 and logs failures along the way. Designed to be imported and reused by interfaces.
 """
-from typing import Optional
 
-from playcord.utils.containers import ErrorContainer, container_edit_kwargs, container_send_kwargs
+from playcord.utils.containers import (
+    ErrorContainer,
+    container_edit_kwargs,
+    container_send_kwargs,
+)
 from playcord.utils.locale import get
 
 
 async def try_send_error_embed(
-        logger,
-        error: Exception,
-        *,
-        game_message: Optional[object] = None,
-        thread: Optional[object] = None,
-        status_message: Optional[object] = None,
-        thread_id: Optional[int] = None,
+    logger,
+    error: Exception,
+    *,
+    game_message: object | None = None,
+    thread: object | None = None,
+    status_message: object | None = None,
+    thread_id: int | None = None,
 ) -> bool:
     """Try to notify users about ``error`` by sending an error embed.
 
@@ -41,10 +44,14 @@ async def try_send_error_embed(
     # 1) Try to edit the game message using container edit kwargs
     try:
         if game_message is not None:
-            await game_message.edit(**container_edit_kwargs(error_embed, attachments=None))
+            await game_message.edit(
+                **container_edit_kwargs(error_embed, attachments=None)
+            )
             return True
     except Exception:
-        logger.exception("Failed to edit game_message with error embed; will try fallbacks")
+        logger.exception(
+            "Failed to edit game_message with error embed; will try fallbacks"
+        )
 
     # 2) Try to send into the private thread using container send kwargs
     try:
@@ -56,17 +63,24 @@ async def try_send_error_embed(
 
     # 3) Try to send to the status message channel
     try:
-        if status_message is not None and getattr(status_message, "channel", None) is not None:
+        if (
+            status_message is not None
+            and getattr(status_message, "channel", None) is not None
+        ):
             await status_message.channel.send(**container_send_kwargs(error_embed))
             return True
     except Exception:
-        logger.exception("Failed to send error embed to status_message.channel; will try to edit status_message")
+        logger.exception(
+            "Failed to send error embed to status_message.channel; will try to edit status_message"
+        )
 
     # 4) Try to edit the status message as a last resort (use plain content fallback if edit kwargs fail)
     try:
         if status_message is not None:
             try:
-                await status_message.edit(**container_edit_kwargs(error_embed, attachments=None))
+                await status_message.edit(
+                    **container_edit_kwargs(error_embed, attachments=None)
+                )
             except Exception:
                 # Fall back to a short textual alert if editing with container fails
                 try:
@@ -77,7 +91,9 @@ async def try_send_error_embed(
                         attachments=[],
                     )
                 except Exception:
-                    logger.exception("Failed to edit status_message with fallback content")
+                    logger.exception(
+                        "Failed to edit status_message with fallback content"
+                    )
             return True
     except Exception:
         logger.exception("Failed to notify via status_message; giving up")

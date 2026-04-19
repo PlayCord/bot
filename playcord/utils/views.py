@@ -14,9 +14,16 @@ from playcord.infrastructure.app_constants import (
     HELP_GAMES_PREVIEW_COUNT,
     INFO_COLOR,
 )
-from playcord.utils.containers import (CustomContainer, HelpCommandsContainer, HelpFaqContainer,
-                                       HelpGettingStartedContainer, HelpMainContainer, HelpTutorialsContainer,
-                                       TEXT_DISPLAY_MAX, container_to_markdown)
+from playcord.utils.containers import (
+    TEXT_DISPLAY_MAX,
+    CustomContainer,
+    HelpCommandsContainer,
+    HelpFaqContainer,
+    HelpGettingStartedContainer,
+    HelpMainContainer,
+    HelpTutorialsContainer,
+    container_to_markdown,
+)
 from playcord.utils.discord_utils import followup_send, response_send_message
 from playcord.utils.locale import fmt, get
 
@@ -752,6 +759,7 @@ class GameTutorialButton(discord.ui.Button):
             return
 
         import importlib
+
         from playcord.utils.containers import HelpGameInfoContainer
 
         module_name, class_name = GAME_TYPES[self.game_id]

@@ -9,15 +9,18 @@ from discord import app_commands
 from discord.app_commands.models import AppCommand, AppCommandGroup, Argument
 from discord.ext import commands
 
-from playcord.presentation.cogs.general import GeneralCog
 from playcord import state as session_state
 from playcord.application.container import ApplicationContainer
 from playcord.application.services.session_registry import SessionRegistry
 from playcord.infrastructure import Translator, load_settings
-from playcord.infrastructure.app_constants import EPHEMERAL_DELETE_AFTER, bind_locale_strings
+from playcord.infrastructure.app_constants import (
+    EPHEMERAL_DELETE_AFTER,
+    bind_locale_strings,
+)
 from playcord.infrastructure.db import MigrationRunner, PoolManager
 from playcord.infrastructure.logging import configure_logging, get_logger
 from playcord.infrastructure.runtime_config import bind_settings
+from playcord.presentation.cogs.general import GeneralCog
 from playcord.presentation.commands import build_tree
 from playcord.presentation.interactions.errors import command_error
 from playcord.utils import database as legacy_database_module
@@ -118,7 +121,10 @@ class PlayCordBot(commands.Bot):
         if not self.container.settings.bot.compare_command_tree_on_startup:
             return
         try:
-            from playcord.utils.command_tree_diff import fetch_and_analyze_tree, format_drift_report
+            from playcord.utils.command_tree_diff import (
+                fetch_and_analyze_tree,
+                format_drift_report,
+            )
 
             drift = await fetch_and_analyze_tree(self.tree, guild=None)
             if drift["added"] or drift["removed"] or drift["modified"]:
@@ -135,7 +141,9 @@ class PlayCordBot(commands.Bot):
         try:
             remote_commands = await self.tree.fetch_commands()
         except Exception:
-            startup_log.exception("Could not fetch slash commands for locale mention tokens")
+            startup_log.exception(
+                "Could not fetch slash commands for locale mention tokens"
+            )
             self.container.translator.set_command_mentions(None)
             legacy_locale_module.set_command_mentions(None)
             return

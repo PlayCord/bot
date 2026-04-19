@@ -29,7 +29,7 @@ def _single_card(
 @dataclass(frozen=True, slots=True)
 class ErrorView(View):
     @classmethod
-    def create(cls, message: str, *, title: str = "Error") -> "ErrorView":
+    def create(cls, message: str, *, title: str = "Error") -> ErrorView:
         base = _single_card(message, title=title, accent_color=PALETTE.error)
         return cls(layout=base.layout, content=base.content)
 
@@ -39,7 +39,7 @@ class UserErrorView(View):
     @classmethod
     def create(
         cls, message: str, *, title: str = "Something went wrong"
-    ) -> "UserErrorView":
+    ) -> UserErrorView:
         base = _single_card(message, title=title, accent_color=PALETTE.warning)
         return cls(layout=base.layout, content=base.content)
 
@@ -47,7 +47,7 @@ class UserErrorView(View):
 @dataclass(frozen=True, slots=True)
 class InfoView(View):
     @classmethod
-    def create(cls, message: str, *, title: str = "Info") -> "InfoView":
+    def create(cls, message: str, *, title: str = "Info") -> InfoView:
         base = _single_card(message, title=title, accent_color=PALETTE.info)
         return cls(layout=base.layout, content=base.content)
 
@@ -55,7 +55,7 @@ class InfoView(View):
 @dataclass(frozen=True, slots=True)
 class SuccessView(View):
     @classmethod
-    def create(cls, message: str, *, title: str = "Success") -> "SuccessView":
+    def create(cls, message: str, *, title: str = "Success") -> SuccessView:
         base = _single_card(message, title=title, accent_color=PALETTE.success)
         return cls(layout=base.layout, content=base.content)
 
@@ -63,7 +63,7 @@ class SuccessView(View):
 @dataclass(frozen=True, slots=True)
 class HelpView(View):
     @classmethod
-    def create(cls, message: str, *, title: str = "Help") -> "HelpView":
+    def create(cls, message: str, *, title: str = "Help") -> HelpView:
         base = _single_card(message, title=title, accent_color=PALETTE.primary)
         return cls(layout=base.layout, content=base.content)
 
@@ -71,9 +71,7 @@ class HelpView(View):
 @dataclass(frozen=True, slots=True)
 class LobbyView(View):
     @classmethod
-    def create(
-        cls, message: str, *, title: str = "Lobby"
-    ) -> "LobbyView":
+    def create(cls, message: str, *, title: str = "Lobby") -> LobbyView:
         base = _single_card(message, title=title, accent_color=PALETTE.matchmaking)
         return cls(layout=base.layout, content=base.content)
 
@@ -81,7 +79,7 @@ class LobbyView(View):
 @dataclass(frozen=True, slots=True)
 class BoardView(View):
     @classmethod
-    def create(cls, message: str, *, title: str = "Game") -> "BoardView":
+    def create(cls, message: str, *, title: str = "Game") -> BoardView:
         base = _single_card(message, title=title, accent_color=PALETTE.game)
         return cls(layout=base.layout, content=base.content)
 
@@ -89,7 +87,7 @@ class BoardView(View):
 @dataclass(frozen=True, slots=True)
 class StatsView(View):
     @classmethod
-    def create(cls, message: str, *, title: str = "Stats") -> "StatsView":
+    def create(cls, message: str, *, title: str = "Stats") -> StatsView:
         base = _single_card(message, title=title, accent_color=PALETTE.primary)
         return cls(layout=base.layout, content=base.content)
 

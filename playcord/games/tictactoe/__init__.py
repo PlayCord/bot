@@ -92,7 +92,9 @@ class TicTacToePlugin(GamePlugin):
     role_mode = metadata.role_mode
     player_roles = metadata.player_roles
 
-    def __init__(self, players: list[Player], *, match_options: dict | None = None) -> None:
+    def __init__(
+        self, players: list[Player], *, match_options: dict | None = None
+    ) -> None:
         super().__init__(players, match_options=match_options)
         self.board = [[" " for _ in range(3)] for _ in range(3)]
         self.turn = 0
@@ -109,7 +111,9 @@ class TicTacToePlugin(GamePlugin):
         for line in lines:
             if line[0] != " " and all(cell == line[0] for cell in line):
                 winner = self.players[0] if line[0] == "X" else self.players[1]
-                loser = self.players[1] if winner == self.players[0] else self.players[0]
+                loser = (
+                    self.players[1] if winner == self.players[0] else self.players[0]
+                )
                 return Outcome(kind="winner", placements=[[winner], [loser]])
         if all(cell != " " for row in self.board for cell in row):
             return Outcome(kind="draw", placements=[list(self.players)])
@@ -236,7 +240,11 @@ class TicTacToePlugin(GamePlugin):
             self.board[row][col] = mark
             won = self.outcome()
             self.board[row][col] = " "
-            if won is not None and won.kind == "winner" and won.placements[0][0].id == player.id:
+            if (
+                won is not None
+                and won.kind == "winner"
+                and won.placements[0][0].id == player.id
+            ):
                 return move
         return None
 

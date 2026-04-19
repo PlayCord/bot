@@ -46,8 +46,6 @@ def merge_trueskill_parameters(
     missing = required.difference(merged)
     if missing:
         missing_list = ", ".join(sorted(missing))
-        raise ConfigurationError(
-            f"Missing TrueSkill parameter(s): {missing_list}"
-        )
+        raise ConfigurationError(f"Missing TrueSkill parameter(s): {missing_list}")
 
     return {key: float(value) for key, value in merged.items()}

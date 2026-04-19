@@ -16,8 +16,8 @@ from playcord.infrastructure.app_constants import (
     THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES,
     THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY,
     THREAD_POLICY_SPECTATORS_SILENT,
-    THREAD_POLICY_WARNING_MESSAGE,
     THREAD_POLICY_WARN_NON_PARTICIPANTS,
+    THREAD_POLICY_WARNING_MESSAGE,
     VERSION,
 )
 from playcord.infrastructure.runtime_config import get_settings
@@ -25,7 +25,8 @@ from playcord.infrastructure.runtime_config import get_settings
 CURRENT_GAMES = session_state.CURRENT_GAMES
 IN_GAME = session_state.IN_GAME
 IN_MATCHMAKING = session_state.IN_MATCHMAKING
-from playcord.utils import analytics as analytics_mod, database as db
+from playcord.utils import analytics as analytics_mod
+from playcord.utils import database as db
 from playcord.utils.containers import CustomContainer, container_send_kwargs
 from playcord.utils.locale import fmt, get
 from playcord.utils.logging_config import get_logger
@@ -95,7 +96,7 @@ class EventsCog(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self) -> None:
         startup_logger = log.getChild("startup")
-        startup_logger.info(f"Client connected and ready.")
+        startup_logger.info("Client connected and ready.")
         self.bot.loop.create_task(self.presence())
         self.bot.loop.create_task(self._analytics_periodic_flush())
 

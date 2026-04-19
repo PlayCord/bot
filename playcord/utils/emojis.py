@@ -9,13 +9,14 @@ Provides functionality for:
 - Getting game-specific emojis
 """
 
-from typing import Optional, Union
-
 import discord
 import ruamel.yaml
 from emoji import is_emoji
 
-from playcord.infrastructure.app_constants import EMOJI_CONFIGURATION_FILE, LONG_SPACE_EMBED
+from playcord.infrastructure.app_constants import (
+    EMOJI_CONFIGURATION_FILE,
+    LONG_SPACE_EMBED,
+)
 from playcord.utils.logging_config import get_logger
 
 logger = get_logger("emojis")
@@ -96,7 +97,7 @@ def unregister_emoji(name: str) -> bool:
     return False
 
 
-def get_emoji(name: str) -> Optional[dict]:
+def get_emoji(name: str) -> dict | None:
     """
     Get emoji data by name.
 
@@ -171,7 +172,7 @@ def get_emoji_count() -> tuple[int, int]:
     return len(emojis), len(runtime_emojis)
 
 
-def get_button_emoji(name: str) -> Optional[str]:
+def get_button_emoji(name: str) -> str | None:
     """
     Get a button emoji by name.
 
@@ -203,8 +204,8 @@ def get_game_emoji(game_id: str) -> str:
 
 
 def parse_discord_emoji(
-    emoji: Union[str, discord.PartialEmoji, None],
-) -> Union[str, discord.PartialEmoji, None]:
+    emoji: str | discord.PartialEmoji | None,
+) -> str | discord.PartialEmoji | None:
     """
     Normalize an emoji value for discord.py UI components (buttons, selects).
 

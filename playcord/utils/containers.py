@@ -1,8 +1,9 @@
 import os
 import random
+from collections.abc import Iterable
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, Iterable
+from typing import Any
 
 import discord
 

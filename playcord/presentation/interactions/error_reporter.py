@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from logging import Logger
-from typing import Any, TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 from uuid import uuid4
 
 import discord
@@ -90,7 +90,10 @@ class _StatusMessage(_EditableMessage, Protocol):
 
 
 def _unwrap_error(error: BaseException) -> BaseException:
-    if isinstance(error, app_commands.CommandInvokeError) and error.original is not None:
+    if (
+        isinstance(error, app_commands.CommandInvokeError)
+        and error.original is not None
+    ):
         return error.original
     return error
 
@@ -205,8 +208,8 @@ async def notify_error_destinations(
 def resolve_game_interface(
     interaction: discord.Interaction | None,
     *,
-    interface: "GameRuntime" | None = None,
-) -> "GameRuntime" | None:
+    interface: GameRuntime | None = None,
+) -> GameRuntime | None:
     if interface is not None:
         return interface
     if interaction is None:
@@ -231,7 +234,7 @@ def resolve_game_interface(
             except Exception:
                 return None
             return CURRENT_GAMES.get(parsed.resource_id)
-        tail = custom_id[len(prefix):]
+        tail = custom_id[len(prefix) :]
         token = tail.split("/", 1)[0]
         try:
             thread_id = int(token)
@@ -259,7 +262,7 @@ async def report(
     surface: ErrorSurface,
     translator: Translator | None = None,
     delete_after: float | None = EPHEMERAL_DELETE_AFTER,
-    interface: "GameRuntime" | None = None,
+    interface: GameRuntime | None = None,
     game_message: _EditableMessage | None = None,
     thread: _SendableChannel | None = None,
     status_message: _StatusMessage | None = None,
@@ -335,7 +338,7 @@ async def report_runtime_error(
     error: BaseException,
     *,
     surface: ErrorSurface,
-    interface: "GameRuntime" | None = None,
+    interface: GameRuntime | None = None,
     logger: Logger | None = None,
     game_message: _EditableMessage | None = None,
     thread: _SendableChannel | None = None,

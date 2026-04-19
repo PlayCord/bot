@@ -3,20 +3,20 @@ Graph generation utilities for PlayCord bot using matplotlib.
 """
 
 import io
-from typing import Any, List, Optional, Tuple
 from datetime import datetime
+from typing import Any
+
 import matplotlib
 
 matplotlib.use("Agg")  # Non-interactive backend for Discord bot
-import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
 
 
 def generate_elo_chart(
-    rating_history: List[Tuple[datetime, float]],
+    rating_history: list[tuple[datetime, float]],
     title: str = "Rating Over Time",
-    figsize: Tuple[int, int] = (10, 6),
+    figsize: tuple[int, int] = (10, 6),
     dpi: int = 100,
 ) -> io.BytesIO:
     """
@@ -151,9 +151,9 @@ def generate_elo_chart(
 
 
 def generate_rating_comparison_chart(
-    player_data: List[Tuple[str, List[Tuple[datetime, float]]]],
+    player_data: list[tuple[str, list[tuple[datetime, float]]]],
     title: str = "Rating Comparison",
-    figsize: Tuple[int, int] = (12, 7),
+    figsize: tuple[int, int] = (12, 7),
     dpi: int = 100,
 ) -> io.BytesIO:
     """
@@ -229,8 +229,8 @@ def generate_rating_comparison_chart(
 
 
 def generate_analytics_summary_chart(
-    event_counts: List[dict[str, Any]],
-    game_counts: List[dict[str, Any]],
+    event_counts: list[dict[str, Any]],
+    game_counts: list[dict[str, Any]],
     *,
     suptitle: str,
     title_events: str,
@@ -238,9 +238,9 @@ def generate_analytics_summary_chart(
     empty_panel: str,
     xlabel_count: str = "Count",
     max_rows: int = 22,
-    figsize: Tuple[float, float] = (12, 6.2),
+    figsize: tuple[float, float] = (12, 6.2),
     dpi: int = 100,
-) -> Optional[io.BytesIO]:
+) -> io.BytesIO | None:
     """
     Two horizontal bar charts: analytics rows by ``event_type`` and by game slug (``game_type`` key).
 
@@ -251,7 +251,7 @@ def generate_analytics_summary_chart(
 
     def panel(
         ax,
-        rows: List[dict[str, Any]],
+        rows: list[dict[str, Any]],
         label_key: str,
         value_key: str,
         title: str,

@@ -7,8 +7,8 @@ from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
 
-from playcord.games.plugin import resolve_player_count
 from playcord import state as session_state
+from playcord.games.plugin import resolve_player_count
 from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_INVITE,
     CATALOG_GAMES_PER_PAGE,
@@ -28,8 +28,10 @@ from playcord.infrastructure.app_constants import (
 CURRENT_GAMES = session_state.CURRENT_GAMES
 IN_GAME = session_state.IN_GAME
 IN_MATCHMAKING = session_state.IN_MATCHMAKING
-from playcord.utils import database as db, ramcheck
+from playcord.utils import database as db
+from playcord.utils import ramcheck
 from playcord.utils.containers import (
+    TEXT_DISPLAY_MAX,
     CustomContainer,
     HelpCommandsContainer,
     HelpFaqContainer,
@@ -37,7 +39,6 @@ from playcord.utils.containers import (
     HelpMainContainer,
     HelpTutorialsContainer,
     InviteContainer,
-    TEXT_DISPLAY_MAX,
     container_send_kwargs,
     container_to_markdown,
 )
@@ -51,9 +52,9 @@ from playcord.utils.discord_utils import (
 from playcord.utils.emojis import get_emoji_string, get_game_emoji
 from playcord.utils.graphs import generate_elo_chart
 from playcord.utils.interfaces import user_in_active_game
-from playcord.utils.matchmaking_interface import MatchmakingInterface
 from playcord.utils.locale import fmt, get, plural
 from playcord.utils.logging_config import get_logger
+from playcord.utils.matchmaking_interface import MatchmakingInterface
 from playcord.utils.matchmaking_user_map import matchmaking_by_user_id
 from playcord.utils.replay_format import chunk_replay_lines, format_replay_event_line
 from playcord.utils.views import HelpView, InviteView, PaginationView

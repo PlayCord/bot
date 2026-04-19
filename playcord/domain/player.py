@@ -65,7 +65,7 @@ class Player:
         *,
         bot_index: int = 0,
         rating: Rating | None = None,
-    ) -> "Player":
+    ) -> Player:
         return cls(
             id=BOT_ID_BASE + bot_index,
             display_name=name,
@@ -76,7 +76,7 @@ class Player:
         )
 
     @classmethod
-    def from_legacy(cls, legacy: Any) -> "Player":
+    def from_legacy(cls, legacy: Any) -> Player:
         """Create a canonical player from either legacy player model."""
 
         display_name = getattr(legacy, "display_name", None) or getattr(
@@ -84,12 +84,10 @@ class Player:
         )
         rating = Rating(
             mu=float(getattr(legacy, "mu", DEFAULT_MU)),
-            sigma=float(
-                getattr(legacy, "sigma", DEFAULT_MU * DEFAULT_SIGMA_RATIO)
-            ),
+            sigma=float(getattr(legacy, "sigma", DEFAULT_MU * DEFAULT_SIGMA_RATIO)),
         )
         return cls(
-            id=getattr(legacy, "id"),
+            id=legacy.id,
             display_name=display_name,
             rating=rating,
             is_bot=bool(getattr(legacy, "is_bot", False)),

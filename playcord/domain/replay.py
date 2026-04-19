@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 
 class ReplayRecorder(Protocol):
     """Protocol implemented by replay writers."""
 
-    def record(self, event: "ReplayEvent") -> None:
+    def record(self, event: ReplayEvent) -> None:
         """Persist one replay event."""
 
 
@@ -20,6 +20,4 @@ class ReplayEvent:
 
     type: str
     payload: dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))

@@ -9,13 +9,12 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import List, Tuple
 
 from playcord.utils.logging_config import get_logger
 
 logger = get_logger("database.migrations")
 
-MIGRATIONS: List[Tuple[str, str, List[str]]] = [
+MIGRATIONS: list[tuple[str, str, list[str]]] = [
     (
         "1.0.0",
         "Baseline schema is provided by schema.sql; no historical patch chain remains.",

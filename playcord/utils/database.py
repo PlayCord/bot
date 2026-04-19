@@ -5,9 +5,9 @@ Comprehensive database operations with transaction support and connection poolin
 
 import json
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Any
 
 import discord
 
@@ -29,22 +29,21 @@ from playcord.utils import db_migrations
 from playcord.utils.logging_config import get_logger
 from playcord.utils.match_codes import generate_match_code
 from playcord.utils.models import (
-    User,
-    Guild,
     Game,
-    Rating,
+    Guild,
     Match,
-    Participant,
-    Move,
     MatchStatus,
-    EventType,
-    row_to_user,
-    row_to_guild,
+    Move,
+    Participant,
+    Rating,
+    User,
     row_to_game,
-    row_to_rating,
+    row_to_guild,
     row_to_match,
-    row_to_participant,
     row_to_move,
+    row_to_participant,
+    row_to_rating,
+    row_to_user,
 )
 from playcord.utils.trueskill_params import get_trueskill_parameters
 
@@ -76,7 +75,7 @@ class DatabaseError(Exception):
 class InternalPlayerRatingStatistic:
     """Rating statistic for a specific game"""
 
-    def __init__(self, name: str, mu: Optional[float], sigma: Optional[float]):
+    def __init__(self, name: str, mu: float | None, sigma: float | None):
         self.name = name
         if mu is None:
             self.mu = MU
@@ -96,10 +95,10 @@ class InternalPlayer:
 
     def __init__(
         self,
-        ratings: Dict[str, Dict[str, float]],
-        user: Optional[discord.User | discord.Object] = None,
-        metadata: Optional[Dict] = None,
-        id: Optional[int] = None,
+        ratings: dict[str, dict[str, float]],
+        user: discord.User | discord.Object | None = None,
+        metadata: dict | None = None,
+        id: int | None = None,
     ):
         # User info
         if user is not None:
@@ -132,7 +131,7 @@ class InternalPlayer:
 
         self._update_ratings(self.ratings)
 
-    def _update_ratings(self, ratings: Dict[str, Dict[str, float]]):
+    def _update_ratings(self, ratings: dict[str, dict[str, float]]):
         """Update rating attributes from ratings dict"""
         rating_keys = set(GAME_TYPES) | set(ratings)
         for key in rating_keys:
@@ -301,9 +300,9 @@ class Database:
         )
 
         # Connection pool
-        self.pool: Optional[ConnectionPool] = None
-        self._game_cache_by_id: Dict[int, Game] = {}
-        self._game_cache_by_name: Dict[str, Game] = {}
+        self.pool: ConnectionPool | None = None
+        self._game_cache_by_id: dict[int, Game] = {}
+        self._game_cache_by_name: dict[str, Game] = {}
         self.connect()
 
     def connect(self):
@@ -334,7 +333,7 @@ class Database:
             raise DatabaseConnectionError("Connection pool not initialized")
         return self.pool.connection()
 
-    def _cache_game(self, game: Optional[Game]) -> Optional[Game]:
+    def _cache_game(self, game: Game | None) -> Game | None:
         """Store a game row in both name/id caches."""
         if game is None:
             return None
@@ -344,7 +343,9 @@ class Database:
 
     def _load_sql_asset(self, relative_path: str) -> None:
         """Execute an idempotent SQL asset file (functions/views) shipped with PlayCord."""
-        sql_dir = Path(__file__).resolve().parent.parent / "infrastructure" / "db" / "sql"
+        sql_dir = (
+            Path(__file__).resolve().parent.parent / "infrastructure" / "db" / "sql"
+        )
         sql_path = sql_dir / Path(relative_path).name
         with sql_path.open("r", encoding="utf-8") as fh:
             sql_text = fh.read()
@@ -388,7 +389,7 @@ class Database:
     def _execute_query(
         self,
         query: str,
-        params: Optional[Tuple] = None,
+        params: tuple | None = None,
         fetchone: bool = False,
         fetchall: bool = False,
     ):
@@ -443,13 +444,13 @@ class Database:
         """
         self._execute_query(query, (user_id, username, is_bot))
 
-    def get_user(self, user_id: int) -> Optional[User]:
+    def get_user(self, user_id: int) -> User | None:
         """Get user by ID"""
         query = "SELECT * FROM users WHERE user_id = %s;"
         result = self._execute_query(query, (user_id,), fetchone=True)
         return row_to_user(result) if result else None
 
-    def update_user_preferences(self, user_id: int, preferences: Dict[str, Any]):
+    def update_user_preferences(self, user_id: int, preferences: dict[str, Any]):
         """Update user preferences"""
         preferences_json = json.dumps(preferences)
         query = """
@@ -461,7 +462,7 @@ class Database:
         """
         self._execute_query(query, (user_id, preferences_json))
 
-    def get_user_preferences(self, user_id: int) -> Optional[Dict]:
+    def get_user_preferences(self, user_id: int) -> dict | None:
         """Get user preferences"""
         query = (
             "SELECT created_at AS joined_at, preferences FROM users WHERE user_id = %s;"
@@ -477,7 +478,7 @@ class Database:
         query = "DELETE FROM users WHERE user_id = %s;"
         self._execute_query(query, (user_id,))
 
-    def search_users(self, query_text: str, limit: int = 10) -> List[User]:
+    def search_users(self, query_text: str, limit: int = 10) -> list[User]:
         """Search users by username pattern"""
         query = """
             SELECT * FROM users
@@ -492,7 +493,7 @@ class Database:
     # GUILD OPERATIONS
     # ========================================================================
 
-    def create_guild(self, guild_id: int, settings: Optional[Dict[str, Any]] = None):
+    def create_guild(self, guild_id: int, settings: dict[str, Any] | None = None):
         """Ensure a guild record exists without overwriting existing settings."""
         settings_json = json.dumps(settings or {})
         query = """
@@ -504,13 +505,13 @@ class Database:
         """
         self._execute_query(query, (guild_id, settings_json))
 
-    def get_guild(self, guild_id: int) -> Optional[Guild]:
+    def get_guild(self, guild_id: int) -> Guild | None:
         """Get guild by ID"""
         query = "SELECT * FROM guilds WHERE guild_id = %s;"
         result = self._execute_query(query, (guild_id,), fetchone=True)
         return row_to_guild(result) if result else None
 
-    def update_guild_settings(self, guild_id: int, settings: Dict[str, Any]):
+    def update_guild_settings(self, guild_id: int, settings: dict[str, Any]):
         """Update guild settings"""
         settings_json = json.dumps(settings)
         query = """
@@ -522,13 +523,13 @@ class Database:
         """
         self._execute_query(query, (guild_id, settings_json))
 
-    def get_guild_settings(self, guild_id: int) -> Optional[Dict]:
+    def get_guild_settings(self, guild_id: int) -> dict | None:
         """Get guild settings"""
         query = "SELECT settings FROM guilds WHERE guild_id = %s;"
         result = self._execute_query(query, (guild_id,), fetchone=True)
         return result["settings"] if result else None
 
-    def merge_guild_settings(self, guild_id: int, patch: Dict[str, Any]) -> None:
+    def merge_guild_settings(self, guild_id: int, patch: dict[str, Any]) -> None:
         """Merge JSON keys into guilds.settings (creates row if missing)."""
         self.create_guild(guild_id, {})
         query = """
@@ -539,7 +540,7 @@ class Database:
         """
         self._execute_query(query, (json.dumps(patch), guild_id))
 
-    def get_playcord_channel_id(self, guild_id: int) -> Optional[int]:
+    def get_playcord_channel_id(self, guild_id: int) -> int | None:
         s = self.get_guild_settings(guild_id)
         if not s:
             return None
@@ -566,7 +567,7 @@ class Database:
         self.delete_guild(guild_id)
         self.create_guild(guild_id, settings={})
 
-    def get_active_guilds(self) -> List[Guild]:
+    def get_active_guilds(self) -> list[Guild]:
         """Get all active guilds"""
         query = "SELECT * FROM guilds WHERE is_active = TRUE ORDER BY created_at DESC;"
         results = self._execute_query(query, fetchall=True)
@@ -582,8 +583,8 @@ class Database:
         display_name: str,
         min_players: int,
         max_players: int,
-        rating_config: Dict[str, float],
-        game_metadata: Optional[Dict[str, Any]] = None,
+        rating_config: dict[str, float],
+        game_metadata: dict[str, Any] | None = None,
         game_schema_version: int = 1,
     ) -> int:
         """Register a new game type (upsert from code definitions)."""
@@ -635,7 +636,7 @@ class Database:
 
     def _clamp_rating(
         self, mu: float, sigma: float, game_id: int
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """Clamp mu/sigma using global config and per-game rating_config floors."""
         cfg = get_settings().ratings
         min_mu = float(cfg.min_mu)
@@ -709,7 +710,7 @@ class Database:
         )
         return int(result["n"]) if result else 0
 
-    def get_game(self, game_name: str) -> Optional[Game]:
+    def get_game(self, game_name: str) -> Game | None:
         """Get game by name"""
         cached = self._game_cache_by_name.get(game_name)
         if cached is not None:
@@ -718,7 +719,7 @@ class Database:
         result = self._execute_query(query, (game_name,), fetchone=True)
         return self._cache_game(row_to_game(result) if result else None)
 
-    def get_game_by_id(self, game_id: int) -> Optional[Game]:
+    def get_game_by_id(self, game_id: int) -> Game | None:
         """Get game by ID"""
         cached = self._game_cache_by_id.get(game_id)
         if cached is not None:
@@ -727,7 +728,7 @@ class Database:
         result = self._execute_query(query, (game_id,), fetchone=True)
         return self._cache_game(row_to_game(result) if result else None)
 
-    def get_all_games(self, active_only: bool = True) -> List[Game]:
+    def get_all_games(self, active_only: bool = True) -> list[Game]:
         """Get all games"""
         if active_only:
             query = "SELECT * FROM games WHERE is_active = TRUE ORDER BY game_name;"
@@ -739,7 +740,7 @@ class Database:
             self._cache_game(game)
         return games
 
-    def update_game_config(self, game_id: int, config: Dict[str, Any]):
+    def update_game_config(self, game_id: int, config: dict[str, Any]):
         """Update game rating configuration"""
         config_json = json.dumps(config)
         query = """
@@ -794,7 +795,7 @@ class Database:
         """
         self._execute_query(query, (user_id, game_id, mu, sigma))
 
-    def get_user_rating(self, user_id: int, game_id: int) -> Optional[Rating]:
+    def get_user_rating(self, user_id: int, game_id: int) -> Rating | None:
         """Get user rating for a specific game."""
         query = """
             SELECT * FROM user_game_ratings
@@ -803,7 +804,7 @@ class Database:
         result = self._execute_query(query, (user_id, game_id), fetchone=True)
         return row_to_rating(result) if result else None
 
-    def get_user_all_ratings(self, user_id: int) -> List[Rating]:
+    def get_user_all_ratings(self, user_id: int) -> list[Rating]:
         """Get all game ratings for a user."""
         query = """
             SELECT * FROM user_game_ratings
@@ -834,7 +835,7 @@ class Database:
         """
         self._execute_query(query, (mu, sigma, matches_increment, user_id, game_id))
 
-    def bulk_update_ratings(self, updates: List[Dict[str, Any]]):
+    def bulk_update_ratings(self, updates: list[dict[str, Any]]):
         """Bulk update multiple ratings in a transaction"""
         with self.transaction() as cur:
             for update in updates:
@@ -893,12 +894,12 @@ class Database:
 
     def get_leaderboard(
         self,
-        member_user_ids: List[int],
+        member_user_ids: list[int],
         game_id: int,
         limit: int = 10,
         offset: int = 0,
         min_matches: int = 5,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Guild/server leaderboard: same global ratings, filtered to guild members."""
         if not member_user_ids:
             return []
@@ -925,7 +926,7 @@ class Database:
 
     def get_global_leaderboard(
         self, game_id: int, limit: int = 10, offset: int = 0, min_matches: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Global leaderboard (all users with a rating row for this game)."""
         query = """
             SELECT 
@@ -950,7 +951,7 @@ class Database:
     def get_user_rank(
         self,
         user_id: int,
-        member_user_ids: List[int],
+        member_user_ids: list[int],
         game_id: int,
         min_matches: int = 5,
     ) -> int:
@@ -976,7 +977,7 @@ class Database:
 
     def get_user_global_rank(
         self, user_id: int, game_id: int, min_matches: int = 5
-    ) -> Optional[int]:
+    ) -> int | None:
         """
         Get user's global rank for a specific game.
 
@@ -1027,11 +1028,11 @@ class Database:
         game_id: int,
         guild_id: int,
         channel_id: int,
-        thread_id: Optional[int],
-        participants: List[int],  # List of user IDs
+        thread_id: int | None,
+        participants: list[int],  # List of user IDs
         is_rated: bool = True,
-        game_config: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[int, str]:
+        game_config: dict[str, Any] | None = None,
+    ) -> tuple[int, str]:
         """
         Create a new match and initialize participants.
         Returns (match_id, match_code) with a unique 8-character public ``match_code``.
@@ -1045,7 +1046,7 @@ class Database:
 
         config_json = json.dumps(game_config or {})
 
-        last_err: Optional[Exception] = None
+        last_err: Exception | None = None
         for _ in range(48):
             match_code = generate_match_code()
             try:
@@ -1100,7 +1101,7 @@ class Database:
 
         raise RuntimeError("Could not allocate a unique match_code") from last_err
 
-    def get_match_by_code(self, code: str) -> Optional[Match]:
+    def get_match_by_code(self, code: str) -> Match | None:
         """Resolve a match by its public ``match_code`` (case-insensitive)."""
         c = (code or "").strip().lower()
         if not c:
@@ -1109,7 +1110,7 @@ class Database:
         result = self._execute_query(query, (c,), fetchone=True)
         return row_to_match(result) if result else None
 
-    def get_match(self, match_id: int) -> Optional[Match]:
+    def get_match(self, match_id: int) -> Match | None:
         """Get match by ID"""
         query = "SELECT * FROM matches WHERE match_id = %s;"
         result = self._execute_query(query, (match_id,), fetchone=True)
@@ -1119,7 +1120,7 @@ class Database:
         self,
         match_id: int,
         status: str,
-        metadata_patch: Dict[str, Any] | None = None,
+        metadata_patch: dict[str, Any] | None = None,
     ):
         """Update match status"""
         if metadata_patch:
@@ -1190,7 +1191,7 @@ class Database:
         """
         self._execute_query(query, (payload, match_id))
 
-    def get_match_human_user_ids_ordered(self, match_id: int) -> List[int]:
+    def get_match_human_user_ids_ordered(self, match_id: int) -> list[int]:
         """Participant Discord user IDs for a match, excluding bot accounts, in seat order."""
         query = """
             SELECT mp.user_id
@@ -1205,8 +1206,8 @@ class Database:
     def update_match_context(
         self,
         match_id: int,
-        channel_id: Optional[int] = None,
-        thread_id: Optional[int] = None,
+        channel_id: int | None = None,
+        thread_id: int | None = None,
     ):
         """Update channel/thread identifiers for an existing match."""
         updates = []
@@ -1228,9 +1229,9 @@ class Database:
     def end_match(
         self,
         match_id: int,
-        final_state: Dict[str, Any],
-        results: Dict[
-            int, Dict[str, Any]
+        final_state: dict[str, Any],
+        results: dict[
+            int, dict[str, Any]
         ],  # user_id -> {ranking, mu_delta, sigma_delta, ...}
     ):
         """
@@ -1336,7 +1337,7 @@ class Database:
         query = "DELETE FROM matches WHERE match_id = %s;"
         self._execute_query(query, (match_id,))
 
-    def get_active_matches(self, guild_id: Optional[int] = None) -> List[Match]:
+    def get_active_matches(self, guild_id: int | None = None) -> list[Match]:
         """Get active (in-progress) matches"""
         if guild_id is not None:
             query = """
@@ -1357,7 +1358,7 @@ class Database:
 
     def get_recent_matches(
         self, guild_id: int, game_id: int, limit: int = 10
-    ) -> List[Match]:
+    ) -> list[Match]:
         """Get recent completed matches"""
         query = """
             SELECT * FROM matches
@@ -1389,8 +1390,8 @@ class Database:
         match_id: int,
         user_id: int,
         player_number: int,
-        mu_before: Optional[float] = None,
-        sigma_before: Optional[float] = None,
+        mu_before: float | None = None,
+        sigma_before: float | None = None,
     ):
         """Add a participant to a match"""
         query = """
@@ -1402,7 +1403,7 @@ class Database:
             query, (match_id, user_id, player_number, mu_before, sigma_before)
         )
 
-    def get_participants(self, match_id: int) -> List[Participant]:
+    def get_participants(self, match_id: int) -> list[Participant]:
         """Get all participants for a match"""
         query = """
             SELECT * FROM match_participants
@@ -1416,7 +1417,7 @@ class Database:
         self,
         participant_id: int,
         ranking: int,
-        score: Optional[float],
+        score: float | None,
         mu_delta: float,
         sigma_delta: float,
     ):
@@ -1445,11 +1446,11 @@ class Database:
     def record_move(
         self,
         match_id: int,
-        user_id: Optional[int],
+        user_id: int | None,
         move_number: int,
-        move_data: Dict[str, Any],
-        game_state_after: Optional[Dict[str, Any]] = None,
-        time_taken_ms: Optional[int] = None,
+        move_data: dict[str, Any],
+        game_state_after: dict[str, Any] | None = None,
+        time_taken_ms: int | None = None,
         is_game_affecting: bool = True,
         kind: str = "move",
     ):
@@ -1477,7 +1478,7 @@ class Database:
             ),
         )
 
-    def append_replay_event(self, match_id: int, event: Dict[str, Any]) -> None:
+    def append_replay_event(self, match_id: int, event: dict[str, Any]) -> None:
         """
         Append one structured replay event to ``replay_events``.
         ``type`` is normalized into ``event_type`` and ``user_id`` into ``actor_user_id``.
@@ -1603,7 +1604,7 @@ class Database:
         """
         return self._execute_query(query, (match_id, purpose), fetchall=True) or []
 
-    def get_replay_events(self, match_id: int) -> List[Dict[str, Any]]:
+    def get_replay_events(self, match_id: int) -> list[dict[str, Any]]:
         """Return replay events in order from the canonical ``replay_events`` table."""
         rows = (
             self._execute_query(
@@ -1618,7 +1619,7 @@ class Database:
             )
             or []
         )
-        events: List[Dict[str, Any]] = []
+        events: list[dict[str, Any]] = []
         for row in rows:
             payload = dict(row.get("payload") or {})
             payload["type"] = row["event_type"]
@@ -1627,7 +1628,7 @@ class Database:
             events.append(payload)
         return events
 
-    def get_match_moves(self, match_id: int) -> List[Move]:
+    def get_match_moves(self, match_id: int) -> list[Move]:
         """Get all moves for a match in order"""
         query = """
             SELECT * FROM match_moves
@@ -1656,12 +1657,8 @@ class Database:
         result = self._execute_query(query, (match_id,), fetchone=True)
         if not result:
             return True
-        return (
-            result["move_count"] == 0
-            or (
-                result["move_count"] == result["max_move"]
-                and result["min_move"] == 1
-            )
+        return result["move_count"] == 0 or (
+            result["move_count"] == result["max_move"] and result["min_move"] == 1
         )
 
     # ========================================================================
@@ -1671,11 +1668,11 @@ class Database:
     def get_user_match_history(
         self,
         user_id: int,
-        guild_id: Optional[int],
-        game_id: Optional[int] = None,
+        guild_id: int | None,
+        game_id: int | None = None,
         limit: int = 10,
         offset: int = 0,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get user's match history"""
         query = """
             SELECT 
@@ -1699,7 +1696,7 @@ class Database:
             WHERE mp.user_id = %s
               AND m.status IN ('completed', 'interrupted', 'abandoned')
         """
-        params: List[Any] = [user_id]
+        params: list[Any] = [user_id]
         if guild_id is not None:
             query += " AND m.guild_id = %s"
             params.append(guild_id)
@@ -1716,8 +1713,8 @@ class Database:
         return results if results else []
 
     def get_head_to_head(
-        self, user1_id: int, user2_id: int, game_id: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self, user1_id: int, user2_id: int, game_id: int | None = None
+    ) -> list[dict[str, Any]]:
         """Get head-to-head stats between two players"""
         if game_id is not None:
             query = """
@@ -1761,7 +1758,7 @@ class Database:
 
         return results if results else []
 
-    def get_user_stats(self, user_id: int, game_id: int) -> Optional[Dict[str, Any]]:
+    def get_user_stats(self, user_id: int, game_id: int) -> dict[str, Any] | None:
         """Get comprehensive user statistics (global per-game rating)."""
         query = """
             SELECT 
@@ -1779,8 +1776,8 @@ class Database:
         return result
 
     def get_rating_history(
-        self, user_id: int, guild_id: Optional[int], game_id: int, days: int = 30
-    ) -> List[Dict[str, Any]]:
+        self, user_id: int, guild_id: int | None, game_id: int, days: int = 30
+    ) -> list[dict[str, Any]]:
         """Get rating history for a user"""
         query = """
             SELECT 
@@ -1798,7 +1795,7 @@ class Database:
               AND game_id = %s
               AND created_at > NOW() - (%s * INTERVAL '1 day')
         """
-        params: List[Any] = [user_id, game_id, days]
+        params: list[Any] = [user_id, game_id, days]
         if guild_id is not None:
             query += " AND guild_id = %s"
             params.append(guild_id)
@@ -1815,11 +1812,11 @@ class Database:
     def record_event(
         self,
         event_type: str,
-        user_id: Optional[int] = None,
-        guild_id: Optional[int] = None,
-        game_id: Optional[int] = None,
-        match_id: Optional[int] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        user_id: int | None = None,
+        guild_id: int | None = None,
+        game_id: int | None = None,
+        match_id: int | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         """Record an analytics event"""
         if user_id:
@@ -1839,11 +1836,11 @@ class Database:
 
     def get_events(
         self,
-        event_type: Optional[str] = None,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
+        event_type: str | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
         limit: int = 100,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get analytics events with optional filters"""
         conditions = []
         params = []
@@ -1872,7 +1869,7 @@ class Database:
         results = self._execute_query(query, tuple(params), fetchall=True)
         return results if results else []
 
-    def get_user_events(self, user_id: int, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_user_events(self, user_id: int, limit: int = 100) -> list[dict[str, Any]]:
         """Get events for a specific user"""
         query = """
             SELECT * FROM analytics_events
@@ -1883,7 +1880,7 @@ class Database:
         results = self._execute_query(query, (user_id, limit), fetchall=True)
         return results if results else []
 
-    def get_guild_analytics(self, guild_id: int, days: int = 30) -> Dict[str, Any]:
+    def get_guild_analytics(self, guild_id: int, days: int = 30) -> dict[str, Any]:
         """Get analytics summary for a guild"""
         query = """
             SELECT 
@@ -1898,7 +1895,7 @@ class Database:
         result = self._execute_query(query, (guild_id, days), fetchone=True)
         return result if result else {}
 
-    def get_analytics_event_counts(self, hours: int = 24) -> List[Dict[str, Any]]:
+    def get_analytics_event_counts(self, hours: int = 24) -> list[dict[str, Any]]:
         """Count analytics rows by event_type in the last N hours."""
         query = """
             SELECT event_type, COUNT(*)::BIGINT AS cnt
@@ -1912,7 +1909,7 @@ class Database:
 
     def get_analytics_recent_events(
         self, hours: int = 24, limit: int = 60
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Recent analytics rows with ids and metadata for operator review."""
         query = """
             SELECT event_id, event_type, created_at, user_id, guild_id, game_id, match_id, metadata
@@ -1926,7 +1923,7 @@ class Database:
 
     def get_analytics_event_counts_by_game(
         self, hours: int = 24
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Count rows by game slug in the last N hours (via analytics_events.game_id -> games.game_name)."""
         query = """
             SELECT g.game_name AS game_type, COUNT(*)::BIGINT AS cnt
@@ -1979,7 +1976,7 @@ class Database:
                 conn.commit()
                 return count
 
-    def get_inactive_users(self, guild_id: int, days: int = 30) -> List[Dict[str, Any]]:
+    def get_inactive_users(self, guild_id: int, days: int = 30) -> list[dict[str, Any]]:
         """Users who played in this guild and have a stale global last_played for some game."""
         query = """
             SELECT DISTINCT
@@ -2061,7 +2058,7 @@ class Database:
     # AGGREGATION & REPORTS
     # ========================================================================
 
-    def get_match_count_by_game(self, guild_id: int, days: int = 30) -> Dict[str, int]:
+    def get_match_count_by_game(self, guild_id: int, days: int = 30) -> dict[str, int]:
         """Get match counts by game type"""
         query = """
             SELECT 
@@ -2113,7 +2110,7 @@ class Database:
 
     def get_most_active_players(
         self, guild_id: int, game_id: int, days: int = 7, limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get most active players"""
         query = """
             SELECT 
@@ -2141,7 +2138,7 @@ class Database:
     # ========================================================================
 
     def count_matches(
-        self, guild_id: int, game_id: int, is_rated: Optional[bool] = None
+        self, guild_id: int, game_id: int, is_rated: bool | None = None
     ) -> int:
         """Count matches for a game in a guild"""
         if is_rated is not None:
@@ -2161,9 +2158,7 @@ class Database:
 
         return result["count"] if result else 0
 
-    def count_users(
-        self, guild_id: Optional[int] = None, is_active: bool = True
-    ) -> int:
+    def count_users(self, guild_id: int | None = None, is_active: bool = True) -> int:
         """Count users (optionally: distinct users who completed a match in the guild)."""
         if guild_id is not None:
             query = """
@@ -2182,7 +2177,7 @@ class Database:
 
         return result["count"] if result else 0
 
-    def get_database_stats(self) -> Dict[str, Any]:
+    def get_database_stats(self) -> dict[str, Any]:
         """Get database statistics"""
         queries = {
             "total_users": "SELECT COUNT(*) FROM users WHERE is_active = TRUE",
@@ -2216,7 +2211,7 @@ class Database:
 
     def get_player(
         self, user: discord.User | discord.Member, guild_id: int
-    ) -> Optional[InternalPlayer]:
+    ) -> InternalPlayer | None:
         """
         Get an InternalPlayer object from the database (global per-game ratings).
         guild_id is ignored; kept for call-site compatibility.
@@ -2252,11 +2247,11 @@ class Database:
     def record_analytics_event(
         self,
         event_type: str,
-        user_id: Optional[int] = None,
-        guild_id: Optional[int] = None,
-        game_type: Optional[str] = None,
-        match_id: Optional[int] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        user_id: int | None = None,
+        guild_id: int | None = None,
+        game_type: str | None = None,
+        match_id: int | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         """
         Record an analytics row (maps game_type slug to games.game_id; optional match_id).
@@ -2275,11 +2270,11 @@ class Database:
 
     def get_game_leaderboard(
         self,
-        member_user_ids: List[int],
+        member_user_ids: list[int],
         game_name: str,
         limit: int = 10,
         min_matches: int = 5,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Legacy method - maps to get_leaderboard(member_user_ids, ...)."""
         game = self.get_game(game_name)
         if not game:
@@ -2292,8 +2287,8 @@ class Database:
         self,
         user_id: int,
         game_name_or_id: int | str,
-        guild_id: Optional[int] = None,
-    ) -> Optional[Dict[str, Any]]:
+        guild_id: int | None = None,
+    ) -> dict[str, Any] | None:
         """Legacy method - get user rating (guild_id ignored)."""
         if isinstance(game_name_or_id, str):
             game = self.get_game(game_name_or_id)
@@ -2316,7 +2311,7 @@ class Database:
         }
 
     def initialize_user_game_ratings(
-        self, user_id: int, game_name: str, guild_id: Optional[int] = None
+        self, user_id: int, game_name: str, guild_id: int | None = None
     ):
         """Legacy method - initialize rating with game name instead of ID (guild_id ignored)."""
         game = self.get_game(game_name)
@@ -2331,7 +2326,7 @@ class Database:
         mu: float,
         sigma: float,
         matches_played_increment: int = 1,
-        guild_id: Optional[int] = None,
+        guild_id: int | None = None,
     ):
         """Legacy method - update rating with game name instead of ID (guild_id ignored)."""
         game = self.get_game(game_name)
@@ -2343,7 +2338,7 @@ class Database:
         )
 
     def reset_user_game_ratings(
-        self, user_id: int, game_name: str, guild_id: Optional[int] = None
+        self, user_id: int, game_name: str, guild_id: int | None = None
     ):
         """Legacy method - reset rating with game name (guild_id ignored)."""
         game = self.get_game(game_name)
@@ -2352,7 +2347,7 @@ class Database:
         self.reset_user_rating(user_id, game.game_id)
 
     def delete_user_game_ratings(
-        self, user_id: int, game_name: str, guild_id: Optional[int] = None
+        self, user_id: int, game_name: str, guild_id: int | None = None
     ):
         """Legacy method - delete rating with game name (guild_id ignored)."""
         game = self.get_game(game_name)
@@ -2361,7 +2356,7 @@ class Database:
         self.delete_user_rating(user_id, game.game_id)
 
     def count_matches_for_game(
-        self, guild_id: int, game_name: str, is_rated: Optional[bool] = None
+        self, guild_id: int, game_name: str, is_rated: bool | None = None
     ) -> int:
         """Legacy method - count matches with game name"""
         game = self.get_game(game_name)
@@ -2370,7 +2365,7 @@ class Database:
         return self.count_matches(guild_id, game.game_id, is_rated)
 
     def count_matches_for_user(
-        self, user_id: int, guild_id: int, is_rated: Optional[bool] = None
+        self, user_id: int, guild_id: int, is_rated: bool | None = None
     ) -> int:
         """Legacy method - count user matches"""
         query = """
@@ -2388,7 +2383,7 @@ class Database:
         result = self._execute_query(query, tuple(params), fetchone=True)
         return result["total_matches"] if result else 0
 
-    def get_match_details(self, match_id: int) -> Optional[Dict[str, Any]]:
+    def get_match_details(self, match_id: int) -> dict[str, Any] | None:
         """Legacy method - get match details"""
         match = self.get_match(match_id)
         if not match:
@@ -2412,8 +2407,8 @@ class Database:
         guild_id: int,
         started_at: datetime,
         is_rated: bool,
-        game_data: Dict[str, Any],
-    ) -> Tuple[int, str]:
+        game_data: dict[str, Any],
+    ) -> tuple[int, str]:
         """Legacy method - record new game with game_name. Returns ``(match_id, match_code)``."""
         game = self.get_game(game_name)
         if not game:
@@ -2427,7 +2422,7 @@ class Database:
 
         game_data_json = json.dumps(game_data or {})
 
-        last_err: Optional[Exception] = None
+        last_err: Exception | None = None
         for _ in range(48):
             code = generate_match_code()
             try:
@@ -2467,12 +2462,12 @@ class Database:
         self,
         game_name: str,
         guild_id: int,
-        participants: List[int],
+        participants: list[int],
         is_rated: bool = True,
-        channel_id: Optional[int] = None,
-        thread_id: Optional[int] = None,
-        game_config: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[int, str]:
+        channel_id: int | None = None,
+        thread_id: int | None = None,
+        game_config: dict[str, Any] | None = None,
+    ) -> tuple[int, str]:
         """
         Legacy compatibility method - create game with game_name instead of game_id.
         Maps to new create_match method. Returns (match_id, match_code).
@@ -2497,8 +2492,8 @@ class Database:
         self,
         match_id: int,
         game_name: str,
-        rating_updates: Dict[int, Dict[str, Any]],
-        final_scores: Optional[Dict[int, float]],
+        rating_updates: dict[int, dict[str, Any]],
+        final_scores: dict[int, float] | None,
     ):
         """
         Legacy compatibility method - end game with old format.
@@ -2529,7 +2524,7 @@ class Database:
 
     def get_recent_matches_for_game(
         self, guild_id: int, game_name: str, limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Legacy method - get recent matches with game name"""
         game = self.get_game(game_name)
         if not game:
@@ -2546,7 +2541,7 @@ class Database:
             for m in matches
         ]
 
-    def get_full_match_details(self, match_id: int) -> List[Dict[str, Any]]:
+    def get_full_match_details(self, match_id: int) -> list[dict[str, Any]]:
         """Legacy method - get full match with participants"""
         match = self.get_match(match_id)
         if not match:
@@ -2582,7 +2577,7 @@ class Database:
 # GLOBAL DATABASE INSTANCE
 # ============================================================================
 
-database: Optional[Database] = None
+database: Database | None = None
 
 
 def startup():
