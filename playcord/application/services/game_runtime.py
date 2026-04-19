@@ -99,13 +99,17 @@ class GameRuntime:
             player_id = getattr(player, "id", None)
             if player_id is not None:
                 IN_GAME[int(player_id)] = self
-            if not getattr(player, "is_bot", False) and hasattr(self.thread, "add_user"):
+            if not getattr(player, "is_bot", False) and hasattr(
+                self.thread, "add_user"
+            ):
                 member = getattr(player, "user", None)
                 if member is not None:
                     try:
                         await self.thread.add_user(member)
                     except Exception:
-                        self.logger.debug("Failed to add player %s to thread", player_id)
+                        self.logger.debug(
+                            "Failed to add player %s to thread", player_id
+                        )
         CURRENT_GAMES[self.thread.id] = self
         await self.render_state()
 
@@ -212,7 +216,9 @@ class GameRuntime:
         await followup_send(ctx, get("success.spectating"), ephemeral=True)
 
     async def handle_peek(self, ctx: discord.Interaction) -> None:
-        text = self.plugin.peek(self.build_context()) or get("success.already_participant")
+        text = self.plugin.peek(self.build_context()) or get(
+            "success.already_participant"
+        )
         await followup_send(ctx, text, ephemeral=True)
 
     async def run_bot_turn_if_needed(self) -> None:
@@ -246,7 +252,9 @@ class GameRuntime:
         self.ending_game = True
         await finish_match(self, outcome)
 
-    async def _apply_bot_move(self, ctx: Any, *, name: str, arguments: dict[str, Any]) -> None:
+    async def _apply_bot_move(
+        self, ctx: Any, *, name: str, arguments: dict[str, Any]
+    ) -> None:
         async with self._processing_move:
             actor = self._player_by_id(getattr(ctx.user, "id", None))
             if actor is None:
@@ -275,11 +283,15 @@ class GameRuntime:
         async with self._processing_move:
             actor = self._player_by_id(getattr(ctx.user, "id", None))
             if actor is None:
-                await followup_send(ctx, get("move.no_active_game_description"), ephemeral=True)
+                await followup_send(
+                    ctx, get("move.no_active_game_description"), ephemeral=True
+                )
                 return
             current = self.plugin.current_turn()
             if current_turn_required and current is not None and current.id != actor.id:
-                await followup_send(ctx, get("permissions.not_your_turn"), ephemeral=True)
+                await followup_send(
+                    ctx, get("permissions.not_your_turn"), ephemeral=True
+                )
                 return
             actions = self.plugin.apply_move(
                 actor,
@@ -307,7 +319,11 @@ class GameRuntime:
             next_number = db.database.get_move_count(self.game_id) + 1
             db.database.record_move(
                 self.game_id,
-                int(getattr(actor, "id", 0)) if not getattr(actor, "is_bot", False) else None,
+                (
+                    int(getattr(actor, "id", 0))
+                    if not getattr(actor, "is_bot", False)
+                    else None
+                ),
                 next_number,
                 {"name": name, "arguments": arguments, "source": source},
                 is_game_affecting=True,
@@ -381,7 +397,9 @@ class GameRuntime:
                     send_kw["files"] = files
                 message = await self.thread.send(**send_kw)
             self.owned_messages[action.key] = message
-            self._record_owned_message(action.key, action.purpose, message, action.layout)
+            self._record_owned_message(
+                action.key, action.purpose, message, action.layout
+            )
             return
         if view is None:
             await self._safe_edit_message(
@@ -407,7 +425,9 @@ class GameRuntime:
                     "mark_bot_message_deleted failed for message_id=%s", message.id
                 )
 
-    async def _safe_edit_message(self, message: discord.Message | None, /, **kwargs) -> None:
+    async def _safe_edit_message(
+        self, message: discord.Message | None, /, **kwargs
+    ) -> None:
         """Edit a message while handling Discord components-v2 content restrictions."""
         if message is None:
             return
@@ -417,7 +437,9 @@ class GameRuntime:
                 self._message_has_components_v2(message)
                 and edit_kwargs.get("content") is not None
             ):
-                self.logger.debug("Dropping content from edit because message uses components v2")
+                self.logger.debug(
+                    "Dropping content from edit because message uses components v2"
+                )
                 edit_kwargs.pop("content", None)
 
             await message.edit(**edit_kwargs)
@@ -429,15 +451,21 @@ class GameRuntime:
             ):
                 retry_kwargs = dict(edit_kwargs)
                 retry_kwargs.pop("content", None)
-                self.logger.debug("Retrying edit without content due to components v2 validation")
+                self.logger.debug(
+                    "Retrying edit without content due to components v2 validation"
+                )
                 try:
                     await message.edit(**retry_kwargs)
                     return
                 except Exception:
-                    self.logger.exception("Failed to edit message %s", getattr(message, "id", None))
+                    self.logger.exception(
+                        "Failed to edit message %s", getattr(message, "id", None)
+                    )
                     return
 
-            self.logger.exception("Failed to edit message %s", getattr(message, "id", None))
+            self.logger.exception(
+                "Failed to edit message %s", getattr(message, "id", None)
+            )
 
     @staticmethod
     def _is_http_exception(exc: Exception) -> bool:
@@ -595,7 +623,10 @@ class GameRuntime:
 
     def _make_select(self, spec: SelectSpec) -> discord.ui.Select:
         payload = urlencode(
-            {"name": spec.action_name, "current_turn": "1" if spec.require_current_turn else "0"}
+            {
+                "name": spec.action_name,
+                "current_turn": "1" if spec.require_current_turn else "0",
+            }
         )
         custom_id = CustomId(
             namespace="game",
@@ -607,8 +638,16 @@ class GameRuntime:
         # value if label is empty to satisfy Discord's API requirements.
         options = []
         for option in spec.options:
-            opt_label = option.label if (option.label and option.label.strip()) else option.value
-            options.append(discord.SelectOption(label=opt_label, value=option.value, default=option.default))
+            opt_label = (
+                option.label
+                if (option.label and option.label.strip())
+                else option.value
+            )
+            options.append(
+                discord.SelectOption(
+                    label=opt_label, value=option.value, default=option.default
+                )
+            )
 
         select = discord.ui.Select(
             custom_id=custom_id,
@@ -618,7 +657,9 @@ class GameRuntime:
         )
         return select
 
-    def decode_component_payload(self, payload: str) -> tuple[str, dict[str, Any], bool]:
+    def decode_component_payload(
+        self, payload: str
+    ) -> tuple[str, dict[str, Any], bool]:
         parsed = parse_qs(payload)
         name = parsed.get("name", [""])[0]
         current_turn = parsed.get("current_turn", ["1"])[0] == "1"

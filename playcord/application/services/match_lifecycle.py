@@ -22,9 +22,15 @@ IN_MATCHMAKING = session_state.IN_MATCHMAKING
 log = get_logger("match.lifecycle")
 
 
-async def start_match_from_lobby(interface: Any, plugin_class: type[Any]) -> GameRuntime:
+async def start_match_from_lobby(
+    interface: Any, plugin_class: type[Any]
+) -> GameRuntime:
     message = interface.message
-    players = interface.all_players() if callable(getattr(interface, "all_players", None)) else list(interface.queued_players)
+    players = (
+        interface.all_players()
+        if callable(getattr(interface, "all_players", None))
+        else list(interface.queued_players)
+    )
     has_bots = any(getattr(player, "is_bot", False) for player in players)
     for player in list(interface.queued_players):
         IN_MATCHMAKING.pop(player, None)
@@ -73,7 +79,9 @@ async def finish_match(runtime: GameRuntime, outcome: Any) -> None:
     final_state = {
         "outcome": getattr(outcome, "kind", "winner"),
         "reason": getattr(outcome, "reason", None),
-        "placements": [[getattr(player, "id", None) for player in group] for group in placements],
+        "placements": [
+            [getattr(player, "id", None) for player in group] for group in placements
+        ],
     }
     db.database.end_match(runtime.game_id, final_state, results)
 
@@ -84,9 +92,7 @@ async def finish_match(runtime: GameRuntime, outcome: Any) -> None:
         try:
             global_summary = mg(outcome)
         except Exception:
-            log.exception(
-                "match_global_summary failed match_id=%s", runtime.game_id
-            )
+            log.exception("match_global_summary failed match_id=%s", runtime.game_id)
     ms = getattr(runtime.plugin, "match_summary", None)
     if callable(ms):
         try:
@@ -126,7 +132,9 @@ async def finish_match(runtime: GameRuntime, outcome: Any) -> None:
     summary = _summary_text(runtime, outcome, results)
     if runtime.thread is not None:
         await runtime.thread.send(summary)
-        await runtime.thread.edit(locked=True, archived=True, reason=get("threads.game_over"))
+        await runtime.thread.edit(
+            locked=True, archived=True, reason=get("threads.game_over")
+        )
     rematch_view = RematchView(runtime.game_id, summary_text=summary)
     safe_edit = getattr(runtime, "_safe_edit_message", None)
     if callable(safe_edit):
@@ -144,7 +152,9 @@ async def finish_match(runtime: GameRuntime, outcome: Any) -> None:
         )
 
 
-def _rated_results(players: list[Any], game_type: str, placements: list[list[Any]]) -> dict[int, dict[str, Any]]:
+def _rated_results(
+    players: list[Any], game_type: str, placements: list[list[Any]]
+) -> dict[int, dict[str, Any]]:
     ts = get_trueskill_parameters(game_type)
     environment = trueskill.TrueSkill(
         mu=MU,
@@ -182,7 +192,9 @@ def _rated_results(players: list[Any], game_type: str, placements: list[list[Any
     return results
 
 
-def _unrated_results(players: list[Any], game_type: str, placements: list[list[Any]]) -> dict[int, dict[str, Any]]:
+def _unrated_results(
+    players: list[Any], game_type: str, placements: list[list[Any]]
+) -> dict[int, dict[str, Any]]:
     ranking_by_id: dict[int, int] = {}
     for rank_index, group in enumerate(placements):
         for player in group:
@@ -220,9 +232,13 @@ def _player_rating(player: Any, game_type: str) -> tuple[float, float]:
     )
 
 
-def _summary_text(runtime: GameRuntime, outcome: Any, results: dict[int, dict[str, Any]]) -> str:
+def _summary_text(
+    runtime: GameRuntime, outcome: Any, results: dict[int, dict[str, Any]]
+) -> str:
     lines = [f"**{runtime.plugin.metadata.name}** finished."]
-    if getattr(outcome, "kind", None) == "winner" and getattr(outcome, "placements", None):
+    if getattr(outcome, "kind", None) == "winner" and getattr(
+        outcome, "placements", None
+    ):
         winner = outcome.placements[0][0]
         lines.append(f"Winner: {winner.mention}")
     elif getattr(outcome, "kind", None) == "draw":
@@ -233,5 +249,7 @@ def _summary_text(runtime: GameRuntime, outcome: Any, results: dict[int, dict[st
             result = results[int(player.id)]
             delta = round(result["mu_delta"])
             delta_text = f"{delta:+d}"
-            lines.append(f"{player.mention}: {round(result['mu_before'])} ({delta_text})")
+            lines.append(
+                f"{player.mention}: {round(result['mu_before'])} ({delta_text})"
+            )
     return "\n".join(lines)

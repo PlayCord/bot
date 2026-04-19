@@ -580,9 +580,11 @@ async def begin_game(
             ctx,
             exc,
             surface=ErrorSurface.SLASH,
-            translator=getattr(getattr(ctx, "client", None), "container", None).translator
-            if getattr(getattr(ctx, "client", None), "container", None) is not None
-            else None,
+            translator=(
+                getattr(getattr(ctx, "client", None), "container", None).translator
+                if getattr(getattr(ctx, "client", None), "container", None) is not None
+                else None
+            ),
             status_message=game_overview_message,
         )
         return None
@@ -710,9 +712,7 @@ async def handle_move(
         return
     work_args = dict(arguments)
     work_args.pop("ctx", None)
-    arguments = {
-        a: await decode_discord_arguments(work_args[a]) for a in work_args
-    }
+    arguments = {a: await decode_discord_arguments(work_args[a]) for a in work_args}
     AUTOCOMPLETE_CACHE[ctx.channel.id] = {}
     f_log.info(
         "Dispatching move_by_command for user=%s game_id=%s name=%r args=%r",

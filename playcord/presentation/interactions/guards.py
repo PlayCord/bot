@@ -37,7 +37,11 @@ async def active_thread_guard(
     )
     command_name = getattr(command, "name", None)
 
-    if in_active_game_thread and is_group_subcommand and command_name != allowed_command_name:
+    if (
+        in_active_game_thread
+        and is_group_subcommand
+        and command_name != allowed_command_name
+    ):
         await respond(
             interaction,
             UserErrorView.create(
