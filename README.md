@@ -16,11 +16,8 @@
 ## About
 
 PlayCord aims to provide an easy-to-use framework and bot that can host classic paper-and-pencil games on Discord. The
-project now uses a layered `playcord/` package for domain logic, repositories, services, commands, and UI, while
-legacy modules remain only as compatibility shims during the migration.
-
-### TLDR: Games, on Discord, without needing Activities.
-
+bot supports multiple games, matchmaking, and TrueSkill-based rankings, all accessible through intuitive slash commands
+and button interactions.
 > If you think this is cool, please (1) star the project and (2) follow me, it helps motivate me to keep improving the
 > project :D
 
