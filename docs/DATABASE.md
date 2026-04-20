@@ -56,12 +56,6 @@ Startup flow:
 - Viewer-facing replay/event stream.
 - Stores ordered structured events, including non-move runtime events.
 
-`bot_messages`
-
-- Tracks messages owned by the runtime for a match.
-- Enables `get_message(message_id)` and `list_owned_messages()` style lookup from the new game API.
-- Stores stable `message_key`, `purpose`, `payload_digest`, and JSON `metadata`.
-
 `analytics_event_types`
 
 - Taxonomy of allowed analytics event names.
@@ -103,7 +97,6 @@ The new game runtime assumes:
 
 - `games` is synchronized from plugin metadata, not seeded SQL.
 - `match_moves` is the authoritative move-history table.
-- `bot_messages` contains the runtime-owned board, overview, and turn-notice messages for a match.
 - interruption reasons are written to `matches.metadata.reason`.
 - replay/event data uses `replay_events`, not legacy text logs.
 

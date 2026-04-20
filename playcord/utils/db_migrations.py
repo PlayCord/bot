@@ -35,6 +35,25 @@ MIGRATIONS: list[tuple[str, str, list[str]]] = [
             """,
         ],
     ),
+    (
+        "1.0.2",
+        "Drop redundant bot_messages.payload_digest column.",
+        [
+            """
+            ALTER TABLE IF EXISTS bot_messages
+            DROP COLUMN IF EXISTS payload_digest;
+            """,
+        ],
+    ),
+    (
+        "1.0.3",
+        "Remove legacy bot_messages table; runtime now tracks owned messages in memory.",
+        [
+            """
+            DROP TABLE IF EXISTS bot_messages;
+            """,
+        ],
+    ),
 ]
 
 

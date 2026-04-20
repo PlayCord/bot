@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qs, urlencode
@@ -86,6 +85,7 @@ class GameRuntime:
         self.status_message = overview_message
         self.thread: discord.Thread | None = None
         self.owned_messages: dict[str, discord.Message] = {}
+        self.owned_message_purposes: dict[str, str] = {}
         self._processing_move = asyncio.Lock()
         self.ending_game = False
         self._interrupt_started = False
@@ -115,34 +115,19 @@ class GameRuntime:
 
     def build_context(self) -> GameContext:
         owned = []
-        rows = []
-        if hasattr(db.database, "list_bot_messages"):
-            try:
-                rows = db.database.list_bot_messages(self.game_id)
-            except Exception:
-                rows = []
-        if rows:
-            for row in rows:
-                owned.append(
-                    OwnedMessage(
-                        key=row["message_key"],
-                        purpose=row["purpose"],
-                        discord_message_id=row["discord_message_id"],
-                        channel_id=row["channel_id"],
-                        metadata=dict(row.get("metadata") or {}),
-                    )
+        for key, message in self.owned_messages.items():
+            purpose = self.owned_message_purposes.get(
+                key, "board" if key == "board" else "overview"
+            )
+            owned.append(
+                OwnedMessage(
+                    key=key,
+                    purpose=purpose,
+                    discord_message_id=message.id,
+                    channel_id=message.channel.id,
+                    metadata={},
                 )
-        else:
-            for key, message in self.owned_messages.items():
-                owned.append(
-                    OwnedMessage(
-                        key=key,
-                        purpose="board" if key == "board" else "overview",
-                        discord_message_id=message.id,
-                        channel_id=message.channel.id,
-                        metadata={},
-                    )
-                )
+            )
         return GameContext(
             match_id=self.game_id,
             game_key=self.game_type,
@@ -397,9 +382,7 @@ class GameRuntime:
                     send_kw["files"] = files
                 message = await self.thread.send(**send_kw)
             self.owned_messages[action.key] = message
-            self._record_owned_message(
-                action.key, action.purpose, message, action.layout
-            )
+            self.owned_message_purposes[action.key] = action.purpose
             return
         if view is None:
             await self._safe_edit_message(
@@ -407,23 +390,17 @@ class GameRuntime:
             )
         else:
             await self._safe_edit_message(existing, view=view, attachments=files)
-        self._record_owned_message(action.key, action.purpose, existing, action.layout)
+        self.owned_message_purposes[action.key] = action.purpose
 
     async def _delete_owned_message(self, key: str) -> None:
         message = self.owned_messages.pop(key, None)
+        self.owned_message_purposes.pop(key, None)
         if message is None:
             return
         try:
             await message.delete()
         except discord.HTTPException:
             self.logger.debug("Failed to delete owned message key=%s", key)
-        if hasattr(db.database, "mark_bot_message_deleted"):
-            try:
-                db.database.mark_bot_message_deleted(message.id)
-            except Exception:
-                self.logger.debug(
-                    "mark_bot_message_deleted failed for message_id=%s", message.id
-                )
 
     async def _safe_edit_message(
         self, message: discord.Message | None, /, **kwargs
@@ -675,30 +652,6 @@ class GameRuntime:
             if getattr(player, "id", None) == user_id:
                 return player
         return None
-
-    def _record_owned_message(
-        self,
-        key: str,
-        purpose: str,
-        message: discord.Message,
-        layout: MessageLayout,
-    ) -> None:
-        if not hasattr(db.database, "upsert_bot_message"):
-            return
-        try:
-            digest = hashlib.sha256((layout.content or "").encode("utf-8")).hexdigest()
-            db.database.upsert_bot_message(
-                match_id=self.game_id,
-                discord_message_id=message.id,
-                channel_id=message.channel.id,
-                message_key=key,
-                purpose=purpose,
-                payload_digest=digest,
-                metadata={"content_preview": (layout.content or "")[:500]},
-            )
-        except Exception:
-            self.logger.debug("Failed to record owned message %s", key)
-
 
 def asset_to_file(asset: BinaryAsset):
     from io import BytesIO
