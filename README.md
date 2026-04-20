@@ -8,7 +8,7 @@
   <p>
     <a href="#"><img src="https://img.shields.io/badge/python-3.12-blue?logo=python" alt="python" /></a>
     <a href="#"><img src="https://img.shields.io/badge/license-GPLv3-green?logo=opensourceinitiative" alt="license" /></a>
-    <a href="https://github.com/quantumbagel/playcord"><img src="https://img.shields.io/github/stars/quantumbagel/playcord?style=social" alt="GitHub stars" /></a>
+    <a href="https://github.com/playcord/bot"><img src="https://img.shields.io/github/stars/quantumbagel/playcord?style=social" alt="GitHub stars" /></a>
   </p>
 
 </div>
@@ -80,7 +80,7 @@ legacy modules remain only as compatibility shims during the migration.
 1. **Clone the repository:**
 
 ```bash
-git clone https://github.com/quantumbagel/playcord.git
+git clone https://github.com/playcord/bot.git
 cd playcord
 ```
 
