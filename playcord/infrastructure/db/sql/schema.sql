@@ -182,6 +182,9 @@ CREATE TABLE IF NOT EXISTS matches
         REFERENCES guilds (guild_id) ON DELETE CASCADE,
     CONSTRAINT chk_match_end_time CHECK (
         ended_at IS NULL OR ended_at > started_at
+        ),
+    CONSTRAINT chk_completed_match_has_end_time CHECK (
+        status != 'completed' OR ended_at IS NOT NULL
         )
 );
 

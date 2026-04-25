@@ -445,8 +445,8 @@ class Database:
         self._execute_query(query, (user_id, username, is_bot))
 
     def get_user(self, user_id: int) -> User | None:
-        """Get user by ID"""
-        query = "SELECT * FROM users WHERE user_id = %s;"
+        """Get user by ID (excludes soft-deleted users)"""
+        query = "SELECT * FROM users WHERE user_id = %s AND is_deleted = FALSE;"
         result = self._execute_query(query, (user_id,), fetchone=True)
         return row_to_user(result) if result else None
 
@@ -463,9 +463,9 @@ class Database:
         self._execute_query(query, (user_id, preferences_json))
 
     def get_user_preferences(self, user_id: int) -> dict | None:
-        """Get user preferences"""
+        """Get user preferences (excludes soft-deleted users)"""
         query = (
-            "SELECT created_at AS joined_at, preferences FROM users WHERE user_id = %s;"
+            "SELECT created_at AS joined_at, preferences FROM users WHERE user_id = %s AND is_deleted = FALSE;"
         )
         result = self._execute_query(query, (user_id,), fetchone=True)
         if result and result["preferences"]:
@@ -474,15 +474,46 @@ class Database:
         return result
 
     def delete_user(self, user_id: int):
-        """Delete a user (cascades to ratings, etc.)"""
-        query = "DELETE FROM users WHERE user_id = %s;"
+        """Soft-delete a user, preserving all related data (ratings, history, etc.)"""
+        query = "UPDATE users SET is_deleted = TRUE, updated_at = NOW() WHERE user_id = %s;"
         self._execute_query(query, (user_id,))
 
+    def restore_user(self, user_id: int):
+        """Restore a soft-deleted user and all related data"""
+        queries = [
+            "UPDATE users SET is_deleted = FALSE, updated_at = NOW() WHERE user_id = %s;",
+            "UPDATE user_game_ratings SET is_deleted = FALSE, updated_at = NOW() WHERE user_id = %s;",
+            "UPDATE match_participants SET is_deleted = FALSE, updated_at = NOW() WHERE user_id = %s;",
+            "UPDATE match_moves SET is_deleted = FALSE WHERE user_id = %s;",
+            "UPDATE rating_history SET is_deleted = FALSE WHERE user_id = %s;",
+        ]
+        with self.transaction() as cur:
+            for query in queries:
+                cur.execute(query, (user_id,))
+
+    def archive_user(self, user_id: int) -> dict[str, int]:
+        """
+        Archive all data for a soft-deleted user before permanent deletion.
+        Returns count of records by table.
+        """
+        counts = {}
+        queries = [
+            ("users", "SELECT COUNT(*) FROM users WHERE user_id = %s AND is_deleted = TRUE;"),
+            ("user_game_ratings", "SELECT COUNT(*) FROM user_game_ratings WHERE user_id = %s;"),
+            ("match_participants", "SELECT COUNT(*) FROM match_participants WHERE user_id = %s;"),
+            ("match_moves", "SELECT COUNT(*) FROM match_moves WHERE user_id = %s;"),
+            ("rating_history", "SELECT COUNT(*) FROM rating_history WHERE user_id = %s;"),
+        ]
+        for table_name, query in queries:
+            result = self._execute_query(query, (user_id,), fetchone=True)
+            counts[table_name] = result["count"] if result else 0
+        return counts
+
     def search_users(self, query_text: str, limit: int = 10) -> list[User]:
-        """Search users by username pattern"""
+        """Search users by username pattern (excludes soft-deleted users)"""
         query = """
             SELECT * FROM users
-            WHERE username ILIKE %s AND is_active = TRUE
+            WHERE username ILIKE %s AND is_active = TRUE AND is_deleted = FALSE
             LIMIT %s;
         """
         pattern = f"%{query_text}%"
@@ -799,19 +830,19 @@ class Database:
         self._execute_query(query, (user_id, game_id, mu, sigma))
 
     def get_user_rating(self, user_id: int, game_id: int) -> Rating | None:
-        """Get user rating for a specific game."""
+        """Get user rating for a specific game (excludes soft-deleted)."""
         query = """
             SELECT * FROM user_game_ratings
-            WHERE user_id = %s AND game_id = %s;
+            WHERE user_id = %s AND game_id = %s AND is_deleted = FALSE;
         """
         result = self._execute_query(query, (user_id, game_id), fetchone=True)
         return row_to_rating(result) if result else None
 
     def get_user_all_ratings(self, user_id: int) -> list[Rating]:
-        """Get all game ratings for a user."""
+        """Get all game ratings for a user (excludes soft-deleted)."""
         query = """
             SELECT * FROM user_game_ratings
-            WHERE user_id = %s
+            WHERE user_id = %s AND is_deleted = FALSE
             ORDER BY game_id;
         """
         results = self._execute_query(query, (user_id,), fetchall=True)
@@ -919,6 +950,7 @@ class Database:
             WHERE ugr.game_id = %s
               AND ugr.user_id = ANY(%s::bigint[])
               AND ugr.matches_played >= %s
+              AND ugr.is_deleted = FALSE
             ORDER BY conservative_rating DESC
             LIMIT %s OFFSET %s;
         """
@@ -943,6 +975,7 @@ class Database:
             JOIN users u ON ugr.user_id = u.user_id
             WHERE ugr.game_id = %s
               AND ugr.matches_played >= %s
+              AND ugr.is_deleted = FALSE
             ORDER BY conservative_rating DESC
             LIMIT %s OFFSET %s;
         """
@@ -970,6 +1003,7 @@ class Database:
                 WHERE game_id = %s
                   AND user_id = ANY(%s::bigint[])
                   AND matches_played >= %s
+                  AND is_deleted = FALSE
             )
             SELECT rank FROM ranked WHERE user_id = %s;
         """
@@ -1017,7 +1051,8 @@ class Database:
             SELECT COUNT(*) as count
             FROM user_game_ratings
             WHERE game_id = %s
-              AND matches_played >= %s;
+              AND matches_played >= %s
+              AND is_deleted = FALSE;
         """
         result = self._execute_query(query, (game_id, min_matches), fetchone=True)
         return result["count"] if result else 0
@@ -1079,7 +1114,7 @@ class Database:
                             """
                             SELECT mu, sigma
                             FROM user_game_ratings
-                            WHERE user_id = %s AND game_id = %s
+                            WHERE user_id = %s AND game_id = %s AND is_deleted = FALSE
                             FOR SHARE;
                             """,
                             (user_id, game_id),
@@ -1195,12 +1230,12 @@ class Database:
         self._execute_query(query, (payload, match_id))
 
     def get_match_human_user_ids_ordered(self, match_id: int) -> list[int]:
-        """Participant Discord user IDs for a match, excluding bot accounts, in seat order."""
+        """Participant Discord user IDs for a match, excluding bot accounts and soft-deleted, in seat order."""
         query = """
             SELECT mp.user_id
             FROM match_participants mp
             JOIN users u ON u.user_id = mp.user_id
-            WHERE mp.match_id = %s AND u.is_bot = FALSE
+            WHERE mp.match_id = %s AND u.is_bot = FALSE AND mp.is_deleted = FALSE
             ORDER BY mp.player_number;
         """
         rows = self._execute_query(query, (match_id,), fetchall=True) or []
@@ -1406,10 +1441,10 @@ class Database:
         )
 
     def get_participants(self, match_id: int) -> list[Participant]:
-        """Get all participants for a match"""
+        """Get all participants for a match (excludes soft-deleted)"""
         query = """
             SELECT * FROM match_participants
-            WHERE match_id = %s
+            WHERE match_id = %s AND is_deleted = FALSE
             ORDER BY player_number;
         """
         results = self._execute_query(query, (match_id,), fetchall=True)
@@ -1554,18 +1589,18 @@ class Database:
         return events
 
     def get_match_moves(self, match_id: int) -> list[Move]:
-        """Get all moves for a match in order"""
+        """Get all moves for a match in order (excludes soft-deleted)"""
         query = """
             SELECT * FROM match_moves
-            WHERE match_id = %s
+            WHERE match_id = %s AND is_deleted = FALSE
             ORDER BY move_number ASC;
         """
         results = self._execute_query(query, (match_id,), fetchall=True)
         return [row_to_move(row) for row in results] if results else []
 
     def get_move_count(self, match_id: int) -> int:
-        """Get number of moves in a match"""
-        query = "SELECT COUNT(*) as count FROM match_moves WHERE match_id = %s;"
+        """Get number of moves in a match (excludes soft-deleted)"""
+        query = "SELECT COUNT(*) as count FROM match_moves WHERE match_id = %s AND is_deleted = FALSE;"
         result = self._execute_query(query, (match_id,), fetchone=True)
         return result["count"] if result else 0
 
@@ -1577,7 +1612,7 @@ class Database:
                 MAX(move_number) as max_move,
                 MIN(move_number) as min_move
             FROM match_moves
-            WHERE match_id = %s;
+            WHERE match_id = %s AND is_deleted = FALSE;
         """
         result = self._execute_query(query, (match_id,), fetchone=True)
         if not result:
@@ -1695,7 +1730,8 @@ class Database:
             JOIN users u ON ugr.user_id = u.user_id
             JOIN games g ON ugr.game_id = g.game_id
             WHERE ugr.user_id = %s
-              AND ugr.game_id = %s;
+              AND ugr.game_id = %s
+              AND ugr.is_deleted = FALSE;
         """
         result = self._execute_query(query, (user_id, game_id), fetchone=True)
         return result
@@ -1718,6 +1754,7 @@ class Database:
             FROM rating_history
             WHERE user_id = %s
               AND game_id = %s
+              AND is_deleted = FALSE
               AND created_at > NOW() - (%s * INTERVAL '1 day')
         """
         params: list[Any] = [user_id, game_id, days]
@@ -1916,9 +1953,10 @@ class Database:
                 SELECT DISTINCT mp.user_id
                 FROM match_participants mp
                 JOIN matches m ON mp.match_id = m.match_id
-                WHERE m.guild_id = %s AND m.status = 'completed'
+                WHERE m.guild_id = %s AND m.status = 'completed' AND mp.is_deleted = FALSE
             )
               AND ugr.last_played < NOW() - (%s * INTERVAL '1 day')
+              AND ugr.is_deleted = FALSE
             ORDER BY ugr.last_played ASC;
         """
         results = self._execute_query(query, (guild_id, days), fetchall=True)
@@ -2009,7 +2047,7 @@ class Database:
                 SELECT DISTINCT mp.user_id
                 FROM match_participants mp
                 JOIN matches m ON mp.match_id = m.match_id
-                WHERE m.guild_id = %s AND m.status = 'completed'
+                WHERE m.guild_id = %s AND m.status = 'completed' AND mp.is_deleted = FALSE
             ),
             active_players AS (
                 SELECT COUNT(DISTINCT mp.user_id) as count
@@ -2018,6 +2056,7 @@ class Database:
                 WHERE m.guild_id = %s
                   AND m.status = 'completed'
                   AND m.ended_at > NOW() - (%s * INTERVAL '1 day')
+                  AND mp.is_deleted = FALSE
             ),
             total_players AS (
                 SELECT COUNT(*)::BIGINT as count FROM guild_users
@@ -2049,6 +2088,7 @@ class Database:
               AND m.game_id = %s
               AND m.ended_at > NOW() - (%s * INTERVAL '1 day')
               AND m.status = 'completed'
+              AND mp.is_deleted = FALSE
             GROUP BY u.user_id, u.username
             ORDER BY match_count DESC
             LIMIT %s;
@@ -2110,8 +2150,8 @@ class Database:
             "total_games": "SELECT COUNT(*) FROM games WHERE is_active = TRUE",
             "total_matches": "SELECT COUNT(*) FROM matches",
             "active_matches": "SELECT COUNT(*) FROM matches WHERE status = 'in_progress'",
-            "total_moves": "SELECT COUNT(*) FROM match_moves",
-            "total_ratings": "SELECT COUNT(*) FROM user_game_ratings",
+            "total_moves": "SELECT COUNT(*) FROM match_moves WHERE is_deleted = FALSE",
+            "total_ratings": "SELECT COUNT(*) FROM user_game_ratings WHERE is_deleted = FALSE",
         }
 
         stats = {}
@@ -2299,6 +2339,7 @@ class Database:
             JOIN matches m ON mp.match_id = m.match_id
             WHERE mp.user_id = %s AND m.guild_id = %s
               AND m.status IN ('completed', 'interrupted', 'abandoned')
+              AND mp.is_deleted = FALSE
         """
         params = [user_id, guild_id]
         if is_rated is not None:

@@ -1,0 +1,506 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>107</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>27</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>118</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>19</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>327</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>334</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>405</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>19</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>436</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>23</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>658</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_interrupt.py</file>
+  <line>69</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_interrupt.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_interrupt.py</file>
+  <line>87</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_interrupt.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_interrupt.py</file>
+  <line>103</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_interrupt.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_interrupt.py</file>
+  <line>109</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_interrupt.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py</file>
+  <line>86</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py</file>
+  <line>94</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py</file>
+  <line>113</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/cli/analytics.py</file>
+  <line>33</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/cli/analytics.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/bot.py</file>
+  <line>117</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/bot.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/bot.py</file>
+  <line>137</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/bot.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/bot.py</file>
+  <line>143</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/bot.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/bot.py</file>
+  <line>190</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/bot.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py</file>
+  <line>79</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py</file>
+  <line>301</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/events.py</file>
+  <line>121</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/events.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>19</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/events.py</file>
+  <line>166</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/events.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/events.py</file>
+  <line>303</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/events.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>23</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/events.py</file>
+  <line>339</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/events.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>31</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py</file>
+  <line>177</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py</file>
+  <line>184</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py</file>
+  <line>192</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py</file>
+  <line>199</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py</file>
+  <line>231</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>19</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py</file>
+  <line>310</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/analytics.py</file>
+  <line>110</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/analytics.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/analytics.py</file>
+  <line>234</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/analytics.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/bot_owners.py</file>
+  <line>74</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/bot_owners.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/bot_owners.py</file>
+  <line>86</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/bot_owners.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/error_reporting.py</file>
+  <line>49</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/error_reporting.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/error_reporting.py</file>
+  <line>57</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/error_reporting.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/error_reporting.py</file>
+  <line>65</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/error_reporting.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/error_reporting.py</file>
+  <line>73</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/error_reporting.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>19</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/error_reporting.py</file>
+  <line>82</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/error_reporting.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>23</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/error_reporting.py</file>
+  <line>85</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/error_reporting.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>542</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyBroadExceptionInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unclear exception clauses</problem_class>
+  <description>Too broad exception clause</description>
+  <highlighted_element>Exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+</problems>

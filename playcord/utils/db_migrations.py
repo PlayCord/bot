@@ -330,6 +330,157 @@ MIGRATIONS: list[tuple[str, str, list[str]]] = [
             """,
         ],
     ),
+    (
+        "1.1.0",
+        "Backfill sigma < 0.001 to 0.001 minimum to satisfy CHECK constraint.",
+        [
+            # Backfill any sigma values below the minimum
+            """
+            UPDATE user_game_ratings
+            SET sigma = 0.001
+            WHERE sigma < 0.001;
+            """,
+        ],
+    ),
+    (
+        "1.1.1",
+        "Add CHECK constraint to enforce completed matches must have ended_at set.",
+        [
+            # First backfill any completed matches without ended_at
+            """
+            UPDATE matches
+            SET ended_at = started_at + INTERVAL '30 minutes'
+            WHERE status = 'completed' AND ended_at IS NULL;
+            """,
+            # Add constraint
+            """
+            ALTER TABLE matches
+            ADD CONSTRAINT chk_completed_match_has_end_time
+            CHECK (status != 'completed' OR ended_at IS NOT NULL);
+            """,
+        ],
+    ),
+    (
+        "1.1.2",
+        "Create trigger to enforce final_ranking on match_participants when match status is completed.",
+        [
+            # Create function to validate final_ranking on match completion
+            """
+            CREATE OR REPLACE FUNCTION validate_completed_match_rankings()
+            RETURNS TRIGGER AS $$
+            DECLARE
+                missing_rankings INTEGER;
+            BEGIN
+                -- Only validate if transitioning to 'completed' status
+                IF NEW.status = 'completed' AND OLD.status != 'completed' THEN
+                    -- Check if all participants have final_ranking set
+                    SELECT COUNT(*)
+                    INTO missing_rankings
+                    FROM match_participants
+                    WHERE match_id = NEW.match_id
+                    AND final_ranking IS NULL;
+                    
+                    IF missing_rankings > 0 THEN
+                        RAISE EXCEPTION
+                            'Cannot complete match % with % participants missing final_ranking',
+                            NEW.match_id, missing_rankings;
+                    END IF;
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """,
+            # Drop existing trigger if any
+            """
+            DROP TRIGGER IF EXISTS trg_validate_completed_match_rankings ON matches;
+            """,
+            # Create trigger on matches table
+            """
+            CREATE TRIGGER trg_validate_completed_match_rankings
+                BEFORE UPDATE OF status ON matches
+                FOR EACH ROW
+                EXECUTE FUNCTION validate_completed_match_rankings();
+            """,
+        ],
+    ),
+    (
+        "1.1.3",
+        "Add is_deleted soft-delete columns and update cascade behavior to preserve history.",
+        [
+            # Add is_deleted column to users table
+            """
+            ALTER TABLE users
+            ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE NOT NULL;
+            """,
+            # Add is_deleted column to user_game_ratings
+            """
+            ALTER TABLE user_game_ratings
+            ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE NOT NULL;
+            """,
+            # Add is_deleted column to match_participants
+            """
+            ALTER TABLE match_participants
+            ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE NOT NULL;
+            """,
+            # Add is_deleted column to match_moves
+            """
+            ALTER TABLE match_moves
+            ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE NOT NULL;
+            """,
+            # Add is_deleted column to rating_history
+            """
+            ALTER TABLE rating_history
+            ADD COLUMN is_deleted BOOLEAN DEFAULT FALSE NOT NULL;
+            """,
+            # Create indexes on is_deleted columns for efficient filtering
+            """
+            CREATE INDEX IF NOT EXISTS idx_users_deleted ON users (is_deleted) WHERE is_deleted = FALSE;
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_ratings_deleted ON user_game_ratings (is_deleted) WHERE is_deleted = FALSE;
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_participants_deleted ON match_participants (is_deleted) WHERE is_deleted = FALSE;
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_moves_deleted ON match_moves (is_deleted) WHERE is_deleted = FALSE;
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_history_deleted ON rating_history (is_deleted) WHERE is_deleted = FALSE;
+            """,
+        ],
+    ),
+    (
+        "1.1.4",
+        "Update foreign key constraints to use ON DELETE SET NULL instead of CASCADE for user deletion.",
+        [
+            # Change user_game_ratings FK to SET NULL
+            """
+            ALTER TABLE user_game_ratings
+            DROP CONSTRAINT fk_user_rating_user,
+            ADD CONSTRAINT fk_user_rating_user FOREIGN KEY (user_id)
+                REFERENCES users (user_id) ON DELETE SET NULL;
+            """,
+            # Change match_participants FK to SET NULL
+            """
+            ALTER TABLE match_participants
+            DROP CONSTRAINT fk_participant_user,
+            ADD CONSTRAINT fk_participant_user FOREIGN KEY (user_id)
+                REFERENCES users (user_id) ON DELETE SET NULL;
+            """,
+            # Change match_moves FK to SET NULL (already has this)
+            # No change needed - already uses ON DELETE CASCADE which is ok for moves
+            # Change rating_history FK to SET NULL
+            """
+            ALTER TABLE rating_history
+            DROP CONSTRAINT fk_history_user,
+            ADD CONSTRAINT fk_history_user FOREIGN KEY (user_id)
+                REFERENCES users (user_id) ON DELETE SET NULL;
+            """,
+            # Change analytics_events FK to SET NULL (already has this)
+            # No change needed - already uses ON DELETE SET NULL
+        ],
+    ),
 ]
 
 

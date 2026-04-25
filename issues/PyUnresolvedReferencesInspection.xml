@@ -1,0 +1,2762 @@
+<problems>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>109</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Thread | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>34</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>281</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>85</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>307</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_move_count'</description>
+  <highlighted_element>get_move_count</highlighted_element>
+  <language>Python</language>
+  <offset>38</offset>
+  <length>14</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>308</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'record_move'</description>
+  <highlighted_element>record_move</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>11</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>326</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'append_replay_event'</description>
+  <highlighted_element>append_replay_event</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>19</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>333</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'append_replay_event'</description>
+  <highlighted_element>append_replay_event</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>19</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/game_runtime.py</file>
+  <line>649</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/game_runtime.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'upsert_bot_message'</description>
+  <highlighted_element>upsert_bot_message</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>18</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_interrupt.py</file>
+  <line>108</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_interrupt.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'edit'</description>
+  <highlighted_element>edit</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py</file>
+  <line>37</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'create_game'</description>
+  <highlighted_element>create_game</highlighted_element>
+  <language>Python</language>
+  <offset>39</offset>
+  <length>11</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py</file>
+  <line>57</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'update_match_context'</description>
+  <highlighted_element>update_match_context</highlighted_element>
+  <language>Python</language>
+  <offset>16</offset>
+  <length>20</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py</file>
+  <line>78</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'end_match'</description>
+  <highlighted_element>end_match</highlighted_element>
+  <language>Python</language>
+  <offset>16</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py</file>
+  <line>104</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'dict[int, str] | None' does not have attribute '__setitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py</file>
+  <line>108</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'merge_match_metadata_outcome_display'</description>
+  <highlighted_element>merge_match_metadata_outcome_display</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>36</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py</file>
+  <line>133</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/application/services/match_lifecycle.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Class 'object' does not define '__await__', so the 'await' operator cannot be used on its instances</description>
+  <highlighted_element>await</highlighted_element>
+  <language>Python</language>
+  <offset>8</offset>
+  <length>5</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/cli/analytics.py</file>
+  <line>40</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/cli/analytics.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_analytics_event_counts'</description>
+  <highlighted_element>get_analytics_event_counts</highlighted_element>
+  <language>Python</language>
+  <offset>26</offset>
+  <length>26</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/cli/analytics.py</file>
+  <line>41</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/cli/analytics.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_analytics_event_counts_by_game'</description>
+  <highlighted_element>get_analytics_event_counts_by_game</highlighted_element>
+  <language>Python</language>
+  <offset>27</offset>
+  <length>34</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/cli/analytics.py</file>
+  <line>42</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/cli/analytics.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_analytics_recent_events'</description>
+  <highlighted_element>get_analytics_recent_events</highlighted_element>
+  <language>Python</language>
+  <offset>26</offset>
+  <length>27</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/games/tictactoe/__init__.py</file>
+  <line>249</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/games/tictactoe/__init__.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Player | None' does not have attribute 'mention'</description>
+  <highlighted_element>mention</highlighted_element>
+  <language>Python</language>
+  <offset>44</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/infrastructure/db/repositories/analytics.py</file>
+  <line>20</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/infrastructure/db/repositories/analytics.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'track_analytics_event' for class 'Database'</description>
+  <highlighted_element>track_analytics_event</highlighted_element>
+  <language>Python</language>
+  <offset>22</offset>
+  <length>21</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/infrastructure/db/repositories/analytics.py</file>
+  <line>23</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/infrastructure/db/repositories/analytics.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'get_analytics_summary' for class 'Database'</description>
+  <highlighted_element>get_analytics_summary</highlighted_element>
+  <language>Python</language>
+  <offset>29</offset>
+  <length>21</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/infrastructure/db/repositories/analytics.py</file>
+  <line>26</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/infrastructure/db/repositories/analytics.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'get_recent_analytics_events' for class 'Database'</description>
+  <highlighted_element>get_recent_analytics_events</highlighted_element>
+  <language>Python</language>
+  <offset>29</offset>
+  <length>27</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/infrastructure/db/repositories/game.py</file>
+  <line>21</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/infrastructure/db/repositories/game.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member '(self: Self@GameRepository, *, active_only: bool) -&gt; list[Any]' of '(self: Self@GameRepository, *, active_only: bool) -&gt; list[Any] | type[list]' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>55</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/infrastructure/db/repositories/match.py</file>
+  <line>35</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/infrastructure/db/repositories/match.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'get_match_history_for_user' for class 'Database'</description>
+  <highlighted_element>get_match_history_for_user</highlighted_element>
+  <language>Python</language>
+  <offset>29</offset>
+  <length>26</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/infrastructure/db/repositories/player.py</file>
+  <line>20</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/infrastructure/db/repositories/player.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'upsert_user' for class 'Database'</description>
+  <highlighted_element>upsert_user</highlighted_element>
+  <language>Python</language>
+  <offset>22</offset>
+  <length>11</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py</file>
+  <line>99</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'effective_owner_ids' for class 'Bot'</description>
+  <highlighted_element>effective_owner_ids</highlighted_element>
+  <language>Python</language>
+  <offset>59</offset>
+  <length>19</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py</file>
+  <line>202</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_analytics_event_counts'</description>
+  <highlighted_element>get_analytics_event_counts</highlighted_element>
+  <language>Python</language>
+  <offset>29</offset>
+  <length>26</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py</file>
+  <line>203</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_analytics_event_counts_by_game'</description>
+  <highlighted_element>get_analytics_event_counts_by_game</highlighted_element>
+  <language>Python</language>
+  <offset>30</offset>
+  <length>34</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py</file>
+  <line>204</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_analytics_recent_events'</description>
+  <highlighted_element>get_analytics_recent_events</highlighted_element>
+  <language>Python</language>
+  <offset>29</offset>
+  <length>27</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py</file>
+  <line>379</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'reset_all_data'</description>
+  <highlighted_element>reset_all_data</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>14</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py</file>
+  <line>421</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'reset_game_data'</description>
+  <highlighted_element>reset_game_data</highlighted_element>
+  <language>Python</language>
+  <offset>36</offset>
+  <length>15</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py</file>
+  <line>444</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'reset_user_data'</description>
+  <highlighted_element>reset_user_data</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>15</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py</file>
+  <line>465</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/admin.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'reset_guild_data'</description>
+  <highlighted_element>reset_guild_data</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>16</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/events.py</file>
+  <line>157</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/events.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'TextChannel | None' does not have attribute 'send'</description>
+  <highlighted_element>send</highlighted_element>
+  <language>Python</language>
+  <offset>39</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/events.py</file>
+  <line>178</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/events.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'delete_guild'</description>
+  <highlighted_element>delete_guild</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>12</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>125</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>22</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>131</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>134</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>27</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>136</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>27</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>138</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>27</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>140</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>27</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>142</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>27</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>144</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>27</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>146</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>27</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>162</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'decode_component_payload'</description>
+  <highlighted_element>decode_component_payload</highlighted_element>
+  <language>Python</language>
+  <offset>57</offset>
+  <length>24</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>165</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'move_by_button'</description>
+  <highlighted_element>move_by_button</highlighted_element>
+  <language>Python</language>
+  <offset>22</offset>
+  <length>14</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>178</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'decode_component_payload'</description>
+  <highlighted_element>decode_component_payload</highlighted_element>
+  <language>Python</language>
+  <offset>58</offset>
+  <length>24</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>181</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'move_by_select'</description>
+  <highlighted_element>move_by_select</highlighted_element>
+  <language>Python</language>
+  <offset>22</offset>
+  <length>14</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>195</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute 'get'</description>
+  <highlighted_element>get</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>203</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>26</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>221</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute 'get'</description>
+  <highlighted_element>get</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>276</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute 'get'</description>
+  <highlighted_element>get</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>284</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>26</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>292</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute 'get'</description>
+  <highlighted_element>get</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>329</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute 'get'</description>
+  <highlighted_element>get</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>332</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>34</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>337</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute 'get'</description>
+  <highlighted_element>get</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>368</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute 'get'</description>
+  <highlighted_element>get</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>371</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>27</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>377</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute 'get'</description>
+  <highlighted_element>get</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>399</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute 'get'</description>
+  <highlighted_element>get</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>402</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>23</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>417</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_match'</description>
+  <highlighted_element>get_match</highlighted_element>
+  <language>Python</language>
+  <offset>28</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>430</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_match_human_user_ids_ordered'</description>
+  <highlighted_element>get_match_human_user_ids_ordered</highlighted_element>
+  <language>Python</language>
+  <offset>32</offset>
+  <length>32</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>459</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_game_by_id'</description>
+  <highlighted_element>get_game_by_id</highlighted_element>
+  <language>Python</language>
+  <offset>31</offset>
+  <length>14</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>521</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'me'</description>
+  <highlighted_element>me</highlighted_element>
+  <language>Python</language>
+  <offset>19</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>522</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'VoiceChannel | StageChannel | TextChannel | ForumChannel | CategoryChannel | Thread | DMChannel | GroupChannel | None' does not have attribute 'permissions_for'</description>
+  <highlighted_element>permissions_for</highlighted_element>
+  <language>Python</language>
+  <offset>32</offset>
+  <length>15</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>530</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'VoiceChannel | StageChannel | TextChannel | ForumChannel | CategoryChannel | Thread | DMChannel | GroupChannel | None' does not have attribute 'type'</description>
+  <highlighted_element>type</highlighted_element>
+  <language>Python</language>
+  <offset>19</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>542</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_playcord_channel_id'</description>
+  <highlighted_element>get_playcord_channel_id</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>23</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>542</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>59</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>543</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'VoiceChannel | StageChannel | TextChannel | ForumChannel | CategoryChannel | Thread | DMChannel | GroupChannel | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>42</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>572</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>31</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>583</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'translator'</description>
+  <highlighted_element>translator</highlighted_element>
+  <language>Python</language>
+  <offset>80</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>662</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>31</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>674</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'VoiceChannel | StageChannel | TextChannel | ForumChannel | CategoryChannel | Thread | DMChannel | GroupChannel | None' does not have attribute 'type'</description>
+  <highlighted_element>type</highlighted_element>
+  <language>Python</language>
+  <offset>19</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>683</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'VoiceChannel | StageChannel | TextChannel | ForumChannel | CategoryChannel | Thread | DMChannel | GroupChannel | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>19</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>692</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'VoiceChannel | StageChannel | TextChannel | ForumChannel | CategoryChannel | Thread | DMChannel | GroupChannel | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>44</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>716</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'VoiceChannel | StageChannel | TextChannel | ForumChannel | CategoryChannel | Thread | DMChannel | GroupChannel | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>35</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>720</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'VoiceChannel | StageChannel | TextChannel | ForumChannel | CategoryChannel | Thread | DMChannel | GroupChannel | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>20</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>733</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'VoiceChannel | StageChannel | TextChannel | ForumChannel | CategoryChannel | Thread | DMChannel | GroupChannel | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>44</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>740</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_player'</description>
+  <highlighted_element>get_player</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/games.py</file>
+  <line>740</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/games.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>56</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>125</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_match_by_code'</description>
+  <highlighted_element>get_match_by_code</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>17</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>129</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_match'</description>
+  <highlighted_element>get_match</highlighted_element>
+  <language>Python</language>
+  <offset>29</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>134</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_match'</description>
+  <highlighted_element>get_match</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>388</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'str' of 'str | None' does not have attribute 'name'</description>
+  <highlighted_element>name</highlighted_element>
+  <language>Python</language>
+  <offset>36</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>391</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'members'</description>
+  <highlighted_element>members</highlighted_element>
+  <language>Python</language>
+  <offset>60</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>412</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'name'</description>
+  <highlighted_element>name</highlighted_element>
+  <language>Python</language>
+  <offset>52</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>549</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'shard_id'</description>
+  <highlighted_element>shard_id</highlighted_element>
+  <language>Python</language>
+  <offset>29</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>567</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'effective_owner_ids' for class 'Client'</description>
+  <highlighted_element>effective_owner_ids</highlighted_element>
+  <language>Python</language>
+  <offset>85</offset>
+  <length>19</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>759</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_game'</description>
+  <highlighted_element>get_game</highlighted_element>
+  <language>Python</language>
+  <offset>30</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>791</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>31</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>797</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Game | None' does not have attribute 'game_id'</description>
+  <highlighted_element>game_id</highlighted_element>
+  <language>Python</language>
+  <offset>54</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>816</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_global_leaderboard'</description>
+  <highlighted_element>get_global_leaderboard</highlighted_element>
+  <language>Python</language>
+  <offset>43</offset>
+  <length>22</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>828</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_leaderboard'</description>
+  <highlighted_element>get_leaderboard</highlighted_element>
+  <language>Python</language>
+  <offset>43</offset>
+  <length>15</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>923</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>39</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>955</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>31</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1034</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>39</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1061</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_player'</description>
+  <highlighted_element>get_player</highlighted_element>
+  <language>Python</language>
+  <offset>29</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1061</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>56</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1081</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_user_game_ratings'</description>
+  <highlighted_element>get_user_game_ratings</highlighted_element>
+  <language>Python</language>
+  <offset>38</offset>
+  <length>21</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1087</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_game'</description>
+  <highlighted_element>get_game</highlighted_element>
+  <language>Python</language>
+  <offset>38</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1089</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_user_global_rank'</description>
+  <highlighted_element>get_user_global_rank</highlighted_element>
+  <language>Python</language>
+  <offset>46</offset>
+  <length>20</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1151</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_user_match_history'</description>
+  <highlighted_element>get_user_match_history</highlighted_element>
+  <language>Python</language>
+  <offset>36</offset>
+  <length>22</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1152</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>31</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1190</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_user_game_ratings'</description>
+  <highlighted_element>get_user_game_ratings</highlighted_element>
+  <language>Python</language>
+  <offset>38</offset>
+  <length>21</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1244</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_game'</description>
+  <highlighted_element>get_game</highlighted_element>
+  <language>Python</language>
+  <offset>30</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1256</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>56</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1264</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>31</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1270</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Game | None' does not have attribute 'game_id'</description>
+  <highlighted_element>game_id</highlighted_element>
+  <language>Python</language>
+  <offset>54</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1293</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_user_match_history'</description>
+  <highlighted_element>get_user_match_history</highlighted_element>
+  <language>Python</language>
+  <offset>36</offset>
+  <length>22</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1300</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_rating_history'</description>
+  <highlighted_element>get_rating_history</highlighted_element>
+  <language>Python</language>
+  <offset>37</offset>
+  <length>18</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1426</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>56</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1433</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>39</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1446</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_game_by_id'</description>
+  <highlighted_element>get_game_by_id</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>14</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1496</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>39</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1521</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>56</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1531</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_replay_events'</description>
+  <highlighted_element>get_replay_events</highlighted_element>
+  <language>Python</language>
+  <offset>29</offset>
+  <length>17</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1557</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>31</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1568</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'autocomplete' in '(self: Self, ctx: Interaction, match_ref: str) -&gt; Coroutine'</description>
+  <highlighted_element>autocomplete</highlighted_element>
+  <language>Python</language>
+  <offset>20</offset>
+  <length>12</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1576</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_user_match_history'</description>
+  <highlighted_element>get_user_match_history</highlighted_element>
+  <language>Python</language>
+  <offset>27</offset>
+  <length>22</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1578</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>31</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1617</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'effective_owner_ids' for class 'Client'</description>
+  <highlighted_element>effective_owner_ids</highlighted_element>
+  <language>Python</language>
+  <offset>35</offset>
+  <length>19</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1619</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'name'</description>
+  <highlighted_element>name</highlighted_element>
+  <language>Python</language>
+  <offset>31</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1658</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'VoiceChannel | StageChannel | TextChannel | ForumChannel | CategoryChannel | Thread | DMChannel | GroupChannel | None' does not have attribute 'type'</description>
+  <highlighted_element>type</highlighted_element>
+  <language>Python</language>
+  <offset>23</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1666</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'VoiceChannel | StageChannel | TextChannel | ForumChannel | CategoryChannel | Thread | DMChannel | GroupChannel | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>45</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1675</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'players'</description>
+  <highlighted_element>players</highlighted_element>
+  <language>Python</language>
+  <offset>50</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1685</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'forfeit_player'</description>
+  <highlighted_element>forfeit_player</highlighted_element>
+  <language>Python</language>
+  <offset>28</offset>
+  <length>14</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1769</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'merge_guild_settings'</description>
+  <highlighted_element>merge_guild_settings</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>20</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1770</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>26</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1776</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'merge_guild_settings'</description>
+  <highlighted_element>merge_guild_settings</highlighted_element>
+  <language>Python</language>
+  <offset>20</offset>
+  <length>20</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/general.py</file>
+  <line>1777</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/general.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>22</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>47</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>49</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>23</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>52</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>22</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>53</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>54</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>57</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>23</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>71</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>30</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>84</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>18</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>139</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>30</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>152</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>18</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>233</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>235</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>17</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>237</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'startswith'</description>
+  <highlighted_element>startswith</highlighted_element>
+  <language>Python</language>
+  <offset>17</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>249</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'replace'</description>
+  <highlighted_element>replace</highlighted_element>
+  <language>Python</language>
+  <offset>37</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py</file>
+  <line>317</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/cogs/matchmaking.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'replace'</description>
+  <highlighted_element>replace</highlighted_element>
+  <language>Python</language>
+  <offset>37</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/commands/tree.py</file>
+  <line>127</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/commands/tree.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'tree' for class 'Client'</description>
+  <highlighted_element>tree</highlighted_element>
+  <language>Python</language>
+  <offset>8</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/commands/tree.py</file>
+  <line>131</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/commands/tree.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'tree' for class 'Client'</description>
+  <highlighted_element>tree</highlighted_element>
+  <language>Python</language>
+  <offset>12</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py</file>
+  <line>178</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Logger | None' does not have attribute 'exception'</description>
+  <highlighted_element>exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py</file>
+  <line>185</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Logger | None' does not have attribute 'exception'</description>
+  <highlighted_element>exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py</file>
+  <line>190</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'send'</description>
+  <highlighted_element>send</highlighted_element>
+  <language>Python</language>
+  <offset>26</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py</file>
+  <line>193</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Logger | None' does not have attribute 'exception'</description>
+  <highlighted_element>exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py</file>
+  <line>200</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Logger | None' does not have attribute 'exception'</description>
+  <highlighted_element>exception</highlighted_element>
+  <language>Python</language>
+  <offset>15</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py</file>
+  <line>347</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/presentation/interactions/error_reporter.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Logger | None' does not have attribute 'exception'</description>
+  <highlighted_element>exception</highlighted_element>
+  <language>Python</language>
+  <offset>11</offset>
+  <length>9</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/conversion.py</file>
+  <line>174</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/conversion.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/conversion.py</file>
+  <line>175</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/conversion.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'name'</description>
+  <highlighted_element>name</highlighted_element>
+  <language>Python</language>
+  <offset>27</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/conversion.py</file>
+  <line>181</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/conversion.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'user' for class 'Member'</description>
+  <highlighted_element>user</highlighted_element>
+  <language>Python</language>
+  <offset>73</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/conversion.py</file>
+  <line>182</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/conversion.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'user' for class 'Member'</description>
+  <highlighted_element>user</highlighted_element>
+  <language>Python</language>
+  <offset>29</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/conversion.py</file>
+  <line>182</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/conversion.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'user' for class 'Member'</description>
+  <highlighted_element>user</highlighted_element>
+  <language>Python</language>
+  <offset>53</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>180</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'mu'</description>
+  <highlighted_element>mu</highlighted_element>
+  <language>Python</language>
+  <offset>36</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>184</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'sigma'</description>
+  <highlighted_element>sigma</highlighted_element>
+  <language>Python</language>
+  <offset>18</offset>
+  <length>5</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>184</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'mu'</description>
+  <highlighted_element>mu</highlighted_element>
+  <language>Python</language>
+  <offset>40</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>185</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'mu'</description>
+  <highlighted_element>mu</highlighted_element>
+  <language>Python</language>
+  <offset>43</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>187</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute 'mu'</description>
+  <highlighted_element>mu</highlighted_element>
+  <language>Python</language>
+  <offset>43</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>216</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'Object' of 'User | Object' does not have attribute 'bot'</description>
+  <highlighted_element>bot</highlighted_element>
+  <language>Python</language>
+  <offset>65</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>318</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'database' for class 'Database'</description>
+  <highlighted_element>database</highlighted_element>
+  <language>Python</language>
+  <offset>66</offset>
+  <length>8</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>469</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>28</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>528</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>618</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>709</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>974</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>1001</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>1018</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>1643</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>1659</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>18</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>1661</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>22</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>1661</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>46</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>1662</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>26</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>2111</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>2161</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>2182</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>2199</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>31</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>2207</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>48</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/database.py</file>
+  <line>2388</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/database.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Any | None' does not have attribute '__getitem__'</description>
+  <highlighted_element>[</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/emojis.py</file>
+  <line>243</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/emojis.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'id' for class 'object'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>37</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/error_reporting.py</file>
+  <line>47</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/error_reporting.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'edit' for class 'object'</description>
+  <highlighted_element>edit</highlighted_element>
+  <language>Python</language>
+  <offset>31</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/error_reporting.py</file>
+  <line>55</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/error_reporting.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'send' for class 'object'</description>
+  <highlighted_element>send</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/error_reporting.py</file>
+  <line>63</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/error_reporting.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'channel' for class 'object'</description>
+  <highlighted_element>channel</highlighted_element>
+  <language>Python</language>
+  <offset>33</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/error_reporting.py</file>
+  <line>72</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/error_reporting.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'edit' for class 'object'</description>
+  <highlighted_element>edit</highlighted_element>
+  <language>Python</language>
+  <offset>37</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/error_reporting.py</file>
+  <line>76</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/error_reporting.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'edit' for class 'object'</description>
+  <highlighted_element>edit</highlighted_element>
+  <language>Python</language>
+  <offset>41</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/graphs.py</file>
+  <line>93</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/graphs.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'SupportsDunderLT[Any]' of 'SupportsDunderLT[Any] | SupportsDunderGT[Any]' does not have attribute '__sub__'</description>
+  <highlighted_element>-</highlighted_element>
+  <language>Python</language>
+  <offset>30</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/graphs.py</file>
+  <line>97</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/graphs.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'SupportsDunderLT[Any]' of 'SupportsDunderLT[Any] | SupportsDunderGT[Any]' does not have attribute '__gt__'</description>
+  <highlighted_element>&gt;</highlighted_element>
+  <language>Python</language>
+  <offset>49</offset>
+  <length>1</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>81</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_player'</description>
+  <highlighted_element>get_player</highlighted_element>
+  <language>Python</language>
+  <offset>38</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>81</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>72</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>114</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'key' in 'Never'</description>
+  <highlighted_element>key</highlighted_element>
+  <language>Python</language>
+  <offset>14</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>114</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'default' in 'Never'</description>
+  <highlighted_element>default</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>143</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'key' in 'Never'</description>
+  <highlighted_element>key</highlighted_element>
+  <language>Python</language>
+  <offset>44</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>143</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'default' in 'Never'</description>
+  <highlighted_element>default</highlighted_element>
+  <language>Python</language>
+  <offset>54</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>143</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'default' in 'Never'</description>
+  <highlighted_element>default</highlighted_element>
+  <language>Python</language>
+  <offset>71</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>184</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'InternalPlayer | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>190</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'InternalPlayer | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>23</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>223</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'InternalPlayer | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>80</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>229</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'InternalPlayer | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>19</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>369</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'key' in 'Never'</description>
+  <highlighted_element>key</highlighted_element>
+  <language>Python</language>
+  <offset>49</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>379</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute 'get'</description>
+  <highlighted_element>get</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>380</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'coerce' for class 'None'</description>
+  <highlighted_element>coerce</highlighted_element>
+  <language>Python</language>
+  <offset>40</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>381</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'applied_preset' for class 'None'</description>
+  <highlighted_element>applied_preset</highlighted_element>
+  <language>Python</language>
+  <offset>29</offset>
+  <length>14</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>384</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'key' in 'Never'</description>
+  <highlighted_element>key</highlighted_element>
+  <language>Python</language>
+  <offset>30</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>385</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'key' in 'Never'</description>
+  <highlighted_element>key</highlighted_element>
+  <language>Python</language>
+  <offset>51</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>385</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'coerce' in 'Never'</description>
+  <highlighted_element>coerce</highlighted_element>
+  <language>Python</language>
+  <offset>69</offset>
+  <length>6</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>386</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'key' in 'Never'</description>
+  <highlighted_element>key</highlighted_element>
+  <language>Python</language>
+  <offset>53</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>420</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'ChatInputApplicationCommandInteractionData | UserApplicationCommandInteractionData | MessageApplicationCommandInteractionData | ButtonMessageComponentInteractionData | SelectMessageComponentInteractionData | ModalSubmitInteractionData | None' does not have attribute 'get'</description>
+  <highlighted_element>get</highlighted_element>
+  <language>Python</language>
+  <offset>24</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>516</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'InternalPlayer | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>25</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>559</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'key' in 'Never'</description>
+  <highlighted_element>key</highlighted_element>
+  <language>Python</language>
+  <offset>49</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>559</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'default' in 'Never'</description>
+  <highlighted_element>default</highlighted_element>
+  <language>Python</language>
+  <offset>59</offset>
+  <length>7</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>560</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Cannot find reference 'label' in 'Never'</description>
+  <highlighted_element>label</highlighted_element>
+  <language>Python</language>
+  <offset>43</offset>
+  <length>5</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>594</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'InternalPlayer | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>60</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>595</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'InternalPlayer | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>66</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>630</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'InternalPlayer | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>57</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>631</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'InternalPlayer | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>42</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>665</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'InternalPlayer | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>21</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>673</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_player'</description>
+  <highlighted_element>get_player</highlighted_element>
+  <language>Python</language>
+  <offset>33</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>768</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Database | None' does not have attribute 'get_player'</description>
+  <highlighted_element>get_player</highlighted_element>
+  <language>Python</language>
+  <offset>33</offset>
+  <length>10</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py</file>
+  <line>768</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/matchmaking_interface.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'Guild | None' does not have attribute 'id'</description>
+  <highlighted_element>id</highlighted_element>
+  <language>Python</language>
+  <offset>71</offset>
+  <length>2</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/table_renderer.py</file>
+  <line>162</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/table_renderer.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'size' for class 'ImageFont'</description>
+  <highlighted_element>size</highlighted_element>
+  <language>Python</language>
+  <offset>39</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/table_renderer.py</file>
+  <line>163</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/table_renderer.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'size' for class 'ImageFont'</description>
+  <highlighted_element>size</highlighted_element>
+  <language>Python</language>
+  <offset>41</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/table_renderer.py</file>
+  <line>173</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/table_renderer.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'size' for class 'ImageFont'</description>
+  <highlighted_element>size</highlighted_element>
+  <language>Python</language>
+  <offset>23</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/table_renderer.py</file>
+  <line>182</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/table_renderer.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WARNING" attribute_key="WARNING_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Unresolved attribute reference 'size' for class 'ImageFont'</description>
+  <highlighted_element>size</highlighted_element>
+  <language>Python</language>
+  <offset>48</offset>
+  <length>4</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/views.py</file>
+  <line>245</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/views.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'dict[str, str | int] | None' does not have attribute 'get'</description>
+  <highlighted_element>get</highlighted_element>
+  <language>Python</language>
+  <offset>33</offset>
+  <length>3</length>
+</problem>
+<problem>
+  <file>file://$PROJECT_DIR$/playcord/utils/views.py</file>
+  <line>271</line>
+  <module>PlayCord</module>
+  <entry_point TYPE="file" FQNAME="file://$PROJECT_DIR$/playcord/utils/views.py" />
+  <problem_class id="PyUnresolvedReferencesInspection" severity="WEAK WARNING" attribute_key="INFO_ATTRIBUTES">Unresolved references</problem_class>
+  <description>Member 'None' of 'dict[int, str] | None' does not have attribute 'get'</description>
+  <highlighted_element>get</highlighted_element>
+  <language>Python</language>
+  <offset>38</offset>
+  <length>3</length>
+</problem>
+</problems>
