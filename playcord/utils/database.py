@@ -1484,16 +1484,29 @@ class Database:
         self,
         match_id: int,
         user_id: int | None,
-        move_number: int,
-        move_data: dict[str, Any],
+        move_number: int | None = None,  # Deprecated: now auto-sequenced
+        move_data: dict[str, Any] | None = None,
         game_state_after: dict[str, Any] | None = None,
         time_taken_ms: int | None = None,
         is_game_affecting: bool = True,
         kind: str = "move",
     ):
-        """Record a move in a match"""
-        move_json = json.dumps(move_data)
+        """
+        Record a move in a match.
+        Move number is now auto-sequenced; the move_number parameter is ignored.
+        Moves are recorded in order they are inserted.
+        """
+        move_json = json.dumps(move_data) if move_data else None
         state_json = json.dumps(game_state_after) if game_state_after else None
+
+        # Auto-sequence: get next move number
+        query_next = """
+            SELECT COALESCE(MAX(move_number), 0) + 1 as next_move_num
+            FROM match_moves
+            WHERE match_id = %s;
+        """
+        result = self._execute_query(query_next, (match_id,), fetchone=True)
+        auto_sequence = result["next_move_num"] if result else 1
 
         query = """
             INSERT INTO match_moves
@@ -1506,7 +1519,7 @@ class Database:
             (
                 match_id,
                 user_id,
-                move_number,
+                auto_sequence,
                 kind,
                 move_json,
                 state_json,

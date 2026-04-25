@@ -73,6 +73,40 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 COMMENT ON FUNCTION calculate_conservative_rating IS 'Calculate conservative rating for leaderboard ordering. Default uses 3 sigma (99.7% confidence interval).';
 
 
+-- ============================================================================
+-- FUNCTION: repair_matches_played_counts
+-- Detect and report drift between matches_played counter and actual completed matches
+-- ============================================================================
+CREATE OR REPLACE FUNCTION repair_matches_played_counts()
+RETURNS TABLE (
+    user_id BIGINT,
+    game_id INTEGER,
+    recorded_count INTEGER,
+    actual_count INTEGER,
+    drift INTEGER
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        ugr.user_id,
+        ugr.game_id,
+        ugr.matches_played as recorded_count,
+        COUNT(*)::INTEGER as actual_count,
+        (COUNT(*)::INTEGER - ugr.matches_played) as drift
+    FROM user_game_ratings ugr
+    LEFT JOIN match_participants mp ON ugr.user_id = mp.user_id 
+        AND mp.is_deleted = FALSE
+    LEFT JOIN matches m ON mp.match_id = m.match_id 
+        AND m.game_id = ugr.game_id
+        AND m.status = 'completed'
+    GROUP BY ugr.user_id, ugr.game_id, ugr.matches_played
+    HAVING COUNT(*)::INTEGER != ugr.matches_played
+    ORDER BY ABS(COUNT(*)::INTEGER - ugr.matches_played) DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION repair_matches_played_counts IS 'Detect drift between recorded matches_played counter and actual completed matches. Returns records with mismatches.';
+
 
 -- ============================================================================
 -- FUNCTION: get_head_to_head_stats
@@ -419,6 +453,55 @@ CREATE TRIGGER trg_enforce_min_rating
     BEFORE INSERT OR UPDATE OF mu, sigma ON user_game_ratings
     FOR EACH ROW
     EXECUTE FUNCTION enforce_user_game_rating_floors();
+
+
+-- ============================================================================
+-- FUNCTION: validate_player_counts
+-- Enforce min/max player counts from game configuration
+-- ============================================================================
+CREATE OR REPLACE FUNCTION validate_player_counts()
+RETURNS TRIGGER AS $$
+DECLARE
+    player_count INTEGER;
+    min_players INTEGER;
+    max_players INTEGER;
+BEGIN
+    -- Get current player count (after INSERT/DELETE)
+    SELECT COUNT(*) INTO player_count 
+    FROM match_participants 
+    WHERE match_id = NEW.match_id 
+      AND is_deleted = FALSE;
+    
+    -- Get game limits
+    SELECT g.min_players, g.max_players INTO min_players, max_players
+    FROM matches m
+    JOIN games g ON m.game_id = g.game_id
+    WHERE m.match_id = NEW.match_id;
+    
+    -- Validate player count is within bounds
+    IF player_count < min_players THEN
+        RAISE EXCEPTION 
+            'Cannot have less than % players (game minimum). Currently: %',
+            min_players, player_count;
+    END IF;
+    
+    IF player_count > max_players THEN
+        RAISE EXCEPTION 
+            'Cannot have more than % players (game maximum). Currently: %',
+            max_players, player_count;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION validate_player_counts IS 'Enforce game min/max player count constraints on match_participants INSERT/DELETE';
+
+DROP TRIGGER IF EXISTS trg_validate_player_counts ON match_participants;
+CREATE TRIGGER trg_validate_player_counts
+    AFTER INSERT OR DELETE ON match_participants
+    FOR EACH ROW
+    EXECUTE FUNCTION validate_player_counts();
 
 
 -- ============================================================================
