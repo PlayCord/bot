@@ -63,7 +63,8 @@ class MessageLayout:
     buttons: tuple[ButtonSpec, ...] = ()
     selects: tuple[SelectSpec, ...] = ()
     attachments: tuple[BinaryAsset, ...] = ()
-    # When set, buttons are grouped into discord.ui.ActionRow chunks of this width (e.g. 3 for a grid).
+    # When set, buttons are grouped into discord.ui.ActionRow chunks of this
+    # width (e.g. 3 for a grid).
     button_row_width: int | None = None
 
 

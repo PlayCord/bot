@@ -110,7 +110,8 @@ def textify(basis: dict[str, float], replacements: dict[str, str]) -> str:
             break
 
     if actually_picked_message is None:
-        # This is not an error because possible_message must be defined because of the empty check
+        # This is not an error because possible_message
+        # must be defined because of the empty check
         actually_picked_message = possible_message
 
     # Replace the strings with their replacements (great english)
@@ -138,7 +139,8 @@ def player_representative(possible_players: list[int]):
     for i in range(1, len(nums) + 1):
         # Check if the current number is not consecutive
         if i == len(nums) or nums[i] != nums[i - 1] + 1:
-            # If there's a range (start != nums[i-1]), add range, else just a single number
+            # If there's a range (start != nums[i-1]),
+            # add range, else just a single number
             if start == nums[i - 1]:
                 result.append(str(start))
             else:
@@ -153,9 +155,9 @@ def player_verification_function(possible_players: list[int] | int):
     """
     function that returns a lambda representing a function checking if an argument is in the list of possible players
      (or equal to a number)
-    :param possible_players: either an integer or a list of integers representing the possible player count
-    :return: a function that checks if an argument is in the list of possible player counts
-    """
+    :param possible_players: either an integer or a
+    list of integers representing the possible player count    :return: a function that checks if an argument
+    is in the list of possible player counts    """
     if isinstance(possible_players, int):  # One number
         return lambda x: x == possible_players
     else:  # Many numbers

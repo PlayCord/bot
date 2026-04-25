@@ -58,8 +58,8 @@ def portal_owner_ids_from_appinfo(app_info: Any) -> frozenset[int]:
 
 
 async def resolve_effective_owner_ids(client: discord.Client) -> frozenset[int]:
-    """Merge ``STATIC_OWNER_IDS`` with portal owner(s). Falls back to static-only if the API call fails."""
-    merged: set[int] = set(STATIC_OWNER_IDS)
+    """Merge ``STATIC_OWNER_IDS`` with portal owner(s). Falls back
+    to static-only if the API call fails."""    merged: set[int] = set(STATIC_OWNER_IDS)
     log.debug(
         "resolve_effective_owner_ids: starting with STATIC_OWNER_IDS=%s", sorted(merged)
     )
@@ -73,8 +73,8 @@ async def resolve_effective_owner_ids(client: discord.Client) -> frozenset[int]:
         log.debug("resolve_effective_owner_ids: received application_info=%r", app_info)
     except Exception:
         log.warning(
-            "resolve_effective_owner_ids: application_info() failed; using STATIC_OWNER_IDS only for owner checks",
-            exc_info=True,
+            "resolve_effective_owner_ids: application_info() failed; using
+            STATIC_OWNER_IDS only for owner checks",            exc_info=True,
         )
         return frozenset(merged)
 
@@ -85,8 +85,8 @@ async def resolve_effective_owner_ids(client: discord.Client) -> frozenset[int]:
         )
     except Exception:
         log.exception(
-            "resolve_effective_owner_ids: failed to extract portal owner ids from app_info=%r",
-            app_info,
+            "resolve_effective_owner_ids: failed to extract
+            portal owner ids from app_info=%r",            app_info,
         )
         portal_ids = frozenset()
 

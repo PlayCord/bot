@@ -38,7 +38,7 @@ def generate_elo_chart(
         raise ValueError("Cannot generate chart: rating_history is empty")
 
     # Extract timestamps and ratings
-    timestamps, ratings = zip(*rating_history)
+    timestamps, ratings = zip(*rating_history, strict=True)
 
     # Create figure and axis
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
@@ -185,7 +185,7 @@ def generate_rating_comparison_chart(
         if not rating_history:
             continue
 
-        timestamps, ratings = zip(*rating_history)
+        timestamps, ratings = zip(*rating_history, strict=True)
         color = colors[idx % len(colors)]
 
         ax.plot(

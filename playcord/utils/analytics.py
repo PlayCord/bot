@@ -18,8 +18,8 @@ logger = get_logger("analytics")
 
 
 def _db():
-    """Live Database instance (importing ``database`` by value would freeze ``None`` at import time)."""
-    return _db_module.database
+    """Live Database instance (importing ``database`` by
+    value would freeze ``None`` at import time)."""    return _db_module.database
 
 
 # Fallback buffer when DB write fails (retry on flush)
@@ -181,8 +181,8 @@ def render_analytics_matplotlib_summary(
     hours: int,
 ) -> io.BytesIO | None:
     """
-    Owner-facing matplotlib figure (event types vs games). Returns ``None`` if there is nothing to plot
-    or rendering fails.
+    Owner-facing matplotlib figure (event types vs games).
+    Returns ``None`` if there is nothing to plot    or rendering fails.
     """
     from playcord.utils.graphs import generate_analytics_summary_chart
     from playcord.utils.locale import fmt, get

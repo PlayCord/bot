@@ -1,8 +1,8 @@
 """Reusable helpers for reporting errors back to Discord in the most relevant place.
 
 Provides a single async function `try_send_error_embed` which attempts multiple delivery
-strategies (edit game message, post to thread, post to status channel, edit status message)
-and logs failures along the way. Designed to be imported and reused by interfaces.
+strategies (edit game message, post to thread,
+post to status channel, edit status message)and logs failures along the way. Designed to be imported and reused by interfaces.
 """
 
 from playcord.utils.containers import (
@@ -74,8 +74,8 @@ async def try_send_error_embed(
             "Failed to send error embed to status_message.channel; will try to edit status_message"
         )
 
-    # 4) Try to edit the status message as a last resort (use plain content fallback if edit kwargs fail)
-    try:
+    # 4) Try to edit the status message as a
+    last resort (use plain content fallback if edit kwargs fail)    try:
         if status_message is not None:
             try:
                 await status_message.edit(

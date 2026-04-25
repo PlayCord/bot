@@ -1,7 +1,9 @@
 import asyncio
+import typing
 from typing import Any
 
 import discord
+from discord.app_commands import Choice
 
 from playcord import state as session_state
 from playcord.infrastructure.app_constants import (
@@ -9,8 +11,6 @@ from playcord.infrastructure.app_constants import (
     INFO_COLOR,
     LOGGING_ROOT,
 )
-
-CURRENT_GAMES = session_state.CURRENT_GAMES
 from playcord.utils.containers import (
     CustomContainer,
     UserErrorContainer,
@@ -19,12 +19,14 @@ from playcord.utils.containers import (
 from playcord.utils.locale import get, get_error
 from playcord.utils.logging_config import get_logger
 
+CURRENT_GAMES = session_state.CURRENT_GAMES
+
 log = get_logger()
 
 
 def schedule_ephemeral_message_delete(message: Any, delay: float | None) -> None:
-    """Delete *message* after *delay* seconds (interaction webhooks often lack delete_after on send)."""
-    if message is None or delay is None or delay <= 0:
+    """Delete *message* after *delay* seconds (interaction
+    webhooks often lack delete_after on send)."""    if message is None or delay is None or delay <= 0:
         return
 
     async def _run() -> None:
@@ -59,8 +61,8 @@ async def response_send_message(
 
 
 def format_user_error_message(error_key: str, **kwargs) -> str:
-    """Plain-text user error with a single combined sentence block (no title/container)."""
-    message = get_error(error_key)
+    """Plain-text user error with a
+    single combined sentence block (no title/container)."""    message = get_error(error_key)
     if not message:
         return f"{error_key}"
     if kwargs:
@@ -72,8 +74,8 @@ def format_user_error_message(error_key: str, **kwargs) -> str:
 
 
 def get_user_error_embed(error_key: str, **kwargs) -> UserErrorContainer:
-    """Get a pre-defined user error container with optional formatting from locale (no title row)."""
-    message = get_error(error_key)
+    """Get a pre-defined user error container with
+    optional formatting from locale (no title row)."""    message = get_error(error_key)
     if not message:
         message = get("errors.generic")
     if kwargs:
@@ -142,11 +144,6 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
         return False
 
     return True
-
-
-import typing
-
-from discord.app_commands import Choice
 
 
 async def decode_discord_arguments(argument: Choice | typing.Any) -> typing.Any:

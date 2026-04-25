@@ -29,9 +29,9 @@ class Translator:
     """A locale-aware string resolver."""
 
     locale_directory: Path = field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent
-        / "configuration"
-        / "locale"
+        default_factory=lambda: (
+            Path(__file__).resolve().parent.parent / "configuration" / "locale"
+        )
     )
     default_locale: str = DEFAULT_LOCALE
     current_locale: str = DEFAULT_LOCALE

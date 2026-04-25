@@ -1,1 +1,5 @@
-"""Discord.py extension cogs (listeners and slash subcommands wired outside the command tree)."""
+"""
+Discord.py extension cogs.
+
+Listeners and slash subcommands wired outside the command tree.
+"""

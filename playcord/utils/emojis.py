@@ -51,8 +51,8 @@ def initialize_emojis() -> bool:
         button_emojis = config.get("button_emojis", {})
         game_emojis = config.get("game_emojis", {})
         logger.info(
-            f"Loaded {len(emojis)} emojis, {len(button_emojis)} button emojis, and {len(game_emojis)} game emojis from configuration."
-        )
+            f"Loaded {len(emojis)} emojis, {len(button_emojis)} button emojis,
+            and {len(game_emojis)} game emojis from configuration."        )
         return True
     except FileNotFoundError:
         logger.critical(

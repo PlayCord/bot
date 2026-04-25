@@ -21,15 +21,15 @@ from playcord.infrastructure.app_constants import (
     VERSION,
 )
 from playcord.infrastructure.runtime_config import get_settings
-
-CURRENT_GAMES = session_state.CURRENT_GAMES
-IN_GAME = session_state.IN_GAME
-IN_MATCHMAKING = session_state.IN_MATCHMAKING
 from playcord.utils import analytics as analytics_mod
 from playcord.utils import database as db
 from playcord.utils.containers import CustomContainer, container_send_kwargs
 from playcord.utils.locale import fmt, get
 from playcord.utils.logging_config import get_logger
+
+CURRENT_GAMES = session_state.CURRENT_GAMES
+IN_GAME = session_state.IN_GAME
+IN_MATCHMAKING = session_state.IN_MATCHMAKING
 
 log = get_logger()
 
@@ -87,7 +87,8 @@ class EventsCog(commands.Cog):
             except FileNotFoundError as e:
                 # Failsafe in case shutil.which lied to us
                 git_log.warning(
-                    "git executable disappeared or is not runnable: %s; using version base %s",
+                    "git executable disappeared or is not runnable: %s; "
+                    "using version base %s",
                     e,
                     version_base,
                 )
@@ -225,17 +226,21 @@ class EventsCog(commands.Cog):
                     try:
                         await message.delete()
                         f_log.info(
-                            "Deleted non-command message from participant %s in thread %s",
+                            "Deleted non-command message from participant %s "
+                            "in thread %s",
                             message.author.id,
                             message.channel.id,
                         )
                     except discord.Forbidden:
                         f_log.warning(
-                            "Cannot delete participant message - missing permissions in thread %s",
+                            "Cannot delete participant message - missing "
+                            "permissions in thread %s",
                             message.channel.id,
                         )
                     except discord.NotFound:
-                        f_log.debug("Message to delete was not found (already deleted)")
+                        f_log.debug(
+                            "Message to delete was not found (already deleted)"
+                        )
             return
 
         f_log = log.getChild("event.thread_policy")

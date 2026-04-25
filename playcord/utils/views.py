@@ -244,7 +244,7 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
         for spec in option_specs:
             cur = current_values.get(spec.key, spec.default)
             options: list[SelectOption] = []
-            for label, value, is_def in spec.select_options():
+            for label, value, _is_def in spec.select_options():
                 options.append(
                     SelectOption(
                         label=label[:100],
@@ -377,9 +377,11 @@ class SpectateView(DynamicButtonView):
 
 class PaginationView(discord.ui.LayoutView):
     """
-    Pagination with First/Previous/Next/Last (timeout=None). Button custom_ids carry only
-    guild_id/user_id for ownership checks; page state lives on this view instance.
-    If the view is not registered (e.g. after restart), GamesCog.on_interaction replies ephemerally.
+    Pagination with First/Previous/Next/Last (timeout=None).
+
+    Button custom_ids carry only guild_id/user_id for ownership checks;
+    page state lives on this view instance. If the view is not registered
+    (e.g. after restart), GamesCog.on_interaction replies ephemerally.
     """
 
     def __init__(
@@ -784,7 +786,8 @@ class ContextualHelpView(discord.ui.LayoutView):
         Initialize contextual help view.
 
         Args:
-            help_topic: The help topic to show when clicked (main, games, commands, getting_started)
+            help_topic: The help topic when clicked (main, games, commands,
+                getting_started)
             timeout: View timeout in seconds
         """
         super().__init__(timeout=timeout)

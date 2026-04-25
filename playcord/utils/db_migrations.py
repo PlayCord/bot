@@ -1,14 +1,13 @@
 """
 Apply versioned database migrations tracked in database_migrations.
 
-Starting from 2.0.0 - clean rebase with all historical migrations (1.0.0-1.2.5) consolidated.
-No backwards compatibility maintained.
+Starting from 2.0.0 - clean rebase
+with all historical migrations (1.0.0-1.2.5) consolidated.No backwards compatibility maintained.
 """
 
 from __future__ import annotations
 
 import hashlib
-import re
 
 from playcord.utils.logging_config import get_logger
 
@@ -34,16 +33,14 @@ def apply_migrations(database):
 
     try:
         # Create database_migrations table if it doesn't exist
-        cur.execute(
-            """
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS database_migrations (
                 version TEXT PRIMARY KEY,
                 description TEXT,
                 applied_at TIMESTAMPTZ DEFAULT NOW(),
                 sql_hash VARCHAR(64)
             );
-            """
-        )
+            """)
         database.commit()
     except Exception as e:
         logger.error(f"Failed to create database_migrations table: {e}")

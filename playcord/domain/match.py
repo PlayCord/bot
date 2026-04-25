@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from playcord.domain.player import Player
 
 
-class MatchOutcomeKind(str, Enum):
+class MatchOutcomeKind(StrEnum):
     in_progress = "in_progress"
     winner = "winner"
     draw = "draw"

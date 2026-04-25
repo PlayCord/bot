@@ -18,9 +18,6 @@ from playcord.infrastructure.app_constants import (
     GAME_TYPES,
     LONG_SPACE_EMBED,
 )
-
-CURRENT_MATCHMAKING = session_state.CURRENT_MATCHMAKING
-IN_MATCHMAKING = session_state.IN_MATCHMAKING
 from playcord.utils import database as db
 from playcord.utils.analytics import Timer
 from playcord.utils.bot_names import generate_bot_name
@@ -44,6 +41,9 @@ from playcord.utils.interfaces import user_in_active_game, user_in_active_matchm
 from playcord.utils.locale import fmt, get
 from playcord.utils.logging_config import get_logger
 from playcord.utils.views import MatchmakingLobbyView, MatchmakingView
+
+CURRENT_MATCHMAKING = session_state.CURRENT_MATCHMAKING
+IN_MATCHMAKING = session_state.IN_MATCHMAKING
 
 
 class MatchmakingInterface:
@@ -118,7 +118,8 @@ class MatchmakingInterface:
         self.ready_players: set[int] = set()
         self._sync_rated_flag()
 
-        # Required and maximum players for game TODO: more complex requirements for start/stop
+        # Required and maximum players for game
+        # TODO: more complex requirements for start/stop
 
         player_count = resolve_player_count(self.game)
         if player_count is None:  # If no player count is defined, any value is "fine"
@@ -815,7 +816,7 @@ class MatchmakingInterface:
             )
             return fmt("queue.kicked_and_banned", player=player.mention, reason=reason)
         log.info(
-            f"Successfully banned {new_player}" f" from the game for reason {reason!r}"
+            f"Successfully banned {new_player} from the game for reason {reason!r}"
         )
         return fmt("queue.banned", player=player.mention, reason=reason)
 
@@ -856,7 +857,7 @@ class MatchmakingInterface:
             )
             return fmt("queue.kicked", player=player.mention, reason=reason)
         log.info(
-            f"Couldn't kick {new_player}" f" from the game: they weren't in the lobby!"
+            f"Couldn't kick {new_player} from the game: they weren't in the lobby!"
         )
         return fmt("queue.didnt_kick", player=player.mention)
 

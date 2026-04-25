@@ -1,4 +1,8 @@
-"""Binds loaded :class:`Settings` for code paths that cannot receive DI (e.g. legacy DB layer)."""
+"""
+Binds loaded :class:`Settings` for code paths that cannot receive DI.
+
+Used for legacy DB layer.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +13,11 @@ _bound: Settings | None = None
 
 
 def bind_settings(settings: Settings) -> None:
-    """Call once during application bootstrap (before DB code reads floors or retention)."""
+    """
+    Call once during application bootstrap.
+
+    Before DB code reads floors or retention.
+    """
     global _bound
     _bound = settings
 

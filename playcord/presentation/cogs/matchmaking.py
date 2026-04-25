@@ -11,12 +11,12 @@ from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_READY,
     EPHEMERAL_DELETE_AFTER,
 )
-
-CURRENT_MATCHMAKING = session_state.CURRENT_MATCHMAKING
 from playcord.utils.conversion import contextify
 from playcord.utils.discord_utils import followup_send
 from playcord.utils.locale import get
 from playcord.utils.logging_config import get_logger
+
+CURRENT_MATCHMAKING = session_state.CURRENT_MATCHMAKING
 
 log = get_logger()
 
@@ -58,8 +58,8 @@ class MatchmakingCog(commands.Cog):
             await self.invite_accept_callback(ctx)
 
     async def lobby_select_callback(self, ctx: discord.Interaction) -> None:
-        """Lobby string-select for per-game match options (handled by MatchmakingInterface)."""
-        await ctx.response.defer(ephemeral=True)
+        """Lobby string-select for per-game
+        match options (handled by MatchmakingInterface)."""        await ctx.response.defer(ephemeral=True)
         f_log = log.getChild("callback.lobby_select")
         f_log.debug(
             "lobby_select_callback called by user=%s data=%r",
@@ -126,8 +126,8 @@ class MatchmakingCog(commands.Cog):
         await matchmaker.callback_lobby_option(ctx, key)
 
     async def lobby_role_select_callback(self, ctx: discord.Interaction) -> None:
-        """Per-player role select for CHOSEN :attr:`role_mode` (handled by MatchmakingInterface)."""
-        await ctx.response.defer(ephemeral=True)
+        """Per-player role select for
+        CHOSEN :attr:`role_mode` (handled by MatchmakingInterface)."""        await ctx.response.defer(ephemeral=True)
         f_log = log.getChild("callback.lobby_role_select")
         f_log.debug(
             "lobby_role_select_callback called by user=%s data=%r",

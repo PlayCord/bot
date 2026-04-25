@@ -22,7 +22,8 @@ from playcord.utils.emojis import get_emoji_string
 from playcord.utils.locale import fmt, get, get_dict
 
 _TEXT_DISPLAY_MAX = 4000
-# Discord TextDisplay / message content limit (public alias for callers outside this module)
+# Discord TextDisplay / message content limit
+# (public alias for callers outside this module)
 TEXT_DISPLAY_MAX = _TEXT_DISPLAY_MAX
 _FIELD_VALUE_MAX = 1024
 _FIELD_LINE_SAFE_MAX = 500

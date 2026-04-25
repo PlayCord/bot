@@ -27,10 +27,6 @@ from playcord.infrastructure.app_constants import (
     VERSION,
 )
 from playcord.presentation.ui.views.replay_viewer import ReplayViewerView
-
-CURRENT_GAMES = session_state.CURRENT_GAMES
-IN_GAME = session_state.IN_GAME
-IN_MATCHMAKING = session_state.IN_MATCHMAKING
 from playcord.utils import database as db
 from playcord.utils import ramcheck
 from playcord.utils.containers import (
@@ -62,14 +58,18 @@ from playcord.utils.matchmaking_user_map import matchmaking_by_user_id
 from playcord.utils.replay_format import chunk_replay_lines, format_replay_event_line
 from playcord.utils.views import HelpView, InviteView, PaginationView
 
+CURRENT_GAMES = session_state.CURRENT_GAMES
+IN_GAME = session_state.IN_GAME
+IN_MATCHMAKING = session_state.IN_MATCHMAKING
+
 log = get_logger()
 
 _GAME_METADATA: dict[str, dict] = {}
 
 
 def _load_game_metadata() -> None:
-    """Populate game class metadata once at import (avoids importlib per autocomplete keystroke)."""
-    global _GAME_METADATA
+    """Populate game class metadata once at
+    import (avoids importlib per autocomplete keystroke)."""    global _GAME_METADATA
     _GAME_METADATA = {}
     for gid, (mod_name, cls_name) in GAME_TYPES.items():
         game_class = getattr(importlib.import_module(mod_name), cls_name)
@@ -202,8 +202,8 @@ def _profile_supports_compact_avatar() -> bool:
 
 
 def resolve_match_for_replay(raw: str, guild_id: int):
-    """Resolve a match from an 8-char public code or a numeric ``match_id`` (guild-scoped)."""
-    from playcord.utils.match_codes import is_match_code_token
+    """Resolve a match from an 8-char
+    public code or a numeric ``match_id`` (guild-scoped)."""    from playcord.utils.match_codes import is_match_code_token
 
     s = (raw or "").strip().lower()
     if not s:
@@ -451,7 +451,8 @@ class GeneralCog(commands.Cog):
             await begin_game(ctx, game)
 
             # Need to wait a bit or re-fetch to get the new matchmaker
-            # Actually, handle the rest of it after begin_game finishes and we find the matchmaker
+            # Actually, handle the rest of it after
+            # begin_game finishes and we find the matchmaker
             mm_by_user = matchmaking_by_user_id()
             if ctx.user.id not in mm_by_user:
                 # It might take a moment or begin_game failed
@@ -526,8 +527,8 @@ class GeneralCog(commands.Cog):
         else:
             message = get("matchmaking.invites_failed_partial")
         f_log.debug(
-            f"/invite partial or no success: {len(invited_users) - len(failed_invites)} succeeded,"
-            f" {len(failed_invites)} failed. {contextify(ctx)}"
+            f"/invite partial or no
+            success: {len(invited_users) - len(failed_invites)} succeeded,"            f" {len(failed_invites)} failed. {contextify(ctx)}"
         )
         final = message + "\n"
         for fail in failed_invites:
@@ -640,7 +641,7 @@ class GeneralCog(commands.Cog):
         )
 
         container = CustomContainer(
-            title=f'{get("embeds.stats.title")} {get_emoji_string("pointing")}',
+            title=f"{get('embeds.stats.title')} {get_emoji_string('pointing')}",
             description=fmt("embeds.stats.description", managed_by=MANAGED_BY),
             color=INFO_COLOR,
         )
@@ -655,16 +656,16 @@ class GeneralCog(commands.Cog):
         )
         container.add_field(
             name="Shard",
-            value=f"#{shard_id} · {round(shard_ping * 100, 2)}ms · {shard_servers} servers",
-        )
+            value=f"#{shard_id} · {round(shard_ping *
+            100, 2)}ms · {shard_servers} servers",        )
         container.add_field(
             name="System",
             value=f"{ramcheck.get_ram_usage_mb()} RAM",
         )
         container.add_field(
             name="Activity",
-            value=f"{member_count} members · {len(IN_MATCHMAKING)} queuing · {len(IN_GAME)} in game",
-            inline=False,
+            value=f"{member_count} members · {len(IN_MATCHMAKING)}
+            queuing · {len(IN_GAME)} in game",            inline=False,
         )
 
         await response_send_message(ctx, **container_send_kwargs(container))
@@ -845,7 +846,8 @@ class GeneralCog(commands.Cog):
         game_name = _GAME_METADATA[game]["name"]
         game_db = db.database.get_game(game)
         if not game_db:
-            # errors are now single-line under [errors]; use format_user_error_message to preserve formatting
+            # errors are now single-line under
+            # [errors]; use format_user_error_message to preserve formatting
             await followup_send(
                 ctx,
                 content=format_user_error_message("game_not_registered"),
@@ -880,8 +882,16 @@ class GeneralCog(commands.Cog):
             current_page=page,
             max_pages=max_pages,
             body_text=container_to_markdown(container),
-            callback_handler=lambda interaction, new_page: self._leaderboard_page_callback(
-                interaction, game, game_name, game_db.game_id, scope, new_page, limit
+            callback_handler=lambda interaction, new_page: (
+                self._leaderboard_page_callback(
+                    interaction,
+                    game,
+                    game_name,
+                    game_db.game_id,
+                    scope,
+                    new_page,
+                    limit,
+                )
             ),
         )
         await followup_send(ctx, view=view)
@@ -896,8 +906,8 @@ class GeneralCog(commands.Cog):
         page: int,
         limit: int,
     ):
-        """Build leaderboard container for a specific page. Returns (container, has_data, is_last_page)."""
-        offset = (page - 1) * limit
+        """Build leaderboard container for a
+        specific page. Returns (container, has_data, is_last_page)."""        offset = (page - 1) * limit
         if scope == "global":
             # Fetch one extra item to check if there are more pages
             leaderboard_data = db.database.get_global_leaderboard(
@@ -1385,8 +1395,8 @@ class GeneralCog(commands.Cog):
         days: int,
         f_log,
     ):
-        """Build history container for a specific page. Returns (container, chart_file, has_data, is_last_page)."""
-        limit = HISTORY_PAGE_SIZE
+        """Build history container for a specific
+        page. Returns (container, chart_file, has_data, is_last_page)."""        limit = HISTORY_PAGE_SIZE
         offset = (page - 1) * limit
 
         # Fetch one extra item to check if there are more pages
@@ -1443,7 +1453,8 @@ class GeneralCog(commands.Cog):
                 inline=False,
             )
 
-        # Generate matplotlib chart if rating history exists (only on first page for performance)
+        # Generate matplotlib chart if rating history
+        # exists (only on first page for performance)
         chart_file = None
         if rating_history and page == 1:
             ascending = list(reversed(rating_history))
@@ -1461,7 +1472,7 @@ class GeneralCog(commands.Cog):
                 datetime.fromisoformat(str(row.get("created_at"))) for row in ascending
             ]
 
-            rating_data = list(zip(timestamps, points))
+            rating_data = list(zip(timestamps, points, strict=True))
 
             try:
                 chart_buffer = generate_elo_chart(

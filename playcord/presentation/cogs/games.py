@@ -24,12 +24,9 @@ from playcord.infrastructure.app_constants import (
     EPHEMERAL_DELETE_AFTER,
     PERMISSION_MSG_NOT_PARTICIPANT,
 )
-from playcord.presentation.ui.views.replay_viewer import ReplayViewerView
-
-AUTOCOMPLETE_CACHE = session_state.AUTOCOMPLETE_CACHE
-CURRENT_GAMES = session_state.CURRENT_GAMES
 from playcord.presentation.interactions.error_reporter import ErrorSurface, report
 from playcord.presentation.interactions.router import InteractionRouter
+from playcord.presentation.ui.views.replay_viewer import ReplayViewerView
 from playcord.utils import database as db
 from playcord.utils.containers import LoadingContainer, container_send_kwargs
 from playcord.utils.discord_utils import (
@@ -43,6 +40,9 @@ from playcord.utils.locale import fmt, get
 from playcord.utils.logging_config import get_logger
 from playcord.utils.matchmaking_interface import MatchmakingInterface
 from playcord.utils.matchmaking_user_map import matchmaking_by_user_id
+
+AUTOCOMPLETE_CACHE = session_state.AUTOCOMPLETE_CACHE
+CURRENT_GAMES = session_state.CURRENT_GAMES
 
 log = get_logger()
 GAME_COMPONENT_ROUTER = InteractionRouter()
@@ -79,7 +79,11 @@ _PAGINATION_PREFIXES = (
 async def _pagination_unhandled_fallback(
     interaction: discord.Interaction, custom_id: str
 ) -> None:
-    """If no registered PaginationView handled the click (e.g. after restart), reply ephemerally."""
+    """
+    If no registered PaginationView handled the click (e.g. after restart).
+
+    Reply ephemerally.
+    """
     await asyncio.sleep(0)
     if interaction.response.is_done():
         return
@@ -358,7 +362,8 @@ class GamesCog(commands.Cog):
             return
 
         f_log.info(
-            "Invoking move_by_button for game_id=%s user=%s func=%s args=%s current_turn_required=%s",
+            "Invoking move_by_button for game_id=%s user=%s func=%s "
+            "args=%s current_turn_required=%s",
             game_id,
             ctx.user.id,
             function_id,
@@ -524,7 +529,8 @@ class GamesCog(commands.Cog):
         match = db.database.get_match(mid)
         if not match or match.status != MatchStatus.COMPLETED:
             f_log.info(
-                "Rematch requested for mid=%s but not available or not completed (match=%r)",
+                "Rematch requested for mid=%s but not available or not "
+                "completed (match=%r)",
                 mid,
                 match,
             )
@@ -784,7 +790,10 @@ async def handle_move(
         _track_move_rejected("wrong_channel")
         await followup_send(
             ctx,
-            content=f"{get('move.invalid_context_title')}. {get('move.invalid_context_description')}",
+            content=(
+                f"{get('move.invalid_context_title')}. "
+                f"{get('move.invalid_context_description')}"
+            ),
             ephemeral=True,
             delete_after=EPHEMERAL_DELETE_AFTER,
         )
@@ -793,7 +802,10 @@ async def handle_move(
         _track_move_rejected("no_active_game")
         await followup_send(
             ctx,
-            content=f"{get('move.invalid_context_title')}. {get('move.no_active_game_description')}",
+            content=(
+                f"{get('move.invalid_context_title')}. "
+                f"{get('move.no_active_game_description')}"
+            ),
             ephemeral=True,
             delete_after=EPHEMERAL_DELETE_AFTER,
         )

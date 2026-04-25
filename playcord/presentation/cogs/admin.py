@@ -321,7 +321,8 @@ class AdminCog(commands.Cog):
             self.bot.tree.clear_commands(guild=None)
             await self.bot.tree.sync()
             f_log.info(
-                f"Performed authorized command tree clear from user {msg.author.id} to all guilds."
+                f"Performed authorized command tree clear from user "
+                f"{msg.author.id} to all guilds."
             )
             return True
 
@@ -341,7 +342,8 @@ class AdminCog(commands.Cog):
         self.bot.tree.clear_commands(guild=g)
         await self.bot.tree.sync(guild=g)
         f_log.info(
-            f"Performed authorized command tree clear from user {msg.author.id} to guild {g.id}"
+            f"Performed authorized command tree clear from user "
+            f"{msg.author.id} to guild {g.id}"
         )
         return True
 
@@ -357,7 +359,8 @@ class AdminCog(commands.Cog):
             f"`{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET} game <id>`\n"
             f"`{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET} all`\n"
             f"`{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET} user <id>`\n"
-            f"`{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET} guild <id|{MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER}>`"
+            f"`{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET} guild "
+            f"<id|{MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER}>`"
         )
         if len(split) < 2:
             await msg.reply(

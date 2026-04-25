@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Sized
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any, ClassVar
 
 from playcord.domain.bot import BotDefinition
@@ -21,7 +21,7 @@ from playcord.domain.rating import (
 from playcord.domain.replay import ReplayEvent, ReplayRecorder
 
 
-class ParameterKind(str, Enum):
+class ParameterKind(StrEnum):
     string = "string"
     integer = "integer"
     dropdown = "dropdown"
@@ -54,14 +54,14 @@ class Move:
     is_game_affecting: bool = True
 
 
-class PlayerOrder(str, Enum):
+class PlayerOrder(StrEnum):
     random = "random"
     preserve = "preserve"
     creator_first = "creator_first"
     reverse = "reverse"
 
 
-class RoleMode(str, Enum):
+class RoleMode(StrEnum):
     none = "none"
     random = "random"
     chosen = "chosen"

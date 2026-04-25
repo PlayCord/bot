@@ -57,7 +57,8 @@ class MatchOptionSpec:
         if self.kind == "bool":
             if str(self.default) not in {"true", "false"}:
                 raise ConfigurationError(
-                    f"MatchOptionSpec {self.key!r}: bool default must be 'true' or 'false'"
+                    f"MatchOptionSpec {self.key!r}: "
+                    "bool default must be 'true' or 'false'"
                 )
             return
 

@@ -1,4 +1,8 @@
-"""Static UX constants and locale-bound strings (populated via :func:`bind_locale_strings`)."""
+"""
+Static UX constants and locale-bound strings.
+
+Populated via :func:`bind_locale_strings`.
+"""
 
 from __future__ import annotations
 
@@ -111,11 +115,15 @@ THREAD_POLICY_SPECTATORS_SILENT = False
 
 def bind_locale_strings(translator: Translator) -> None:
     """Populate locale-backed module attributes (call once at startup)."""
-    global NAME, MANAGED_BY, ERROR_IMPORTED, ERROR_NO_SYSTEM_CHANNEL, ERROR_INCORRECT_SETUP
-    global TEXTIFY_CURRENT_GAME_TURN, TEXTIFY_GAME_STARTED, TEXTIFY_BUTTON_JOIN
-    global TEXTIFY_BUTTON_LEAVE, TEXTIFY_BUTTON_START, TEXTIFY_GAME_OVER, TEXTIFY_GAME_DRAW
+    global NAME, MANAGED_BY, ERROR_IMPORTED, \
+        ERROR_NO_SYSTEM_CHANNEL, ERROR_INCORRECT_SETUP
+    global TEXTIFY_CURRENT_GAME_TURN, TEXTIFY_GAME_STARTED, \
+        TEXTIFY_BUTTON_JOIN
+    global TEXTIFY_BUTTON_LEAVE, TEXTIFY_BUTTON_START, \
+        TEXTIFY_GAME_OVER, TEXTIFY_GAME_DRAW
     global PERMISSION_MSG_NOT_PARTICIPANT, PERMISSION_MSG_SPECTATE_DISABLED
-    global PERMISSION_MSG_WRONG_CHANNEL, PERMISSION_MSG_NO_GAME_HERE, PERMISSION_MSG_NOT_YOUR_TURN
+    global PERMISSION_MSG_WRONG_CHANNEL, PERMISSION_MSG_NO_GAME_HERE, \
+        PERMISSION_MSG_NOT_YOUR_TURN
     global GAME_MSG_ALREADY_OVER, THREAD_POLICY_WARNING_MESSAGE
 
     NAME = translator.get("brand.name")

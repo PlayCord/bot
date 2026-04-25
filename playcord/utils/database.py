@@ -15,11 +15,11 @@ try:
     from psycopg import errors as pg_errors
     from psycopg.rows import dict_row
     from psycopg_pool import ConnectionPool
-except ImportError:
+except ImportError as err:
     # Fallback error message
     raise ImportError(
         "psycopg3 is required. Install with: pip install 'psycopg[binary,pool]'"
-    )
+    ) from err
 
 from playcord.domain.player import Player
 from playcord.domain.rating import DEFAULT_MU, DEFAULT_SIGMA, STARTING_RATING
@@ -295,8 +295,7 @@ class Database:
 
         # Connection string
         self.conninfo = (
-            f"host={host} port={port} dbname={database} "
-            f"user={user} password={password}"
+            f"host={host} port={port} dbname={database} user={user} password={password}"
         )
 
         # Connection pool
@@ -319,7 +318,9 @@ class Database:
         except Exception as e:
             logger.exception("Error connecting to PostgreSQL: %s", e)
             self.pool = None
-            raise DatabaseConnectionError(f"Could not connect to database: {e}")
+            raise DatabaseConnectionError(
+                f"Could not connect to database: {e}"
+            ) from e
 
     def disconnect(self):
         """Close connection pool"""
@@ -464,9 +465,7 @@ class Database:
 
     def get_user_preferences(self, user_id: int) -> dict | None:
         """Get user preferences (excludes soft-deleted users)"""
-        query = (
-            "SELECT created_at AS joined_at, preferences FROM users WHERE user_id = %s AND is_deleted = FALSE;"
-        )
+        query = "SELECT created_at AS joined_at, preferences FROM users WHERE user_id = %s AND is_deleted = FALSE;"
         result = self._execute_query(query, (user_id,), fetchone=True)
         if result and result["preferences"]:
             # Already a dict from dict_row
@@ -475,7 +474,9 @@ class Database:
 
     def delete_user(self, user_id: int):
         """Soft-delete a user, preserving all related data (ratings, history, etc.)"""
-        query = "UPDATE users SET is_deleted = TRUE, updated_at = NOW() WHERE user_id = %s;"
+        query = (
+            "UPDATE users SET is_deleted = TRUE, updated_at = NOW() WHERE user_id = %s;"
+        )
         self._execute_query(query, (user_id,))
 
     def restore_user(self, user_id: int):
@@ -498,11 +499,23 @@ class Database:
         """
         counts = {}
         queries = [
-            ("users", "SELECT COUNT(*) FROM users WHERE user_id = %s AND is_deleted = TRUE;"),
-            ("user_game_ratings", "SELECT COUNT(*) FROM user_game_ratings WHERE user_id = %s;"),
-            ("match_participants", "SELECT COUNT(*) FROM match_participants WHERE user_id = %s;"),
+            (
+                "users",
+                "SELECT COUNT(*) FROM users WHERE user_id = %s AND is_deleted = TRUE;",
+            ),
+            (
+                "user_game_ratings",
+                "SELECT COUNT(*) FROM user_game_ratings WHERE user_id = %s;",
+            ),
+            (
+                "match_participants",
+                "SELECT COUNT(*) FROM match_participants WHERE user_id = %s;",
+            ),
             ("match_moves", "SELECT COUNT(*) FROM match_moves WHERE user_id = %s;"),
-            ("rating_history", "SELECT COUNT(*) FROM rating_history WHERE user_id = %s;"),
+            (
+                "rating_history",
+                "SELECT COUNT(*) FROM rating_history WHERE user_id = %s;",
+            ),
         ]
         for table_name, query in queries:
             result = self._execute_query(query, (user_id,), fetchone=True)
@@ -2479,8 +2492,10 @@ class Database:
         Maps to new end_match method.
         """
         # Convert old format to new format
-        # Old: rating_updates = {user_id: {uid, new_mu, new_sigma, mu_delta, sigma_delta, ranking}}
-        # New: results = {user_id: {ranking, mu_delta, sigma_delta, new_mu, new_sigma, mu_before, sigma_before}}
+        # Old: rating_updates = {user_id: {uid,
+        # new_mu, new_sigma, mu_delta, sigma_delta, ranking}}
+        # New: results = {user_id: {ranking,
+        # mu_delta, sigma_delta, new_mu, new_sigma, mu_before, sigma_before}}
 
         results = {}
         for user_id, data in rating_updates.items():
