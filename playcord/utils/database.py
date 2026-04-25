@@ -1482,8 +1482,8 @@ class Database:
 
     def append_replay_event(self, match_id: int, event: dict[str, Any]) -> None:
         """
-        Append one structured replay event to ``replay_events``.
-        ``type`` is normalized into ``event_type`` and ``user_id`` into ``actor_user_id``.
+        Append one structured replay event to match_moves as a 'system' kind event.
+        ``type`` is stored in move_data['event_type'] and ``user_id`` becomes the user_id column.
         """
         payload = dict(event or {})
         event_type = str(payload.pop("type", "event"))
@@ -1493,44 +1493,49 @@ class Database:
                 actor_user_id = int(actor_user_id)
             except (TypeError, ValueError):
                 actor_user_id = None
+
+        # Store event_type in the move_data payload for backward compatibility
+        move_data = dict(payload or {})
+        move_data["event_type"] = event_type
+
         with self.transaction() as cur:
             cur.execute(
                 "SELECT 1 FROM matches WHERE match_id = %s FOR UPDATE;", (match_id,)
             )
             cur.execute(
                 """
-                SELECT COALESCE(MAX(sequence_number), 0) + 1 AS next_sequence
-                FROM replay_events
+                SELECT COALESCE(MAX(move_number), 0) + 1 AS next_move_number
+                FROM match_moves
                 WHERE match_id = %s;
                 """,
                 (match_id,),
             )
-            next_sequence = cur.fetchone()["next_sequence"]
+            next_move_number = cur.fetchone()["next_move_number"]
             cur.execute(
                 """
-                INSERT INTO replay_events (
-                    match_id, sequence_number, event_type, actor_user_id, payload
+                INSERT INTO match_moves (
+                    match_id, user_id, move_number, kind, move_data, is_game_affecting
                 )
-                VALUES (%s, %s, %s, %s, %s::jsonb);
+                VALUES (%s, %s, %s, %s, %s::jsonb, FALSE);
                 """,
                 (
                     match_id,
-                    next_sequence,
-                    event_type,
                     actor_user_id,
-                    json.dumps(payload),
+                    next_move_number,
+                    "system",
+                    json.dumps(move_data),
                 ),
             )
 
     def get_replay_events(self, match_id: int) -> list[dict[str, Any]]:
-        """Return replay events in order from the canonical ``replay_events`` table."""
+        """Return replay events from match_moves (system events) in order."""
         rows = (
             self._execute_query(
                 """
-            SELECT event_type, actor_user_id, payload
-            FROM replay_events
-            WHERE match_id = %s
-            ORDER BY sequence_number ASC;
+            SELECT move_number, user_id, move_data, kind
+            FROM match_moves
+            WHERE match_id = %s AND kind = 'system'
+            ORDER BY move_number ASC;
             """,
                 (match_id,),
                 fetchall=True,
@@ -1539,10 +1544,12 @@ class Database:
         )
         events: list[dict[str, Any]] = []
         for row in rows:
-            payload = dict(row.get("payload") or {})
-            payload["type"] = row["event_type"]
-            if row.get("actor_user_id") is not None and "user_id" not in payload:
-                payload["user_id"] = row["actor_user_id"]
+            move_data = dict(row.get("move_data") or {})
+            event_type = move_data.pop("event_type", "event")
+            payload = move_data
+            payload["type"] = event_type
+            if row.get("user_id") is not None and "user_id" not in payload:
+                payload["user_id"] = row["user_id"]
             events.append(payload)
         return events
 

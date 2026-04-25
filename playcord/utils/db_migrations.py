@@ -68,6 +68,268 @@ MIGRATIONS: list[tuple[str, str, list[str]]] = [
             """,
         ],
     ),
+    (
+        "1.0.5",
+        "Consolidate replay_events into match_moves; migrate data and drop replay_events table.",
+        [
+            # Migrate all replay_events to match_moves with kind='system'
+            """
+            INSERT INTO match_moves (match_id, user_id, move_number, kind, move_data, is_game_affecting, created_at)
+            SELECT
+                re.match_id,
+                re.actor_user_id,
+                (SELECT COALESCE(MAX(m.move_number), 0) FROM match_moves m WHERE m.match_id = re.match_id) + re.sequence_number,
+                'system',
+                re.payload,
+                FALSE,
+                re.created_at
+            FROM replay_events re
+            ORDER BY re.match_id, re.sequence_number
+            ON CONFLICT DO NOTHING;
+            """,
+            # Drop the now-redundant replay_events table
+            """
+            DROP TABLE IF EXISTS replay_events;
+            """,
+        ],
+    ),
+    (
+        "1.0.6",
+        "Create AFTER UPDATE trigger on user_game_ratings to auto-log rating_history.",
+        [
+            # Function to auto-insert into rating_history on mu/sigma changes
+            """
+            CREATE OR REPLACE FUNCTION log_rating_history()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                IF (NEW.mu != OLD.mu OR NEW.sigma != OLD.sigma) THEN
+                    INSERT INTO rating_history (user_id, guild_id, game_id, match_id, mu_before, sigma_before, mu_after, sigma_after)
+                    VALUES (NEW.user_id, NULL, NEW.game_id, NULL, OLD.mu, OLD.sigma, NEW.mu, NEW.sigma)
+                    ON CONFLICT DO NOTHING;
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """,
+            # Create trigger
+            """
+            DROP TRIGGER IF EXISTS trg_user_ratings_history ON user_game_ratings;
+            CREATE TRIGGER trg_user_ratings_history
+                AFTER UPDATE OF mu, sigma ON user_game_ratings
+                FOR EACH ROW
+                EXECUTE FUNCTION log_rating_history();
+            """,
+        ],
+    ),
+    (
+        "1.0.7",
+        "Partition analytics_events by month for efficient cleanup.",
+        [
+            # Create partitioned table (replace existing)
+            """
+            -- Create new partitioned table
+            CREATE TABLE IF NOT EXISTS analytics_events_partitioned (
+                event_id BIGSERIAL NOT NULL,
+                event_type VARCHAR(100) NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL,
+                user_id BIGINT,
+                guild_id BIGINT,
+                game_id INTEGER,
+                match_id BIGINT,
+                metadata JSONB DEFAULT '{}'::jsonb
+            ) PARTITION BY RANGE (created_at);
+            """,
+            # Add constraints and foreign keys to partitioned table
+            """
+            ALTER TABLE analytics_events_partitioned
+                ADD CONSTRAINT fk_event_type_part FOREIGN KEY (event_type)
+                REFERENCES analytics_event_types (event_type) ON DELETE RESTRICT,
+                ADD CONSTRAINT fk_event_user_part FOREIGN KEY (user_id)
+                REFERENCES users (user_id) ON DELETE SET NULL,
+                ADD CONSTRAINT fk_event_guild_part FOREIGN KEY (guild_id)
+                REFERENCES guilds (guild_id) ON DELETE SET NULL,
+                ADD CONSTRAINT fk_event_game_part FOREIGN KEY (game_id)
+                REFERENCES games (game_id) ON DELETE SET NULL,
+                ADD CONSTRAINT fk_event_match_part FOREIGN KEY (match_id)
+                REFERENCES matches (match_id) ON DELETE SET NULL;
+            """,
+            # Migrate existing data to partitioned table
+            """
+            INSERT INTO analytics_events_partitioned (event_id, event_type, created_at, user_id, guild_id, game_id, match_id, metadata)
+            SELECT event_id, event_type, created_at, user_id, guild_id, game_id, match_id, metadata
+            FROM analytics_events;
+            """,
+            # Drop old table and rename new one
+            """
+            DROP TABLE IF EXISTS analytics_events;
+            ALTER TABLE analytics_events_partitioned RENAME TO analytics_events;
+            """,
+            # Create initial partitions (current month and 3 months back)
+            """
+            CREATE TABLE IF NOT EXISTS analytics_events_y2026_m01 PARTITION OF analytics_events
+                FOR VALUES FROM ('2026-01-01'::timestamptz) TO ('2026-02-01'::timestamptz);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS analytics_events_y2026_m02 PARTITION OF analytics_events
+                FOR VALUES FROM ('2026-02-01'::timestamptz) TO ('2026-03-01'::timestamptz);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS analytics_events_y2026_m03 PARTITION OF analytics_events
+                FOR VALUES FROM ('2026-03-01'::timestamptz) TO ('2026-04-01'::timestamptz);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS analytics_events_y2026_m04 PARTITION OF analytics_events
+                FOR VALUES FROM ('2026-04-01'::timestamptz) TO ('2026-05-01'::timestamptz);
+            """,
+            # Create function to auto-create partitions on INSERT
+            """
+            CREATE OR REPLACE FUNCTION create_analytics_partition_if_needed()
+            RETURNS TRIGGER AS $$
+            DECLARE
+                partition_name TEXT;
+                start_date TIMESTAMPTZ;
+                end_date TIMESTAMPTZ;
+            BEGIN
+                partition_name := 'analytics_events_y' || TO_CHAR(NEW.created_at, 'YYYY') || '_m' || TO_CHAR(NEW.created_at, 'MM');
+                start_date := DATE_TRUNC('month', NEW.created_at);
+                end_date := DATE_TRUNC('month', NEW.created_at) + INTERVAL '1 month';
+                
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.tables 
+                    WHERE table_name = partition_name AND table_schema = 'public'
+                ) THEN
+                    EXECUTE FORMAT(
+                        'CREATE TABLE %I PARTITION OF analytics_events FOR VALUES FROM (%L) TO (%L)',
+                        partition_name, start_date, end_date
+                    );
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """,
+            # Attach trigger for auto-partition creation
+            """
+            DROP TRIGGER IF EXISTS trg_analytics_auto_partition ON analytics_events;
+            CREATE TRIGGER trg_analytics_auto_partition
+                BEFORE INSERT ON analytics_events
+                FOR EACH ROW
+                EXECUTE FUNCTION create_analytics_partition_if_needed();
+            """,
+            # Update cleanup_old_analytics to drop partitions instead of DELETE
+            """
+            DROP FUNCTION IF EXISTS cleanup_old_analytics(integer) CASCADE;
+            CREATE OR REPLACE FUNCTION cleanup_old_analytics(
+                days_to_keep INTEGER DEFAULT 90
+            )
+            RETURNS BIGINT AS $$
+            DECLARE
+                cutoff_date TIMESTAMPTZ;
+                partition_name TEXT;
+                deleted_count BIGINT := 0;
+            BEGIN
+                cutoff_date := NOW() - (days_to_keep || ' days')::INTERVAL;
+                
+                FOR partition_name IN
+                    SELECT tablename FROM pg_tables 
+                    WHERE tablename LIKE 'analytics_events_y%_m%' AND schemaname = 'public'
+                LOOP
+                    -- Extract year and month from partition name
+                    IF to_date(SUBSTRING(partition_name FROM 18 FOR 7), 'YYYY_MM') < cutoff_date THEN
+                        EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(partition_name);
+                        deleted_count := deleted_count + 1;
+                    END IF;
+                END LOOP;
+                
+                RETURN deleted_count;
+            END;
+            $$ LANGUAGE plpgsql;
+            """,
+        ],
+    ),
+    (
+        "1.0.8",
+        "Fix apply_skill_decay to apply exponential penalty for missed intervals.",
+        [
+            # Update apply_skill_decay to calculate missed intervals and apply exponentially
+            """
+            DROP FUNCTION IF EXISTS apply_skill_decay(integer, double precision) CASCADE;
+            
+            CREATE OR REPLACE FUNCTION apply_skill_decay(
+                days_inactive INTEGER DEFAULT 30,
+                sigma_increase_factor DOUBLE PRECISION DEFAULT 0.1
+            )
+            RETURNS TABLE (
+                user_id BIGINT,
+                game_id INTEGER,
+                old_sigma DOUBLE PRECISION,
+                new_sigma DOUBLE PRECISION,
+                days_since_play INTEGER,
+                missed_intervals INTEGER
+            ) AS $$
+            BEGIN
+                RETURN QUERY
+                UPDATE user_game_ratings ugr
+                SET
+                    sigma = GREATEST(
+                        decay_data.new_sig,
+                        COALESCE((g.rating_config->>'min_sigma')::DOUBLE PRECISION, 0.001)
+                    ),
+                    last_sigma_increase = NOW(),
+                    updated_at = NOW()
+                FROM (
+                    SELECT
+                        r.rating_id,
+                        r.user_id AS uid,
+                        r.game_id AS gid,
+                        r.sigma AS old_sig,
+                        r.sigma * POWER(1 + sigma_increase_factor, 
+                            FLOOR(EXTRACT(EPOCH FROM (NOW() - r.last_played)) / (days_inactive * 86400))::INTEGER) AS new_sig,
+                        EXTRACT(EPOCH FROM (NOW() - r.last_played))::INTEGER / 86400 AS days_inactive_calc,
+                        FLOOR(EXTRACT(EPOCH FROM (NOW() - r.last_played)) / (days_inactive * 86400))::INTEGER AS intervals
+                    FROM user_game_ratings r
+                    WHERE r.last_played < NOW() - (days_inactive || ' days')::INTERVAL
+                      AND (r.last_sigma_increase IS NULL
+                           OR r.last_sigma_increase < NOW() - (days_inactive || ' days')::INTERVAL)
+                ) decay_data
+                JOIN games g ON g.game_id = ugr.game_id
+                WHERE ugr.rating_id = decay_data.rating_id
+                RETURNING
+                    decay_data.uid,
+                    decay_data.gid,
+                    decay_data.old_sig,
+                    ugr.sigma,
+                    decay_data.days_inactive_calc,
+                    decay_data.intervals;
+            END;
+            $$ LANGUAGE plpgsql;
+            """,
+        ],
+    ),
+    (
+        "1.0.9",
+        "Make rating_history.match_id nullable to support non-match rating updates (skill decay, admin adjustments).",
+        [
+            # Alter rating_history.match_id to be nullable (NOT NULL -> NULL)
+            """
+            ALTER TABLE rating_history
+            ALTER COLUMN match_id DROP NOT NULL;
+            """,
+            # Update trigger to accept NULL match_id (already does via ON CONFLICT DO NOTHING)
+            """
+            CREATE OR REPLACE FUNCTION log_rating_history()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                IF (NEW.mu != OLD.mu OR NEW.sigma != OLD.sigma) THEN
+                    INSERT INTO rating_history (user_id, guild_id, game_id, match_id, mu_before, sigma_before, mu_after, sigma_after)
+                    VALUES (NEW.user_id, NULL, NEW.game_id, NULL, OLD.mu, OLD.sigma, NEW.mu, NEW.sigma)
+                    ON CONFLICT DO NOTHING;
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """,
+        ],
+    ),
 ]
 
 

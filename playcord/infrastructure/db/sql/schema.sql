@@ -387,7 +387,7 @@ CREATE TABLE IF NOT EXISTS rating_history
     user_id      BIGINT                    NOT NULL,
     guild_id     BIGINT,
     game_id      INTEGER                   NOT NULL,
-    match_id     BIGINT                    NOT NULL,
+    match_id     BIGINT,
     mu_before    DOUBLE PRECISION          NOT NULL,
     sigma_before DOUBLE PRECISION          NOT NULL,
     mu_after     DOUBLE PRECISION          NOT NULL,
