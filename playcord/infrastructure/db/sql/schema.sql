@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS user_game_ratings
 
 -- Indexes for leaderboard queries and user activity
 CREATE INDEX IF NOT EXISTS idx_rating_leaderboard ON user_game_ratings (
-                                                                        game_id, (mu - 3 * sigma) DESC
+                                                                        game_id, (calculate_conservative_rating(mu, sigma)) DESC
     ) WHERE matches_played >= 5;
 
 CREATE INDEX IF NOT EXISTS idx_rating_user_activity ON user_game_ratings (

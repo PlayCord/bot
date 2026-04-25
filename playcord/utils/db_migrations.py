@@ -481,6 +481,163 @@ MIGRATIONS: list[tuple[str, str, list[str]]] = [
             # No change needed - already uses ON DELETE SET NULL
         ],
     ),
+    (
+        "1.2.0",
+        "Consolidate conservative rating formula (mu - 3*sigma) into helper function.",
+        [
+            # Update calculate_conservative_rating function to accept confidence_intervals parameter
+            """
+            CREATE OR REPLACE FUNCTION calculate_conservative_rating(
+                mu DOUBLE PRECISION,
+                sigma DOUBLE PRECISION,
+                confidence_intervals DOUBLE PRECISION DEFAULT 3.0
+            )
+            RETURNS DOUBLE PRECISION AS $$
+            BEGIN
+                RETURN mu - (confidence_intervals * sigma);
+            END;
+            $$ LANGUAGE plpgsql IMMUTABLE;
+            """,
+            # Recreate views to use the function instead of inline formula
+            """
+            CREATE OR REPLACE VIEW v_active_leaderboard AS
+            SELECT 
+                ugr.rating_id,
+                ugr.user_id,
+                u.username,
+                ugr.game_id,
+                g.display_name as game_name,
+                ugr.mu,
+                ugr.sigma,
+                calculate_conservative_rating(ugr.mu, ugr.sigma) as conservative_rating,
+                ugr.matches_played,
+                COALESCE(mo.wins, 0)::INTEGER as wins,
+                COALESCE(mo.losses, 0)::INTEGER as losses,
+                COALESCE(mo.draws, 0)::INTEGER as draws,
+                CASE 
+                    WHEN (ugr.matches_played - COALESCE(mo.draws, 0)) > 0 
+                    THEN ROUND(
+                        100.0 * COALESCE(mo.wins, 0) / (ugr.matches_played - COALESCE(mo.draws, 0))::NUMERIC,
+                        2
+                    )
+                    ELSE 0.0
+                END as win_rate_pct,
+                ugr.last_played,
+                ugr.updated_at
+            FROM user_game_ratings ugr
+            JOIN users u ON ugr.user_id = u.user_id
+            JOIN games g ON ugr.game_id = g.game_id
+            LEFT JOIN v_match_outcomes mo ON mo.user_id = ugr.user_id AND mo.game_id = ugr.game_id
+            WHERE ugr.matches_played >= 5
+            AND u.is_active = TRUE
+            AND g.is_active = TRUE
+            ORDER BY ugr.game_id, conservative_rating DESC;
+            """,
+            """
+            CREATE OR REPLACE VIEW v_player_stats AS
+            SELECT 
+                u.user_id,
+                u.username,
+                u.is_bot,
+                g.game_id,
+                g.display_name as game_name,
+                ugr.mu,
+                ugr.sigma,
+                calculate_conservative_rating(ugr.mu, ugr.sigma) as conservative_rating,
+                ugr.matches_played,
+                COALESCE(mo.wins, 0)::INTEGER as wins,
+                COALESCE(mo.losses, 0)::INTEGER as losses,
+                COALESCE(mo.draws, 0)::INTEGER as draws,
+                CASE 
+                    WHEN (ugr.matches_played - COALESCE(mo.draws, 0)) > 0 
+                    THEN ROUND(
+                        100.0 * COALESCE(mo.wins, 0) / (ugr.matches_played - COALESCE(mo.draws, 0))::NUMERIC,
+                        2
+                    )
+                    ELSE 0.0
+                END as win_rate_pct,
+                ugr.last_played,
+                EXTRACT(EPOCH FROM (NOW() - ugr.last_played))::INTEGER / 86400 as days_since_last_game,
+                rh.created_at as last_rating_change,
+                rh.mu_before as previous_mu,
+                rh.sigma_before as previous_sigma,
+                (rh.mu_after - rh.mu_before) as last_mu_change
+            FROM users u
+            JOIN user_game_ratings ugr ON u.user_id = ugr.user_id
+            JOIN games g ON ugr.game_id = g.game_id
+            LEFT JOIN v_match_outcomes mo ON mo.user_id = ugr.user_id AND mo.game_id = ugr.game_id
+            LEFT JOIN LATERAL (
+                SELECT 
+                    history_id,
+                    mu_before, 
+                    sigma_before,
+                    mu_after,
+                    sigma_after,
+                    created_at 
+                FROM rating_history
+                WHERE user_id = u.user_id 
+                  AND game_id = ugr.game_id
+                ORDER BY created_at DESC 
+                LIMIT 1
+            ) rh ON true
+            WHERE u.is_active = TRUE;
+            """,
+            """
+            CREATE OR REPLACE VIEW v_global_leaderboard AS
+            SELECT 
+                ugr.user_id,
+                u.username,
+                ugr.game_id,
+                g.display_name as game_name,
+                ugr.mu as global_mu,
+                ugr.sigma as global_sigma,
+                calculate_conservative_rating(ugr.mu, ugr.sigma) as conservative_rating,
+                ugr.matches_played as total_matches,
+                ugr.updated_at as last_updated,
+                ROW_NUMBER() OVER (
+                    PARTITION BY ugr.game_id 
+                    ORDER BY calculate_conservative_rating(ugr.mu, ugr.sigma) DESC
+                ) as global_rank
+            FROM user_game_ratings ugr
+            JOIN users u ON ugr.user_id = u.user_id
+            JOIN games g ON ugr.game_id = g.game_id
+            WHERE u.is_active = TRUE
+              AND g.is_active = TRUE
+              AND ugr.matches_played >= 10
+            ORDER BY ugr.game_id, conservative_rating DESC;
+            """,
+            """
+            CREATE OR REPLACE VIEW v_game_popularity AS
+            SELECT 
+                gm.game_id,
+                gm.game_name,
+                gm.display_name,
+                COUNT(DISTINCT m.guild_id) as guilds_playing,
+                COUNT(DISTINCT mp.user_id) as total_players,
+                COUNT(DISTINCT m.match_id) as total_matches,
+                COUNT(DISTINCT CASE WHEN m.ended_at > NOW() - INTERVAL '7 days' THEN mp.user_id END) as active_players_7d,
+                MAX(m.ended_at) as last_played,
+                (SELECT AVG(ugr.matches_played)::DOUBLE PRECISION FROM user_game_ratings ugr WHERE ugr.game_id = gm.game_id) as avg_matches_per_player,
+                (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY calculate_conservative_rating(ugr.mu, ugr.sigma))
+                 FROM user_game_ratings ugr WHERE ugr.game_id = gm.game_id) as median_rating
+            FROM games gm
+            LEFT JOIN matches m ON m.game_id = gm.game_id AND m.status = 'completed'
+            LEFT JOIN match_participants mp ON mp.match_id = m.match_id
+            WHERE gm.is_active = TRUE
+            GROUP BY gm.game_id, gm.game_name, gm.display_name
+            ORDER BY total_matches DESC NULLS LAST;
+            """,
+            # Recreate the leaderboard index with function-based expression
+            """
+            DROP INDEX IF EXISTS idx_rating_leaderboard;
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_rating_leaderboard ON user_game_ratings (
+                game_id, (calculate_conservative_rating(mu, sigma)) DESC
+            ) WHERE matches_played >= 5;
+            """,
+        ],
+    ),
 ]
 
 

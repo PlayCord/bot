@@ -57,19 +57,21 @@ COMMENT ON FUNCTION apply_skill_decay IS 'Apply skill decay to inactive players 
 
 -- ============================================================================
 -- FUNCTION: calculate_conservative_rating
--- Helper function to calculate conservative rating (mu - 3*sigma)
+-- Helper function to calculate conservative rating (mu - confidence_intervals*sigma)
 -- ============================================================================
 CREATE OR REPLACE FUNCTION calculate_conservative_rating(
     mu DOUBLE PRECISION,
-    sigma DOUBLE PRECISION
+    sigma DOUBLE PRECISION,
+    confidence_intervals DOUBLE PRECISION DEFAULT 3.0
 )
 RETURNS DOUBLE PRECISION AS $$
 BEGIN
-    RETURN mu - (3.0 * sigma);
+    RETURN mu - (confidence_intervals * sigma);
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
-COMMENT ON FUNCTION calculate_conservative_rating IS 'Calculate conservative rating for leaderboard ordering';
+COMMENT ON FUNCTION calculate_conservative_rating IS 'Calculate conservative rating for leaderboard ordering. Default uses 3 sigma (99.7% confidence interval).';
+
 
 
 -- ============================================================================
@@ -259,7 +261,7 @@ BEGIN
         JOIN games g ON ugr.game_id = g.game_id
         WHERE ugr.user_id = p_user_id
           AND ugr.matches_played >= 5
-        ORDER BY (ugr.mu - 3 * ugr.sigma) DESC
+        ORDER BY calculate_conservative_rating(ugr.mu, ugr.sigma) DESC
         LIMIT 1
     ),
     guild_stats AS (

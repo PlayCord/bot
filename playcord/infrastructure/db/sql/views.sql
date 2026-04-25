@@ -48,7 +48,7 @@ SELECT
     g.display_name as game_name,
     ugr.mu,
     ugr.sigma,
-    (ugr.mu - 3 * ugr.sigma) as conservative_rating,
+    calculate_conservative_rating(ugr.mu, ugr.sigma) as conservative_rating,
     ugr.matches_played,
     COALESCE(mo.wins, 0)::INTEGER as wins,
     COALESCE(mo.losses, 0)::INTEGER as losses,
@@ -121,7 +121,7 @@ SELECT
     g.display_name as game_name,
     ugr.mu,
     ugr.sigma,
-    (ugr.mu - 3 * ugr.sigma) as conservative_rating,
+    calculate_conservative_rating(ugr.mu, ugr.sigma) as conservative_rating,
     ugr.matches_played,
     COALESCE(mo.wins, 0)::INTEGER as wins,
     COALESCE(mo.losses, 0)::INTEGER as losses,
@@ -175,12 +175,12 @@ SELECT
     g.display_name as game_name,
     ugr.mu as global_mu,
     ugr.sigma as global_sigma,
-    (ugr.mu - 3 * ugr.sigma) as conservative_rating,
+    calculate_conservative_rating(ugr.mu, ugr.sigma) as conservative_rating,
     ugr.matches_played as total_matches,
     ugr.updated_at as last_updated,
     ROW_NUMBER() OVER (
         PARTITION BY ugr.game_id 
-        ORDER BY (ugr.mu - 3 * ugr.sigma) DESC
+        ORDER BY calculate_conservative_rating(ugr.mu, ugr.sigma) DESC
     ) as global_rank
 FROM user_game_ratings ugr
 JOIN users u ON ugr.user_id = u.user_id
@@ -363,7 +363,7 @@ SELECT
     COUNT(DISTINCT CASE WHEN m.ended_at > NOW() - INTERVAL '7 days' THEN mp.user_id END) as active_players_7d,
     MAX(m.ended_at) as last_played,
     (SELECT AVG(ugr.matches_played)::DOUBLE PRECISION FROM user_game_ratings ugr WHERE ugr.game_id = gm.game_id) as avg_matches_per_player,
-    (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ugr.mu - 3 * ugr.sigma)
+    (SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY calculate_conservative_rating(ugr.mu, ugr.sigma))
      FROM user_game_ratings ugr WHERE ugr.game_id = gm.game_id) as median_rating
 FROM games gm
 LEFT JOIN matches m ON m.game_id = gm.game_id AND m.status = 'completed'

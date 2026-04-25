@@ -943,7 +943,7 @@ class Database:
                 u.username,
                 ugr.mu,
                 ugr.sigma,
-                (ugr.mu - 3 * ugr.sigma) as conservative_rating,
+                calculate_conservative_rating(ugr.mu, ugr.sigma) as conservative_rating,
                 ugr.matches_played
             FROM user_game_ratings ugr
             JOIN users u ON ugr.user_id = u.user_id
@@ -969,7 +969,7 @@ class Database:
                 u.username,
                 ugr.mu,
                 ugr.sigma,
-                (ugr.mu - 3 * ugr.sigma) as conservative_rating,
+                calculate_conservative_rating(ugr.mu, ugr.sigma) as conservative_rating,
                 ugr.matches_played
             FROM user_game_ratings ugr
             JOIN users u ON ugr.user_id = u.user_id
@@ -998,7 +998,7 @@ class Database:
             WITH ranked AS (
                 SELECT 
                     user_id,
-                    ROW_NUMBER() OVER (ORDER BY (mu - 3 * sigma) DESC) as rank
+                    ROW_NUMBER() OVER (ORDER BY calculate_conservative_rating(mu, sigma) DESC) as rank
                 FROM user_game_ratings
                 WHERE game_id = %s
                   AND user_id = ANY(%s::bigint[])
@@ -1027,7 +1027,7 @@ class Database:
             WITH ranked AS (
                 SELECT 
                     user_id,
-                    ROW_NUMBER() OVER (ORDER BY (mu - 3 * sigma) DESC) as rank
+                    ROW_NUMBER() OVER (ORDER BY calculate_conservative_rating(mu, sigma) DESC) as rank
                 FROM user_game_ratings
                 WHERE game_id = %s
                   AND matches_played >= %s
@@ -1725,7 +1725,7 @@ class Database:
                 ugr.*,
                 u.username,
                 g.display_name as game_name,
-                (ugr.mu - 3 * ugr.sigma) as conservative_rating
+                calculate_conservative_rating(ugr.mu, ugr.sigma) as conservative_rating
             FROM user_game_ratings ugr
             JOIN users u ON ugr.user_id = u.user_id
             JOIN games g ON ugr.game_id = g.game_id
