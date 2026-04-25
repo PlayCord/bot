@@ -1,8 +1,0 @@
-{
-  "active": true,
-  "current_iteration": 1,
-  "max_iterations": 5,
-  "completion_promise": "",
-  "original_prompt": "--completion DONE --max-loops 10",
-  "started_at": "2026-04-18T22:32:02Z"
-}
