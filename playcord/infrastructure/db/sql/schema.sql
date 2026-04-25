@@ -450,6 +450,37 @@ COMMENT ON TABLE replay_events IS 'Canonical structured replay log, including mo
 COMMENT ON COLUMN replay_events.payload IS 'Arbitrary replay event payload. event_type carries the stable discriminator.';
 
 
+-- ============================================================================
+-- TABLE: audit_events
+-- Immutable audit trail for all data mutations
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS audit_events
+(
+    audit_id      BIGSERIAL PRIMARY KEY,
+    action_type   VARCHAR(100)               NOT NULL,
+    actor_id      BIGINT,
+    resource_type VARCHAR(100)               NOT NULL,
+    resource_id   BIGINT,
+    before_state  JSONB,
+    after_state   JSONB,
+    metadata      JSONB       DEFAULT '{}'::jsonb NOT NULL,
+    created_at    TIMESTAMPTZ DEFAULT NOW()  NOT NULL,
+
+    CONSTRAINT chk_action_not_empty CHECK (LENGTH(TRIM(action_type)) > 0),
+    CONSTRAINT chk_resource_type_not_empty CHECK (LENGTH(TRIM(resource_type)) > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_events (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_events (resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_events (action_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_events (actor_id, created_at DESC) WHERE actor_id IS NOT NULL;
+
+COMMENT ON TABLE audit_events IS 'Immutable audit trail of all data mutations (INSERT/UPDATE/DELETE)';
+COMMENT ON COLUMN audit_events.action_type IS 'Type of action: user_deleted, match_completed, rating_adjusted, etc.';
+COMMENT ON COLUMN audit_events.resource_type IS 'Type of resource affected: user, match, rating, etc.';
+COMMENT ON COLUMN audit_events.metadata IS 'Additional context: {"reason": "account_closure", "admin": "mod123", ...}';
+
+
 -- TABLE: database_migrations
 -- Track applied database migrations for version control
 -- ============================================================================

@@ -822,6 +822,99 @@ MIGRATIONS: list[tuple[str, str, list[str]]] = [
             """,
         ],
     ),
+    (
+        "1.2.4",
+        "Create audit_events table and add user deletion audit trail trigger.",
+        [
+            # Create audit_events table
+            """
+            CREATE TABLE IF NOT EXISTS audit_events
+            (
+                audit_id      BIGSERIAL PRIMARY KEY,
+                action_type   VARCHAR(100)               NOT NULL,
+                actor_id      BIGINT,
+                resource_type VARCHAR(100)               NOT NULL,
+                resource_id   BIGINT,
+                before_state  JSONB,
+                after_state   JSONB,
+                metadata      JSONB       DEFAULT '{}'::jsonb NOT NULL,
+                created_at    TIMESTAMPTZ DEFAULT NOW()  NOT NULL,
+            
+                CONSTRAINT chk_action_not_empty CHECK (LENGTH(TRIM(action_type)) > 0),
+                CONSTRAINT chk_resource_type_not_empty CHECK (LENGTH(TRIM(resource_type)) > 0)
+            );
+            """,
+            # Create indexes for audit_events
+            """
+            CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_events (created_at DESC);
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_events (resource_type, resource_id);
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_events (action_type, created_at DESC);
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_events (actor_id, created_at DESC) WHERE actor_id IS NOT NULL;
+            """,
+            # Create audit logging trigger for user deletions
+            """
+            CREATE OR REPLACE FUNCTION log_user_deletion()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                -- Log the deletion to audit trail
+                INSERT INTO audit_events (action_type, resource_type, resource_id, before_state, metadata)
+                VALUES (
+                    'user_deleted',
+                    'user',
+                    OLD.user_id,
+                    row_to_json(OLD),
+                    jsonb_build_object(
+                        'deleted_at', NOW(),
+                        'reason', 'cascade_delete'
+                    )
+                );
+                RETURN OLD;
+            END;
+            $$ LANGUAGE plpgsql;
+            """,
+            """
+            DROP TRIGGER IF EXISTS trg_log_user_deletion ON users;
+            """,
+            """
+            CREATE TRIGGER trg_log_user_deletion
+                BEFORE DELETE ON users
+                FOR EACH ROW
+                EXECUTE FUNCTION log_user_deletion();
+            """,
+        ],
+    ),
+    (
+        "1.2.5",
+        "Document analytics cleanup scheduling and retention policy.",
+        [
+            """
+            -- Analytics data retention is handled by cleanup_old_analytics()
+            -- This should be called automatically:
+            -- 1. On bot startup (already done in database.py line 2595)
+            -- 2. Via scheduled task (TODO: implement APScheduler in bot main loop)
+            -- 3. Retention period: analytics_retention_days from settings (default 90)
+            -- 
+            -- To verify cleanup is working:
+            -- SELECT COUNT(*) FROM analytics_events WHERE created_at < NOW() - INTERVAL '91 days';
+            -- Should return 0 if cleanup ran within the last 24 hours
+            --
+            -- TODO: Add scheduled cleanup job in bot initialization:
+            -- from apscheduler.schedulers.background import BackgroundScheduler
+            -- scheduler = BackgroundScheduler()
+            -- def cleanup_task():
+            --     db.cleanup_old_analytics(days=settings.analytics_retention_days)
+            -- scheduler.add_job(cleanup_task, 'cron', hour=2, minute=0)
+            -- scheduler.start()
+            SELECT 1;  -- No-op migration for documentation
+            """,
+        ],
+    ),
 ]
 
 

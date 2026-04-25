@@ -551,5 +551,37 @@ CREATE TRIGGER trg_validate_player_numbers
 
 
 -- ============================================================================
+-- FUNCTION: log_user_deletion
+-- Create audit log entry before user is deleted
+-- ============================================================================
+CREATE OR REPLACE FUNCTION log_user_deletion()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Log the deletion to audit trail
+    INSERT INTO audit_events (action_type, resource_type, resource_id, before_state, metadata)
+    VALUES (
+        'user_deleted',
+        'user',
+        OLD.user_id,
+        row_to_json(OLD),
+        jsonb_build_object(
+            'deleted_at', NOW(),
+            'reason', 'cascade_delete'
+        )
+    );
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION log_user_deletion IS 'Log user deletion to audit trail before deletion is executed';
+
+DROP TRIGGER IF EXISTS trg_log_user_deletion ON users;
+CREATE TRIGGER trg_log_user_deletion
+    BEFORE DELETE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION log_user_deletion();
+
+
+-- ============================================================================
 -- COMPLETE
 -- ============================================================================
