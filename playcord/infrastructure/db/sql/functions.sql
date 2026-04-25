@@ -40,6 +40,8 @@ BEGIN
         WHERE r.last_played < NOW() - (days_inactive || ' days')::INTERVAL
           AND (r.last_sigma_increase IS NULL
                OR r.last_sigma_increase < NOW() - (days_inactive || ' days')::INTERVAL)
+        -- Use row-level locking to prevent concurrent application
+        FOR UPDATE
     ) decay_data
     JOIN games g ON g.game_id = ugr.game_id
     WHERE ugr.rating_id = decay_data.rating_id
@@ -502,6 +504,50 @@ CREATE TRIGGER trg_validate_player_counts
     AFTER INSERT OR DELETE ON match_participants
     FOR EACH ROW
     EXECUTE FUNCTION validate_player_counts();
+
+
+-- ============================================================================
+-- FUNCTION: validate_player_numbers
+-- Ensure player_number is contiguous from 1 to participant count
+-- ============================================================================
+CREATE OR REPLACE FUNCTION validate_player_numbers()
+RETURNS TRIGGER AS $$
+DECLARE
+    max_player_num INTEGER;
+    expected_count INTEGER;
+    actual_count INTEGER;
+BEGIN
+    -- After INSERT/DELETE, verify player numbers are 1..N with no gaps
+    SELECT MAX(player_number) INTO max_player_num 
+    FROM match_participants 
+    WHERE match_id = NEW.match_id 
+      AND is_deleted = FALSE;
+    
+    SELECT COUNT(*) INTO actual_count 
+    FROM match_participants 
+    WHERE match_id = NEW.match_id 
+      AND is_deleted = FALSE;
+    
+    IF max_player_num IS NOT NULL THEN
+        -- If max player number doesn't match count, there are gaps
+        IF max_player_num != actual_count THEN
+            RAISE EXCEPTION 
+                'Player number gap detected in match %: max=%d but count=%d. Numbers must be 1..N with no gaps',
+                NEW.match_id, max_player_num, actual_count;
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION validate_player_numbers IS 'Ensure player_number is contiguous from 1 to participant count (no gaps)';
+
+DROP TRIGGER IF EXISTS trg_validate_player_numbers ON match_participants;
+CREATE TRIGGER trg_validate_player_numbers
+    AFTER INSERT OR DELETE ON match_participants
+    FOR EACH ROW
+    EXECUTE FUNCTION validate_player_numbers();
 
 
 -- ============================================================================

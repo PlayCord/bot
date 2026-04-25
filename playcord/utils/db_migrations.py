@@ -726,6 +726,102 @@ MIGRATIONS: list[tuple[str, str, list[str]]] = [
             """,
         ],
     ),
+    (
+        "1.2.3",
+        "Add row-level locking to apply_skill_decay and validate player number sequencing.",
+        [
+            # Add row-level locking to prevent race condition in skill decay
+            """
+            CREATE OR REPLACE FUNCTION apply_skill_decay(
+                days_inactive INTEGER DEFAULT 30,
+                sigma_increase_factor DOUBLE PRECISION DEFAULT 0.1
+            )
+            RETURNS TABLE (
+                user_id BIGINT,
+                game_id INTEGER,
+                old_sigma DOUBLE PRECISION,
+                new_sigma DOUBLE PRECISION,
+                days_since_play INTEGER
+            ) AS $$
+            BEGIN
+                RETURN QUERY
+                UPDATE user_game_ratings ugr
+                SET
+                    sigma = GREATEST(
+                        decay_data.new_sig,
+                        COALESCE((g.rating_config->>'min_sigma')::DOUBLE PRECISION, 0.001)
+                    ),
+                    last_sigma_increase = NOW(),
+                    updated_at = NOW()
+                FROM (
+                    SELECT
+                        r.rating_id,
+                        r.user_id AS uid,
+                        r.game_id AS gid,
+                        r.sigma AS old_sig,
+                        r.sigma * (1 + sigma_increase_factor) AS new_sig,
+                        EXTRACT(EPOCH FROM (NOW() - r.last_played))::INTEGER / 86400 AS days_inactive_calc
+                    FROM user_game_ratings r
+                    WHERE r.last_played < NOW() - (days_inactive || ' days')::INTERVAL
+                      AND (r.last_sigma_increase IS NULL
+                           OR r.last_sigma_increase < NOW() - (days_inactive || ' days')::INTERVAL)
+                    FOR UPDATE
+                ) decay_data
+                JOIN games g ON g.game_id = ugr.game_id
+                WHERE ugr.rating_id = decay_data.rating_id
+                RETURNING
+                    decay_data.uid,
+                    decay_data.gid,
+                    decay_data.old_sig,
+                    ugr.sigma,
+                    decay_data.days_inactive_calc;
+            END;
+            $$ LANGUAGE plpgsql;
+            """,
+            # Add player number gap detection
+            """
+            CREATE OR REPLACE FUNCTION validate_player_numbers()
+            RETURNS TRIGGER AS $$
+            DECLARE
+                max_player_num INTEGER;
+                expected_count INTEGER;
+                actual_count INTEGER;
+            BEGIN
+                -- After INSERT/DELETE, verify player numbers are 1..N with no gaps
+                SELECT MAX(player_number) INTO max_player_num 
+                FROM match_participants 
+                WHERE match_id = NEW.match_id 
+                  AND is_deleted = FALSE;
+                
+                SELECT COUNT(*) INTO actual_count 
+                FROM match_participants 
+                WHERE match_id = NEW.match_id 
+                  AND is_deleted = FALSE;
+                
+                IF max_player_num IS NOT NULL THEN
+                    -- If max player number doesn't match count, there are gaps
+                    IF max_player_num != actual_count THEN
+                        RAISE EXCEPTION 
+                            'Player number gap detected in match %: max=%d but count=%d. Numbers must be 1..N with no gaps',
+                            NEW.match_id, max_player_num, actual_count;
+                    END IF;
+                END IF;
+                
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """,
+            """
+            DROP TRIGGER IF EXISTS trg_validate_player_numbers ON match_participants;
+            """,
+            """
+            CREATE TRIGGER trg_validate_player_numbers
+                AFTER INSERT OR DELETE ON match_participants
+                FOR EACH ROW
+                EXECUTE FUNCTION validate_player_numbers();
+            """,
+        ],
+    ),
 ]
 
 
