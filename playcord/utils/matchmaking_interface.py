@@ -107,9 +107,10 @@ class MatchmakingInterface:
 
         # Game class
         self.game = getattr(self.module, GAME_TYPES[game_type][1])
+        self.metadata = self.game.metadata
 
         self.rated_requested = self.rated
-        self._specs = tuple(getattr(self.game, "customizable_options", ()) or ())
+        self._specs = tuple(getattr(self.metadata, "customizable_options", ()) or ())
         self.match_settings: dict[str, str | int] = {
             s.key: s.default for s in self._specs
         }
@@ -171,13 +172,13 @@ class MatchmakingInterface:
         elif isinstance(player_count, int) and total_players != player_count:
             return False
 
-        role_mode = getattr(self.game, "role_mode", RoleMode.none)
+        role_mode = getattr(self.metadata, "role_mode", RoleMode.none)
         if role_mode == RoleMode.chosen:
             if self.has_bots:
                 return False
             if len(self._specs) + len(self.all_players()) > 4:
                 return False
-            pr = getattr(self.game, "player_roles", None)
+            pr = getattr(self.metadata, "player_roles", None)
             if not pr or len(pr) != len(self.all_players()):
                 return False
             for p in self.queued_players:
@@ -203,7 +204,7 @@ class MatchmakingInterface:
         if self._base_start_conditions_met():
             return fmt(
                 "queue.lobby_header_ready_phase",
-                game=self.game.name,
+                game=self.metadata.name,
                 ready=len(self.ready_players),
                 total=len(self.queued_players),
             )
@@ -211,7 +212,7 @@ class MatchmakingInterface:
         needed = self._needed_players_display()
         return fmt(
             "queue.lobby_header_recruiting",
-            game=self.game.name,
+            game=self.metadata.name,
             current=cur,
             needed=needed,
         )
@@ -325,7 +326,7 @@ class MatchmakingInterface:
             self.creator = getattr(next_creator, "user", next_creator)
 
     def add_bot(self, difficulty: str) -> str | None:
-        available_bots = getattr(self.game, "bots", {})
+        available_bots = getattr(self.metadata, "bots", {})
         if not available_bots:
             return get("queue.bot_not_supported")
         if difficulty not in available_bots:
@@ -408,7 +409,7 @@ class MatchmakingInterface:
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
-        if getattr(self.game, "role_mode", RoleMode.none) != RoleMode.chosen:
+        if getattr(self.metadata, "role_mode", RoleMode.none) != RoleMode.chosen:
             log.warning("role select on non-CHOSEN lobby lobby=%s", self.message.id)
             await followup_send(
                 ctx,
@@ -468,8 +469,8 @@ class MatchmakingInterface:
         game_metadata = {}
 
         for param in ["time", "difficulty", "author", "author_link", "source_link"]:
-            if hasattr(self.game, param):
-                game_metadata[param] = getattr(self.game, param)
+            if hasattr(self.metadata, param):
+                game_metadata[param] = getattr(self.metadata, param)
             else:
                 game_metadata[param] = get("help.game_info.unknown")
 
@@ -542,13 +543,13 @@ class MatchmakingInterface:
             )
 
         try:
-            container.set_footer(text=self.game.description)
+            container.set_footer(text=self.metadata.description)
         except Exception:
             # Fallback: if footer cannot be set for some reason, add as normal fields
-            if self.game.description:
+            if self.metadata.description:
                 container.add_field(
                     name=get("queue.field_game_info"),
-                    value=self.game.description,
+                    value=self.metadata.description,
                     inline=False,
                 )
             auth = game_metadata.get("author")
@@ -568,8 +569,8 @@ class MatchmakingInterface:
                 inline=False,
             )
 
-        role_mode = getattr(self.game, "role_mode", RoleMode.none)
-        pr_roles = getattr(self.game, "player_roles", None)
+        role_mode = getattr(self.metadata, "role_mode", RoleMode.none)
+        pr_roles = getattr(self.metadata, "player_roles", None)
         layout_ok_chosen = len(self._specs) + len(self.all_players()) <= 4
         show_role_selects = (
             role_mode == RoleMode.chosen

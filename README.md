@@ -23,12 +23,10 @@ and button interactions.
 
 ## Features
 
-- Many games supported: Tic-Tac-Toe, Connect Four, Reversi, Battleship, Liar's Dice, and more
 - TrueSkill-based rankings (the same ELO used by Rocket League and Halo) with global and server leaderboards
 - Create new games with a simple Python API
 - Persistent leaderboards, match history, and analytics
-- Match with players across different Discord servers
-- Button-based gameplay with emoji support
+- Can use buttons, selects, or slash commands for moves, depending on the game
 
 ## Bot Usage
 
@@ -45,7 +43,7 @@ and button interactions.
 
 - Click buttons to make moves (game-specific)
 - Use `/move` commands for complex actions
-- Games run in private threads for clean organization
+- Games run in threads for clean organization
 
 ### Profile & Stats
 
@@ -135,44 +133,6 @@ class MyGame(Game):
         return None  # Game ongoing
 ```
 
-## Dependencies
-
-### Core
-
-- `discord.py` - Discord API wrapper
-- `psycopg` / `psycopg_pool` - PostgreSQL driver
-- `trueskill` - Rating system
-- `ruamel.yaml` - Configuration parsing
-
-### Optional
-
-- `cairosvg` - SVG rendering for game boards
-- `pillow` - Image manipulation
-
-PlayCord now uses SVG-based board renders (converted to PNG for Discord attachments) for visual-heavy games like Chess,
-Connect Four, and Battleship peek views when `cairosvg` is available.
-
-## Project Structure
-
-Runtime code and bundled assets live under the `playcord` Python package:
-
-```
-playcord/
-├── domain/              # Pure game/rating/player abstractions
-├── infrastructure/      # Config, locale, logging, DB pool/repos, SQL assets
-├── application/       # Matchmaking/session/replay/stats services
-├── presentation/      # Bot entry, commands, cogs, UI, interaction router
-├── games/             # Plugin registry (metadata + legacy game loader)
-├── games_impl/        # Bundled Discord game classes (Tic-tac-toe, Nim, Connect Four)
-├── discord_games/     # Shared Discord primitives (Game ABC, components, Response)
-├── utils/             # Database layer, Discord helpers, analytics, locale shim
-├── configuration/   # config.yaml, emoji.yaml, locale TOML
-└── cli/               # `playcord-cli` entrypoints
-
-docs/                    # Documentation (outside the installable package)
-tests/                   # Test suite
-```
-
 ## Status
 
 See [BROKEN.md](BROKEN.md) for the remaining product backlog and follow-up work.
@@ -180,3 +140,5 @@ See [BROKEN.md](BROKEN.md) for the remaining product backlog and follow-up work.
 ## License
 
 GPLv3 License - see LICENSE for details.
+
+

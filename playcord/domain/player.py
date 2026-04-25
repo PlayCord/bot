@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from playcord.domain.rating import DEFAULT_MU, DEFAULT_SIGMA_RATIO, Rating
+from playcord.domain.rating import DEFAULT_MU, DEFAULT_SIGMA, Rating
 
 BOT_ID_BASE = 9_000_000_000_000
 
@@ -19,7 +19,7 @@ class Player:
     rating: Rating = field(
         default_factory=lambda: Rating(
             mu=DEFAULT_MU,
-            sigma=DEFAULT_MU * DEFAULT_SIGMA_RATIO,
+            sigma=DEFAULT_SIGMA,
         )
     )
     is_bot: bool = False
@@ -52,7 +52,7 @@ class Player:
 
     @property
     def display_rating(self) -> int:
-        return round(self.rating.mu)
+        return round(self.rating.conservative)
 
     def get_formatted_elo(self, uncertainty_threshold: float = 0.20) -> str:
         return self.rating.display(uncertainty_threshold=uncertainty_threshold)
@@ -69,8 +69,7 @@ class Player:
         return cls(
             id=BOT_ID_BASE + bot_index,
             display_name=name,
-            rating=rating
-            or Rating(mu=DEFAULT_MU, sigma=DEFAULT_MU * DEFAULT_SIGMA_RATIO),
+            rating=rating or Rating(mu=DEFAULT_MU, sigma=DEFAULT_SIGMA),
             is_bot=True,
             bot_difficulty=difficulty,
         )
@@ -84,7 +83,7 @@ class Player:
         )
         rating = Rating(
             mu=float(getattr(legacy, "mu", DEFAULT_MU)),
-            sigma=float(getattr(legacy, "sigma", DEFAULT_MU * DEFAULT_SIGMA_RATIO)),
+            sigma=float(getattr(legacy, "sigma", DEFAULT_SIGMA)),
         )
         return cls(
             id=legacy.id,

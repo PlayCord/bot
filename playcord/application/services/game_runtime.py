@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qs, urlencode
@@ -10,6 +11,8 @@ from urllib.parse import parse_qs, urlencode
 import discord
 
 from playcord import state as session_state
+from playcord.domain.errors import ConfigurationError
+from playcord.domain.game import Move
 from playcord.games.api import (
     BinaryAsset,
     ButtonSpec,
@@ -42,6 +45,27 @@ log = get_logger("game.runtime")
 class RuntimeMoveResult:
     actions: tuple[Any, ...]
     finished: bool = False
+
+
+def _resolve_callback(
+    plugin: GamePlugin,
+    name: str | None,
+    default_attr: str | None = None,
+) -> Callable[..., Any]:
+    if name:
+        resolved = getattr(plugin, name, None)
+        if callable(resolved):
+            return resolved
+        raise ConfigurationError(
+            f"Configured callback {name!r} was not found on {type(plugin).__name__}"
+        )
+    if default_attr:
+        fallback = getattr(plugin, default_attr, None)
+        if callable(fallback):
+            return fallback
+    raise ConfigurationError(
+        f"Missing callback configuration on {type(plugin).__name__}"
+    )
 
 
 class RuntimeView(discord.ui.LayoutView):
@@ -111,6 +135,7 @@ class GameRuntime:
                             "Failed to add player %s to thread", player_id
                         )
         CURRENT_GAMES[self.thread.id] = self
+        self._record_initial_replay_state()
         await self.render_state()
 
     def build_context(self) -> GameContext:
@@ -201,9 +226,15 @@ class GameRuntime:
         await followup_send(ctx, get("success.spectating"), ephemeral=True)
 
     async def handle_peek(self, ctx: discord.Interaction) -> None:
-        text = self.plugin.peek(self.build_context()) or get(
-            "success.already_participant"
-        )
+        text: str | None = None
+        peek_callback = getattr(self.plugin.metadata, "peek_callback", None)
+        if peek_callback:
+            callback = _resolve_callback(self.plugin, peek_callback)
+            value = callback(ctx=self.build_context())
+            if value is not None:
+                text = str(value).strip() or None
+        if text is None:
+            text = get("success.already_participant")
         await followup_send(ctx, text, ephemeral=True)
 
     async def run_bot_turn_if_needed(self) -> None:
@@ -214,7 +245,16 @@ class GameRuntime:
         current = self.plugin.current_turn()
         if current is None or not getattr(current, "is_bot", False):
             return
-        move = self.plugin.bot_move(current, ctx=self.build_context())
+        difficulty = str(getattr(current, "bot_difficulty", "") or "easy")
+        definition = self.plugin.metadata.bots.get(difficulty)
+        if definition is None:
+            raise ConfigurationError(
+                f"Bot difficulty {difficulty!r} is not configured for {self.game_type}"
+            )
+        callback = _resolve_callback(
+            self.plugin, getattr(definition, "callback", None), "bot_move"
+        )
+        move = callback(current, ctx=self.build_context())
         if not move:
             return
         guild = self.thread.guild if self.thread is not None else None
@@ -244,13 +284,8 @@ class GameRuntime:
             actor = self._player_by_id(getattr(ctx.user, "id", None))
             if actor is None:
                 return
-            actions = self.plugin.apply_move(
-                actor,
-                name,
-                arguments,
-                source="bot",
-                ctx=self.build_context(),
-            )
+            callback = self._resolve_move_callback(name)
+            actions = callback(actor, arguments, source="bot", ctx=self.build_context())
             await self._record_move(actor, name, arguments, source="bot")
             await self._apply_actions(actions)
             if outcome := self.plugin.outcome():
@@ -278,9 +313,9 @@ class GameRuntime:
                     ctx, get("permissions.not_your_turn"), ephemeral=True
                 )
                 return
-            actions = self.plugin.apply_move(
+            callback = self._resolve_move_callback(name)
+            actions = callback(
                 actor,
-                name,
                 arguments,
                 source=source,
                 ctx=self.build_context(),
@@ -338,6 +373,43 @@ class GameRuntime:
                 self.game_id,
                 event_type,
             )
+
+    def _record_initial_replay_state(self) -> None:
+        try:
+            replay_state = self.plugin.initial_replay_state(self.build_context())
+        except Exception:
+            self.logger.exception(
+                "initial_replay_state failed match_id=%s", self.game_id
+            )
+            return
+        if replay_state is None:
+            return
+        payload = {
+            "game_key": replay_state.game_key,
+            "match_options": dict(replay_state.match_options),
+            "move_index": int(replay_state.move_index),
+            "state": replay_state.state,
+        }
+        try:
+            db.database.append_replay_event(
+                self.game_id, {"type": "replay_init", "state": payload}
+            )
+        except Exception:
+            self.logger.exception(
+                "Failed to record replay_init match_id=%s", self.game_id
+            )
+
+    def _resolve_move_callback(self, move_name: str) -> Callable[..., Any]:
+        move: Move | None = None
+        for candidate in self.plugin.metadata.moves:
+            if candidate.name == move_name:
+                move = candidate
+                break
+        if move is None:
+            raise ConfigurationError(
+                f"Move {move_name!r} is not defined for {self.plugin.metadata.key}"
+            )
+        return _resolve_callback(self.plugin, move.callback, "apply_move")
 
     async def _apply_actions(self, actions: tuple[Any, ...]) -> None:
         for action in actions:
@@ -652,6 +724,7 @@ class GameRuntime:
             if getattr(player, "id", None) == user_id:
                 return player
         return None
+
 
 def asset_to_file(asset: BinaryAsset):
     from io import BytesIO

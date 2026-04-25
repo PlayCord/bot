@@ -10,10 +10,12 @@ from playcord.domain.game import GameMetadata, Move, MoveParameter, ParameterKin
 from playcord.domain.player import Player
 from playcord.games.api import (
     ButtonSpec,
+    ButtonStyle,
     GameContext,
     GamePlugin,
     MessageLayout,
     Outcome,
+    ReplayState,
     UpsertMessage,
 )
 from playcord.games.plugin import RegisteredGamePlugin
@@ -29,6 +31,17 @@ _MOVE_LABELS = {
     "12": "Bottom Mid",
     "22": "Bottom Right",
 }
+
+_WIN_PATTERNS = (
+    (((0, 0), (1, 0), (2, 0)), "top row"),
+    (((0, 1), (1, 1), (2, 1)), "middle row"),
+    (((0, 2), (1, 2), (2, 2)), "bottom row"),
+    (((0, 0), (0, 1), (0, 2)), "left column"),
+    (((1, 0), (1, 1), (1, 2)), "middle column"),
+    (((2, 0), (2, 1), (2, 2)), "right column"),
+    (((0, 0), (1, 1), (2, 2)), "main diagonal"),
+    (((2, 0), (1, 1), (0, 2)), "anti-diagonal"),
+)
 
 
 class TicTacToePlugin(GamePlugin):
@@ -63,37 +76,23 @@ class TicTacToePlugin(GamePlugin):
             Move(
                 name="move",
                 description="Place a piece down.",
+                callback="do_move",
                 options=(
                     MoveParameter(
                         name="move",
                         description="Board position",
                         kind=ParameterKind.string,
-                        autocomplete="move",
+                        autocomplete="autocomplete_move",
                     ),
                 ),
                 require_current_turn=True,
             ),
         ),
+        peek_callback="peek_status",
     )
-    name = metadata.name
-    summary = metadata.summary
-    description = metadata.description
-    move_group_description = metadata.move_group_description
-    player_count = metadata.player_count
-    author = metadata.author
-    version = metadata.version
-    author_link = metadata.author_link
-    source_link = metadata.source_link
-    time = metadata.time
-    difficulty = metadata.difficulty
-    bots = metadata.bots
-    moves = metadata.moves
-    customizable_options = metadata.customizable_options
-    role_mode = metadata.role_mode
-    player_roles = metadata.player_roles
 
     def __init__(
-        self, players: list[Player], *, match_options: dict | None = None
+        self, players: list[Player], *, match_options: dict[str, object] | None = None
     ) -> None:
         super().__init__(players, match_options=match_options)
         self.board = [[" " for _ in range(3)] for _ in range(3)]
@@ -103,20 +102,31 @@ class TicTacToePlugin(GamePlugin):
         return self.players[self.turn]
 
     def outcome(self) -> Outcome | None:
-        lines = []
-        lines.extend(self.board)
-        lines.extend([[self.board[r][c] for r in range(3)] for c in range(3)])
-        lines.append([self.board[i][i] for i in range(3)])
-        lines.append([self.board[i][2 - i] for i in range(3)])
-        for line in lines:
-            if line[0] != " " and all(cell == line[0] for cell in line):
-                winner = self.players[0] if line[0] == "X" else self.players[1]
-                loser = (
-                    self.players[1] if winner == self.players[0] else self.players[0]
-                )
-                return Outcome(kind="winner", placements=[[winner], [loser]])
-        if all(cell != " " for row in self.board for cell in row):
-            return Outcome(kind="draw", placements=[list(self.players)])
+        return self._outcome_for_board(self.board)
+
+    def match_global_summary(self, outcome: Outcome) -> str | None:
+        if outcome.kind == "draw":
+            return "Draw"
+        if outcome.kind == "winner" and outcome.placements:
+            winner = outcome.placements[0][0]
+            if outcome.reason:
+                return f"{winner.mention} won by taking the {outcome.reason}"
+            return f"{winner.mention} won"
+        if outcome.kind == "interrupted":
+            return "Interrupted"
+        return None
+
+    def match_summary(self, outcome: Outcome) -> dict[int, str] | None:
+        if outcome.kind == "draw":
+            return {int(player.id): "Draw" for player in self.players}
+        if outcome.kind == "winner" and outcome.placements:
+            winners = {int(player.id) for player in outcome.placements[0]}
+            return {
+                int(player.id): ("Win" if int(player.id) in winners else "Loss")
+                for player in self.players
+            }
+        if outcome.kind == "interrupted":
+            return {int(player.id): "Interrupted" for player in self.players}
         return None
 
     def render(self, ctx: GameContext) -> tuple[UpsertMessage, ...]:
@@ -152,17 +162,15 @@ class TicTacToePlugin(GamePlugin):
         ]
         return tuple(actions)
 
-    def apply_move(
+    def do_move(
         self,
         actor: Player,
-        move_name: str,
         arguments: dict[str, str],
         *,
         source: str,
         ctx: GameContext,
     ) -> tuple[UpsertMessage, ...]:
-        if move_name != "move":
-            raise IllegalMove(f"Unknown move {move_name!r}")
+        _ = source
         current = self.current_turn()
         if current is None or current.id != actor.id:
             raise NotPlayersTurn("It is not your turn.")
@@ -179,17 +187,15 @@ class TicTacToePlugin(GamePlugin):
             self.turn = (self.turn + 1) % len(self.players)
         return self.render(ctx)
 
-    def autocomplete(
+    def autocomplete_move(
         self,
         actor: Player,
-        move_name: str,
-        argument_name: str,
         current: str,
         *,
         ctx: GameContext,
     ) -> list[tuple[str, str]]:
-        if move_name != "move" or argument_name != "move":
-            return []
+        _ = actor
+        _ = ctx
         query = current.lower().strip()
         values = []
         for row in range(3):
@@ -203,11 +209,123 @@ class TicTacToePlugin(GamePlugin):
                 values.append((label, move))
         return values[:25]
 
-    def bot_move(self, player: Player, *, ctx: GameContext) -> dict[str, object] | None:
+    def bot_easy(self, player: Player, *, ctx: GameContext) -> dict[str, object] | None:
+        _ = ctx
+        return self._bot_move_for_difficulty(player, "easy")
+
+    def bot_medium(
+        self, player: Player, *, ctx: GameContext
+    ) -> dict[str, object] | None:
+        _ = ctx
+        return self._bot_move_for_difficulty(player, "medium")
+
+    def bot_hard(self, player: Player, *, ctx: GameContext) -> dict[str, object] | None:
+        _ = ctx
+        return self._bot_move_for_difficulty(player, "hard")
+
+    def peek_status(self, *, ctx: GameContext) -> str | None:
+        _ = ctx
+        return self._status_line()
+
+    def initial_replay_state(self, ctx: GameContext) -> ReplayState | None:
+        return ReplayState(
+            game_key=ctx.game_key,
+            players=list(ctx.players),
+            match_options=dict(ctx.match_options),
+            move_index=0,
+            state={
+                "board": [[" " for _ in range(3)] for _ in range(3)],
+                "turn": 0,
+            },
+        )
+
+    def apply_replay_event(
+        self, state: ReplayState, event: dict[str, object]
+    ) -> ReplayState | None:
+        if event.get("type") != "move":
+            return state
+
+        raw = state.state if isinstance(state.state, dict) else {}
+        board = [list(row) for row in raw.get("board", [[" "] * 3 for _ in range(3)])]
+        turn_raw = raw.get("turn", 0)
+        try:
+            turn = int(turn_raw)
+        except (TypeError, ValueError):
+            turn = 0
+
+        args = event.get("arguments")
+        if not isinstance(args, dict):
+            return state
+        move = str(args.get("move", "")).strip()
+        if len(move) != 2 or not move.isdigit():
+            return state
+        col, row = int(move[0]), int(move[1])
+        if not (0 <= row < 3 and 0 <= col < 3):
+            return state
+        if board[row][col] != " ":
+            return state
+
+        marker = "X" if turn % 2 == 0 else "O"
+        actor = event.get("user_id")
+        if actor is not None:
+            try:
+                actor_id = int(actor)
+            except (TypeError, ValueError):
+                actor_id = None
+            else:
+                if state.players and actor_id == int(state.players[0].id):
+                    marker = "X"
+                elif len(state.players) > 1 and actor_id == int(state.players[1].id):
+                    marker = "O"
+
+        board[row][col] = marker
+        next_turn = turn + 1
+        if self._outcome_for_board(board) is not None:
+            next_turn = turn
+
+        move_index_raw = event.get("move_number", state.move_index + 1)
+        try:
+            move_index = int(move_index_raw)
+        except (TypeError, ValueError):
+            move_index = state.move_index + 1
+        return ReplayState(
+            game_key=state.game_key,
+            players=list(state.players),
+            match_options=dict(state.match_options),
+            move_index=move_index,
+            state={"board": board, "turn": next_turn},
+        )
+
+    def render_replay(self, state: ReplayState) -> MessageLayout | None:
+        raw = state.state if isinstance(state.state, dict) else {}
+        board = [list(row) for row in raw.get("board", [[" "] * 3 for _ in range(3)])]
+        turn_raw = raw.get("turn", 0)
+        try:
+            turn = int(turn_raw)
+        except (TypeError, ValueError):
+            turn = 0
+        players = state.players if state.players else self.players
+        status = self._status_line_for_board(board, players, turn)
+        buttons = tuple(
+            ButtonSpec(
+                label=board[row][col] if board[row][col] != " " else "·",
+                action_name="move",
+                arguments={"move": f"{col}{row}"},
+                style=self._button_style_for_value(board[row][col]),
+                disabled=True,
+                require_current_turn=False,
+            )
+            for row in range(3)
+            for col in range(3)
+        )
+        return MessageLayout(content=status, buttons=buttons, button_row_width=3)
+
+    def _bot_move_for_difficulty(
+        self, player: Player, difficulty: str
+    ) -> dict[str, object] | None:
         available = self._available_moves()
         if not available:
             return None
-        difficulty = player.bot_difficulty or "easy"
         if difficulty in {"medium", "hard"}:
             if winning := self._find_winning_move(player):
                 return {"move_name": "move", "arguments": {"move": winning}}
@@ -221,9 +339,6 @@ class TicTacToePlugin(GamePlugin):
         if difficulty == "medium" and "11" in available:
             return {"move_name": "move", "arguments": {"move": "11"}}
         return {"move_name": "move", "arguments": {"move": random.choice(available)}}
-
-    def peek(self, ctx: GameContext) -> str | None:
-        return self._status_line()
 
     def _available_moves(self) -> list[str]:
         moves: list[str] = []
@@ -249,12 +364,42 @@ class TicTacToePlugin(GamePlugin):
         return None
 
     def _status_line(self) -> str:
-        outcome = self.outcome()
+        return self._status_line_for_board(self.board, self.players, self.turn)
+
+    def _status_line_for_board(
+        self, board: list[list[str]], players: list[Player], turn: int
+    ) -> str:
+        outcome = self._outcome_for_board(board, players)
         if outcome is not None:
             if outcome.kind == "winner":
                 return f"Winner: {outcome.placements[0][0].mention}"
             return "Draw game."
-        return f"Turn: {self.current_turn().mention}"
+        if not players:
+            return "Turn: ?"
+        return f"Turn: {players[turn % len(players)].mention}"
+
+    def _outcome_for_board(
+        self, board: list[list[str]], players: list[Player] | None = None
+    ) -> Outcome | None:
+        roster = players or self.players
+        if len(roster) < 2:
+            return None
+        for cells, reason in _WIN_PATTERNS:
+            x0, y0 = cells[0]
+            marker = board[y0][x0]
+            if marker == " ":
+                continue
+            if all(board[y][x] == marker for x, y in cells):
+                winner = roster[0] if marker == "X" else roster[1]
+                loser = roster[1] if winner == roster[0] else roster[0]
+                return Outcome(
+                    kind="winner",
+                    placements=[[winner], [loser]],
+                    reason=reason,
+                )
+        if all(cell != " " for row in board for cell in row):
+            return Outcome(kind="draw", placements=[list(roster)])
+        return None
 
     def _overview_text(self, _ctx: GameContext) -> str:
         lines = [
@@ -263,8 +408,11 @@ class TicTacToePlugin(GamePlugin):
         ]
         return "\n".join(lines)
 
-    def _button_style(self, row: int, col: int) -> str:
-        value = self.board[row][col]
+    def _button_style(self, row: int, col: int) -> ButtonStyle:
+        return self._button_style_for_value(self.board[row][col])
+
+    @staticmethod
+    def _button_style_for_value(value: str) -> ButtonStyle:
         if value == "X":
             return "primary"
         if value == "O":

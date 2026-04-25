@@ -92,6 +92,15 @@ class Outcome:
 
 
 @dataclass(frozen=True, slots=True)
+class ReplayState:
+    game_key: str
+    players: list[Player]
+    match_options: dict[str, Any]
+    move_index: int
+    state: Any
+
+
+@dataclass(frozen=True, slots=True)
 class OwnedMessage:
     key: str
     purpose: str
@@ -155,33 +164,21 @@ class GamePlugin(ABC):
     def render(self, ctx: GameContext) -> tuple[ChannelAction, ...]:
         """Render the current board/state."""
 
-    @abstractmethod
-    def apply_move(
-        self,
-        actor: Player,
-        move_name: str,
-        arguments: dict[str, Any],
-        *,
-        source: str,
-        ctx: GameContext,
-    ) -> tuple[ChannelAction, ...]:
-        """Apply a move and return follow-up channel actions."""
-
-    def autocomplete(
-        self,
-        actor: Player,
-        move_name: str,
-        argument_name: str,
-        current: str,
-        *,
-        ctx: GameContext,
-    ) -> list[tuple[str, str]]:
-        return []
-
-    def bot_move(self, player: Player, *, ctx: GameContext) -> dict[str, Any] | None:
+    def match_global_summary(self, outcome: Outcome) -> str | None:
         return None
 
-    def peek(self, ctx: GameContext) -> str | None:
+    def match_summary(self, outcome: Outcome) -> dict[int, str] | None:
+        return None
+
+    def initial_replay_state(self, ctx: GameContext) -> ReplayState | None:
+        return None
+
+    def apply_replay_event(
+        self, state: ReplayState, event: dict[str, Any]
+    ) -> ReplayState | None:
+        return None
+
+    def render_replay(self, state: ReplayState) -> MessageLayout | None:
         return None
 
     def log_replay_event(self, event_type: str, **payload: Any) -> None:

@@ -69,11 +69,19 @@ member_missing = "{mention} is not in this server — everyone from the last gam
 db_failed = "Could not load player data for rematch."
 
 [commands.replay]
-description = "View a paginated move replay for a completed match in this server"
+description = "View an interactive replay for a completed match in this server"
 param_match_ref = "Public match code (thread title) or legacy numeric match id"
 title = "Replay · {id} · {game}"
 no_data = "No replay log available for `{match_display}`.\n\nReplays are only stored for games that complete normally (not crashes)."
 empty_page = "Empty page."
+unavailable = "Interactive replay is unavailable for this game or replay."
+nav_first = "⏮ First"
+nav_prev = "◀ Prev"
+nav_next = "Next ▶"
+nav_last = "Last ⏭"
+move_indicator = "Move {current}/{max}"
+seek_placeholder = "Jump to move..."
+seek_option = "Move {move}"
 
 [commands.feedback]
 description = "Send feedback to the bot owners"
@@ -630,8 +638,7 @@ field_recent_matches = "Recent Activity"
 field_recent_matches_empty = "No recent matches."
 rating_format = "{medal} **{game_name}** · {rating} ({matches} {games_word})"
 rating_format_ranked = "{medal} **{game_name}** · {rating} ({matches} {games_word}) {badge} #{rank} Global"
-match_format = "**{game_name}** · {ranking}/{player_count} | seat #{seat} | {rated_status} | {status} | {delta}"
-match_summary_suffix = " — {summary}"
+match_format = "**{game_name}** ({match_code}) · {outcome} | {rated_status} | {delta}"
 footer = "Tip: use /playcord history <game> for detailed trends."
 
 # =============================================================================
@@ -643,7 +650,7 @@ title_global = "🌍 {game_name} Leaderboard (Global)"
 field_rankings = "Rankings"
 no_players = "No players have played this game yet!"
 no_more_players = "No more players to display."
-ranking_format = "{medal} <@{user_id}> - **{conservative}** CR (mu {mu}, {matches} {games_word})"
+ranking_format = "{medal} <@{user_id}> - **{conservative}** CR ({matches} {games_word})"
 footer = "Page {page}/{max}"
 
 # =============================================================================
@@ -882,7 +889,6 @@ function_missing = "Autocomplete function is not defined!"
 [history]
 unknown_game = "Unknown game type: {game}. Use {command:playcord catalog} to see available games."
 embed_title = "📈 {user} - {game} history"
-seat = "seat #{seat}"
 rated = "rated"
 casual = "casual"
 recent_matches = "Recent matches"

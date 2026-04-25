@@ -115,8 +115,8 @@ CREATE TABLE IF NOT EXISTS user_game_ratings
     rating_id           BIGSERIAL PRIMARY KEY,
     user_id             BIGINT                    NOT NULL,
     game_id             INTEGER                   NOT NULL,
-    mu                  DOUBLE PRECISION          NOT NULL DEFAULT 1000.0,
-    sigma               DOUBLE PRECISION          NOT NULL DEFAULT 333.33,
+    mu                  DOUBLE PRECISION          NOT NULL DEFAULT 1500.0,
+    sigma               DOUBLE PRECISION          NOT NULL DEFAULT 166.6666666667,
     matches_played      INTEGER     DEFAULT 0     NOT NULL,
     last_played         TIMESTAMPTZ,
     last_sigma_increase TIMESTAMPTZ,
@@ -510,7 +510,6 @@ CREATE TRIGGER tr_matches_updated_at
     ON matches
     FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
-
 CREATE TRIGGER tr_match_participants_updated_at
     BEFORE UPDATE
     ON match_participants

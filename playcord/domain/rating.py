@@ -6,8 +6,10 @@ from dataclasses import dataclass
 
 from playcord.domain.errors import ConfigurationError
 
-DEFAULT_MU = 1000.0
+STARTING_RATING = 1000.0
 DEFAULT_SIGMA_RATIO = 1 / 6
+DEFAULT_SIGMA = STARTING_RATING * DEFAULT_SIGMA_RATIO
+DEFAULT_MU = STARTING_RATING + (3 * DEFAULT_SIGMA)
 DEFAULT_TRUESKILL_PARAMETERS: dict[str, float] = {
     "sigma": DEFAULT_SIGMA_RATIO,
     "beta": 1 / 12,
@@ -21,16 +23,15 @@ class Rating:
     """A player's TrueSkill rating."""
 
     mu: float = DEFAULT_MU
-    sigma: float = DEFAULT_MU * DEFAULT_SIGMA_RATIO
+    sigma: float = DEFAULT_SIGMA
 
     @property
     def conservative(self) -> float:
         return self.mu - (3 * self.sigma)
 
     def display(self, *, uncertainty_threshold: float = 0.20) -> str:
-        if self.sigma > uncertainty_threshold * self.mu:
-            return f"{round(self.mu)}?"
-        return str(round(self.mu))
+        _ = uncertainty_threshold
+        return str(round(self.conservative))
 
 
 def merge_trueskill_parameters(

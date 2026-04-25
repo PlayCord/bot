@@ -618,16 +618,17 @@ class HelpTutorialsContainer(CustomContainer):
 
 class HelpGameInfoContainer(CustomContainer):
     def __init__(self, game_id: str, game_class):
-        game_name = getattr(game_class, "name", game_id)
+        metadata = game_class.metadata
+        game_name = getattr(metadata, "name", game_id)
         description = getattr(
-            game_class, "description", get("help.game_info.no_description")
+            metadata, "description", get("help.game_info.no_description")
         )
         players = resolve_player_count(game_class)
         if players is None:
             players = get("help.game_info.unknown")
-        time_est = getattr(game_class, "time", get("help.game_info.unknown"))
-        difficulty = getattr(game_class, "difficulty", get("help.game_info.unknown"))
-        author = getattr(game_class, "author", get("help.game_info.unknown"))
+        time_est = getattr(metadata, "time", get("help.game_info.unknown"))
+        difficulty = getattr(metadata, "difficulty", get("help.game_info.unknown"))
+        author = getattr(metadata, "author", get("help.game_info.unknown"))
 
         if isinstance(players, list):
             player_text = fmt(

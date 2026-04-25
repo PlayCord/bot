@@ -12,7 +12,6 @@ from typing import Any
 import discord
 
 try:
-    import psycopg  # psycopg3
     from psycopg import errors as pg_errors
     from psycopg.rows import dict_row
     from psycopg_pool import ConnectionPool
@@ -23,7 +22,8 @@ except ImportError:
     )
 
 from playcord.domain.player import Player
-from playcord.infrastructure.app_constants import GAME_TYPES, MU
+from playcord.domain.rating import DEFAULT_MU, DEFAULT_SIGMA, STARTING_RATING
+from playcord.infrastructure.app_constants import GAME_TYPES
 from playcord.infrastructure.runtime_config import get_settings
 from playcord.utils import db_migrations
 from playcord.utils.logging_config import get_logger
@@ -78,11 +78,11 @@ class InternalPlayerRatingStatistic:
     def __init__(self, name: str, mu: float | None, sigma: float | None):
         self.name = name
         if mu is None:
-            self.mu = MU
+            self.mu = DEFAULT_MU
             if name in GAME_TYPES:
-                self.sigma = get_trueskill_parameters(name)["sigma"] * MU
+                self.sigma = get_trueskill_parameters(name)["sigma"] * STARTING_RATING
             else:
-                self.sigma = MU / 3.0  # Default sigma
+                self.sigma = DEFAULT_SIGMA
             self.stored = False
         else:
             self.mu = mu
@@ -137,8 +137,8 @@ class InternalPlayer:
         for key in rating_keys:
             if key not in ratings:
                 ratings[key] = {
-                    "mu": MU,
-                    "sigma": get_trueskill_parameters(key)["sigma"] * MU,
+                    "mu": DEFAULT_MU,
+                    "sigma": get_trueskill_parameters(key)["sigma"] * STARTING_RATING,
                 }
             setattr(
                 self,
@@ -179,11 +179,11 @@ class InternalPlayer:
         if rating is None or rating.mu is None:
             return "No Rating"
 
-        # Use 20% uncertainty threshold (sigma vs mu)
-        if rating.sigma > 0.20 * rating.mu:
-            base_rating = str(round(rating.mu)) + "?"
+        conservative = float(rating.mu) - (3 * float(rating.sigma))
+        if rating.sigma > 0.20 * STARTING_RATING:
+            base_rating = str(round(conservative)) + "?"
         else:
-            base_rating = str(round(rating.mu))
+            base_rating = str(round(conservative))
 
         # Rank decoration is supplied by the caller to avoid hidden DB I/O in the model.
         if include_global_rank and game_id is not None and global_rank is not None:
@@ -667,7 +667,10 @@ class Database:
         for game_name, (mod_name, cls_name) in GAME_TYPES.items():
             mod = importlib.import_module(mod_name)
             cls = getattr(mod, cls_name)
-            display_name = getattr(cls, "name", game_name.replace("_", " ").title())
+            metadata = cls.metadata
+            display_name = getattr(
+                metadata, "name", game_name.replace("_", " ").title()
+            )
             spec = resolve_player_count(cls)
             if isinstance(spec, list):
                 min_p, max_p = min(spec), max(spec)
@@ -676,21 +679,21 @@ class Database:
             else:
                 min_p = max_p = int(spec)
             ts = get_trueskill_parameters(game_name)
-            def_sigma = float(ts["sigma"] * MU)
+            def_sigma = float(ts["sigma"] * STARTING_RATING)
             rating_config = {
-                "sigma": float(ts["sigma"] * MU),
-                "beta": float(ts["beta"] * MU),
-                "tau": float(ts["tau"] * MU),
+                "sigma": float(ts["sigma"] * STARTING_RATING),
+                "beta": float(ts["beta"] * STARTING_RATING),
+                "tau": float(ts["tau"] * STARTING_RATING),
                 "draw": float(ts["draw"]),
-                "default_mu": float(MU),
+                "default_mu": float(DEFAULT_MU),
                 "default_sigma": def_sigma,
                 "min_mu": default_min_mu,
                 "min_sigma": max(default_min_sigma, 0.001),
             }
             schema_ver = int(getattr(cls, "game_schema_version", 1))
             meta = {
-                "summary": getattr(cls, "summary", ""),
-                "description": getattr(cls, "description", ""),
+                "summary": getattr(metadata, "summary", ""),
+                "description": getattr(metadata, "description", ""),
             }
             self.register_game(
                 game_name=game_name,
@@ -1082,8 +1085,8 @@ class Database:
                             (user_id, game_id),
                         )
                         rating = cur.fetchone()
-                        mu_before = rating["mu"] if rating else MU
-                        sigma_before = rating["sigma"] if rating else (MU / 3)
+                        mu_before = rating["mu"] if rating else DEFAULT_MU
+                        sigma_before = rating["sigma"] if rating else DEFAULT_SIGMA
 
                         cur.execute(
                             """
@@ -1371,7 +1374,6 @@ class Database:
 
     def abandon_match(self, match_id: int, reason: str):
         """Mark a match as abandoned"""
-        metadata = json.dumps({"abandon_reason": reason})
         query = """
             UPDATE matches
             SET status = 'abandoned',

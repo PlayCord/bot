@@ -19,14 +19,6 @@ Game plugins live under `playcord/games/<name>/` and are loaded explicitly from 
 
 Every game package exposes a `plugin` object implementing the `GamePlugin` protocol from `playcord/games/plugin.py`.
 
-Current built-in games still use `LegacyGamePlugin` adapters:
-
-```python
-from playcord.games.plugin import LegacyGamePlugin
-
-plugin = LegacyGamePlugin("tictactoe", "games.TicTacToe", "TicTacToeGame")
-```
-
 The long-term native shape is:
 
 ```python
@@ -131,6 +123,5 @@ Application services consume repositories through `ApplicationContainer`.
 
 ## Migration Notes
 
-Current built-in games (`tictactoe`, `connectfour`, `nim`) still use `LegacyGamePlugin` adapters while the older game
-implementations are being folded into the new package structure. New games should be authored directly against the
-`playcord/domain/` and `playcord/presentation/ui/` APIs.
+Built-in games are loaded directly as native `GamePlugin` implementations from `playcord/games/`. New games should be
+authored directly against the `playcord/domain/` and `playcord/presentation/ui/` APIs.

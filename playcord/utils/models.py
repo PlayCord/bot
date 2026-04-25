@@ -172,9 +172,10 @@ class Rating:
 
     def format_rating(self, uncertainty_threshold: float = 0.20) -> str:
         """Format rating with uncertainty indicator"""
+        rating = self.conservative_rating
         if self.is_uncertain(uncertainty_threshold):
-            return f"{round(self.mu)}?"
-        return str(round(self.mu))
+            return f"{round(rating)}?"
+        return str(round(rating))
 
 
 @dataclass

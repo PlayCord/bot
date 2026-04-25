@@ -8,7 +8,7 @@ import trueskill
 
 from playcord import state as session_state
 from playcord.application.services.game_runtime import GameRuntime
-from playcord.infrastructure.app_constants import MU
+from playcord.domain.rating import DEFAULT_MU, STARTING_RATING
 from playcord.utils import database as db
 from playcord.utils.locale import get
 from playcord.utils.logging_config import get_logger
@@ -157,10 +157,10 @@ def _rated_results(
 ) -> dict[int, dict[str, Any]]:
     ts = get_trueskill_parameters(game_type)
     environment = trueskill.TrueSkill(
-        mu=MU,
-        sigma=MU * ts["sigma"],
-        beta=MU * ts["beta"],
-        tau=MU * ts["tau"],
+        mu=DEFAULT_MU,
+        sigma=STARTING_RATING * ts["sigma"],
+        beta=STARTING_RATING * ts["beta"],
+        tau=STARTING_RATING * ts["tau"],
         draw_probability=ts["draw"],
         backend="mpmath",
     )
@@ -247,9 +247,9 @@ def _summary_text(
         lines.append("")
         for player in runtime.players:
             result = results[int(player.id)]
-            delta = round(result["mu_delta"])
+            before_cr = float(result["mu_before"]) - (3 * float(result["sigma_before"]))
+            after_cr = float(result["new_mu"]) - (3 * float(result["new_sigma"]))
+            delta = round(after_cr - before_cr)
             delta_text = f"{delta:+d}"
-            lines.append(
-                f"{player.mention}: {round(result['mu_before'])} ({delta_text})"
-            )
+            lines.append(f"{player.mention}: {round(before_cr)} ({delta_text})")
     return "\n".join(lines)

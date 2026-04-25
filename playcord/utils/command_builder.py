@@ -47,7 +47,8 @@ def build_function_definitions() -> dict[Group, list[Any]]:
         game_class = getattr(
             importlib.import_module(GAME_TYPES[game][0]), GAME_TYPES[game][1]
         )
-        moves = game_class.moves
+        metadata = game_class.metadata
+        moves = metadata.moves
         decorators = {}
         arguments = {}
 
@@ -86,7 +87,7 @@ def build_function_definitions() -> dict[Group, list[Any]]:
 
         dynamic_command_group = app_commands.Group(
             name=game,
-            description=game_class.move_command_group_description,
+            description=metadata.move_group_description,
             guild_only=True,
         )
         context[dynamic_command_group] = []

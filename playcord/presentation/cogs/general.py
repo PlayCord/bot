@@ -9,6 +9,8 @@ from discord.app_commands import Choice
 from discord.ext import commands
 
 from playcord import state as session_state
+from playcord.application.services import replay_viewer
+from playcord.domain.rating import DEFAULT_MU, DEFAULT_SIGMA
 from playcord.games.plugin import resolve_player_count
 from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_INVITE,
@@ -21,10 +23,10 @@ from playcord.infrastructure.app_constants import (
     LEADERBOARD_PAGE_SIZE,
     LOGGING_ROOT,
     MANAGED_BY,
-    MU,
     NAME,
     VERSION,
 )
+from playcord.presentation.ui.views.replay_viewer import ReplayViewerView
 
 CURRENT_GAMES = session_state.CURRENT_GAMES
 IN_GAME = session_state.IN_GAME
@@ -71,13 +73,14 @@ def _load_game_metadata() -> None:
     _GAME_METADATA = {}
     for gid, (mod_name, cls_name) in GAME_TYPES.items():
         game_class = getattr(importlib.import_module(mod_name), cls_name)
+        metadata = game_class.metadata
         _GAME_METADATA[gid] = {
             "class": game_class,
-            "name": getattr(game_class, "name", gid),
-            "summary": getattr(game_class, "summary", None),
-            "description": getattr(game_class, "description", ""),
-            "time": getattr(game_class, "time", None),
-            "difficulty": getattr(game_class, "difficulty", None),
+            "name": getattr(metadata, "name", gid),
+            "summary": getattr(metadata, "summary", None),
+            "description": getattr(metadata, "description", ""),
+            "time": getattr(metadata, "time", None),
+            "difficulty": getattr(metadata, "difficulty", None),
         }
 
 
@@ -150,6 +153,46 @@ def _match_summary_for_user(
     if len(text) > max_len:
         text = text[: max_len - 3] + "..."
     return text
+
+
+def _fallback_match_outcome_label(match_row: dict[str, Any]) -> str:
+    metadata = match_row.get("metadata")
+    if isinstance(metadata, dict):
+        final_state = metadata.get("final_state")
+        if isinstance(final_state, dict):
+            outcome = str(final_state.get("outcome", "")).strip().lower()
+            if outcome == "draw":
+                return "Draw"
+            if outcome == "winner":
+                ranking = match_row.get("final_ranking")
+                try:
+                    return "Win" if int(ranking) == 1 else "Loss"
+                except (TypeError, ValueError):
+                    return "Win"
+            if outcome in {"interrupted", "abandoned"}:
+                return "Interrupted"
+    status = str(match_row.get("status", "")).strip().lower()
+    if status in {"interrupted", "abandoned"}:
+        return "Interrupted"
+    ranking = match_row.get("final_ranking")
+    try:
+        rank_val = int(ranking)
+    except (TypeError, ValueError):
+        return "Completed"
+    return "Win" if rank_val == 1 else "Loss"
+
+
+def _outcome_for_recent_match(match_row: dict[str, Any], user_id: int) -> str:
+    summary = _match_summary_for_user(match_row.get("metadata"), user_id, max_len=56)
+    if summary:
+        return summary
+    return _fallback_match_outcome_label(match_row)
+
+
+def _conservative_delta(row: dict[str, Any]) -> int:
+    mu_delta = float(row.get("mu_delta", 0) or 0)
+    sigma_delta = float(row.get("sigma_delta", 0) or 0)
+    return round(mu_delta - (3 * sigma_delta))
 
 
 def _profile_supports_compact_avatar() -> bool:
@@ -429,7 +472,7 @@ class GeneralCog(commands.Cog):
         for difficulty in requested_bots:
             await add_matchmaking_bot(ctx, difficulty)
 
-        game_type = matchmaker.game.name
+        game_type = matchmaker.game.metadata.name
         failed_invites = {}
         for invited_user in invited_users:
             if invited_user not in matchmaker.message.guild.members:
@@ -911,7 +954,6 @@ class GeneralCog(commands.Cog):
             for i, entry in enumerate(display_data, start=offset + 1):
                 user_id = entry["user_id"]
                 conservative = entry.get("conservative_rating", entry.get("mu", 0))
-                mu = entry.get("mu", 0)
                 matches = entry.get("matches_played", 0)
                 medal = (
                     get("format.rank_medal_1")
@@ -932,7 +974,6 @@ class GeneralCog(commands.Cog):
                         medal=medal,
                         user_id=user_id,
                         conservative=round(conservative),
-                        mu=round(mu),
                         matches=matches,
                         games_word=plural("game", matches),
                     )
@@ -1132,21 +1173,24 @@ class GeneralCog(commands.Cog):
                 continue
 
             game_key = game_obj.game_name
-            game_name = (
-                game_obj.display_name
-                or str(_GAME_METADATA.get(game_key, {}).get("name") or game_key)
+            game_name = game_obj.display_name or str(
+                _GAME_METADATA.get(game_key, {}).get("name") or game_key
             )
             global_rank = db.database.get_user_global_rank(user.id, game_obj.game_id)
+            mu_value = float(getattr(rating, "mu", DEFAULT_MU) or DEFAULT_MU)
+            sigma_value = float(
+                getattr(rating, "sigma", DEFAULT_SIGMA) or DEFAULT_SIGMA
+            )
             rating_rows.append(
                 {
                     "game_name": game_name,
-                    "mu": float(getattr(rating, "mu", MU) or MU),
+                    "rating": mu_value - (3 * sigma_value),
                     "matches": matches,
                     "global_rank": global_rank,
                     "rank_badge": _rank_badge_for_global_rank(global_rank),
                 }
             )
-        rating_rows.sort(key=lambda row: (row["matches"], row["mu"]), reverse=True)
+        rating_rows.sort(key=lambda row: (row["matches"], row["rating"]), reverse=True)
 
         total_matches = sum(int(row["matches"]) for row in rating_rows)
         rated_games = len(rating_rows)
@@ -1184,16 +1228,13 @@ class GeneralCog(commands.Cog):
                         )
                     )
                 )
-                if (
-                    row["global_rank"] is not None
-                    and int(row["global_rank"]) <= 100
-                ):
+                if row["global_rank"] is not None and int(row["global_rank"]) <= 100:
                     game_stats.append(
                         fmt(
                             "embeds.profile.rating_format_ranked",
                             medal=medal,
                             game_name=row["game_name"],
-                            rating=round(float(row["mu"])),
+                            rating=round(float(row["rating"])),
                             matches=row["matches"],
                             games_word=plural("game", int(row["matches"])),
                             badge=row["rank_badge"],
@@ -1206,7 +1247,7 @@ class GeneralCog(commands.Cog):
                             "embeds.profile.rating_format",
                             medal=medal,
                             game_name=row["game_name"],
-                            rating=round(float(row["mu"])),
+                            rating=round(float(row["rating"])),
                             matches=row["matches"],
                             games_word=plural("game", int(row["matches"])),
                         )
@@ -1232,26 +1273,15 @@ class GeneralCog(commands.Cog):
                 line = fmt(
                     "embeds.profile.match_format",
                     game_name=m.get("game_name", get("help.game_info.unknown")),
-                    ranking=(
-                        _ordinal(m.get("final_ranking"))
-                        if m.get("final_ranking")
-                        else "-"
-                    ),
-                    player_count=m.get("player_count", "?"),
-                    seat=m.get("player_number", "?"),
+                    match_code=m.get("match_code", m.get("match_id", "?")),
+                    outcome=_outcome_for_recent_match(m, user.id),
                     rated_status=(
                         get("history.rated")
                         if m.get("is_rated", True)
                         else get("history.casual")
                     ),
-                    status=_history_status_label(m.get("status")),
-                    delta=f"{'+' if m.get('mu_delta', 0) >= 0 else ''}{round(m.get('mu_delta', 0))}",
+                    delta=f"{_conservative_delta(m):+d}",
                 )
-                summary = _match_summary_for_user(
-                    m.get("metadata"), user.id, max_len=56
-                )
-                if summary:
-                    line += fmt("embeds.profile.match_summary_suffix", summary=summary)
                 history_lines.append(line)
             container.add_field(
                 name=get("embeds.profile.field_recent_matches"),
@@ -1388,7 +1418,7 @@ class GeneralCog(commands.Cog):
             lines = []
             for row in display_history:
                 rank_text = _ordinal(row.get("final_ranking"))
-                delta = row.get("mu_delta", 0)
+                delta = _conservative_delta(row)
                 summ = _match_summary_for_user(row.get("metadata"), user.id)
                 summ_txt = ""
                 if summ:
@@ -1397,8 +1427,7 @@ class GeneralCog(commands.Cog):
                 gkey = row.get("game_key") or "?"
                 lines.append(
                     f"`{mid}` `{gkey}` · {rank_text}/{row.get('player_count', '?')} | "
-                    f"{fmt('history.seat', seat=row.get('player_number', '?'))}"
-                    f" | {get('history.rated') if row.get('is_rated', True) else get('history.casual')}"
+                    f"{get('history.rated') if row.get('is_rated', True) else get('history.casual')}"
                     f" | {_history_status_label(row.get('status'))}"
                     f" | {'+' if delta >= 0 else ''}{round(delta)}{summ_txt}"
                 )
@@ -1418,8 +1447,13 @@ class GeneralCog(commands.Cog):
         chart_file = None
         if rating_history and page == 1:
             ascending = list(reversed(rating_history))
-            points = [ascending[0].get("mu_before", MU)] + [
-                row.get("mu_after", MU) for row in ascending
+            points = [
+                float(ascending[0].get("mu_before", DEFAULT_MU))
+                - (3 * float(ascending[0].get("sigma_before", DEFAULT_SIGMA)))
+            ] + [
+                float(row.get("mu_after", DEFAULT_MU))
+                - (3 * float(row.get("sigma_after", DEFAULT_SIGMA)))
+                for row in ascending
             ]
             timestamps = [
                 datetime.fromisoformat(str(ascending[0].get("created_at")))
@@ -1586,8 +1620,16 @@ class GeneralCog(commands.Cog):
             )
             return
         match_id = match.match_id
-        replay_display = (match.match_code or "").strip() or str(match_id)
-        events = db.database.get_replay_events(match_id)
+        replay_ctx = replay_viewer.load_replay_context(match_id)
+        if replay_ctx is None:
+            await followup_send(
+                ctx,
+                content=format_user_error_message("replay_not_found"),
+                ephemeral=True,
+            )
+            return
+        replay_display = replay_ctx.replay_display
+        events = replay_ctx.events
         if not events:
             await followup_send(
                 ctx,
@@ -1595,15 +1637,55 @@ class GeneralCog(commands.Cog):
                 ephemeral=True,
             )
             return
+        plugin_class = replay_ctx.plugin_class
+        if replay_viewer.supports_replay_api(plugin_class) and plugin_class is not None:
+            total_frames = replay_viewer.replay_frame_count(events)
+            frame_layout = None
+            if total_frames <= replay_viewer.PRECOMPUTE_FRAME_LIMIT:
+                frames = replay_viewer.build_frames(
+                    plugin_class,
+                    events,
+                    replay_ctx.players,
+                    replay_ctx.match_options,
+                    game_key=replay_ctx.game_key or plugin_class.metadata.key,
+                )
+                if frames:
+                    replay_viewer.cache_precomputed_frames(replay_ctx.match_id, frames)
+                    total_frames = len(frames)
+                    frame_layout = frames[0]
+            else:
+                frame_layout = replay_viewer.frame_for_index(
+                    match_id=replay_ctx.match_id,
+                    frame_index=0,
+                    plugin_class=plugin_class,
+                    events=events,
+                    players=replay_ctx.players,
+                    match_options=replay_ctx.match_options,
+                    game_key=replay_ctx.game_key or plugin_class.metadata.key,
+                )
+
+            if frame_layout is not None:
+                title = fmt(
+                    "commands.replay.title",
+                    id=replay_ctx.replay_display,
+                    game=replay_ctx.game_label,
+                )
+                view = ReplayViewerView(
+                    match_id=replay_ctx.match_id,
+                    owner_id=ctx.user.id,
+                    frame_index=0,
+                    total_frames=total_frames,
+                    title=title,
+                    global_summary=replay_ctx.global_summary,
+                    frame_layout=frame_layout,
+                )
+                await followup_send(ctx, view=view, ephemeral=True)
+                return
+
         lines = [format_replay_event_line(e) for e in events]
         pages = chunk_replay_lines(lines)
-        game_label = self._replay_game_label(match.game_id)
-        meta = match.metadata or {}
-        replay_global = None
-        if isinstance(meta, dict):
-            replay_global = meta.get("outcome_global_summary")
-            if replay_global is not None:
-                replay_global = str(replay_global).strip() or None
+        game_label = replay_ctx.game_label
+        replay_global = replay_ctx.global_summary
         container = self._build_replay_container(
             match_id,
             game_label,

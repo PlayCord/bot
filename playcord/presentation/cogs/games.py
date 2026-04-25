@@ -1,4 +1,5 @@
 import asyncio
+from urllib.parse import parse_qs
 
 import discord
 from discord import app_commands
@@ -6,6 +7,8 @@ from discord.app_commands import Choice
 from discord.ext import commands
 
 from playcord import state as session_state
+from playcord.application.services import replay_viewer
+from playcord.domain.errors import ConfigurationError
 from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_CURRENT_TURN,
     BUTTON_PREFIX_NO_TURN,
@@ -21,6 +24,7 @@ from playcord.infrastructure.app_constants import (
     EPHEMERAL_DELETE_AFTER,
     PERMISSION_MSG_NOT_PARTICIPANT,
 )
+from playcord.presentation.ui.views.replay_viewer import ReplayViewerView
 
 AUTOCOMPLETE_CACHE = session_state.AUTOCOMPLETE_CACHE
 CURRENT_GAMES = session_state.CURRENT_GAMES
@@ -109,6 +113,7 @@ class GamesCog(commands.Cog):
         self.bot = bot
         GAME_COMPONENT_ROUTER.register("game", "move", self._route_runtime_move)
         GAME_COMPONENT_ROUTER.register("game", "select", self._route_runtime_select)
+        GAME_COMPONENT_ROUTER.register("replay", "nav", self._route_replay_nav)
 
     @property
     def _translator(self):
@@ -128,7 +133,7 @@ class GamesCog(commands.Cog):
             return
 
         try:
-            if custom_id.startswith("game:"):
+            if custom_id.startswith("game:") or custom_id.startswith("replay:"):
                 parsed, handler = GAME_COMPONENT_ROUTER.resolve(custom_id)
                 await handler(ctx, parsed)
             elif custom_id.startswith(BUTTON_PREFIX_SELECT_CURRENT):
@@ -152,6 +157,108 @@ class GamesCog(commands.Cog):
                 surface=ErrorSurface.COMPONENT,
                 translator=self._translator,
             )
+
+    async def _route_replay_nav(self, ctx: discord.Interaction, parsed) -> None:
+        await ctx.response.defer()
+        payload = parse_qs(parsed.payload)
+        owner_raw = payload.get("owner", [""])[0]
+        try:
+            owner_id = int(owner_raw)
+        except (TypeError, ValueError):
+            owner_id = 0
+        if owner_id != ctx.user.id:
+            await followup_send(
+                ctx,
+                get("interactions.pagination_not_yours"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
+
+        target = payload.get("frame", ["0"])[0]
+        if isinstance(ctx.data, dict):
+            values = ctx.data.get("values")
+            if isinstance(values, list) and values:
+                target = str(values[0])
+        try:
+            requested_frame = int(target)
+        except (TypeError, ValueError):
+            requested_frame = 0
+
+        replay_ctx = replay_viewer.load_replay_context(parsed.resource_id)
+        if replay_ctx is None or not replay_ctx.events:
+            await followup_send(
+                ctx,
+                content=format_user_error_message("replay_not_found"),
+                ephemeral=True,
+            )
+            return
+        if not replay_viewer.supports_replay_api(replay_ctx.plugin_class):
+            await followup_send(
+                ctx,
+                content=get("commands.replay.unavailable"),
+                ephemeral=True,
+            )
+            return
+
+        plugin_class = replay_ctx.plugin_class
+        if plugin_class is None:
+            raise ConfigurationError(
+                f"Replay plugin for match {replay_ctx.match_id} is not available"
+            )
+
+        total_frames = replay_viewer.replay_frame_count(replay_ctx.events)
+        frame = max(0, min(requested_frame, total_frames - 1))
+        if total_frames <= replay_viewer.PRECOMPUTE_FRAME_LIMIT:
+            frames = replay_viewer.get_precomputed_frames(replay_ctx.match_id)
+            if not frames:
+                frames = replay_viewer.build_frames(
+                    plugin_class,
+                    replay_ctx.events,
+                    replay_ctx.players,
+                    replay_ctx.match_options,
+                    game_key=replay_ctx.game_key or plugin_class.metadata.key,
+                )
+                replay_viewer.cache_precomputed_frames(replay_ctx.match_id, frames)
+            if frames:
+                total_frames = len(frames)
+                frame = min(frame, total_frames - 1)
+                frame_layout = frames[frame]
+            else:
+                frame_layout = None
+        else:
+            frame_layout = replay_viewer.frame_for_index(
+                match_id=replay_ctx.match_id,
+                frame_index=frame,
+                plugin_class=plugin_class,
+                events=replay_ctx.events,
+                players=replay_ctx.players,
+                match_options=replay_ctx.match_options,
+                game_key=replay_ctx.game_key or plugin_class.metadata.key,
+            )
+        if frame_layout is None:
+            await followup_send(
+                ctx,
+                content=get("commands.replay.unavailable"),
+                ephemeral=True,
+            )
+            return
+
+        title = fmt(
+            "commands.replay.title",
+            id=replay_ctx.replay_display,
+            game=replay_ctx.game_label,
+        )
+        view = ReplayViewerView(
+            match_id=replay_ctx.match_id,
+            owner_id=ctx.user.id,
+            frame_index=frame,
+            total_frames=total_frames,
+            title=title,
+            global_summary=replay_ctx.global_summary,
+            frame_layout=frame_layout,
+        )
+        await ctx.edit_original_response(view=view)
 
     async def _route_runtime_move(self, ctx: discord.Interaction, parsed) -> None:
         await ctx.response.defer()
@@ -738,10 +845,22 @@ async def handle_autocomplete(
     if runtime.plugin.outcome() is not None:
         return [app_commands.Choice(name=get("autocomplete.game_finished"), value="-")]
     player = db.database.get_player(ctx.user, ctx.guild.id)
-    player_options = runtime.plugin.autocomplete(
+    move = next((m for m in runtime.plugin.metadata.moves if m.name == function), None)
+    if move is None:
+        return [
+            app_commands.Choice(name=get("autocomplete.function_missing"), value="")
+        ]
+    option = next((opt for opt in move.options if opt.name == argument), None)
+    if option is None or not option.autocomplete:
+        return []
+    callback = getattr(runtime.plugin, option.autocomplete, None)
+    if not callable(callback):
+        return [
+            app_commands.Choice(name=get("autocomplete.function_missing"), value="")
+        ]
+
+    player_options = callback(
         actor=player,
-        move_name=function,
-        argument_name=argument,
         current=current,
         ctx=runtime.build_context(),
     )

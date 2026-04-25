@@ -34,9 +34,9 @@ def get_seed_trueskill_parameters(game_type_key: str) -> dict[str, float]:
 
 def get_trueskill_parameters(game_type_key: str) -> dict[str, float]:
     """
-    Return ``sigma``, ``beta``, ``tau``, ``draw`` suitable for ``MU * value`` (except draw, used as-is).
+    Return ``sigma``, ``beta``, ``tau``, ``draw`` suitable for ``STARTING_RATING * value``.
     """
-    from playcord.infrastructure.app_constants import MU
+    from playcord.domain.rating import STARTING_RATING
 
     try:
         from playcord.utils import database as database_module
@@ -46,9 +46,9 @@ def get_trueskill_parameters(game_type_key: str) -> dict[str, float]:
             game = db.get_game(game_type_key)
             if game is not None and game.rating_config:
                 return {
-                    "sigma": float(game.rating_config["sigma"]) / MU,
-                    "beta": float(game.rating_config["beta"]) / MU,
-                    "tau": float(game.rating_config["tau"]) / MU,
+                    "sigma": float(game.rating_config["sigma"]) / STARTING_RATING,
+                    "beta": float(game.rating_config["beta"]) / STARTING_RATING,
+                    "tau": float(game.rating_config["tau"]) / STARTING_RATING,
                     "draw": float(game.rating_config["draw"]),
                 }
     except (AttributeError, KeyError, TypeError, ValueError) as exc:

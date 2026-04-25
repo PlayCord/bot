@@ -7,6 +7,7 @@ from typing import Any
 
 import discord
 
+from playcord.domain.rating import DEFAULT_MU
 from playcord.games import PLUGINS
 from playcord.infrastructure.locale import Translator
 
@@ -44,7 +45,7 @@ GAME_TYPES: dict[str, list[str]] = {
     plugin.key: [plugin.module_name, plugin.class_name] for plugin in PLUGINS
 }
 
-MU = 1000
+MU = DEFAULT_MU
 
 TEXTIFY_CURRENT_GAME_TURN: dict[str, Any] = {}
 TEXTIFY_GAME_STARTED: dict[str, Any] = {}

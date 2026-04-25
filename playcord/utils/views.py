@@ -710,7 +710,7 @@ class HelpButton(discord.ui.Button):
             :HELP_GAMES_PREVIEW_COUNT
         ]:
             game_class = getattr(importlib.import_module(module_name), class_name)
-            game_name = getattr(game_class, "name", game_id)
+            game_name = getattr(game_class.metadata, "name", game_id)
             games_text.append(
                 fmt(
                     "help.games_overview.game_entry",

@@ -54,6 +54,20 @@ MIGRATIONS: list[tuple[str, str, list[str]]] = [
             """,
         ],
     ),
+    (
+        "1.0.4",
+        "Set user_game_ratings defaults to conservative-rating baseline (mu=1500, sigma=166.6666666667).",
+        [
+            """
+            ALTER TABLE IF EXISTS user_game_ratings
+            ALTER COLUMN mu SET DEFAULT 1500.0;
+            """,
+            """
+            ALTER TABLE IF EXISTS user_game_ratings
+            ALTER COLUMN sigma SET DEFAULT 166.6666666667;
+            """,
+        ],
+    ),
 ]
 
 

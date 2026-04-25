@@ -86,6 +86,7 @@ class GameMetadata:
     difficulty: str
     bots: dict[str, BotDefinition] = field(default_factory=dict)
     moves: tuple[Move, ...] = ()
+    peek_callback: str | None = None
     player_order: PlayerOrder = PlayerOrder.random
     role_mode: RoleMode = RoleMode.none
     player_roles: tuple[str, ...] | None = None

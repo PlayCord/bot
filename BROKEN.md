@@ -31,6 +31,7 @@
       calculate the starting mu as starting rating + 3 * starting sigma, so that new players start with the same
       displayed rating as before.
 - API updates
+    - Delete LegacyGamePlugin
     - Remove GamePlugin class attributes and simply make it the metadata (GameMetadata) object
     - Fix metadata not being used
         - metadata fields carry callback names (e.g. `Move.callback`,
@@ -94,7 +95,7 @@
         - if a plugin does not implement the role API, that game does not support roles.
         - if implemented, plugin defines the supported role behavior via metadata.
     - Metadata-defined role flows:
-        -
+      -
             1) Selectable roles only:
 
             - plugin exposes a metadata option with role IDs and human-readable role names.
