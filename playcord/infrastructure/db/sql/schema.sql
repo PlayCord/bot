@@ -1,6 +1,7 @@
 -- PlayCord PostgreSQL Database Schema
--- Version: 1.0.0
+-- Version: 2.0.0
 -- Description: Comprehensive database schema for Discord game bot with TrueSkill rating system
+-- Note: Rebased to 2.0.0 with all historical migrations (1.0.0-1.2.5) consolidated
 --
 -- Key Features:
 -- - Global per-game rating tracking
@@ -554,6 +555,6 @@ EXECUTE FUNCTION update_updated_at_column();
 -- INITIAL MIGRATION RECORD
 -- ============================================================================
 INSERT INTO database_migrations (version, description)
-VALUES ('1.0.0',
-        'Clean-slate schema: plugin registry, match_status enum, match_moves, replay_events')
+VALUES ('2.0.0',
+        'Rebased schema consolidating all migrations 1.0.0-1.2.5')
 ON CONFLICT (version) DO NOTHING;

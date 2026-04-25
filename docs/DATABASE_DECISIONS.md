@@ -1,11 +1,12 @@
 # Database Decisions
 
 ## Clean-slate baseline
-The prerelease migration chain is retired.
+The prerelease migration chain is retired. As of version 2.0.0, the baseline has been rebased.
 
-- `schema.sql` is the authoritative baseline.
-- `database_migrations` starts at `1.0.0`.
+- `schema.sql` is the authoritative baseline (version 2.0.0).
+- `database_migrations` starts at `2.0.0` with no historical migrations.
 - Deploys are expected to recreate the database rather than replay historical prerelease migrations.
+- All migrations from 1.0.0 through 1.2.5 have been consolidated into the base schema.
 
 ## Game registry authority
 `games` is code-synchronized, not SQL-seeded.

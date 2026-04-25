@@ -1,11 +1,11 @@
 # PlayCord Database
 
 ## Overview
-PlayCord now treats the database as a clean-slate `1.0.0` baseline. The schema is driven by the current runtime and plugin model, not by historical prerelease game rows or migrations.
+PlayCord now treats the database as a clean-slate `2.0.0` baseline. The schema is driven by the current runtime and plugin model, not by historical prerelease game rows or migrations. As of version 2.0.0, all historical migrations (1.0.0-1.2.5) have been consolidated into the base schema.
 
 Startup flow:
 
-- `schema.sql` creates the baseline schema and inserts the `1.0.0` migration marker.
+- `schema.sql` creates the baseline schema (version 2.0.0) and inserts the `2.0.0` migration marker.
 - `functions.sql` and `views.sql` are reloaded on startup by `Database.refresh_sql_assets()`.
 - `Database.sync_games_from_code()` populates `games` from the Python plugin registry.
 - No shipped SQL file inserts default game rows anymore.
@@ -72,7 +72,8 @@ Startup flow:
 `database_migrations`
 
 - Tracks applied SQL migrations.
-- Reset to a single clean-slate baseline version, `1.0.0`.
+- Reset to a single clean-slate baseline version, `2.0.0`.
+- All historical migrations (1.0.0-1.2.5) are consolidated into the base schema.
 
 ## SQL helpers
 Important functions:
@@ -101,4 +102,4 @@ The new game runtime assumes:
 - replay/event data uses `replay_events`, not legacy text logs.
 
 ## Resetting locally
-For a full local reset, use the app/database reset path that rebuilds the public schema from tracked assets. Do not try to replay old prerelease migrations; the supported baseline is the current `1.0.0` schema only.
+For a full local reset, use the app/database reset path that rebuilds the public schema from tracked assets. Do not try to replay old prerelease migrations; the supported baseline is the current `2.0.0` schema only.
