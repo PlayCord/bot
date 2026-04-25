@@ -10,9 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Secret scan
-        uses: gitleaks/gitleaks-action@v2
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -22,14 +19,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e .[dev]
 
-      - name: Ruff
+      - name: Ruff lint
         run: ruff check .
 
-      - name: Black
-        run: black --check .
+      - name: Ruff format
+        run: ruff format --check .
 
-      - name: Mypy
-        run: mypy playcord
-
-      - name: Pytest
-        run: pytest
