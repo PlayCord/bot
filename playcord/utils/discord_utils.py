@@ -26,7 +26,8 @@ log = get_logger()
 
 def schedule_ephemeral_message_delete(message: Any, delay: float | None) -> None:
     """Delete *message* after *delay* seconds (interaction
-    webhooks often lack delete_after on send)."""    if message is None or delay is None or delay <= 0:
+    webhooks often lack delete_after on send)."""
+    if message is None or delay is None or delay <= 0:
         return
 
     async def _run() -> None:
@@ -43,7 +44,7 @@ def schedule_ephemeral_message_delete(message: Any, delay: float | None) -> None
 
 
 async def followup_send(
-    interaction: discord.Interaction, *args: Any, **kwargs: Any
+        interaction: discord.Interaction, *args: Any, **kwargs: Any
 ) -> Any:
     delay = kwargs.pop("delete_after", None)
     msg = await interaction.followup.send(*args, **kwargs)
@@ -52,7 +53,7 @@ async def followup_send(
 
 
 async def response_send_message(
-    interaction: discord.Interaction, *args: Any, **kwargs: Any
+        interaction: discord.Interaction, *args: Any, **kwargs: Any
 ) -> Any:
     delay = kwargs.pop("delete_after", None)
     msg = await interaction.response.send_message(*args, **kwargs)
@@ -62,7 +63,8 @@ async def response_send_message(
 
 def format_user_error_message(error_key: str, **kwargs) -> str:
     """Plain-text user error with a
-    single combined sentence block (no title/container)."""    message = get_error(error_key)
+    single combined sentence block (no title/container)."""
+    message = get_error(error_key)
     if not message:
         return f"{error_key}"
     if kwargs:
@@ -75,7 +77,8 @@ def format_user_error_message(error_key: str, **kwargs) -> str:
 
 def get_user_error_embed(error_key: str, **kwargs) -> UserErrorContainer:
     """Get a pre-defined user error container with
-    optional formatting from locale (no title row)."""    message = get_error(error_key)
+    optional formatting from locale (no title row)."""
+    message = get_error(error_key)
     if not message:
         message = get("errors.generic")
     if kwargs:
@@ -88,11 +91,11 @@ def get_user_error_embed(error_key: str, **kwargs) -> UserErrorContainer:
 
 
 async def send_simple_embed(
-    ctx: discord.Interaction,
-    title: str,
-    description: str,
-    ephemeral: bool = True,
-    responded: bool = False,
+        ctx: discord.Interaction,
+        title: str,
+        description: str,
+        ephemeral: bool = True,
+        responded: bool = False,
 ) -> None:
     """Send a short status using the shared container UI."""
     card = CustomContainer(
@@ -121,14 +124,14 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
 
     channel = getattr(ctx, "channel", None)
     in_active_game_thread = (
-        channel is not None
-        and getattr(channel, "type", None) == discord.ChannelType.private_thread
-        and getattr(channel, "id", None) in CURRENT_GAMES
+            channel is not None
+            and getattr(channel, "type", None) == discord.ChannelType.private_thread
+            and getattr(channel, "id", None) in CURRENT_GAMES
     )
     command = getattr(ctx, "command", None)
     parent = getattr(command, "parent", None)
     is_playcord_subcommand = (
-        parent is not None and getattr(parent, "name", None) == LOGGING_ROOT
+            parent is not None and getattr(parent, "name", None) == LOGGING_ROOT
     )
     command_name = getattr(command, "name", None)
     if in_active_game_thread and is_playcord_subcommand and command_name != "forfeit":

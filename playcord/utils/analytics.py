@@ -19,7 +19,8 @@ logger = get_logger("analytics")
 
 def _db():
     """Live Database instance (importing ``database`` by
-    value would freeze ``None`` at import time)."""    return _db_module.database
+    value would freeze ``None`` at import time)."""
+    return _db_module.database
 
 
 # Fallback buffer when DB write fails (retry on flush)
@@ -27,15 +28,15 @@ _event_buffer: list[dict] = []
 
 
 def register_event(
-    event_type: EventType | str,
-    metadata: dict[str, Any] | None = None,
-    user_id: int | None = None,
-    guild_id: int | None = None,
-    game_type: str | None = None,
-    match_id: int | None = None,
-    command_name: str | None = None,
-    latency_ms: float | None = None,
-    outcome: str | None = None,
+        event_type: EventType | str,
+        metadata: dict[str, Any] | None = None,
+        user_id: int | None = None,
+        guild_id: int | None = None,
+        game_type: str | None = None,
+        match_id: int | None = None,
+        command_name: str | None = None,
+        latency_ms: float | None = None,
+        outcome: str | None = None,
 ) -> None:
     """
     Register an analytics event (written to the database immediately when connected).
@@ -176,9 +177,9 @@ class Timer:
 
 
 def render_analytics_matplotlib_summary(
-    event_counts: list[dict[str, Any]],
-    game_counts: list[dict[str, Any]],
-    hours: int,
+        event_counts: list[dict[str, Any]],
+        game_counts: list[dict[str, Any]],
+        hours: int,
 ) -> io.BytesIO | None:
     """
     Owner-facing matplotlib figure (event types vs games).
@@ -203,11 +204,11 @@ def render_analytics_matplotlib_summary(
 
 
 def format_ascii_bar_chart(
-    rows: list[dict[str, Any]],
-    *,
-    value_key: str = "cnt",
-    label_key: str = "event_type",
-    width: int = 22,
+        rows: list[dict[str, Any]],
+        *,
+        value_key: str = "cnt",
+        label_key: str = "event_type",
+        width: int = 22,
 ) -> list[str]:
     """
     Turn count rows into simple Unicode bar lines for Discord (monospace-friendly).
@@ -251,10 +252,10 @@ def format_recent_event_row(row: dict[str, Any]) -> str:
 
 
 def render_analytics_markdown_summary(
-    event_counts: list[dict[str, Any]],
-    game_counts: list[dict[str, Any]],
-    recent: list[dict[str, Any]],
-    hours: int,
+        event_counts: list[dict[str, Any]],
+        game_counts: list[dict[str, Any]],
+        recent: list[dict[str, Any]],
+        hours: int,
 ) -> list[str]:
     lines = [f"Window: last {hours} hour(s)"]
     lines.append("Events by type:")

@@ -59,7 +59,8 @@ class MatchmakingCog(commands.Cog):
 
     async def lobby_select_callback(self, ctx: discord.Interaction) -> None:
         """Lobby string-select for per-game
-        match options (handled by MatchmakingInterface)."""        await ctx.response.defer(ephemeral=True)
+        match options (handled by MatchmakingInterface)."""
+        await ctx.response.defer(ephemeral=True)
         f_log = log.getChild("callback.lobby_select")
         f_log.debug(
             "lobby_select_callback called by user=%s data=%r",
@@ -127,7 +128,8 @@ class MatchmakingCog(commands.Cog):
 
     async def lobby_role_select_callback(self, ctx: discord.Interaction) -> None:
         """Per-player role select for
-        CHOSEN :attr:`role_mode` (handled by MatchmakingInterface)."""        await ctx.response.defer(ephemeral=True)
+        CHOSEN :attr:`role_mode` (handled by MatchmakingInterface)."""
+        await ctx.response.defer(ephemeral=True)
         f_log = log.getChild("callback.lobby_role_select")
         f_log.debug(
             "lobby_role_select_callback called by user=%s data=%r",
@@ -264,7 +266,8 @@ class MatchmakingCog(commands.Cog):
         # Check if it exists
         if matchmaking_id not in CURRENT_MATCHMAKING:
             f_log.debug(
-                f"Matchmaking expired when trying to press button: {interaction_context}"
+                "Matchmaking expired when trying to press button: %s",
+                interaction_context,
             )
             await followup_send(
                 ctx,

@@ -68,8 +68,8 @@ _GAME_METADATA: dict[str, dict] = {}
 
 
 def _load_game_metadata() -> None:
-    """Populate game class metadata once at
-    import (avoids importlib per autocomplete keystroke)."""    global _GAME_METADATA
+    """Populate game class metadata once at import (avoids importlib per autocomplete keystroke)."""
+    global _GAME_METADATA
     _GAME_METADATA = {}
     for gid, (mod_name, cls_name) in GAME_TYPES.items():
         game_class = getattr(importlib.import_module(mod_name), cls_name)
@@ -202,8 +202,8 @@ def _profile_supports_compact_avatar() -> bool:
 
 
 def resolve_match_for_replay(raw: str, guild_id: int):
-    """Resolve a match from an 8-char
-    public code or a numeric ``match_id`` (guild-scoped)."""    from playcord.utils.match_codes import is_match_code_token
+    """Resolve a match from an 8-char public code or a numeric ``match_id`` (guild-scoped)."""
+    from playcord.utils.match_codes import is_match_code_token
 
     s = (raw or "").strip().lower()
     if not s:
@@ -527,8 +527,9 @@ class GeneralCog(commands.Cog):
         else:
             message = get("matchmaking.invites_failed_partial")
         f_log.debug(
-            f"/invite partial or no
-            success: {len(invited_users) - len(failed_invites)} succeeded,"            f" {len(failed_invites)} failed. {contextify(ctx)}"
+            f"/invite partial or no success: "
+            f"{len(invited_users) - len(failed_invites)} succeeded, "
+            f"{len(failed_invites)} failed. {contextify(ctx)}"
         )
         final = message + "\n"
         for fail in failed_invites:
@@ -656,16 +657,19 @@ class GeneralCog(commands.Cog):
         )
         container.add_field(
             name="Shard",
-            value=f"#{shard_id} · {round(shard_ping *
-            100, 2)}ms · {shard_servers} servers",        )
+            value=f"#{shard_id} · {round(shard_ping * 100, 2)}ms · {shard_servers} servers",
+        )
         container.add_field(
             name="System",
             value=f"{ramcheck.get_ram_usage_mb()} RAM",
         )
         container.add_field(
             name="Activity",
-            value=f"{member_count} members · {len(IN_MATCHMAKING)}
-            queuing · {len(IN_GAME)} in game",            inline=False,
+            value=(
+                f"{member_count} members · {len(IN_MATCHMAKING)} queuing · "
+                f"{len(IN_GAME)} in game"
+            ),
+            inline=False,
         )
 
         await response_send_message(ctx, **container_send_kwargs(container))
@@ -906,8 +910,11 @@ class GeneralCog(commands.Cog):
         page: int,
         limit: int,
     ):
-        """Build leaderboard container for a
-        specific page. Returns (container, has_data, is_last_page)."""        offset = (page - 1) * limit
+        """Build leaderboard container for a specific page.
+
+        Returns (container, has_data, is_last_page).
+        """
+        offset = (page - 1) * limit
         if scope == "global":
             # Fetch one extra item to check if there are more pages
             leaderboard_data = db.database.get_global_leaderboard(
@@ -1395,8 +1402,11 @@ class GeneralCog(commands.Cog):
         days: int,
         f_log,
     ):
-        """Build history container for a specific
-        page. Returns (container, chart_file, has_data, is_last_page)."""        limit = HISTORY_PAGE_SIZE
+        """Build history container for a specific page.
+
+        Returns (container, chart_file, has_data, is_last_page).
+        """
+        limit = HISTORY_PAGE_SIZE
         offset = (page - 1) * limit
 
         # Fetch one extra item to check if there are more pages

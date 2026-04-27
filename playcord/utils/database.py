@@ -2028,9 +2028,10 @@ class Database:
             with conn.cursor() as cur:
                 cur.execute("DROP SCHEMA IF EXISTS public CASCADE;")
                 cur.execute("CREATE SCHEMA public;")
+                # Drop migration tracking table so migrations can be re-applied
+                cur.execute("DROP TABLE IF EXISTS database_migrations;")
             conn.autocommit = False
 
-        self._load_schema_asset()
         db_migrations.apply_migrations(self)
         self.refresh_sql_assets()
         self.sync_games_from_code()

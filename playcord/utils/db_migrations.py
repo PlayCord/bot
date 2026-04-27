@@ -1,23 +1,43 @@
 """
 Apply versioned database migrations tracked in database_migrations.
 
-Starting from 2.0.0 - clean rebase
-with all historical migrations (1.0.0-1.2.5) consolidated.No backwards compatibility maintained.
+Starting from 3.0.0 - full schema rebuild.
+No backwards compatibility is maintained across baseline rebuilds.
 """
 
 from __future__ import annotations
 
 import hashlib
+from pathlib import Path
 
 from playcord.utils.logging_config import get_logger
 
 logger = get_logger("database.migrations")
 
+
+def _load_migration_sql(filename: str) -> str:
+    """Load SQL content from a migration SQL file."""
+    sql_dir = (
+        Path(__file__).resolve().parent.parent / "infrastructure" / "db" / "sql"
+    )
+    sql_path = sql_dir / filename
+    with sql_path.open("r", encoding="utf-8") as fh:
+        return fh.read()
+
+
 MIGRATIONS: list[tuple[str, str, list[str]]] = [
     (
-        "2.0.0",
-        "Rebased baseline schema consolidating all migrations 1.0.0-1.2.5. Start fresh from clean state.",
-        [],
+        "3.0.0",
+        (
+            "Rebuilt baseline schema for scalable matchmaking, ratings, replay,"
+            " and analytics."
+        ),
+        [_load_migration_sql("schema.sql")],
+    ),
+    (
+        "3.0.1",
+        "Fix games.rating_config key validation to match game registration payload.",
+        [_load_migration_sql("migration_3_0_1.sql")],
     ),
 ]
 
@@ -29,28 +49,40 @@ def get_migration_hash(migration_sql: str) -> str:
 
 def apply_migrations(database):
     """Apply all pending migrations in order, tracking by version."""
-    cur = database.cursor()
-
+    
+    # Create database_migrations table if it doesn't exist
     try:
-        # Create database_migrations table if it doesn't exist
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS database_migrations (
-                version TEXT PRIMARY KEY,
-                description TEXT,
-                applied_at TIMESTAMPTZ DEFAULT NOW(),
-                sql_hash VARCHAR(64)
-            );
-            """)
-        database.commit()
+        with database.transaction() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS database_migrations (
+                    version TEXT PRIMARY KEY,
+                    description TEXT,
+                    applied_at TIMESTAMPTZ DEFAULT NOW(),
+                    sql_hash VARCHAR(64)
+                );
+                """)
     except Exception as e:
         logger.error(f"Failed to create database_migrations table: {e}")
-        database.rollback()
         raise
 
     applied_versions = set()
     try:
-        cur.execute("SELECT version FROM database_migrations;")
-        applied_versions = {row[0] for row in cur.fetchall()}
+        with database.transaction() as cur:
+            cur.execute("SELECT version FROM database_migrations;")
+            for row in cur.fetchall():
+                version = None
+                if isinstance(row, dict):
+                    version = row.get("version")
+                else:
+                    try:
+                        version = row["version"]
+                    except (TypeError, KeyError):
+                        try:
+                            version = row[0]
+                        except (TypeError, IndexError, KeyError):
+                            version = None
+                if version is not None:
+                    applied_versions.add(str(version))
     except Exception as e:
         logger.warning(f"Could not fetch applied migrations: {e}")
 
@@ -62,32 +94,30 @@ def apply_migrations(database):
         logger.warning(f"Applying database migration {version} ({description})")
 
         try:
-            for stmt in statements:
-                stmt = stmt.strip()
-                if not stmt:
-                    continue
-                logger.debug(f"Executing: {stmt[:100]}...")
-                cur.execute(stmt)
+            with database.transaction() as cur:
+                for stmt in statements:
+                    stmt = stmt.strip()
+                    if not stmt:
+                        continue
+                    logger.debug(f"Executing: {stmt[:100]}...")
+                    cur.execute(stmt)
 
-            # Track the migration
-            migration_text = "\n".join(statements)
-            sql_hash = get_migration_hash(migration_text)
+                # Track the migration
+                migration_text = "\n".join(statements)
+                sql_hash = get_migration_hash(migration_text)
 
-            cur.execute(
-                """
-                INSERT INTO database_migrations (version, description, sql_hash)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (version) DO UPDATE SET
-                    description = EXCLUDED.description,
-                    sql_hash = EXCLUDED.sql_hash;
-                """,
-                (version, description, sql_hash),
-            )
-            database.commit()
+                cur.execute(
+                    """
+                    INSERT INTO database_migrations (version, description, sql_hash)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (version) DO UPDATE SET
+                        description = EXCLUDED.description,
+                        sql_hash = EXCLUDED.sql_hash;
+                    """,
+                    (version, description, sql_hash),
+                )
             logger.info(f"✓ Migration {version} applied successfully")
 
         except Exception as e:
-            logger.error(f"Transaction failed, rolled back: {e}")
-            database.rollback()
-            logger.error(f"Migration {version} failed ({type(e).__name__})")
+            logger.error(f"Migration {version} failed ({type(e).__name__}): {e}")
             raise Exception(f"Migration {version} failed: {e}") from e
