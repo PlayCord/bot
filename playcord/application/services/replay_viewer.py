@@ -13,7 +13,8 @@ from playcord.utils import database as db
 
 PRECOMPUTE_FRAME_LIMIT = 200
 _FRAME_CACHE_LIMIT = 512
-_PRECOMPUTED_FRAMES: dict[int, list[MessageLayout]] = {}
+_PRECOMPUTED_FRAME_CACHE_LIMIT = 128
+_PRECOMPUTED_FRAMES: OrderedDict[int, list[MessageLayout]] = OrderedDict()
 _FRAME_CACHE: OrderedDict[tuple[int, int], MessageLayout] = OrderedDict()
 
 
@@ -201,11 +202,24 @@ def build_frames(
 
 def cache_precomputed_frames(match_id: int, frames: list[MessageLayout]) -> None:
     _PRECOMPUTED_FRAMES[match_id] = list(frames)
+    _PRECOMPUTED_FRAMES.move_to_end(match_id)
+    while len(_PRECOMPUTED_FRAMES) > _PRECOMPUTED_FRAME_CACHE_LIMIT:
+        _PRECOMPUTED_FRAMES.popitem(last=False)
 
 
 def get_precomputed_frames(match_id: int) -> list[MessageLayout] | None:
     frames = _PRECOMPUTED_FRAMES.get(match_id)
-    return list(frames) if frames is not None else None
+    if frames is None:
+        return None
+    _PRECOMPUTED_FRAMES.move_to_end(match_id)
+    return list(frames)
+
+
+def invalidate_match_cache(match_id: int) -> None:
+    _PRECOMPUTED_FRAMES.pop(match_id, None)
+    stale = [key for key in _FRAME_CACHE if key[0] == match_id]
+    for key in stale:
+        _FRAME_CACHE.pop(key, None)
 
 
 def frame_for_index(
@@ -220,6 +234,7 @@ def frame_for_index(
 ) -> MessageLayout | None:
     frames = _PRECOMPUTED_FRAMES.get(match_id)
     if frames:
+        _PRECOMPUTED_FRAMES.move_to_end(match_id)
         idx = max(0, min(frame_index, len(frames) - 1))
         return frames[idx]
 

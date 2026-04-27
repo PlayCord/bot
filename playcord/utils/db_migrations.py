@@ -39,6 +39,14 @@ MIGRATIONS: list[tuple[str, str, list[str]]] = [
         "Fix games.rating_config key validation to match game registration payload.",
         [_load_migration_sql("migration_3_0_1.sql")],
     ),
+    (
+        "3.0.2",
+        (
+            "Switch replay reads/writes to canonical replay_events and backfill"
+            " legacy data."
+        ),
+        [_load_migration_sql("migration_3_0_2.sql")],
+    ),
 ]
 
 

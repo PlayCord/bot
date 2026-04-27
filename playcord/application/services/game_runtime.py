@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlencode
 import discord
 
 from playcord import state as session_state
+from playcord.application.services import replay_viewer
 from playcord.domain.errors import ConfigurationError
 from playcord.domain.game import Move
 from playcord.games.api import (
@@ -360,6 +361,7 @@ class GameRuntime:
             if actor_id is not None:
                 replay_event["user_id"] = int(actor_id)
             db.database.append_replay_event(self.game_id, replay_event)
+            replay_viewer.invalidate_match_cache(self.game_id)
         except Exception:
             self.logger.exception("Failed to record move match_id=%s", self.game_id)
 
@@ -367,6 +369,7 @@ class GameRuntime:
         try:
             body: dict[str, Any] = {"type": event_type, **dict(payload)}
             db.database.append_replay_event(self.game_id, body)
+            replay_viewer.invalidate_match_cache(self.game_id)
         except Exception:
             self.logger.exception(
                 "Failed to append plugin replay event match_id=%s type=%s",
@@ -394,6 +397,7 @@ class GameRuntime:
             db.database.append_replay_event(
                 self.game_id, {"type": "replay_init", "state": payload}
             )
+            replay_viewer.invalidate_match_cache(self.game_id)
         except Exception:
             self.logger.exception(
                 "Failed to record replay_init match_id=%s", self.game_id
