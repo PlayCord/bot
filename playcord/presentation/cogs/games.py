@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import asyncio
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qs
 
 import discord
@@ -12,6 +15,8 @@ from playcord.domain.errors import ConfigurationError
 from playcord.domain.handlers import HandlerRef
 from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_CURRENT_TURN,
+    BUTTON_PREFIX_GAME_MOVE,
+    BUTTON_PREFIX_GAME_SELECT,
     BUTTON_PREFIX_NO_TURN,
     BUTTON_PREFIX_PAGINATION_FIRST,
     BUTTON_PREFIX_PAGINATION_LAST,
@@ -19,6 +24,7 @@ from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_PAGINATION_PREV,
     BUTTON_PREFIX_PEEK,
     BUTTON_PREFIX_REMATCH,
+    BUTTON_PREFIX_REPLAY_NAV,
     BUTTON_PREFIX_SELECT_CURRENT,
     BUTTON_PREFIX_SELECT_NO_TURN,
     BUTTON_PREFIX_SPECTATE,
@@ -28,7 +34,6 @@ from playcord.infrastructure.app_constants import (
 from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
 from playcord.presentation.interactions.error_reporter import ErrorSurface, report
-from playcord.presentation.interactions.router import InteractionRouter
 from playcord.presentation.ui.views.replay_viewer import ReplayViewerView
 from playcord.utils.containers import LoadingContainer, container_send_kwargs
 from playcord.utils.discord_utils import (
@@ -41,8 +46,10 @@ from playcord.utils.interfaces import user_in_active_game
 from playcord.utils.matchmaking_interface import MatchmakingInterface
 from playcord.utils.matchmaking_user_map import matchmaking_by_user_id
 
+if TYPE_CHECKING:
+    from playcord.presentation.bot import PlayCordBot
+
 log = get_logger()
-GAME_COMPONENT_ROUTER = InteractionRouter()
 
 
 async def _send_game_ended_error(ctx: discord.Interaction) -> None:
@@ -60,9 +67,9 @@ async def _send_game_ended_error(ctx: discord.Interaction) -> None:
 def _autocomplete_sort_key(label: str, current: str) -> tuple:
     lo, cu = label.lower(), current.lower()
     try:
-        return (lo.index(cu), lo)
+        return lo.index(cu), lo
     except ValueError:
-        return (0, lo)
+        return 0, lo
 
 
 _PAGINATION_PREFIXES = (
@@ -74,7 +81,7 @@ _PAGINATION_PREFIXES = (
 
 
 async def _pagination_unhandled_fallback(
-    interaction: discord.Interaction, custom_id: str
+        interaction: discord.Interaction, custom_id: str
 ) -> None:
     """
     If no registered PaginationView handled the click (e.g. after restart).
@@ -87,7 +94,7 @@ async def _pagination_unhandled_fallback(
     rest = custom_id
     for prefix in _PAGINATION_PREFIXES:
         if custom_id.startswith(prefix):
-            rest = custom_id[len(prefix) :]
+            rest = custom_id[len(prefix):]
             break
     msg = get("interactions.pagination_outdated")
     parts = rest.split("/")
@@ -109,15 +116,15 @@ async def _pagination_unhandled_fallback(
         pass
 
 
+def _parse_component_id(custom_id: str, prefix: str) -> tuple[int, str]:
+    tail = custom_id[len(prefix):]
+    resource_raw, payload = (tail.split("/", 1) + [""])[:2]
+    return int(resource_raw), payload
+
+
 class GamesCog(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: PlayCordBot):
         self.bot = bot
-        c = bot.container
-        self._matches = c.matches
-        self._games = c.games
-        GAME_COMPONENT_ROUTER.register("game", "move", self._route_runtime_move)
-        GAME_COMPONENT_ROUTER.register("game", "select", self._route_runtime_select)
-        GAME_COMPONENT_ROUTER.register("replay", "nav", self._route_replay_nav)
 
     @property
     def _translator(self):
@@ -125,14 +132,11 @@ class GamesCog(commands.Cog):
 
     @property
     def _replay_source(self) -> replay_viewer.ReplayDataSource | None:
-        container = getattr(self.bot, "container", None)
-        if container is None:
-            return None
         return replay_viewer.ReplayDataSource(
-            matches=container.matches,
-            games=container.games,
-            players=container.players,
-            replays=container.replays,
+            matches=self.bot.container.matches,
+            games=self.bot.container.games,
+            players=self.bot.container.players,
+            replays=self.bot.container.replays,
         )
 
     @property
@@ -148,18 +152,36 @@ class GamesCog(commands.Cog):
         data = ctx.data if ctx.data is not None else {}
         custom_id = data.get("custom_id")
         if custom_id is None:
-            return
+            return None
 
         if ctx.type is discord.InteractionType.component and any(
-            custom_id.startswith(p) for p in _PAGINATION_PREFIXES
+                custom_id.startswith(p) for p in _PAGINATION_PREFIXES
         ):
             asyncio.create_task(_pagination_unhandled_fallback(ctx, custom_id))
-            return
+            return None
 
         try:
-            if custom_id.startswith("game:") or custom_id.startswith("replay:"):
-                parsed, handler = GAME_COMPONENT_ROUTER.resolve(custom_id)
-                await handler(ctx, parsed)
+            if custom_id.startswith(BUTTON_PREFIX_GAME_MOVE):
+                resource_id, payload = _parse_component_id(
+                    custom_id, BUTTON_PREFIX_GAME_MOVE
+                )
+                await self._route_runtime_move(
+                    ctx, resource_id=resource_id, payload=payload
+                )
+            elif custom_id.startswith(BUTTON_PREFIX_GAME_SELECT):
+                resource_id, payload = _parse_component_id(
+                    custom_id, BUTTON_PREFIX_GAME_SELECT
+                )
+                await self._route_runtime_select(
+                    ctx, resource_id=resource_id, payload=payload
+                )
+            elif custom_id.startswith(BUTTON_PREFIX_REPLAY_NAV):
+                resource_id, payload = _parse_component_id(
+                    custom_id, BUTTON_PREFIX_REPLAY_NAV
+                )
+                await self._route_replay_nav(
+                    ctx, resource_id=resource_id, payload=payload
+                )
             elif custom_id.startswith(BUTTON_PREFIX_SELECT_CURRENT):
                 await self.game_select_callback(ctx, current_turn_required=True)
             elif custom_id.startswith(BUTTON_PREFIX_SELECT_NO_TURN):
@@ -182,10 +204,12 @@ class GamesCog(commands.Cog):
                 translator=self._translator,
             )
 
-    async def _route_replay_nav(self, ctx: discord.Interaction, parsed) -> None:
+    async def _route_replay_nav(
+            self, ctx: discord.Interaction, resource_id: int, payload: str
+    ) -> None:
         await ctx.response.defer()
-        payload = parse_qs(parsed.payload)
-        owner_raw = payload.get("owner", [""])[0]
+        payload_data = parse_qs(payload)
+        owner_raw = payload_data.get("owner", [""])[0]
         try:
             owner_id = int(owner_raw)
         except (TypeError, ValueError):
@@ -199,7 +223,7 @@ class GamesCog(commands.Cog):
             )
             return
 
-        target = payload.get("frame", ["0"])[0]
+        target = payload_data.get("frame", ["0"])[0]
         if isinstance(ctx.data, dict):
             values = ctx.data.get("values")
             if isinstance(values, list) and values:
@@ -219,7 +243,7 @@ class GamesCog(commands.Cog):
             return
 
         replay_ctx = replay_viewer.load_replay_context(
-            parsed.resource_id,
+            resource_id,
             source=source,
         )
         if replay_ctx is None or not replay_ctx.events:
@@ -296,14 +320,16 @@ class GamesCog(commands.Cog):
         )
         await ctx.edit_original_response(view=view)
 
-    async def _route_runtime_move(self, ctx: discord.Interaction, parsed) -> None:
+    async def _route_runtime_move(
+            self, ctx: discord.Interaction, resource_id: int, payload: str
+    ) -> None:
         await ctx.response.defer()
-        runtime = self._active_games.get(parsed.resource_id)
+        runtime = self._active_games.get(resource_id)
         if runtime is None:
             await _send_game_ended_error(ctx)
             return
         name, arguments, current_turn_required = runtime.decode_component_payload(
-            parsed.payload
+            payload
         )
         await runtime.move_by_button(
             ctx,
@@ -312,14 +338,16 @@ class GamesCog(commands.Cog):
             current_turn_required=current_turn_required,
         )
 
-    async def _route_runtime_select(self, ctx: discord.Interaction, parsed) -> None:
+    async def _route_runtime_select(
+            self, ctx: discord.Interaction, resource_id: int, payload: str
+    ) -> None:
         await ctx.response.defer()
-        runtime = self._active_games.get(parsed.resource_id)
+        runtime = self._active_games.get(resource_id)
         if runtime is None:
             await _send_game_ended_error(ctx)
             return
         name, _arguments, current_turn_required = runtime.decode_component_payload(
-            parsed.payload
+            payload
         )
         await runtime.move_by_select(
             ctx,
@@ -328,7 +356,7 @@ class GamesCog(commands.Cog):
         )
 
     async def game_button_callback(
-        self, ctx: discord.Interaction, current_turn_required: bool = True
+            self, ctx: discord.Interaction, current_turn_required: bool = True
     ) -> None:
         await ctx.response.defer()
         f_log = log.getChild("interaction.game_button")
@@ -410,7 +438,7 @@ class GamesCog(commands.Cog):
         )
 
     async def game_select_callback(
-        self, ctx: discord.Interaction, current_turn_required: bool = True
+            self, ctx: discord.Interaction, current_turn_required: bool = True
     ) -> None:
         await ctx.response.defer()
         f_log = log.getChild("interaction.game_select")
@@ -558,7 +586,7 @@ class GamesCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        match = self._matches.get(mid)
+        match = self.bot.container.matches.get(mid)
         if not match or match.status != MatchStatus.COMPLETED:
             f_log.info(
                 "Rematch requested for mid=%s but not available or not "
@@ -572,7 +600,7 @@ class GamesCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        human_ids = self._matches.get_match_human_user_ids_ordered(mid)
+        human_ids = self.bot.container.matches.get_match_human_user_ids_ordered(mid)
         if ctx.user.id not in human_ids:
             f_log.warning(
                 "User %s attempted rematch for mid=%s but is not participant",
@@ -601,7 +629,7 @@ class GamesCog(commands.Cog):
             )
             await followup_send(ctx, content=get("rematch.bad_channel"), ephemeral=True)
             return
-        game_row = self._games.get_by_id(match.game_id)
+        game_row = self.bot.container.games.get_by_id(match.game_id)
         if not game_row:
             f_log.error(
                 "Rematch: game_row not found for game_id=%s (match=%s)",
@@ -645,7 +673,7 @@ async def setup(bot: commands.Bot):
 
 
 async def begin_game(
-    ctx: discord.Interaction, game_type: str, rated: bool = True, private: bool = False
+        ctx: discord.Interaction, game_type: str, rated: bool = True, private: bool = False
 ) -> MatchmakingInterface | None:
     f_log = log.getChild("command.matchmaking")
     f_log.debug(
@@ -783,7 +811,7 @@ async def add_matchmaking_bot(ctx: discord.Interaction, difficulty: str) -> bool
 
 
 async def handle_move(
-    ctx: discord.Interaction, name, arguments, current_turn_required: bool = True
+        ctx: discord.Interaction, name, arguments, current_turn_required: bool = True
 ) -> None:
     from playcord.utils.analytics import EventType, register_event
 
@@ -801,7 +829,7 @@ async def handle_move(
     )
 
     def _track_move_rejected(
-        reason: str, *, game_type: str | None = None, match_id: int | None = None
+            reason: str, *, game_type: str | None = None, match_id: int | None = None
     ) -> None:
         register_event(
             EventType.MOVE_REJECTED,
@@ -879,7 +907,7 @@ async def handle_move(
 
 
 async def handle_autocomplete(
-    ctx: discord.Interaction, function, current: str, argument
+        ctx: discord.Interaction, function, current: str, argument
 ) -> list[Choice[str]]:
     try:
         reg = get_container().registry

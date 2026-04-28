@@ -5,20 +5,14 @@ import subprocess
 import discord
 from discord.ext import commands
 
-from playcord.infrastructure.app_constants import (
-    ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS,
-    ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS,
-    EPHEMERAL_DELETE_AFTER,
-    ERROR_NO_SYSTEM_CHANNEL,
-    GAME_TYPES,
-    PRESENCE_TIMEOUT,
-    THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES,
-    THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY,
-    THREAD_POLICY_SPECTATORS_SILENT,
-    THREAD_POLICY_WARN_NON_PARTICIPANTS,
-    THREAD_POLICY_WARNING_MESSAGE,
-    VERSION,
-)
+from playcord.presentation.bot import PlayCordBot
+from playcord.infrastructure.app_constants import (ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS,
+                                                   ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS, EPHEMERAL_DELETE_AFTER,
+                                                   ERROR_NO_SYSTEM_CHANNEL, GAME_TYPES, PRESENCE_TIMEOUT,
+                                                   THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES,
+                                                   THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY,
+                                                   THREAD_POLICY_SPECTATORS_SILENT, THREAD_POLICY_WARNING_MESSAGE,
+                                                   THREAD_POLICY_WARN_NON_PARTICIPANTS, VERSION)
 from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
 from playcord.infrastructure.runtime_config import get_settings
@@ -29,7 +23,7 @@ log = get_logger()
 
 
 class EventsCog(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: PlayCordBot):
         self.bot = bot
         self.presence_lock = asyncio.Lock()
         self._warned_users = (
@@ -246,8 +240,8 @@ class EventsCog(commands.Cog):
 
         # Delete message if configured to do so (spectator-silent is independent of the generic delete flag)
         if (
-            THREAD_POLICY_SPECTATORS_SILENT
-            or THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES
+                THREAD_POLICY_SPECTATORS_SILENT
+                or THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES
         ):
             try:
                 await message.delete()
@@ -317,20 +311,15 @@ class EventsCog(commands.Cog):
             async with self.presence_lock:
                 while True:
                     reg = self.bot.container.registry
-                    options = [
-                        fmt("presence.catalog_games", count=len(GAME_TYPES)),
-                        fmt("presence.users_playing", count=len(reg.user_to_game)),
-                        fmt(
+                    options = [fmt("presence.catalog_games", count=len(GAME_TYPES)),
+                               fmt("presence.users_playing", count=len(reg.user_to_game)), fmt(
                             "presence.users_matchmaking",
                             count=len(reg.user_to_matchmaking),
-                        ),
-                        fmt(
+                        ), fmt(
                             "presence.games_happening_now",
                             count=len(reg.games_by_thread_id),
-                        ),
-                    ]
+                        ), self.version]
                     # Include the version (and commit if available) as one of the rotating presence entries.
-                    options.append(self.version)
                     for option in options:
                         try:
                             activity = discord.Activity(
@@ -347,5 +336,5 @@ class EventsCog(commands.Cog):
                         await asyncio.sleep(PRESENCE_TIMEOUT)
 
 
-async def setup(bot: commands.Bot):
+async def setup(bot: PlayCordBot):
     await bot.add_cog(EventsCog(bot))

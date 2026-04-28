@@ -8,8 +8,11 @@ import discord
 from discord import SelectOption
 
 from playcord.games.api import MessageLayout
+from playcord.infrastructure.app_constants import (
+    BUTTON_PREFIX_REPLAY_NAV,
+    BUTTON_PREFIX_REPLAY_NOOP,
+)
 from playcord.infrastructure.locale import fmt, get
-from playcord.presentation.interactions.router import CustomId
 from playcord.utils.containers import TEXT_DISPLAY_MAX, chunk_text_display_lines
 
 
@@ -100,7 +103,7 @@ class ReplayViewerView(discord.ui.LayoutView):
 
     @staticmethod
     async def _route_to_cog(interaction: discord.Interaction) -> None:
-        # Routed through GamesCog.on_interaction via custom_id namespace.
+        # Routed through GamesCog.on_interaction via custom_id prefix.
         pass
 
     @staticmethod
@@ -130,12 +133,11 @@ class ReplayViewerView(discord.ui.LayoutView):
                         ),
                         emoji=spec.emoji,
                         style=style_map[spec.style],
-                        custom_id=CustomId(
-                            namespace="replay",
-                            action="noop",
-                            resource_id=match_id,
-                            payload=f"frame={frame_index}&id={component_id}",
-                        ).encode(),
+                        custom_id=ReplayViewerView._noop_custom_id(
+                            match_id=match_id,
+                            frame_index=frame_index,
+                            component_id=component_id,
+                        ),
                         disabled=True,
                     )
                 )
@@ -163,12 +165,11 @@ class ReplayViewerView(discord.ui.LayoutView):
                         ),
                         emoji=spec.emoji,
                         style=style_map[spec.style],
-                        custom_id=CustomId(
-                            namespace="replay",
-                            action="noop",
-                            resource_id=match_id,
-                            payload=f"frame={frame_index}&id={component_id}",
-                        ).encode(),
+                        custom_id=ReplayViewerView._noop_custom_id(
+                            match_id=match_id,
+                            frame_index=frame_index,
+                            component_id=component_id,
+                        ),
                         disabled=True,
                     )
                 )
@@ -189,12 +190,11 @@ class ReplayViewerView(discord.ui.LayoutView):
             row = discord.ui.ActionRow()
             row.add_item(
                 discord.ui.Select(
-                    custom_id=CustomId(
-                        namespace="replay",
-                        action="noop",
-                        resource_id=match_id,
-                        payload=f"frame={frame_index}&id={component_id}",
-                    ).encode(),
+                    custom_id=ReplayViewerView._noop_custom_id(
+                        match_id=match_id,
+                        frame_index=frame_index,
+                        component_id=component_id,
+                    ),
                     placeholder=spec.placeholder,
                     options=options,
                     disabled=True,
@@ -229,31 +229,28 @@ class ReplayViewerView(discord.ui.LayoutView):
     def _nav_custom_id(
         *, match_id: int, owner_id: int, target_frame: int, button_index: int = 0
     ) -> str:
-        return CustomId(
-            namespace="replay",
-            action="nav",
-            resource_id=match_id,
-            payload=urlencode(
-                {
-                    "match_id": str(match_id),
-                    "owner": str(owner_id),
-                    "frame": str(target_frame),
-                    "btn": str(button_index),
-                }
-            ),
-        ).encode()
+        payload = urlencode(
+            {
+                "match_id": str(match_id),
+                "owner": str(owner_id),
+                "frame": str(target_frame),
+                "btn": str(button_index),
+            }
+        )
+        return f"{BUTTON_PREFIX_REPLAY_NAV}{match_id}/{payload}"
 
     @staticmethod
     def _seek_custom_id(*, match_id: int, owner_id: int) -> str:
-        return CustomId(
-            namespace="replay",
-            action="nav",
-            resource_id=match_id,
-            payload=urlencode(
-                {
-                    "match_id": str(match_id),
-                    "owner": str(owner_id),
-                    "mode": "seek",
-                }
-            ),
-        ).encode()
+        payload = urlencode(
+            {
+                "match_id": str(match_id),
+                "owner": str(owner_id),
+                "mode": "seek",
+            }
+        )
+        return f"{BUTTON_PREFIX_REPLAY_NAV}{match_id}/{payload}"
+
+    @staticmethod
+    def _noop_custom_id(*, match_id: int, frame_index: int, component_id: int) -> str:
+        payload = urlencode({"frame": str(frame_index), "id": str(component_id)})
+        return f"{BUTTON_PREFIX_REPLAY_NOOP}{match_id}/{payload}"

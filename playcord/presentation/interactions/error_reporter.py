@@ -17,6 +17,8 @@ from playcord.application.services.match_interrupt import interrupt_match
 from playcord.domain.errors import DomainError
 from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_CURRENT_TURN,
+    BUTTON_PREFIX_GAME_MOVE,
+    BUTTON_PREFIX_GAME_SELECT,
     BUTTON_PREFIX_NO_TURN,
     BUTTON_PREFIX_PEEK,
     BUTTON_PREFIX_SELECT_CURRENT,
@@ -44,7 +46,7 @@ log = get_logger("presentation.error_reporter")
 
 
 def _games_by_thread(
-        interaction: discord.Interaction | None,
+    interaction: discord.Interaction | None,
 ) -> dict[Any, Any]:
     if interaction is not None:
         container = getattr(getattr(interaction, "client", None), "container", None)
@@ -79,6 +81,8 @@ ERROR_MAPPINGS = (
 )
 
 _CUSTOM_ID_GAME_PREFIXES = (
+    BUTTON_PREFIX_GAME_MOVE,
+    BUTTON_PREFIX_GAME_SELECT,
     "game:",
     BUTTON_PREFIX_SELECT_CURRENT,
     BUTTON_PREFIX_SELECT_NO_TURN,
@@ -103,17 +107,17 @@ class _StatusMessage(_EditableMessage, Protocol):
 
 def _unwrap_error(error: BaseException) -> BaseException:
     if (
-            isinstance(error, app_commands.CommandInvokeError)
-            and error.original is not None
+        isinstance(error, app_commands.CommandInvokeError)
+        and error.original is not None
     ):
         return error.original
     return error
 
 
 def _translator_get(
-        translator: Translator | None,
-        key: str,
-        default: str,
+    translator: Translator | None,
+    key: str,
+    default: str,
 ) -> str:
     if translator is None:
         return locale_get(key, default)
@@ -133,9 +137,9 @@ def _append_trace_footer(card: ErrorContainer, trace_id: str) -> ErrorContainer:
 
 
 def _mapped_card(
-        mapping: ErrorMapping,
-        *,
-        translator: Translator | None,
+    mapping: ErrorMapping,
+    *,
+    translator: Translator | None,
 ) -> UserErrorContainer:
     return UserErrorContainer(
         title=mapping.title,
@@ -148,11 +152,11 @@ def _mapped_card(
 
 
 def build_error_card(
-        error: BaseException,
-        *,
-        surface: ErrorSurface,
-        trace_id: str,
-        interaction: discord.Interaction | None = None,
+    error: BaseException,
+    *,
+    surface: ErrorSurface,
+    trace_id: str,
+    interaction: discord.Interaction | None = None,
 ) -> ErrorContainer:
     card = ErrorContainer(
         ctx=interaction,
@@ -163,11 +167,11 @@ def build_error_card(
 
 
 async def send_interaction_card(
-        interaction: discord.Interaction,
-        card: ErrorContainer | UserErrorContainer,
-        *,
-        ephemeral: bool = True,
-        delete_after: float | None = EPHEMERAL_DELETE_AFTER,
+    interaction: discord.Interaction,
+    card: ErrorContainer | UserErrorContainer,
+    *,
+    ephemeral: bool = True,
+    delete_after: float | None = EPHEMERAL_DELETE_AFTER,
 ) -> Any:
     kwargs = {**container_send_kwargs(card), "ephemeral": ephemeral}
     if interaction.response.is_done():
@@ -176,12 +180,12 @@ async def send_interaction_card(
 
 
 async def notify_error_destinations(
-        card: ErrorContainer | UserErrorContainer,
-        *,
-        logger: Logger | None = None,
-        game_message: _EditableMessage | None = None,
-        thread: _SendableChannel | None = None,
-        status_message: _StatusMessage | None = None,
+    card: ErrorContainer | UserErrorContainer,
+    *,
+    logger: Logger | None = None,
+    game_message: _EditableMessage | None = None,
+    thread: _SendableChannel | None = None,
+    status_message: _StatusMessage | None = None,
 ) -> bool:
     logger = logger or log
 
@@ -218,9 +222,9 @@ async def notify_error_destinations(
 
 
 def resolve_game_interface(
-        interaction: discord.Interaction | None,
-        *,
-        interface: GameRuntime | None = None,
+    interaction: discord.Interaction | None,
+    *,
+    interface: GameRuntime | None = None,
 ) -> GameRuntime | None:
     if interface is not None:
         return interface
@@ -241,13 +245,21 @@ def resolve_game_interface(
     for prefix in _CUSTOM_ID_GAME_PREFIXES:
         if not custom_id.startswith(prefix):
             continue
+        if prefix in (BUTTON_PREFIX_GAME_MOVE, BUTTON_PREFIX_GAME_SELECT):
+            tail = custom_id[len(prefix) :]
+            token = tail.split("/", 1)[0]
+            try:
+                thread_id = int(token)
+            except (TypeError, ValueError):
+                return None
+            return games.get(thread_id)
         if prefix == "game:":
             try:
                 parsed = CustomId.decode(custom_id)
             except Exception:
                 return None
             return games.get(parsed.resource_id)
-        tail = custom_id[len(prefix):]
+        tail = custom_id[len(prefix) :]
         token = tail.split("/", 1)[0]
         try:
             thread_id = int(token)
@@ -258,8 +270,8 @@ def resolve_game_interface(
 
 
 def _translator_from_interaction(
-        interaction: discord.Interaction | None,
-        translator: Translator | None,
+    interaction: discord.Interaction | None,
+    translator: Translator | None,
 ) -> Translator | None:
     if translator is not None or interaction is None:
         return translator
@@ -269,16 +281,16 @@ def _translator_from_interaction(
 
 
 async def report(
-        interaction: discord.Interaction,
-        error: BaseException,
-        *,
-        surface: ErrorSurface,
-        translator: Translator | None = None,
-        delete_after: float | None = EPHEMERAL_DELETE_AFTER,
-        interface: GameRuntime | None = None,
-        game_message: _EditableMessage | None = None,
-        thread: _SendableChannel | None = None,
-        status_message: _StatusMessage | None = None,
+    interaction: discord.Interaction,
+    error: BaseException,
+    *,
+    surface: ErrorSurface,
+    translator: Translator | None = None,
+    delete_after: float | None = EPHEMERAL_DELETE_AFTER,
+    interface: GameRuntime | None = None,
+    game_message: _EditableMessage | None = None,
+    thread: _SendableChannel | None = None,
+    status_message: _StatusMessage | None = None,
 ) -> str:
     translator = _translator_from_interaction(interaction, translator)
     original = _unwrap_error(error)
@@ -348,14 +360,14 @@ async def report(
 
 
 async def report_runtime_error(
-        error: BaseException,
-        *,
-        surface: ErrorSurface,
-        interface: GameRuntime | None = None,
-        logger: Logger | None = None,
-        game_message: _EditableMessage | None = None,
-        thread: _SendableChannel | None = None,
-        status_message: _StatusMessage | None = None,
+    error: BaseException,
+    *,
+    surface: ErrorSurface,
+    interface: GameRuntime | None = None,
+    logger: Logger | None = None,
+    game_message: _EditableMessage | None = None,
+    thread: _SendableChannel | None = None,
+    status_message: _StatusMessage | None = None,
 ) -> str:
     trace_id = uuid4().hex[:8]
     logger = logger or log

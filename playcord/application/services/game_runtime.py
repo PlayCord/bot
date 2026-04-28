@@ -29,12 +29,13 @@ from playcord.games.api import (
     UpsertMessage,
 )
 from playcord.infrastructure.app_constants import (
+    BUTTON_PREFIX_GAME_MOVE,
+    BUTTON_PREFIX_GAME_SELECT,
     BUTTON_PREFIX_PEEK,
     BUTTON_PREFIX_SPECTATE,
 )
 from playcord.infrastructure.locale import get
 from playcord.infrastructure.logging import get_logger
-from playcord.presentation.interactions.router import CustomId
 from playcord.utils.containers import chunk_text_display_lines
 from playcord.utils.discord_utils import followup_send
 
@@ -703,12 +704,8 @@ class GameRuntime:
                 **{f"arg_{key}": str(value) for key, value in spec.arguments.items()},
             }
         )
-        custom_id = CustomId(
-            namespace="game",
-            action="move",
-            resource_id=self.thread.id if self.thread is not None else self.game_id,
-            payload=payload,
-        ).encode()
+        resource_id = self.thread.id if self.thread is not None else self.game_id
+        custom_id = f"{BUTTON_PREFIX_GAME_MOVE}{resource_id}/{payload}"
         # Discord requires a non-empty label for components. Some plugins may
         # provide only an emoji or an empty string. Use a zero-width space as
         # a safe placeholder so the component is valid while visually
@@ -729,12 +726,8 @@ class GameRuntime:
                 "current_turn": "1" if spec.require_current_turn else "0",
             }
         )
-        custom_id = CustomId(
-            namespace="game",
-            action="select",
-            resource_id=self.thread.id if self.thread is not None else self.game_id,
-            payload=payload,
-        ).encode()
+        resource_id = self.thread.id if self.thread is not None else self.game_id
+        custom_id = f"{BUTTON_PREFIX_GAME_SELECT}{resource_id}/{payload}"
         # Ensure each option has a non-empty label; fall back to the option
         # value if label is empty to satisfy Discord's API requirements.
         options = []
