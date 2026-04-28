@@ -17,9 +17,9 @@ from playcord.infrastructure.app_constants import (
     SUCCESS_COLOR,
     WARNING_COLOR,
 )
+from playcord.infrastructure.locale import fmt, get, get_dict
 from playcord.utils.conversion import column_elo, column_names, column_turn, contextify
 from playcord.utils.emojis import get_emoji_string
-from playcord.utils.locale import fmt, get, get_dict
 
 _TEXT_DISPLAY_MAX = 4000
 # Discord TextDisplay / message content limit

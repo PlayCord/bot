@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from playcord.infrastructure.app_constants import OWNERS
-from playcord.utils.logging_config import get_logger
+from playcord.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
     import discord

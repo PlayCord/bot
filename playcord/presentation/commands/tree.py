@@ -9,7 +9,7 @@ import discord
 from discord import app_commands
 
 from playcord.games import GAME_BY_KEY, GAMES
-from playcord.presentation.commands.games import handle_autocomplete, handle_move
+from playcord.presentation.cogs.games import handle_autocomplete, handle_move
 from playcord.presentation.commands.play import command_play
 
 

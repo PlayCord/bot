@@ -11,13 +11,13 @@ from playcord.infrastructure.app_constants import (
     INFO_COLOR,
     LOGGING_ROOT,
 )
+from playcord.infrastructure.locale import get, get_error
+from playcord.infrastructure.logging import get_logger
 from playcord.utils.containers import (
     CustomContainer,
     UserErrorContainer,
     container_send_kwargs,
 )
-from playcord.utils.locale import get, get_error
-from playcord.utils.logging_config import get_logger
 
 log = get_logger()
 

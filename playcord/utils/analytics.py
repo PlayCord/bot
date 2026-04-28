@@ -9,8 +9,8 @@ import time
 from typing import Any
 
 from playcord.infrastructure.app_constants import VERSION
+from playcord.infrastructure.logging import get_logger
 from playcord.infrastructure.runtime_config import get_settings
-from playcord.utils.logging_config import get_logger
 from playcord.utils.models import EventType
 
 logger = get_logger("analytics")
@@ -193,8 +193,8 @@ def render_analytics_matplotlib_summary(
     Owner-facing matplotlib figure (event types vs games).
     Returns ``None`` if there is nothing to plot    or rendering fails.
     """
+    from playcord.infrastructure.locale import fmt, get
     from playcord.utils.graphs import generate_analytics_summary_chart
-    from playcord.utils.locale import fmt, get
 
     try:
         return generate_analytics_summary_chart(

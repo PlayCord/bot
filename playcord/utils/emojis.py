@@ -17,7 +17,7 @@ from playcord.infrastructure.app_constants import (
     EMOJI_CONFIGURATION_FILE,
     LONG_SPACE_EMBED,
 )
-from playcord.utils.logging_config import get_logger
+from playcord.infrastructure.logging import get_logger
 
 logger = get_logger("emojis")
 

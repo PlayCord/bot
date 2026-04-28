@@ -25,6 +25,8 @@ from playcord.infrastructure.app_constants import (
     EPHEMERAL_DELETE_AFTER,
     PERMISSION_MSG_NOT_PARTICIPANT,
 )
+from playcord.infrastructure.locale import fmt, get
+from playcord.infrastructure.logging import get_logger
 from playcord.presentation.interactions.error_reporter import ErrorSurface, report
 from playcord.presentation.interactions.router import InteractionRouter
 from playcord.presentation.ui.views.replay_viewer import ReplayViewerView
@@ -36,8 +38,6 @@ from playcord.utils.discord_utils import (
     response_send_message,
 )
 from playcord.utils.interfaces import user_in_active_game
-from playcord.utils.locale import fmt, get
-from playcord.utils.logging_config import get_logger
 from playcord.utils.matchmaking_interface import MatchmakingInterface
 from playcord.utils.matchmaking_user_map import matchmaking_by_user_id
 

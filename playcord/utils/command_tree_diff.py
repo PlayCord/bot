@@ -10,8 +10,8 @@ import discord
 from discord import app_commands
 from discord.app_commands.models import AppCommand, AppCommandGroup, Argument
 
+from playcord.infrastructure.locale import fmt, get
 from playcord.utils.containers import CustomContainer
-from playcord.utils.locale import fmt, get
 
 
 def _collect_local_leaves(

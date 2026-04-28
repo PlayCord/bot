@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from playcord.domain.rating import DEFAULT_TRUESKILL_PARAMETERS
 from playcord.games import GAME_BY_KEY
-from playcord.utils.logging_config import get_logger
+from playcord.infrastructure.logging import get_logger
 
 log = get_logger("trueskill")
 

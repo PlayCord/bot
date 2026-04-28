@@ -124,3 +124,107 @@ class Translator:
         data = self._load_locale(selected_locale)
         value = _get_nested(data, key)
         return value if isinstance(value, dict) else {}
+
+    def has_key(self, key: str, *, locale: str | None = None) -> bool:
+        selected_locale = locale or self.current_locale
+        data = self._load_locale(selected_locale)
+        return _get_nested(data, key) is not None
+
+    def reload_locale(self, locale_code: str | None = None) -> None:
+        if locale_code:
+            self._cache.pop(locale_code, None)
+        else:
+            self._cache.clear()
+
+    def plural(self, word: str, count: int) -> str:
+        if count == 1:
+            return self.get(f"plurals.{word}", word)
+        return self.get(f"plurals.{word}s", f"{word}s")
+
+    def brand(self, key: str, **kwargs: Any) -> str:
+        if kwargs:
+            return self.fmt(f"brand.{key}", **kwargs)
+        return self.get(f"brand.{key}")
+
+    def cmd_desc(self, command: str) -> str:
+        return self.get(f"commands.{command}.description")
+
+    def button(self, name: str) -> str:
+        return self.get(f"buttons.{name}")
+
+
+_standalone_translator: Translator | None = None
+
+
+def _active_translator() -> Translator:
+    from playcord.application.runtime_context import try_get_container
+
+    container = try_get_container()
+    if container is not None:
+        return container.translator
+    global _standalone_translator
+    if _standalone_translator is None:
+        _standalone_translator = Translator()
+    return _standalone_translator
+
+
+def get(
+    key: str, default: str | None = None, *, locale: str | None = None
+) -> str:
+    return _active_translator().get(key, default, locale=locale)
+
+
+def fmt(
+    key: str,
+    default: str | None = None,
+    *,
+    locale: str | None = None,
+    **kwargs: Any,
+) -> str:
+    return _active_translator().fmt(key, default, locale=locale, **kwargs)
+
+
+def get_error(error_key: str, *, locale: str | None = None) -> str:
+    return _active_translator().get(f"errors.{error_key}", None, locale=locale)
+
+
+def get_dict(key: str, *, locale: str | None = None) -> dict[str, Any]:
+    return _active_translator().get_dict(key, locale=locale)
+
+
+def has_key(key: str, *, locale: str | None = None) -> bool:
+    return _active_translator().has_key(key, locale=locale)
+
+
+def set_locale(locale_code: str) -> None:
+    t = _active_translator()
+    t.current_locale = locale_code
+    t._load_locale(locale_code)
+
+
+def get_locale() -> str:
+    return _active_translator().current_locale
+
+
+def set_command_mentions(command_mentions: dict[str, str] | None) -> None:
+    _active_translator().set_command_mentions(command_mentions)
+
+
+def reload_locale(locale_code: str | None = None) -> None:
+    _active_translator().reload_locale(locale_code)
+
+
+def brand(key: str, **kwargs: Any) -> str:
+    return _active_translator().brand(key, **kwargs)
+
+
+def cmd_desc(command: str) -> str:
+    return _active_translator().cmd_desc(command)
+
+
+def button(name: str) -> str:
+    return _active_translator().button(name)
+
+
+def plural(word: str, count: int) -> str:
+    return _active_translator().plural(word, count)

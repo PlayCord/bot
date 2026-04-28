@@ -25,6 +25,9 @@ from playcord.infrastructure.app_constants import (
     NAME,
     VERSION,
 )
+from playcord.infrastructure.locale import fmt, get, plural
+from playcord.infrastructure.logging import get_logger
+from playcord.presentation.discord_views import HelpView, InviteView, PaginationView
 from playcord.presentation.ui.views.replay_viewer import ReplayViewerView
 from playcord.utils import ramcheck
 from playcord.utils.containers import (
@@ -49,12 +52,9 @@ from playcord.utils.discord_utils import (
 from playcord.utils.emojis import get_emoji_string, get_game_emoji
 from playcord.utils.graphs import generate_elo_chart
 from playcord.utils.interfaces import user_in_active_game
-from playcord.utils.locale import fmt, get, plural
-from playcord.utils.logging_config import get_logger
 from playcord.utils.matchmaking_interface import MatchmakingInterface
 from playcord.utils.matchmaking_user_map import matchmaking_by_user_id
 from playcord.utils.replay_format import chunk_replay_lines, format_replay_event_line
-from playcord.utils.views import HelpView, InviteView, PaginationView
 
 log = get_logger()
 

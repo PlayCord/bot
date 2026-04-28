@@ -25,8 +25,8 @@ from playcord.domain.player import Player
 from playcord.domain.rating import DEFAULT_MU, DEFAULT_SIGMA, STARTING_RATING
 from playcord.infrastructure.app_constants import GAME_TYPES
 from playcord.infrastructure.db.migrations import db_migrations
+from playcord.infrastructure.logging import get_logger
 from playcord.infrastructure.runtime_config import get_settings
-from playcord.utils.logging_config import get_logger
 from playcord.utils.match_codes import generate_match_code
 from playcord.utils.models import (
     Game,

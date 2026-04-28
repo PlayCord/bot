@@ -19,11 +19,11 @@ from playcord.infrastructure.app_constants import (
     THREAD_POLICY_WARNING_MESSAGE,
     VERSION,
 )
+from playcord.infrastructure.locale import fmt, get
+from playcord.infrastructure.logging import get_logger
 from playcord.infrastructure.runtime_config import get_settings
 from playcord.utils import analytics as analytics_mod
 from playcord.utils.containers import CustomContainer, container_send_kwargs
-from playcord.utils.locale import fmt, get
-from playcord.utils.logging_config import get_logger
 
 log = get_logger()
 

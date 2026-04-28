@@ -8,9 +8,9 @@ import discord
 from discord import SelectOption
 
 from playcord.games.api import MessageLayout
+from playcord.infrastructure.locale import fmt, get
 from playcord.presentation.interactions.router import CustomId
 from playcord.utils.containers import TEXT_DISPLAY_MAX, chunk_text_display_lines
-from playcord.utils.locale import fmt, get
 
 
 class ReplayViewerView(discord.ui.LayoutView):

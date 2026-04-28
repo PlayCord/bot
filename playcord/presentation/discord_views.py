@@ -14,6 +14,7 @@ from playcord.infrastructure.app_constants import (
     HELP_GAMES_PREVIEW_COUNT,
     INFO_COLOR,
 )
+from playcord.infrastructure.locale import fmt, get
 from playcord.utils.containers import (
     TEXT_DISPLAY_MAX,
     CustomContainer,
@@ -25,7 +26,6 @@ from playcord.utils.containers import (
     container_to_markdown,
 )
 from playcord.utils.discord_utils import followup_send, response_send_message
-from playcord.utils.locale import fmt, get
 
 
 async def _noop_button_interaction(interaction: discord.Interaction) -> None:

@@ -12,10 +12,10 @@ from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_READY,
     EPHEMERAL_DELETE_AFTER,
 )
+from playcord.infrastructure.locale import get
+from playcord.infrastructure.logging import get_logger
 from playcord.utils.conversion import contextify
 from playcord.utils.discord_utils import followup_send
-from playcord.utils.locale import get
-from playcord.utils.logging_config import get_logger
 
 log = get_logger()
 

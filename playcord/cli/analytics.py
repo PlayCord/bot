@@ -6,6 +6,7 @@ import argparse
 import sys
 
 from playcord.application.container import ApplicationContainer
+from playcord.application.runtime_context import bind_application_container
 from playcord.infrastructure import Translator, load_settings
 from playcord.infrastructure.db import MigrationRunner, PoolManager
 from playcord.infrastructure.logging import configure_logging, get_logger
@@ -30,6 +31,7 @@ def run(argv: list[str] | None = None) -> int:
                 analytics_retention_days=settings.analytics_retention_days
             ),
         )
+        bind_application_container(container)
     except Exception:
         log.exception("Database startup failed.")
         return 1

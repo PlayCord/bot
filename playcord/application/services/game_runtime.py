@@ -32,11 +32,11 @@ from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_PEEK,
     BUTTON_PREFIX_SPECTATE,
 )
+from playcord.infrastructure.locale import get
+from playcord.infrastructure.logging import get_logger
 from playcord.presentation.interactions.router import CustomId
 from playcord.utils.containers import chunk_text_display_lines
 from playcord.utils.discord_utils import followup_send
-from playcord.utils.locale import get
-from playcord.utils.logging_config import get_logger
 
 log = get_logger("game.runtime")
 

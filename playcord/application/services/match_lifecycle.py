@@ -10,9 +10,9 @@ from playcord.application.services.rating import (
     rated_results_for_placements,
     unrated_results_for_placements,
 )
-from playcord.utils.locale import get
-from playcord.utils.logging_config import get_logger
-from playcord.utils.views import RematchView
+from playcord.infrastructure.locale import get
+from playcord.infrastructure.logging import get_logger
+from playcord.presentation.discord_views import RematchView
 
 log = get_logger("match.lifecycle")
 

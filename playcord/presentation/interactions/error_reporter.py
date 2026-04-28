@@ -26,6 +26,7 @@ from playcord.infrastructure.app_constants import (
 )
 from playcord.infrastructure.db.database import DatabaseConnectionError
 from playcord.infrastructure.locale import Translator
+from playcord.infrastructure.locale import get as locale_get
 from playcord.infrastructure.logging import get_logger
 from playcord.presentation.interactions.router import CustomId
 from playcord.utils.containers import (
@@ -35,7 +36,6 @@ from playcord.utils.containers import (
     container_send_kwargs,
 )
 from playcord.utils.discord_utils import followup_send, response_send_message
-from playcord.utils.locale import get as legacy_get
 
 if TYPE_CHECKING:
     from playcord.application.services.game_runtime import GameRuntime
@@ -116,7 +116,7 @@ def _translator_get(
         default: str,
 ) -> str:
     if translator is None:
-        return legacy_get(key, default)
+        return locale_get(key, default)
     return translator.get(key, default)
 
 
@@ -127,7 +127,7 @@ def _contextify_what_failed(error: BaseException, surface: ErrorSurface) -> str:
 
 
 def _append_trace_footer(card: ErrorContainer, trace_id: str) -> ErrorContainer:
-    footer = legacy_get("system_error.footer")
+    footer = locale_get("system_error.footer", "")
     card.set_footer(text=f"{footer} Trace ID: {trace_id}")
     return card
 

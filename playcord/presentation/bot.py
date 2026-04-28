@@ -23,7 +23,6 @@ from playcord.infrastructure.runtime_config import bind_settings
 from playcord.presentation.cogs.general import GeneralCog
 from playcord.presentation.commands import build_tree
 from playcord.presentation.interactions.errors import command_error
-from playcord.utils import locale as legacy_locale_module
 from playcord.utils.analytics import Timer
 from playcord.utils.bot_owners import STATIC_OWNER_IDS, resolve_effective_owner_ids
 
@@ -144,14 +143,12 @@ class PlayCordBot(commands.Bot):
                 "Could not fetch slash commands for locale mention tokens"
             )
             self.container.translator.set_command_mentions(None)
-            legacy_locale_module.set_command_mentions(None)
             return
 
         mentions: dict[str, str] = {}
         for command in remote_commands:
             mentions.update(_collect_remote_command_mentions(command))
         self.container.translator.set_command_mentions(mentions)
-        legacy_locale_module.set_command_mentions(mentions)
         startup_log.info("Loaded %d slash command mention token(s).", len(mentions))
 
 

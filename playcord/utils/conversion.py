@@ -5,7 +5,7 @@ from discord import User
 
 from playcord.infrastructure.app_constants import LOGGING_ROOT, LONG_SPACE_EMBED
 from playcord.infrastructure.db.database import InternalPlayer
-from playcord.utils.locale import get
+from playcord.infrastructure.locale import get
 
 
 def column_names(players: list[InternalPlayer] | set[InternalPlayer]) -> str:

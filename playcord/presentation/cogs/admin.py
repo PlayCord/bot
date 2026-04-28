@@ -19,6 +19,8 @@ from playcord.infrastructure.app_constants import (
     SUCCESS_COLOR,
     WARNING_COLOR,
 )
+from playcord.infrastructure.locale import fmt, get
+from playcord.infrastructure.logging import get_logger
 from playcord.utils.analytics import (
     render_analytics_markdown_summary,
     render_analytics_matplotlib_summary,
@@ -29,8 +31,6 @@ from playcord.utils.containers import (
     container_send_kwargs,
     lines_to_container_sections,
 )
-from playcord.utils.locale import fmt, get
-from playcord.utils.logging_config import get_logger
 
 log = get_logger()
 
