@@ -1,13 +1,14 @@
-"""Final game plugin API used by GameRuntime."""
+"""Final runtime game API used by GameRuntime."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from playcord.domain.game import GameMetadata
+from playcord.domain.handlers import HandlerRef, HandlerSpec, handler
 from playcord.domain.match_options import MatchOptionSpec
 from playcord.domain.player import Player
 
@@ -21,6 +22,7 @@ MessagePurpose = Literal[
     "overview",
 ]
 OutcomeKind = Literal["winner", "draw", "interrupted"]
+MoveSource = Literal["command", "button", "select", "bot"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,8 +135,21 @@ class GameContext:
         ]
 
 
-class GamePlugin(ABC):
-    """Stateful plugin instance managed by GameRuntime."""
+@dataclass(frozen=True, slots=True)
+class MoveRequest:
+    actor: Player
+    arguments: dict[str, Any]
+    source: MoveSource
+    ctx: GameContext
+
+
+@runtime_checkable
+class TypedMoveHandler(Protocol):
+    def __call__(self, request: MoveRequest) -> tuple[ChannelAction, ...]: ...
+
+
+class RuntimeGame(ABC):
+    """Stateful game instance managed by GameRuntime."""
 
     metadata: GameMetadata
 
@@ -187,3 +202,49 @@ class GamePlugin(ABC):
         hook = self._replay_hook
         if hook is not None:
             hook(event_type, payload)
+
+
+class ReplayableGame(RuntimeGame, ABC):
+    """Explicit replay capability for games that support frame reconstruction."""
+
+    @abstractmethod
+    def initial_replay_state(self, ctx: GameContext) -> ReplayState | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def apply_replay_event(
+        self, state: ReplayState, event: dict[str, Any]
+    ) -> ReplayState | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def render_replay(self, state: ReplayState) -> MessageLayout | None:
+        raise NotImplementedError
+
+
+__all__ = [
+    "BinaryAsset",
+    "ButtonSpec",
+    "ButtonStyle",
+    "ChannelAction",
+    "DeleteMessage",
+    "GameContext",
+    "HandlerRef",
+    "HandlerSpec",
+    "MessageLayout",
+    "MessagePurpose",
+    "MessageTarget",
+    "MoveRequest",
+    "MoveSource",
+    "Outcome",
+    "OutcomeKind",
+    "OwnedMessage",
+    "ReplayState",
+    "ReplayableGame",
+    "RuntimeGame",
+    "SelectChoice",
+    "SelectSpec",
+    "TypedMoveHandler",
+    "UpsertMessage",
+    "handler",
+]

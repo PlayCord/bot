@@ -6,10 +6,21 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
 
+from playcord.application.repositories import (
+    GameRepositoryPort,
+    MatchRepositoryPort,
+    PlayerRepositoryPort,
+    ReplayRepositoryPort,
+)
 from playcord.domain.player import Player
-from playcord.games import PLUGIN_BY_KEY
-from playcord.games.api import GameContext, GamePlugin, MessageLayout, ReplayState
-from playcord.utils import database as db
+from playcord.games import GAME_BY_KEY
+from playcord.games.api import (
+    GameContext,
+    MessageLayout,
+    ReplayableGame,
+    ReplayState,
+    RuntimeGame,
+)
 
 PRECOMPUTE_FRAME_LIMIT = 200
 _FRAME_CACHE_LIMIT = 512
@@ -19,25 +30,30 @@ _FRAME_CACHE: OrderedDict[tuple[int, int], MessageLayout] = OrderedDict()
 
 
 @dataclass(slots=True)
+class ReplayDataSource:
+    matches: MatchRepositoryPort
+    games: GameRepositoryPort
+    players: PlayerRepositoryPort
+    replays: ReplayRepositoryPort
+
+
+@dataclass(slots=True)
 class ReplayContext:
     match_id: int
     game_label: str
     replay_display: str
     global_summary: str | None
     game_key: str | None
-    plugin_class: type[GamePlugin] | None
+    plugin_class: type[RuntimeGame] | None
     players: list[Player]
     match_options: dict[str, Any]
     events: list[dict[str, Any]]
 
 
-def supports_replay_api(plugin_class: type[GamePlugin] | None) -> bool:
+def supports_replay_api(plugin_class: type[RuntimeGame] | None) -> bool:
     if plugin_class is None:
         return False
-    return (
-        plugin_class.apply_replay_event is not GamePlugin.apply_replay_event
-        and plugin_class.render_replay is not GamePlugin.render_replay
-    )
+    return issubclass(plugin_class, ReplayableGame)
 
 
 def replay_move_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -48,14 +64,16 @@ def replay_frame_count(events: list[dict[str, Any]]) -> int:
     return max(1, len(replay_move_events(events)) + 1)
 
 
-def load_replay_context(match_id: int) -> ReplayContext | None:
-    database = db.database
-    if database is None:
-        return None
-    match = database.get_match(match_id)
+def load_replay_context(
+    match_id: int,
+    *,
+    source: ReplayDataSource,
+) -> ReplayContext | None:
+    match = source.matches.get(match_id)
     if match is None:
         return None
-    game = database.get_game_by_id(match.game_id)
+
+    game = source.games.get_by_id(match.game_id)
     game_key = game.game_name if game is not None else None
     game_label = (
         (game.display_name if game is not None else None)
@@ -63,17 +81,17 @@ def load_replay_context(match_id: int) -> ReplayContext | None:
         or str(match.game_id)
     )
     replay_display = (match.match_code or "").strip() or str(match.match_id)
-    plugin_class: type[GamePlugin] | None = None
+    plugin_class: type[RuntimeGame] | None = None
     if game_key:
-        plugin = PLUGIN_BY_KEY.get(game_key)
-        if plugin is not None:
-            plugin_class = plugin.load()
+        registry_game = GAME_BY_KEY.get(game_key)
+        if registry_game is not None:
+            plugin_class = registry_game.load()
 
-    participants = database.get_participants(match.match_id)
+    participants = source.matches.get_participants(match.match_id)
     players: list[Player] = []
     for participant in participants:
         user_id = int(participant.user_id)
-        user = database.get_user(user_id)
+        user = source.players.get(user_id)
         players.append(
             Player(
                 id=user_id,
@@ -92,7 +110,7 @@ def load_replay_context(match_id: int) -> ReplayContext | None:
     if global_summary is not None:
         global_summary = str(global_summary).strip() or None
 
-    events = database.get_replay_events(match.match_id)
+    events = source.replays.get_events(match.match_id)
     return ReplayContext(
         match_id=match.match_id,
         game_label=game_label,
@@ -138,7 +156,7 @@ def _initial_state_from_events(
 
 
 def _initial_state(
-    plugin: GamePlugin,
+    plugin: RuntimeGame,
     *,
     game_key: str,
     players: list[Player],
@@ -164,7 +182,7 @@ def _initial_state(
 
 
 def build_frames(
-    plugin_class: type[GamePlugin],
+    plugin_class: type[RuntimeGame],
     events: list[dict[str, Any]],
     players: list[Player],
     match_options: dict[str, Any],
@@ -226,7 +244,7 @@ def frame_for_index(
     *,
     match_id: int,
     frame_index: int,
-    plugin_class: type[GamePlugin],
+    plugin_class: type[RuntimeGame],
     events: list[dict[str, Any]],
     players: list[Player],
     match_options: dict[str, Any],

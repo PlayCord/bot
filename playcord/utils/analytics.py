@@ -8,7 +8,6 @@ import json
 import time
 from typing import Any
 
-import playcord.utils.database as _db_module
 from playcord.infrastructure.app_constants import VERSION
 from playcord.infrastructure.runtime_config import get_settings
 from playcord.utils.logging_config import get_logger
@@ -17,10 +16,30 @@ from playcord.utils.models import EventType
 logger = get_logger("analytics")
 
 
-def _db():
-    """Live Database instance (importing ``database`` by
-    value would freeze ``None`` at import time)."""
-    return _db_module.database
+def _record_via_container(
+    et: str,
+    meta: dict[str, Any],
+    *,
+    user_id: int | None,
+    guild_id: int | None,
+    game_type: str | None,
+    match_id: int | None,
+) -> bool:
+    try:
+        from playcord.application.runtime_context import try_get_container
+
+        c = try_get_container()
+        if c is None:
+            return False
+        payload = dict(meta)
+        payload.setdefault("user_id", user_id)
+        payload.setdefault("guild_id", guild_id)
+        payload.setdefault("game_type", game_type)
+        payload.setdefault("match_id", match_id)
+        c.analytics.record(et, payload)
+        return True
+    except Exception:
+        return False
 
 
 # Fallback buffer when DB write fails (retry on flush)
@@ -51,21 +70,9 @@ def register_event(
     if outcome is not None:
         meta.setdefault("outcome", str(outcome))
 
-    db = _db()
-    if db is not None:
-        try:
-            db.record_analytics_event(
-                event_type=et,
-                user_id=user_id,
-                guild_id=guild_id,
-                game_type=game_type,
-                match_id=match_id,
-                metadata=meta,
-            )
-            logger.debug("Recorded analytics event: %s", et)
-            return
-        except Exception as e:
-            logger.warning("Analytics direct write failed, buffering: %s", e)
+    if _record_via_container(et, meta, user_id=user_id, guild_id=guild_id, game_type=game_type, match_id=match_id):
+        logger.debug("Recorded analytics event: %s", et)
+        return
 
     global _event_buffer
     _event_buffer.append(
@@ -96,10 +103,12 @@ def flush_events() -> int:
     count = len(_event_buffer)
     events_to_flush = _event_buffer.copy()
 
-    db = _db()
-    if db is None:
+    from playcord.application.runtime_context import try_get_container
+
+    c = try_get_container()
+    if c is None:
         logger.debug(
-            "Database not connected; keeping %s buffered analytics events for a later flush.",
+            "Application container not bound; keeping %s buffered analytics events.",
             count,
         )
         return 0
@@ -107,18 +116,17 @@ def flush_events() -> int:
     flushed = 0
     try:
         try:
-            db.cleanup_old_analytics(days=get_settings().analytics_retention_days)
+            c.guilds.cleanup_old_analytics(days=get_settings().analytics_retention_days)
         except Exception:
             logger.debug("Analytics cleanup skipped during flush", exc_info=True)
+        repo = c.analytics_repository
         for event in events_to_flush:
-            db.record_analytics_event(
-                event_type=event["event_type"],
-                user_id=event["user_id"],
-                guild_id=event["guild_id"],
-                game_type=event["game_type"],
-                match_id=event.get("match_id"),
-                metadata=event.get("metadata") or {},
-            )
+            payload: dict[str, Any] = dict(event.get("metadata") or {})
+            payload.setdefault("user_id", event.get("user_id"))
+            payload.setdefault("guild_id", event.get("guild_id"))
+            payload.setdefault("game_type", event.get("game_type"))
+            payload.setdefault("match_id", event.get("match_id"))
+            repo.record_event(event["event_type"], payload)
             flushed += 1
         _event_buffer = []
         if flushed:

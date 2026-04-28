@@ -12,6 +12,7 @@ from typing import Any, ClassVar
 
 from playcord.domain.bot import BotDefinition
 from playcord.domain.errors import ConfigurationError
+from playcord.domain.handlers import HandlerSpec
 from playcord.domain.match_options import MatchOptionSpec
 from playcord.domain.player import Player
 from playcord.domain.rating import (
@@ -35,7 +36,7 @@ class MoveParameter:
     description: str
     kind: ParameterKind
     optional: bool = False
-    autocomplete: str | None = None
+    autocomplete: HandlerSpec = None
     force_reload: bool = False
     choices: tuple[tuple[str, str], ...] | None = None
     min_value: int | None = None
@@ -50,7 +51,7 @@ class Move:
     description: str
     options: tuple[MoveParameter, ...] = ()
     require_current_turn: bool = True
-    callback: str | None = None
+    callback: HandlerSpec = None
     is_game_affecting: bool = True
 
 
@@ -86,7 +87,7 @@ class GameMetadata:
     difficulty: str
     bots: dict[str, BotDefinition] = field(default_factory=dict)
     moves: tuple[Move, ...] = ()
-    peek_callback: str | None = None
+    peek_callback: HandlerSpec = None
     player_order: PlayerOrder = PlayerOrder.random
     role_mode: RoleMode = RoleMode.none
     player_roles: tuple[str, ...] | None = None

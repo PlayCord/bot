@@ -4,6 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from playcord.application.repositories import (
+    AnalyticsRepositoryPort,
+    GameRepositoryPort,
+    GuildRepositoryPort,
+    MatchRepositoryPort,
+    PlayerRepositoryPort,
+    ReplayRepositoryPort,
+)
 from playcord.application.services.analytics import AnalyticsService
 from playcord.application.services.game_session import GameSessionService
 from playcord.application.services.matchmaking import MatchmakingService
@@ -15,6 +23,7 @@ from playcord.infrastructure.config import Settings
 from playcord.infrastructure.db import (
     AnalyticsRepository,
     GameRepository,
+    GuildRepository,
     MatchRepository,
     MigrationRunner,
     PlayerRepository,
@@ -33,11 +42,12 @@ class ApplicationContainer:
     pool_manager: PoolManager
     migration_runner: MigrationRunner
     registry: SessionRegistry = field(default_factory=SessionRegistry)
-    players: PlayerRepository = field(init=False, repr=False, compare=False)
-    games: GameRepository = field(init=False, repr=False, compare=False)
-    matches: MatchRepository = field(init=False, repr=False, compare=False)
-    replays: ReplayRepository = field(init=False, repr=False, compare=False)
-    analytics_repository: AnalyticsRepository = field(
+    players: PlayerRepositoryPort = field(init=False, repr=False, compare=False)
+    games: GameRepositoryPort = field(init=False, repr=False, compare=False)
+    matches: MatchRepositoryPort = field(init=False, repr=False, compare=False)
+    replays: ReplayRepositoryPort = field(init=False, repr=False, compare=False)
+    guilds: GuildRepositoryPort = field(init=False, repr=False, compare=False)
+    analytics_repository: AnalyticsRepositoryPort = field(
         init=False, repr=False, compare=False
     )
     analytics: AnalyticsService = field(init=False, repr=False, compare=False)
@@ -59,6 +69,7 @@ class ApplicationContainer:
         self.games = GameRepository(database)
         self.matches = MatchRepository(database)
         self.replays = ReplayRepository(database)
+        self.guilds = GuildRepository(database)
         self.analytics_repository = AnalyticsRepository(database)
 
         self.analytics = AnalyticsService(self.analytics_repository)

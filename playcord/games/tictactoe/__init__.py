@@ -1,8 +1,9 @@
-"""Tic-tac-toe plugin."""
+"""Tic-tac-toe game."""
 
 from __future__ import annotations
 
 import random
+from typing import Any
 
 from playcord.domain.bot import BotDefinition
 from playcord.domain.errors import IllegalMove, NotPlayersTurn
@@ -12,13 +13,23 @@ from playcord.games.api import (
     ButtonSpec,
     ButtonStyle,
     GameContext,
-    GamePlugin,
     MessageLayout,
     Outcome,
+    ReplayableGame,
     ReplayState,
     UpsertMessage,
+    handler,
 )
-from playcord.games.plugin import RegisteredGamePlugin
+from playcord.games.plugin import register_game
+
+Board = list[list[str]]
+MoveCoord = tuple[int, int]
+
+BOARD_SIZE = 3
+EMPTY = " "
+MARK_X = "X"
+MARK_O = "O"
+CENTER_MOVE = "11"
 
 _MOVE_LABELS = {
     "00": "Top Left",
@@ -44,7 +55,15 @@ _WIN_PATTERNS = (
 )
 
 
-class TicTacToePlugin(GamePlugin):
+def _new_board() -> Board:
+    return [[EMPTY for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+
+
+def _copy_board(board: Board) -> Board:
+    return [list(row) for row in board]
+
+
+class TicTacToeGame(ReplayableGame):
     metadata = GameMetadata(
         key="tictactoe",
         name="Tic-Tac-Toe",
@@ -61,45 +80,50 @@ class TicTacToePlugin(GamePlugin):
         bots={
             "easy": BotDefinition(
                 description="Picks a random legal move",
-                callback="bot_easy",
+                callback=handler("bot_easy"),
             ),
             "medium": BotDefinition(
                 description="Tries to win or block; otherwise picks center or random",
-                callback="bot_medium",
+                callback=handler("bot_medium"),
             ),
             "hard": BotDefinition(
                 description="Never misses a winning move",
-                callback="bot_hard",
+                callback=handler("bot_hard"),
             ),
         },
         moves=(
             Move(
                 name="move",
                 description="Place a piece down.",
-                callback="do_move",
+                callback=handler("do_move"),
                 options=(
                     MoveParameter(
                         name="move",
                         description="Board position",
                         kind=ParameterKind.string,
-                        autocomplete="autocomplete_move",
+                        autocomplete=handler("autocomplete_move"),
                     ),
                 ),
                 require_current_turn=True,
             ),
         ),
-        peek_callback="peek_status",
+        peek_callback=handler("peek_status"),
     )
 
     def __init__(
-        self, players: list[Player], *, match_options: dict[str, object] | None = None
+        self,
+        players: list[Player],
+        *,
+        match_options: dict[str, object] | None = None,
     ) -> None:
         super().__init__(players, match_options=match_options)
-        self.board = [[" " for _ in range(3)] for _ in range(3)]
+        self.board = _new_board()
         self.turn = 0
 
     def current_turn(self) -> Player | None:
-        return self.players[self.turn]
+        if not self.players:
+            return None
+        return self.players[self.turn % len(self.players)]
 
     def outcome(self) -> Outcome | None:
         return self._outcome_for_board(self.board)
@@ -130,18 +154,9 @@ class TicTacToePlugin(GamePlugin):
         return None
 
     def render(self, ctx: GameContext) -> tuple[UpsertMessage, ...]:
+        game_outcome = self.outcome()
         board_status = self._status_line()
-        buttons = tuple(
-            ButtonSpec(
-                label=self.board[row][col] if self.board[row][col] != " " else "·",
-                action_name="move",
-                arguments={"move": f"{col}{row}"},
-                style=self._button_style(row, col),
-                disabled=self.board[row][col] != " " or self.outcome() is not None,
-            )
-            for row in range(3)
-            for col in range(3)
-        )
+        buttons = self._board_buttons(self.board, game_over=game_outcome is not None)
         actions: list[UpsertMessage] = [
             UpsertMessage(
                 target="thread",
@@ -150,7 +165,7 @@ class TicTacToePlugin(GamePlugin):
                 layout=MessageLayout(
                     content=f"{board_status}\n\n`/tictactoe move` also works.",
                     buttons=buttons,
-                    button_row_width=3,
+                    button_row_width=BOARD_SIZE,
                 ),
             ),
             UpsertMessage(
@@ -174,15 +189,16 @@ class TicTacToePlugin(GamePlugin):
         current = self.current_turn()
         if current is None or current.id != actor.id:
             raise NotPlayersTurn("It is not your turn.")
-        move = str(arguments.get("move", "")).strip()
-        if len(move) != 2 or not move.isdigit():
+
+        parsed = self._parse_move(arguments.get("move", ""))
+        if parsed is None:
             raise IllegalMove("Choose a valid tile.")
-        col, row = int(move[0]), int(move[1])
-        if not (0 <= row < 3 and 0 <= col < 3):
-            raise IllegalMove("Choose a valid tile.")
-        if self.board[row][col] != " ":
+        col, row = parsed
+
+        if self.board[row][col] != EMPTY:
             raise IllegalMove("That tile is already taken.")
-        self.board[row][col] = "X" if actor.id == self.players[0].id else "O"
+
+        self.board[row][col] = self._marker_for_player(actor, self.players)
         if self.outcome() is None:
             self.turn = (self.turn + 1) % len(self.players)
         return self.render(ctx)
@@ -197,16 +213,12 @@ class TicTacToePlugin(GamePlugin):
         _ = actor
         _ = ctx
         query = current.lower().strip()
-        values = []
-        for row in range(3):
-            for col in range(3):
-                if self.board[row][col] != " ":
-                    continue
-                move = f"{col}{row}"
-                label = _MOVE_LABELS.get(move, move)
-                if query and query not in label.lower() and query not in move:
-                    continue
-                values.append((label, move))
+        values: list[tuple[str, str]] = []
+        for move in self._available_moves(self.board):
+            label = _MOVE_LABELS.get(move, move)
+            if query and query not in label.lower() and query not in move:
+                continue
+            values.append((label, move))
         return values[:25]
 
     def bot_easy(self, player: Player, *, ctx: GameContext) -> dict[str, object] | None:
@@ -233,10 +245,7 @@ class TicTacToePlugin(GamePlugin):
             players=list(ctx.players),
             match_options=dict(ctx.match_options),
             move_index=0,
-            state={
-                "board": [[" " for _ in range(3)] for _ in range(3)],
-                "turn": 0,
-            },
+            state={"board": _new_board(), "turn": 0},
         )
 
     def apply_replay_event(
@@ -245,49 +254,35 @@ class TicTacToePlugin(GamePlugin):
         if event.get("type") != "move":
             return state
 
-        raw = state.state if isinstance(state.state, dict) else {}
-        board = [list(row) for row in raw.get("board", [[" "] * 3 for _ in range(3)])]
-        turn_raw = raw.get("turn", 0)
-        try:
-            turn = int(turn_raw)
-        except (TypeError, ValueError):
-            turn = 0
-
         args = event.get("arguments")
         if not isinstance(args, dict):
             return state
-        move = str(args.get("move", "")).strip()
-        if len(move) != 2 or not move.isdigit():
+
+        parsed = self._parse_move(args.get("move", ""))
+        if parsed is None:
             return state
-        col, row = int(move[0]), int(move[1])
-        if not (0 <= row < 3 and 0 <= col < 3):
-            return state
-        if board[row][col] != " ":
+        col, row = parsed
+
+        board = self._board_from_replay_state(state.state)
+        turn = self._turn_from_replay_state(state.state)
+        if board[row][col] != EMPTY:
             return state
 
-        marker = "X" if turn % 2 == 0 else "O"
-        actor = event.get("user_id")
-        if actor is not None:
-            try:
-                actor_id = int(actor)
-            except (TypeError, ValueError):
-                actor_id = None
-            else:
-                if state.players and actor_id == int(state.players[0].id):
-                    marker = "X"
-                elif len(state.players) > 1 and actor_id == int(state.players[1].id):
-                    marker = "O"
-
+        marker = self._marker_for_replay_actor(
+            state.players,
+            event.get("user_id"),
+            turn,
+        )
         board[row][col] = marker
+
         next_turn = turn + 1
         if self._outcome_for_board(board) is not None:
             next_turn = turn
 
-        move_index_raw = event.get("move_number", state.move_index + 1)
-        try:
-            move_index = int(move_index_raw)
-        except (TypeError, ValueError):
-            move_index = state.move_index + 1
+        move_index = self._parse_int(
+            event.get("move_number", state.move_index + 1),
+            default=state.move_index + 1,
+        )
         return ReplayState(
             game_key=state.game_key,
             players=list(state.players),
@@ -297,71 +292,79 @@ class TicTacToePlugin(GamePlugin):
         )
 
     def render_replay(self, state: ReplayState) -> MessageLayout | None:
-        raw = state.state if isinstance(state.state, dict) else {}
-        board = [list(row) for row in raw.get("board", [[" "] * 3 for _ in range(3)])]
-        turn_raw = raw.get("turn", 0)
-        try:
-            turn = int(turn_raw)
-        except (TypeError, ValueError):
-            turn = 0
+        board = self._board_from_replay_state(state.state)
+        turn = self._turn_from_replay_state(state.state)
         players = state.players if state.players else self.players
         status = self._status_line_for_board(board, players, turn)
-        buttons = tuple(
-            ButtonSpec(
-                label=board[row][col] if board[row][col] != " " else "·",
-                action_name="move",
-                arguments={"move": f"{col}{row}"},
-                style=self._button_style_for_value(board[row][col]),
-                disabled=True,
-                require_current_turn=False,
-            )
-            for row in range(3)
-            for col in range(3)
+        buttons = self._board_buttons(board, disable_all=True)
+        return MessageLayout(
+            content=status,
+            buttons=buttons,
+            button_row_width=BOARD_SIZE,
         )
-        return MessageLayout(content=status, buttons=buttons, button_row_width=3)
 
     def _bot_move_for_difficulty(
         self, player: Player, difficulty: str
     ) -> dict[str, object] | None:
-        available = self._available_moves()
+        available = self._available_moves(self.board)
         if not available:
             return None
+
         if difficulty in {"medium", "hard"}:
-            if winning := self._find_winning_move(player):
-                return {"move_name": "move", "arguments": {"move": winning}}
-            for opponent in self.players:
-                if opponent.id == player.id:
-                    continue
-                if block := self._find_winning_move(opponent):
-                    return {"move_name": "move", "arguments": {"move": block}}
-            if difficulty == "hard" and "11" in available:
-                return {"move_name": "move", "arguments": {"move": "11"}}
-        if difficulty == "medium" and "11" in available:
-            return {"move_name": "move", "arguments": {"move": "11"}}
-        return {"move_name": "move", "arguments": {"move": random.choice(available)}}
+            if winning := self._find_winning_move(player, self.board):
+                return self._move_action(winning)
+            if blocking := self._find_blocking_move(player, self.board):
+                return self._move_action(blocking)
+            if CENTER_MOVE in available:
+                return self._move_action(CENTER_MOVE)
 
-    def _available_moves(self) -> list[str]:
-        moves: list[str] = []
-        for row in range(3):
-            for col in range(3):
-                if self.board[row][col] == " ":
-                    moves.append(f"{col}{row}")
-        return moves
+        return self._move_action(random.choice(available))
 
-    def _find_winning_move(self, player: Player) -> str | None:
-        mark = "X" if player.id == self.players[0].id else "O"
-        for move in self._available_moves():
-            col, row = int(move[0]), int(move[1])
-            self.board[row][col] = mark
-            won = self.outcome()
-            self.board[row][col] = " "
-            if (
-                won is not None
-                and won.kind == "winner"
-                and won.placements[0][0].id == player.id
-            ):
+    def _find_blocking_move(self, player: Player, board: Board) -> str | None:
+        for opponent in self.players:
+            if opponent.id == player.id:
+                continue
+            if move := self._find_winning_move(opponent, board):
                 return move
         return None
+
+    def _find_winning_move(self, player: Player, board: Board) -> str | None:
+        marker = self._marker_for_player(player, self.players)
+        for move in self._available_moves(board):
+            parsed = self._parse_move(move)
+            if parsed is None:
+                continue
+            col, row = parsed
+            trial = _copy_board(board)
+            trial[row][col] = marker
+            winner = self._winning_marker(trial)
+            if winner is not None and winner[0] == marker:
+                return move
+        return None
+
+    def _available_moves(self, board: Board) -> list[str]:
+        return [
+            f"{col}{row}"
+            for row in range(BOARD_SIZE)
+            for col in range(BOARD_SIZE)
+            if board[row][col] == EMPTY
+        ]
+
+    def _board_buttons(
+        self, board: Board, *, disable_all: bool = False, game_over: bool = False
+    ) -> tuple[ButtonSpec, ...]:
+        return tuple(
+            ButtonSpec(
+                label=board[row][col] if board[row][col] != EMPTY else "·",
+                action_name="move",
+                arguments={"move": f"{col}{row}"},
+                style=self._button_style_for_value(board[row][col]),
+                disabled=disable_all or game_over or board[row][col] != EMPTY,
+                require_current_turn=not disable_all,
+            )
+            for row in range(BOARD_SIZE)
+            for col in range(BOARD_SIZE)
+        )
 
     def _status_line(self) -> str:
         return self._status_line_for_board(self.board, self.players, self.turn)
@@ -379,27 +382,41 @@ class TicTacToePlugin(GamePlugin):
         return f"Turn: {players[turn % len(players)].mention}"
 
     def _outcome_for_board(
-        self, board: list[list[str]], players: list[Player] | None = None
+        self, board: Board, players: list[Player] | None = None
     ) -> Outcome | None:
         roster = players or self.players
         if len(roster) < 2:
             return None
+
+        winner = self._winning_marker(board)
+        if winner is not None:
+            marker, reason = winner
+            winner_index = 0 if marker == MARK_X else 1
+            winner_player = roster[winner_index]
+            loser_player = roster[1 - winner_index]
+            return Outcome(
+                kind="winner",
+                placements=[[winner_player], [loser_player]],
+                reason=reason,
+            )
+
+        if self._is_full(board):
+            return Outcome(kind="draw", placements=[list(roster)])
+        return None
+
+    def _winning_marker(self, board: Board) -> tuple[str, str] | None:
         for cells, reason in _WIN_PATTERNS:
             x0, y0 = cells[0]
             marker = board[y0][x0]
-            if marker == " ":
+            if marker == EMPTY:
                 continue
             if all(board[y][x] == marker for x, y in cells):
-                winner = roster[0] if marker == "X" else roster[1]
-                loser = roster[1] if winner == roster[0] else roster[0]
-                return Outcome(
-                    kind="winner",
-                    placements=[[winner], [loser]],
-                    reason=reason,
-                )
-        if all(cell != " " for row in board for cell in row):
-            return Outcome(kind="draw", placements=[list(roster)])
+                return marker, reason
         return None
+
+    @staticmethod
+    def _is_full(board: Board) -> bool:
+        return all(cell != EMPTY for row in board for cell in row)
 
     def _overview_text(self, _ctx: GameContext) -> str:
         lines = [
@@ -408,18 +425,78 @@ class TicTacToePlugin(GamePlugin):
         ]
         return "\n".join(lines)
 
-    def _button_style(self, row: int, col: int) -> ButtonStyle:
-        return self._button_style_for_value(self.board[row][col])
-
     @staticmethod
     def _button_style_for_value(value: str) -> ButtonStyle:
-        if value == "X":
+        if value == MARK_X:
             return "primary"
-        if value == "O":
+        if value == MARK_O:
             return "success"
         return "secondary"
 
+    @staticmethod
+    def _parse_int(value: Any, *, default: int) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
 
-plugin = RegisteredGamePlugin("tictactoe", TicTacToePlugin)
+    @staticmethod
+    def _parse_move(move: object) -> MoveCoord | None:
+        text = str(move).strip()
+        if len(text) != 2 or not text.isdigit():
+            return None
 
-__all__ = ["TicTacToePlugin", "plugin"]
+        col, row = int(text[0]), int(text[1])
+        if not (0 <= row < BOARD_SIZE and 0 <= col < BOARD_SIZE):
+            return None
+        return col, row
+
+    @staticmethod
+    def _marker_for_player(player: Player, players: list[Player]) -> str:
+        if players and player.id == players[0].id:
+            return MARK_X
+        return MARK_O
+
+    def _marker_for_replay_actor(
+        self, players: list[Player], actor: object, turn: int
+    ) -> str:
+        marker = MARK_X if turn % 2 == 0 else MARK_O
+        actor_id = self._parse_int(actor, default=-1)
+        if players and actor_id == int(players[0].id):
+            return MARK_X
+        if len(players) > 1 and actor_id == int(players[1].id):
+            return MARK_O
+        return marker
+
+    def _board_from_replay_state(self, raw_state: object) -> Board:
+        board = _new_board()
+        if not isinstance(raw_state, dict):
+            return board
+
+        raw_board = raw_state.get("board")
+        if not isinstance(raw_board, list):
+            return board
+
+        for row in range(BOARD_SIZE):
+            row_values: Any = raw_board[row] if row < len(raw_board) else []
+            if not isinstance(row_values, list):
+                continue
+            for col in range(BOARD_SIZE):
+                value = row_values[col] if col < len(row_values) else EMPTY
+                if value in {MARK_X, MARK_O}:
+                    board[row][col] = value
+        return board
+
+    def _turn_from_replay_state(self, raw_state: object) -> int:
+        if not isinstance(raw_state, dict):
+            return 0
+        return self._parse_int(raw_state.get("turn", 0), default=0)
+
+    @staticmethod
+    def _move_action(move: str) -> dict[str, object]:
+        return {"move_name": "move", "arguments": {"move": move}}
+
+
+game = register_game(TicTacToeGame)
+
+__all__ = ["TicTacToeGame", "game"]

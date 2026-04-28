@@ -4,7 +4,7 @@ import discord
 from discord import User
 
 from playcord.infrastructure.app_constants import LOGGING_ROOT, LONG_SPACE_EMBED
-from playcord.utils.database import InternalPlayer
+from playcord.infrastructure.db.database import InternalPlayer
 from playcord.utils.locale import get
 
 

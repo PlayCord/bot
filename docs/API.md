@@ -1,60 +1,49 @@
-# PlayCord Plugin API
+# PlayCord Game Author Guide
 
-The refactored PlayCord runtime is organized around a typed core plus an explicit plugin registry. New games are
-registered under `playcord/games/` and expose metadata that the command tree, lobby UI, rating system, and replay
-pipeline can all consume without special-case code.
+PlayCord game authors should only need three surfaces:
 
-## Architecture
+1. `playcord/games/api.py` for runtime primitives.
+2. `playcord/domain/game.py` for metadata (`GameMetadata`, `Move`, `MoveParameter`).
+3. `playcord/games/<your_game>/__init__.py` for the game implementation and registration.
 
-PlayCord is now split into four layers:
-
-- `playcord/domain/`: pure game, rating, replay, and player abstractions
-- `playcord/infrastructure/`: config, locale, logging, DB pools, migrations, repositories
-- `playcord/application/`: session, replay, matchmaking, stats, and analytics services
-- `playcord/presentation/`: Discord commands, interaction routing, error handling, and UI views
-
-Game plugins live under `playcord/games/<name>/` and are loaded explicitly from `playcord/games/__init__.py`.
-
-## Plugin Contract
-
-Every game package exposes a `plugin` object implementing the `GamePlugin` protocol from `playcord/games/plugin.py`.
-
-The long-term native shape is:
+## Minimal game structure
 
 ```python
-from playcord.domain import Game, GameMetadata, Move, MoveParameter, ParameterKind
+from playcord.domain.game import GameMetadata, Move, MoveParameter, ParameterKind
+from playcord.games.api import ReplayableGame, GameContext, MessageLayout, Outcome, UpsertMessage, handler
+from playcord.games.plugin import register_game
 
 
-class MyGame(Game):
+class MyGame(ReplayableGame):
     metadata = GameMetadata(
         key="mygame",
         name="My Game",
-        summary="A short one-line summary",
-        description="Longer explanation of how the game works.",
+        summary="A short summary",
+        description="What the game does.",
         move_group_description="Commands for My Game",
         player_count=2,
         author="@you",
         version="1.0",
         author_link="https://github.com/you",
-        source_link="https://github.com/you/mygame",
+        source_link="https://github.com/PlayCord/bot",
         time="5min",
         difficulty="Easy",
         moves=(
             Move(
                 name="move",
                 description="Make a move",
+                callback=handler("do_move"),
                 options=(
                     MoveParameter(
-                        name="column",
-                        description="Column number",
-                        kind=ParameterKind.integer,
-                        min_value=1,
-                        max_value=7,
+                        name="slot",
+                        description="Board slot",
+                        kind=ParameterKind.string,
+                        autocomplete=handler("autocomplete_slot"),
                     ),
                 ),
-                callback="move",
             ),
         ),
+        peek_callback=handler("peek_status"),
     )
 
     def current_turn(self):
@@ -62,66 +51,47 @@ class MyGame(Game):
 
     def outcome(self):
         ...
+
+    def render(self, ctx: GameContext):
+        return (UpsertMessage(target="thread", key="board", layout=MessageLayout(content="...")),)
+
+    def do_move(self, actor, arguments, *, source, ctx):
+        ...
+
+    def initial_replay_state(self, ctx: GameContext):
+        ...
+
+    def apply_replay_event(self, state, event):
+        ...
+
+    def render_replay(self, state):
+        ...
+
+
+game = register_game(MyGame)
 ```
 
-## Canonical Domain Types
+## Registration and validation
 
-Use `playcord/domain/` as the source of truth:
+- Use `register_game(MyGame)` exactly once.
+- Registration validates configured handlers (`moves`, `autocomplete`, `bots`, `peek`) when the module loads.
+- Handler references should use `handler("method_name")` so invalid names fail at startup, not during a live match.
 
-- `Player`: canonical player model for Discord users, bots, and ratings
-- `Rating`: TrueSkill wrapper with conservative/display helpers
-- `Move` and `MoveParameter`: typed command metadata
-- `MatchOptionSpec`: lobby customization definition
-- `GameMetadata`: plugin-facing metadata consumed by commands and UI
-- `DomainError` hierarchy: `ValidationError`, `RuleViolation`, `IllegalMove`, `NotPlayersTurn`
+## Runtime move handlers
 
-Discord-facing game primitives (base `Game` class, `Message`/`Container` trees, `Command`/`Response`, etc.) live in
-`playcord/discord_games/`. Domain types (`playcord/domain/`) stay separate from Discord presentation.
+Games can implement either move signature:
 
-## Command Registration
+- Legacy: `def do_move(self, actor, arguments, *, source, ctx) -> tuple[...]`
+- Typed: `def do_move(self, request) -> tuple[...]` where `request` is `MoveRequest`.
 
-Slash commands are built programmatically in `playcord/presentation/commands/tree.py`. The runtime no longer relies on
-generated source strings or `exec()` to define move commands.
+Both are supported by `GameRuntime`.
 
-The command tree reads plugin metadata and creates:
+## Replay capability
 
-- one top-level `/play` command
-- one slash group per registered game
-- one move command per `Move`
-- autocomplete handlers from `MoveParameter.autocomplete`
+Replay is explicit: games that support replay should inherit `ReplayableGame` and implement:
 
-## UI Model
+- `initial_replay_state`
+- `apply_replay_event`
+- `render_replay`
 
-Shared UI primitives live under `playcord/presentation/ui/`:
-
-- `View`
-- `Container`
-- `Section`
-- `TextDisplay`
-- `Button`
-- `Select`
-- `Media`
-
-High-level views such as `ErrorView`, `UserErrorView`, `LobbyView`, and `BoardView` wrap those primitives so commands
-and interaction handlers can share one styling surface.
-
-## Error Handling
-
-App command failures route through `playcord/presentation/interactions/errors.py`, which maps exception types to
-localized user-visible responses. Domain and application code should raise typed exceptions instead of raw `ValueError`
-or bare strings.
-
-## Repository Pattern
-
-Database access is owned by `playcord/infrastructure/db/`:
-
-- `PoolManager`: connection lifecycle
-- `MigrationRunner`: schema/application startup tasks
-- `PlayerRepository`, `GameRepository`, `MatchRepository`, `ReplayRepository`, `AnalyticsRepository`
-
-Application services consume repositories through `ApplicationContainer`.
-
-## Migration Notes
-
-Built-in games are loaded directly as native `GamePlugin` implementations from `playcord/games/`. New games should be
-authored directly against the `playcord/domain/` and `playcord/presentation/ui/` APIs.
+If a game does not implement replay, the replay viewer will fall back to textual event output.

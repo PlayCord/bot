@@ -1,11 +1,9 @@
-"""Explicit game plugin registry."""
+"""Canonical game registry exports."""
 
-from playcord.games.tictactoe import plugin as tictactoe_plugin
+from playcord.games import tictactoe as _tictactoe  # noqa: F401
+from playcord.games.plugin import get_registered_game, iter_registered_games
 
-PLUGINS = [
-    tictactoe_plugin,
-]
+GAMES = list(iter_registered_games())
+GAME_BY_KEY = {game.key: game for game in GAMES}
 
-PLUGIN_BY_KEY = {plugin.key: plugin for plugin in PLUGINS}
-
-__all__ = ["PLUGINS", "PLUGIN_BY_KEY"]
+__all__ = ["GAMES", "GAME_BY_KEY", "get_registered_game", "iter_registered_games"]

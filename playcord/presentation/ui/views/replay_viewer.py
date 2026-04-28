@@ -9,7 +9,7 @@ from discord import SelectOption
 
 from playcord.games.api import MessageLayout
 from playcord.presentation.interactions.router import CustomId
-from playcord.utils.containers import TEXT_DISPLAY_MAX
+from playcord.utils.containers import TEXT_DISPLAY_MAX, chunk_text_display_lines
 from playcord.utils.locale import fmt, get
 
 
@@ -37,7 +37,7 @@ class ReplayViewerView(discord.ui.LayoutView):
             )
             container.add_item(discord.ui.Separator())
 
-        for chunk in self._text_chunks(frame_layout.content or ""):
+        for chunk in chunk_text_display_lines(frame_layout.content or ""):
             container.add_item(discord.ui.TextDisplay(chunk))
         if frame_layout.content and (frame_layout.buttons or frame_layout.selects):
             container.add_item(discord.ui.Separator())
@@ -102,23 +102,6 @@ class ReplayViewerView(discord.ui.LayoutView):
     async def _route_to_cog(interaction: discord.Interaction) -> None:
         # Routed through GamesCog.on_interaction via custom_id namespace.
         pass
-
-    @staticmethod
-    def _text_chunks(text: str) -> list[str]:
-        raw = (text or "").strip()
-        if not raw:
-            return []
-        chunks: list[str] = []
-        current = ""
-        for line in raw.splitlines(keepends=True):
-            if len(current) + len(line) > int(TEXT_DISPLAY_MAX) and current:
-                chunks.append(current.rstrip("\n"))
-                current = line
-            else:
-                current += line
-        if current:
-            chunks.append(current.rstrip("\n"))
-        return chunks or [raw[: int(TEXT_DISPLAY_MAX)]]
 
     @staticmethod
     def _append_layout_components(

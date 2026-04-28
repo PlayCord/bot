@@ -19,6 +19,7 @@ from playcord.domain.game import (
     RoleMode,
     ensure_valid_player_count,
 )
+from playcord.domain.handlers import HandlerRef, HandlerSpec, handler
 from playcord.domain.match import MatchOutcome, MatchOutcomeKind, Seat
 from playcord.domain.match_options import MatchOptionSpec
 from playcord.domain.player import Player
@@ -31,6 +32,8 @@ __all__ = [
     "DomainError",
     "Game",
     "GameMetadata",
+    "HandlerRef",
+    "HandlerSpec",
     "IllegalMove",
     "MatchOptionSpec",
     "MatchOutcome",
@@ -48,5 +51,6 @@ __all__ = [
     "RuleViolation",
     "Seat",
     "ValidationError",
+    "handler",
     "ensure_valid_player_count",
 ]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -10,18 +11,20 @@ from urllib.parse import parse_qs, urlencode
 
 import discord
 
-from playcord import state as session_state
+from playcord.application.runtime_context import get_container
 from playcord.application.services import replay_viewer
 from playcord.domain.errors import ConfigurationError
 from playcord.domain.game import Move
+from playcord.domain.handlers import HandlerRef, HandlerSpec
 from playcord.games.api import (
     BinaryAsset,
     ButtonSpec,
     DeleteMessage,
     GameContext,
-    GamePlugin,
     MessageLayout,
+    MoveRequest,
     OwnedMessage,
+    RuntimeGame,
     SelectSpec,
     UpsertMessage,
 )
@@ -30,14 +33,10 @@ from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_SPECTATE,
 )
 from playcord.presentation.interactions.router import CustomId
-from playcord.utils import database as db
-from playcord.utils.containers import TEXT_DISPLAY_MAX
+from playcord.utils.containers import chunk_text_display_lines
 from playcord.utils.discord_utils import followup_send
 from playcord.utils.locale import get
 from playcord.utils.logging_config import get_logger
-
-CURRENT_GAMES = session_state.CURRENT_GAMES
-IN_GAME = session_state.IN_GAME
 
 log = get_logger("game.runtime")
 
@@ -49,17 +48,25 @@ class RuntimeMoveResult:
 
 
 def _resolve_callback(
-    plugin: GamePlugin,
-    name: str | None,
+    plugin: RuntimeGame,
+    spec: HandlerSpec,
     default_attr: str | None = None,
 ) -> Callable[..., Any]:
-    if name:
-        resolved = getattr(plugin, name, None)
+    if isinstance(spec, HandlerRef):
+        spec = spec.name
+
+    if isinstance(spec, str):
+        resolved = getattr(plugin, spec, None)
         if callable(resolved):
             return resolved
         raise ConfigurationError(
-            f"Configured callback {name!r} was not found on {type(plugin).__name__}"
+            f"Configured callback {spec!r} was not found on {type(plugin).__name__}"
         )
+    if callable(spec):
+        binder = getattr(spec, "__get__", None)
+        if callable(binder) and getattr(spec, "__self__", None) is None:
+            return binder(plugin, type(plugin))
+        return spec
     if default_attr:
         fallback = getattr(plugin, default_attr, None)
         if callable(fallback):
@@ -83,7 +90,7 @@ class GameRuntime:
         self,
         *,
         game_type: str,
-        plugin_class: type[GamePlugin],
+        plugin_class: type[RuntimeGame],
         overview_message: discord.Message,
         creator: discord.abc.User,
         players: list[Any],
@@ -120,10 +127,11 @@ class GameRuntime:
     async def setup(self) -> None:
         thread_name = f"{self.plugin.metadata.name} - {self.match_public_code}"
         self.thread = await self.status_message.create_thread(name=thread_name)
+        reg = get_container().registry
         for player in self.players:
             player_id = getattr(player, "id", None)
             if player_id is not None:
-                IN_GAME[int(player_id)] = self
+                reg.user_to_game[int(player_id)] = self
             if not getattr(player, "is_bot", False) and hasattr(
                 self.thread, "add_user"
             ):
@@ -135,7 +143,7 @@ class GameRuntime:
                         self.logger.debug(
                             "Failed to add player %s to thread", player_id
                         )
-        CURRENT_GAMES[self.thread.id] = self
+        reg.games_by_thread_id[self.thread.id] = self
         self._record_initial_replay_state()
         await self.render_state()
 
@@ -271,11 +279,11 @@ class GameRuntime:
         )
 
     async def finish(self, outcome) -> None:
-        from playcord.application.services.match_lifecycle import finish_match
-
         if self.ending_game:
             return
         self.ending_game = True
+        from playcord.application.services.match_lifecycle import finish_match
+
         await finish_match(self, outcome)
 
     async def _apply_bot_move(
@@ -286,7 +294,12 @@ class GameRuntime:
             if actor is None:
                 return
             callback = self._resolve_move_callback(name)
-            actions = callback(actor, arguments, source="bot", ctx=self.build_context())
+            actions = self._invoke_move_handler(
+                callback,
+                actor=actor,
+                arguments=arguments,
+                source="bot",
+            )
             await self._record_move(actor, name, arguments, source="bot")
             await self._apply_actions(actions)
             if outcome := self.plugin.outcome():
@@ -315,11 +328,11 @@ class GameRuntime:
                 )
                 return
             callback = self._resolve_move_callback(name)
-            actions = callback(
-                actor,
-                arguments,
+            actions = self._invoke_move_handler(
+                callback,
+                actor=actor,
+                arguments=arguments,
                 source=source,
-                ctx=self.build_context(),
             )
             await self._record_move(actor, name, arguments, source=source)
             await self._apply_actions(actions)
@@ -337,8 +350,10 @@ class GameRuntime:
         source: str,
     ) -> None:
         try:
-            next_number = db.database.get_move_count(self.game_id) + 1
-            db.database.record_move(
+            matches = get_container().matches
+            replays = get_container().replays
+            next_number = matches.get_move_count(self.game_id) + 1
+            matches.record_move(
                 self.game_id,
                 (
                     int(getattr(actor, "id", 0))
@@ -360,7 +375,7 @@ class GameRuntime:
             }
             if actor_id is not None:
                 replay_event["user_id"] = int(actor_id)
-            db.database.append_replay_event(self.game_id, replay_event)
+            replays.append_replay_dict(self.game_id, replay_event)
             replay_viewer.invalidate_match_cache(self.game_id)
         except Exception:
             self.logger.exception("Failed to record move match_id=%s", self.game_id)
@@ -368,7 +383,7 @@ class GameRuntime:
     def _plugin_replay_hook(self, event_type: str, payload: dict[str, Any]) -> None:
         try:
             body: dict[str, Any] = {"type": event_type, **dict(payload)}
-            db.database.append_replay_event(self.game_id, body)
+            get_container().replays.append_replay_dict(self.game_id, body)
             replay_viewer.invalidate_match_cache(self.game_id)
         except Exception:
             self.logger.exception(
@@ -394,7 +409,7 @@ class GameRuntime:
             "state": replay_state.state,
         }
         try:
-            db.database.append_replay_event(
+            get_container().replays.append_replay_dict(
                 self.game_id, {"type": "replay_init", "state": payload}
             )
             replay_viewer.invalidate_match_cache(self.game_id)
@@ -414,6 +429,57 @@ class GameRuntime:
                 f"Move {move_name!r} is not defined for {self.plugin.metadata.key}"
             )
         return _resolve_callback(self.plugin, move.callback, "apply_move")
+
+    @staticmethod
+    def _uses_typed_move_request(callback: Callable[..., Any]) -> bool:
+        try:
+            signature = inspect.signature(callback)
+        except (TypeError, ValueError):
+            return False
+
+        positional = [
+            parameter
+            for parameter in signature.parameters.values()
+            if parameter.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
+        required_keyword_only = [
+            parameter
+            for parameter in signature.parameters.values()
+            if parameter.kind is inspect.Parameter.KEYWORD_ONLY
+            and parameter.default is inspect.Parameter.empty
+        ]
+        return len(positional) == 1 and not required_keyword_only
+
+    def _invoke_move_handler(
+        self,
+        callback: Callable[..., Any],
+        *,
+        actor: Any,
+        arguments: dict[str, Any],
+        source: str,
+    ) -> tuple[Any, ...]:
+        context = self.build_context()
+        if self._uses_typed_move_request(callback):
+            actions = callback(
+                MoveRequest(
+                    actor=actor,
+                    arguments=dict(arguments),
+                    source=source,
+                    ctx=context,
+                )
+            )
+        else:
+            actions = callback(
+                actor,
+                dict(arguments),
+                source=source,
+                ctx=context,
+            )
+        return tuple(actions or ())
 
     async def _apply_actions(self, actions: tuple[Any, ...]) -> None:
         for action in actions:
@@ -551,24 +617,6 @@ class GameRuntime:
         except (TypeError, ValueError):
             return False
 
-    @staticmethod
-    def _text_chunks_v2(text: str) -> list[str]:
-        max_len = int(TEXT_DISPLAY_MAX)
-        raw = (text or "").strip()
-        if not raw:
-            return []
-        chunks: list[str] = []
-        current = ""
-        for line in raw.splitlines(keepends=True):
-            if len(current) + len(line) > max_len and current:
-                chunks.append(current.rstrip("\n"))
-                current = line
-            else:
-                current += line
-        if current:
-            chunks.append(current.rstrip("\n"))
-        return chunks or [raw[:max_len]]
-
     def _build_interactive_view(
         self,
         layout: MessageLayout,
@@ -582,7 +630,7 @@ class GameRuntime:
 
         view = RuntimeView()
         container = discord.ui.Container()
-        for chunk in self._text_chunks_v2(layout.content or ""):
+        for chunk in chunk_text_display_lines(layout.content or ""):
             container.add_item(discord.ui.TextDisplay(chunk))
         if has_body and (has_game or has_trail):
             container.add_item(discord.ui.Separator())

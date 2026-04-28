@@ -5,6 +5,7 @@ from playcord.infrastructure.db.pool import PoolManager
 from playcord.infrastructure.db.repositories import (
     AnalyticsRepository,
     GameRepository,
+    GuildRepository,
     MatchRepository,
     PlayerRepository,
     ReplayRepository,
@@ -13,6 +14,7 @@ from playcord.infrastructure.db.repositories import (
 __all__ = [
     "AnalyticsRepository",
     "GameRepository",
+    "GuildRepository",
     "MatchRepository",
     "MigrationRunner",
     "PlayerRepository",

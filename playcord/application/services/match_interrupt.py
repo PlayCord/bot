@@ -4,15 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from playcord import state as session_state
+from playcord.application.runtime_context import get_container
 from playcord.infrastructure.logging import get_logger
-from playcord.utils import database as db
 from playcord.utils.analytics import register_event
 from playcord.utils.models import EventType, MatchStatus
 
 log = get_logger("application.match_interrupt")
-CURRENT_GAMES = session_state.CURRENT_GAMES
-IN_GAME = session_state.IN_GAME
 
 
 def _reason_payload(error: BaseException, *, trace_id: str | None) -> dict[str, Any]:
@@ -27,16 +24,17 @@ def _reason_payload(error: BaseException, *, trace_id: str | None) -> dict[str, 
 
 
 def _release_interface_locks(interface: Any) -> None:
+    reg = get_container().registry
     for player in getattr(interface, "players", []) or []:
-        IN_GAME.pop(player, None)
+        reg.user_to_game.pop(player, None)
         player_id = getattr(player, "id", None)
         if player_id is not None:
-            IN_GAME.pop(player_id, None)
+            reg.user_to_game.pop(player_id, None)
 
     thread = getattr(interface, "thread", None)
     thread_id = getattr(thread, "id", None)
     if thread_id is not None:
-        CURRENT_GAMES.pop(thread_id, None)
+        reg.games_by_thread_id.pop(thread_id, None)
 
 
 async def interrupt_match(
@@ -60,8 +58,8 @@ async def interrupt_match(
     status_message = getattr(interface, "status_message", None)
 
     try:
-        if match_id is not None and db.database is not None:
-            db.database.update_match_status(
+        if match_id is not None:
+            get_container().matches.update_status(
                 match_id,
                 MatchStatus.INTERRUPTED.value,
                 metadata_patch={"reason": reason_payload},

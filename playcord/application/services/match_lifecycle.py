@@ -4,20 +4,15 @@ from __future__ import annotations
 
 from typing import Any
 
-import trueskill
-
-from playcord import state as session_state
+from playcord.application.runtime_context import get_container
 from playcord.application.services.game_runtime import GameRuntime
-from playcord.domain.rating import DEFAULT_MU, STARTING_RATING
-from playcord.utils import database as db
+from playcord.application.services.rating import (
+    rated_results_for_placements,
+    unrated_results_for_placements,
+)
 from playcord.utils.locale import get
 from playcord.utils.logging_config import get_logger
-from playcord.utils.trueskill_params import get_trueskill_parameters
 from playcord.utils.views import RematchView
-
-CURRENT_MATCHMAKING = session_state.CURRENT_MATCHMAKING
-IN_GAME = session_state.IN_GAME
-IN_MATCHMAKING = session_state.IN_MATCHMAKING
 
 log = get_logger("match.lifecycle")
 
@@ -32,15 +27,17 @@ async def start_match_from_lobby(
         else list(interface.queued_players)
     )
     has_bots = any(getattr(player, "is_bot", False) for player in players)
+    reg = get_container().registry
     for player in list(interface.queued_players):
-        IN_MATCHMAKING.pop(player, None)
+        reg.user_to_matchmaking.pop(player, None)
         player_id = getattr(player, "id", None)
         if player_id is not None:
-            IN_MATCHMAKING.pop(int(player_id), None)
-    CURRENT_MATCHMAKING.pop(message.id, None)
+            reg.user_to_matchmaking.pop(int(player_id), None)
+    reg.matchmaking_by_message_id.pop(message.id, None)
 
     match_options = dict(getattr(interface, "match_settings", {}) or {})
-    match_id, match_code = db.database.create_game(
+    matches = get_container().matches
+    match_id, match_code = matches.create_game(
         game_name=interface.game_type,
         guild_id=message.guild.id,
         participants=[player.id for player in players],
@@ -60,8 +57,8 @@ async def start_match_from_lobby(
         match_options=match_options,
     )
     await runtime.setup()
-    db.database.update_match_context(
-        match_id=match_id,
+    matches.update_match_context(
+        match_id,
         channel_id=message.channel.id,
         thread_id=runtime.thread.id if runtime.thread is not None else None,
     )
@@ -72,9 +69,11 @@ async def finish_match(runtime: GameRuntime, outcome: Any) -> None:
     placements = getattr(outcome, "placements", []) or []
     players = list(runtime.players)
     if runtime.rated:
-        results = _rated_results(players, runtime.game_type, placements)
+        results = rated_results_for_placements(players, runtime.game_type, placements)
     else:
-        results = _unrated_results(players, runtime.game_type, placements)
+        results = unrated_results_for_placements(
+            players, runtime.game_type, placements
+        )
 
     final_state = {
         "outcome": getattr(outcome, "kind", "winner"),
@@ -83,7 +82,8 @@ async def finish_match(runtime: GameRuntime, outcome: Any) -> None:
             [getattr(player, "id", None) for player in group] for group in placements
         ],
     }
-    db.database.end_match(runtime.game_id, final_state, results)
+    matches = get_container().matches
+    matches.end_match(runtime.game_id, final_state, results)
 
     global_summary: str | None = None
     summaries: dict[int, str] | None = None
@@ -111,7 +111,7 @@ async def finish_match(runtime: GameRuntime, outcome: Any) -> None:
 
     if (global_summary and str(global_summary).strip()) or summaries:
         try:
-            db.database.merge_match_metadata_outcome_display(
+            matches.merge_match_metadata_outcome_display(
                 runtime.game_id,
                 summaries=summaries,
                 global_summary=global_summary,
@@ -122,12 +122,13 @@ async def finish_match(runtime: GameRuntime, outcome: Any) -> None:
                 runtime.game_id,
             )
 
+    reg = get_container().registry
     for player in players:
         player_id = getattr(player, "id", None)
         if player_id is not None:
-            IN_GAME.pop(int(player_id), None)
+            reg.user_to_game.pop(int(player_id), None)
     if runtime.thread is not None:
-        session_state.CURRENT_GAMES.pop(runtime.thread.id, None)
+        reg.games_by_thread_id.pop(runtime.thread.id, None)
 
     summary = _summary_text(runtime, outcome, results)
     if runtime.thread is not None:
@@ -150,86 +151,6 @@ async def finish_match(runtime: GameRuntime, outcome: Any) -> None:
             view=rematch_view,
             attachments=[],
         )
-
-
-def _rated_results(
-    players: list[Any], game_type: str, placements: list[list[Any]]
-) -> dict[int, dict[str, Any]]:
-    ts = get_trueskill_parameters(game_type)
-    environment = trueskill.TrueSkill(
-        mu=DEFAULT_MU,
-        sigma=STARTING_RATING * ts["sigma"],
-        beta=STARTING_RATING * ts["beta"],
-        tau=STARTING_RATING * ts["tau"],
-        draw_probability=ts["draw"],
-        backend="mpmath",
-    )
-    ranking_by_id: dict[int, int] = {}
-    for rank_index, group in enumerate(placements):
-        for player in group:
-            ranking_by_id[int(player.id)] = rank_index
-    player_ratings = [_player_rating(player, game_type) for player in players]
-    rating_groups = [
-        {player: environment.create_rating(mu, sigma)}
-        for player, (mu, sigma) in zip(players, player_ratings, strict=False)
-    ]
-    ranks = [ranking_by_id.get(int(player.id), len(players)) for player in players]
-    adjusted = environment.rate(rating_groups=rating_groups, ranks=ranks)
-    results: dict[int, dict[str, Any]] = {}
-    for index, player in enumerate(players):
-        mu_before, sigma_before = player_ratings[index]
-        rating = adjusted[index][player]
-        results[int(player.id)] = {
-            "ranking": ranks[index] + 1,
-            "score": None,
-            "mu_before": mu_before,
-            "sigma_before": sigma_before,
-            "new_mu": float(rating.mu),
-            "new_sigma": float(rating.sigma),
-            "mu_delta": float(rating.mu - mu_before),
-            "sigma_delta": float(rating.sigma - sigma_before),
-        }
-    return results
-
-
-def _unrated_results(
-    players: list[Any], game_type: str, placements: list[list[Any]]
-) -> dict[int, dict[str, Any]]:
-    ranking_by_id: dict[int, int] = {}
-    for rank_index, group in enumerate(placements):
-        for player in group:
-            ranking_by_id[int(player.id)] = rank_index + 1
-    results: dict[int, dict[str, Any]] = {}
-    for player in players:
-        mu_before, sigma_before = _player_rating(player, game_type)
-        results[int(player.id)] = {
-            "ranking": ranking_by_id.get(int(player.id), len(players)),
-            "score": None,
-            "mu_before": mu_before,
-            "sigma_before": sigma_before,
-            "new_mu": mu_before,
-            "new_sigma": sigma_before,
-            "mu_delta": 0.0,
-            "sigma_delta": 0.0,
-        }
-    return results
-
-
-def _player_rating(player: Any, game_type: str) -> tuple[float, float]:
-    mu = getattr(player, "mu", None)
-    sigma = getattr(player, "sigma", None)
-    if mu is not None and sigma is not None:
-        return float(mu), float(sigma)
-
-    game_rating = getattr(player, game_type, None)
-    game_mu = getattr(game_rating, "mu", None)
-    game_sigma = getattr(game_rating, "sigma", None)
-    if game_mu is not None and game_sigma is not None:
-        return float(game_mu), float(game_sigma)
-
-    raise AttributeError(
-        f"Player {player!r} does not expose rating for game_type={game_type!r}"
-    )
 
 
 def _summary_text(

@@ -8,20 +8,20 @@ small DB-first resolver with a ``Game``-class fallback for startup/bootstrap.
 from __future__ import annotations
 
 from playcord.domain.rating import DEFAULT_TRUESKILL_PARAMETERS
-from playcord.games import PLUGIN_BY_KEY
+from playcord.games import GAME_BY_KEY
 from playcord.utils.logging_config import get_logger
 
 log = get_logger("trueskill")
 
 
 def get_seed_trueskill_parameters(game_type_key: str) -> dict[str, float]:
-    """Bootstrap/default TrueSkill parameters before the DB-backed game registry is available."""
-    plugin = PLUGIN_BY_KEY.get(game_type_key)
-    if plugin is None:
+    """Bootstrap/default TrueSkill parameters before DB-backed registry exists."""
+    game = GAME_BY_KEY.get(game_type_key)
+    if game is None:
         return dict(DEFAULT_TRUESKILL_PARAMETERS)
     try:
         return dict(
-            plugin.metadata().trueskill_parameters or DEFAULT_TRUESKILL_PARAMETERS
+            game.metadata().trueskill_parameters or DEFAULT_TRUESKILL_PARAMETERS
         )
     except (AttributeError, ImportError, TypeError, ValueError) as exc:
         log.warning(
@@ -34,16 +34,16 @@ def get_seed_trueskill_parameters(game_type_key: str) -> dict[str, float]:
 
 def get_trueskill_parameters(game_type_key: str) -> dict[str, float]:
     """
-    Return ``sigma``, ``beta``, ``tau``, ``draw`` suitable for ``STARTING_RATING * value``.
+    Return ``sigma``, ``beta``, ``tau``, ``draw`` scaled by ``STARTING_RATING``.
     """
     from playcord.domain.rating import STARTING_RATING
 
     try:
-        from playcord.utils import database as database_module
+        from playcord.application.runtime_context import try_get_container
 
-        db = database_module.database
-        if db is not None:
-            game = db.get_game(game_type_key)
+        c = try_get_container()
+        if c is not None:
+            game = c.games.get(game_type_key)
             if game is not None and game.rating_config:
                 return {
                     "sigma": float(game.rating_config["sigma"]) / STARTING_RATING,

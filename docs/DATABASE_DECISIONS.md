@@ -69,7 +69,7 @@ PlayCord now uses `replay_events` as the single canonical replay store.
 Runtime TrueSkill values come from `games.rating_config`.
 
 - Code-defined defaults only seed the registry during `sync_games_from_code()`.
-- Runtime reads should use `playcord.infrastructure.runtime_config.get_settings()` (and `playcord.state` for in-memory session maps), not duplicate globals.
+- Runtime reads should use `playcord.infrastructure.runtime_config.get_settings()` and in-memory session maps on `ApplicationContainer.registry` (`SessionRegistry`), not duplicate globals.
 - Per-game overrides still live on the game class via `trueskill_scale`, but they are folded into the seeded DB row.
 
 ## Preset / variant leaderboard strategy

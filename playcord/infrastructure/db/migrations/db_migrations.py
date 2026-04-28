@@ -10,16 +10,14 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-from playcord.utils.logging_config import get_logger
+from playcord.infrastructure.logging import get_logger
 
 logger = get_logger("database.migrations")
 
 
 def _load_migration_sql(filename: str) -> str:
     """Load SQL content from a migration SQL file."""
-    sql_dir = (
-        Path(__file__).resolve().parent.parent / "infrastructure" / "db" / "sql"
-    )
+    sql_dir = Path(__file__).resolve().parent.parent / "sql"
     sql_path = sql_dir / filename
     with sql_path.open("r", encoding="utf-8") as fh:
         return fh.read()
@@ -57,18 +55,20 @@ def get_migration_hash(migration_sql: str) -> str:
 
 def apply_migrations(database):
     """Apply all pending migrations in order, tracking by version."""
-    
+
     # Create database_migrations table if it doesn't exist
     try:
         with database.transaction() as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 CREATE TABLE IF NOT EXISTS database_migrations (
                     version TEXT PRIMARY KEY,
                     description TEXT,
                     applied_at TIMESTAMPTZ DEFAULT NOW(),
                     sql_hash VARCHAR(64)
                 );
-                """)
+                """
+            )
     except Exception as e:
         logger.error(f"Failed to create database_migrations table: {e}")
         raise

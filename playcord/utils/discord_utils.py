@@ -5,7 +5,7 @@ from typing import Any
 import discord
 from discord.app_commands import Choice
 
-from playcord import state as session_state
+from playcord.application.runtime_context import try_get_container
 from playcord.infrastructure.app_constants import (
     EPHEMERAL_DELETE_AFTER,
     INFO_COLOR,
@@ -19,9 +19,21 @@ from playcord.utils.containers import (
 from playcord.utils.locale import get, get_error
 from playcord.utils.logging_config import get_logger
 
-CURRENT_GAMES = session_state.CURRENT_GAMES
-
 log = get_logger()
+
+
+def _active_game_threads(
+    ctx: discord.Interaction | None = None,
+) -> dict[int, Any]:
+    """Thread ids that currently host an active game (same backing store as SessionRegistry)."""
+    if ctx is not None:
+        c = getattr(getattr(ctx, "client", None), "container", None)
+        if c is not None:
+            return c.registry.games_by_thread_id
+    bound = try_get_container()
+    if bound is not None:
+        return bound.registry.games_by_thread_id
+    return {}
 
 
 def schedule_ephemeral_message_delete(message: Any, delay: float | None) -> None:
@@ -126,7 +138,7 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
     in_active_game_thread = (
             channel is not None
             and getattr(channel, "type", None) == discord.ChannelType.private_thread
-            and getattr(channel, "id", None) in CURRENT_GAMES
+            and getattr(channel, "id", None) in _active_game_threads(ctx)
     )
     command = getattr(ctx, "command", None)
     parent = getattr(command, "parent", None)

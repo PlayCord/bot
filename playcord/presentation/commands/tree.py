@@ -8,7 +8,7 @@ from typing import Any
 import discord
 from discord import app_commands
 
-from playcord.games import PLUGIN_BY_KEY, PLUGINS
+from playcord.games import GAME_BY_KEY, GAMES
 from playcord.presentation.commands.games import handle_autocomplete, handle_move
 from playcord.presentation.commands.play import command_play
 
@@ -100,15 +100,15 @@ def _register_autocomplete(
         )
 
 
-def build_game_group(plugin: Any) -> app_commands.Group:
-    metadata = plugin.metadata()
+def build_game_group(game: Any) -> app_commands.Group:
+    metadata = game.metadata()
     group = app_commands.Group(
-        name=plugin.key,
+        name=game.key,
         description=metadata.move_group_description,
         guild_only=True,
     )
     for move in metadata.moves:
-        callback = _build_move_callback(plugin.key, move)
+        callback = _build_move_callback(game.key, move)
         command = app_commands.command(
             name=move.name,
             description=move.description,
@@ -122,10 +122,10 @@ def build_game_group(plugin: Any) -> app_commands.Group:
 def build_tree(bot: discord.Client) -> list[app_commands.Group]:
     """Return all top-level groups built without `exec`."""
 
-    built_groups = [build_game_group(plugin) for plugin in PLUGINS]
+    built_groups = [build_game_group(game) for game in GAMES]
     bot.tree.add_command(command_play)
     for group in built_groups:
-        if plugin := PLUGIN_BY_KEY.get(group.name):
-            _ = plugin
+        if game := GAME_BY_KEY.get(group.name):
+            _ = game
         bot.tree.add_command(group)
     return built_groups

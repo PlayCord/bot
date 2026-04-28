@@ -8,7 +8,6 @@ from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
 
-from playcord import state as session_state
 from playcord.application.services import replay_viewer
 from playcord.domain.rating import DEFAULT_MU, DEFAULT_SIGMA
 from playcord.games.plugin import resolve_player_count
@@ -27,7 +26,6 @@ from playcord.infrastructure.app_constants import (
     VERSION,
 )
 from playcord.presentation.ui.views.replay_viewer import ReplayViewerView
-from playcord.utils import database as db
 from playcord.utils import ramcheck
 from playcord.utils.containers import (
     TEXT_DISPLAY_MAX,
@@ -57,10 +55,6 @@ from playcord.utils.matchmaking_interface import MatchmakingInterface
 from playcord.utils.matchmaking_user_map import matchmaking_by_user_id
 from playcord.utils.replay_format import chunk_replay_lines, format_replay_event_line
 from playcord.utils.views import HelpView, InviteView, PaginationView
-
-CURRENT_GAMES = session_state.CURRENT_GAMES
-IN_GAME = session_state.IN_GAME
-IN_MATCHMAKING = session_state.IN_MATCHMAKING
 
 log = get_logger()
 
@@ -201,7 +195,7 @@ def _profile_supports_compact_avatar() -> bool:
     return False
 
 
-def resolve_match_for_replay(raw: str, guild_id: int):
+def resolve_match_for_replay(raw: str, guild_id: int, *, matches: Any) -> Any:
     """Resolve a match from an 8-char public code or a numeric ``match_id`` (guild-scoped)."""
     from playcord.utils.match_codes import is_match_code_token
 
@@ -209,16 +203,16 @@ def resolve_match_for_replay(raw: str, guild_id: int):
     if not s:
         return None
     if is_match_code_token(s):
-        m = db.database.get_match_by_code(s)
+        m = matches.get_by_code(s)
         if m is not None and m.guild_id == guild_id:
             return m
         if s.isdigit():
-            m2 = db.database.get_match(int(s))
+            m2 = matches.get(int(s))
             if m2 is not None and m2.guild_id == guild_id:
                 return m2
         return None
     if s.isdigit():
-        m = db.database.get_match(int(s))
+        m = matches.get(int(s))
         if m is not None and m.guild_id == guild_id:
             return m
     return None
@@ -344,6 +338,23 @@ async def autocomplete_invite_bot(
 class GeneralCog(commands.Cog):
     def __init__(self, bot: discord.Client):
         self.bot = bot
+        c = bot.container
+        self._matches = c.matches
+        self._games = c.games
+        self._players = c.players
+        self._guilds = c.guilds
+
+    @property
+    def _replay_source(self) -> replay_viewer.ReplayDataSource | None:
+        container = getattr(self.bot, "container", None)
+        if container is None:
+            return None
+        return replay_viewer.ReplayDataSource(
+            matches=container.matches,
+            games=container.games,
+            players=container.players,
+            replays=container.replays,
+        )
 
     command_root = app_commands.Group(
         name=LOGGING_ROOT,
@@ -663,11 +674,12 @@ class GeneralCog(commands.Cog):
             name="System",
             value=f"{ramcheck.get_ram_usage_mb()} RAM",
         )
+        reg = self.bot.container.registry
         container.add_field(
             name="Activity",
             value=(
-                f"{member_count} members · {len(IN_MATCHMAKING)} queuing · "
-                f"{len(IN_GAME)} in game"
+                f"{member_count} members · {len(reg.user_to_matchmaking)} queuing · "
+                f"{len(reg.user_to_game)} in game"
             ),
             inline=False,
         )
@@ -848,7 +860,7 @@ class GeneralCog(commands.Cog):
         await ctx.response.defer()
 
         game_name = _GAME_METADATA[game]["name"]
-        game_db = db.database.get_game(game)
+        game_db = self._games.get(game)
         if not game_db:
             # errors are now single-line under
             # [errors]; use format_user_error_message to preserve formatting
@@ -917,7 +929,7 @@ class GeneralCog(commands.Cog):
         offset = (page - 1) * limit
         if scope == "global":
             # Fetch one extra item to check if there are more pages
-            leaderboard_data = db.database.get_global_leaderboard(
+            leaderboard_data = self._games.get_global_leaderboard(
                 game_id,
                 limit=limit + 1,
                 offset=offset,
@@ -929,7 +941,7 @@ class GeneralCog(commands.Cog):
             if guild is not None:
                 await guild.chunk()
                 member_ids = [m.id for m in guild.members]
-            leaderboard_data = db.database.get_leaderboard(
+            leaderboard_data = self._games.get_leaderboard(
                 member_ids,
                 game_id,
                 limit=limit + 1,
@@ -1160,7 +1172,7 @@ class GeneralCog(commands.Cog):
         # Defer for database queries
         await ctx.response.defer()
 
-        player = db.database.get_player(user, ctx.guild.id)
+        player = self._players.get_discord_player(user, ctx.guild.id)
         if player is None:
             await followup_send(
                 ctx,
@@ -1178,10 +1190,10 @@ class GeneralCog(commands.Cog):
         if _profile_supports_compact_avatar():
             container.set_thumbnail(url=user.display_avatar.url)
 
-        games = db.database.get_all_games(active_only=False)
+        games = self._games.list(active_only=False)
         game_by_id = {g.game_id: g for g in games}
         rating_rows: list[dict[str, Any]] = []
-        for rating in db.database.get_user_all_ratings(user.id):
+        for rating in self._players.get_user_all_ratings(user.id):
             matches = int(getattr(rating, "matches_played", 0) or 0)
             if matches <= 0:
                 continue
@@ -1193,7 +1205,7 @@ class GeneralCog(commands.Cog):
             game_name = game_obj.display_name or str(
                 _GAME_METADATA.get(game_key, {}).get("name") or game_key
             )
-            global_rank = db.database.get_user_global_rank(user.id, game_obj.game_id)
+            global_rank = self._players.get_user_global_rank(user.id, game_obj.game_id)
             mu_value = float(getattr(rating, "mu", DEFAULT_MU) or DEFAULT_MU)
             sigma_value = float(
                 getattr(rating, "sigma", DEFAULT_SIGMA) or DEFAULT_SIGMA
@@ -1281,8 +1293,8 @@ class GeneralCog(commands.Cog):
                 inline=False,
             )
 
-        match_history = db.database.get_user_match_history(
-            user.id, ctx.guild.id, limit=5
+        match_history = self._matches.get_history_for_user(
+            user.id, guild_id=ctx.guild.id, limit=5
         )
         if match_history:
             history_lines = []
@@ -1358,7 +1370,7 @@ class GeneralCog(commands.Cog):
             return
         game = resolved_game
 
-        game_db = db.database.get_game(game)
+        game_db = self._games.get(game)
         if not game_db:
             await response_send_message(
                 ctx,
@@ -1410,14 +1422,14 @@ class GeneralCog(commands.Cog):
         offset = (page - 1) * limit
 
         # Fetch one extra item to check if there are more pages
-        match_history = db.database.get_user_match_history(
+        match_history = self._matches.get_history_for_user(
             user.id,
-            guild_id,
+            guild_id=guild_id,
             game_id=game_id,
             limit=limit + 1,
             offset=offset,
         )
-        rating_history = db.database.get_rating_history(
+        rating_history = self._players.get_rating_history(
             user.id, guild_id, game_id, days=days
         )
 
@@ -1557,7 +1569,7 @@ class GeneralCog(commands.Cog):
         await interaction.edit_original_response(view=view)
 
     def _replay_game_label(self, game_id: int) -> str:
-        g = db.database.get_game_by_id(game_id)
+        g = self._games.get_by_id(game_id)
         if g is None:
             return str(game_id)
         return getattr(g, "display_name", None) or getattr(g, "game_name", str(game_id))
@@ -1632,7 +1644,7 @@ class GeneralCog(commands.Cog):
             )
             return
         raw = (match_ref or "").strip()
-        match = resolve_match_for_replay(raw, ctx.guild.id)
+        match = resolve_match_for_replay(raw, ctx.guild.id, matches=self._matches)
         if match is None:
             await followup_send(
                 ctx,
@@ -1641,7 +1653,15 @@ class GeneralCog(commands.Cog):
             )
             return
         match_id = match.match_id
-        replay_ctx = replay_viewer.load_replay_context(match_id)
+        source = self._replay_source
+        if source is None:
+            await followup_send(
+                ctx,
+                content=format_user_error_message("replay_not_found"),
+                ephemeral=True,
+            )
+            return
+        replay_ctx = replay_viewer.load_replay_context(match_id, source=source)
         if replay_ctx is None:
             await followup_send(
                 ctx,
@@ -1735,8 +1755,8 @@ class GeneralCog(commands.Cog):
             return []
 
         needle = (current or "").strip().lower()
-        rows = db.database.get_user_match_history(
-            user_id=ctx.user.id,
+        rows = self._matches.get_history_for_user(
+            ctx.user.id,
             guild_id=ctx.guild.id,
             limit=25,
         )
@@ -1825,7 +1845,7 @@ class GeneralCog(commands.Cog):
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
-        game = CURRENT_GAMES.get(ctx.channel.id)
+        game = self.bot.container.registry.games_by_thread_id.get(ctx.channel.id)
         if game is None:
             await response_send_message(
                 ctx,
@@ -1928,14 +1948,14 @@ class GeneralCog(commands.Cog):
             return
         await ctx.response.defer(ephemeral=True)
         if channel is None:
-            db.database.merge_guild_settings(
+            self._guilds.merge_settings(
                 ctx.guild.id, {"playcord_channel_id": None}
             )
             await followup_send(
                 ctx, content=get("commands.set_channel.cleared"), ephemeral=True
             )
             return
-        db.database.merge_guild_settings(
+        self._guilds.merge_settings(
             ctx.guild.id, {"playcord_channel_id": channel.id}
         )
         await followup_send(

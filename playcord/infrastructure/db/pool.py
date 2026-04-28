@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from playcord.infrastructure.config import DatabaseSettings
+from playcord.infrastructure.db.database import Database
 from playcord.infrastructure.logging import get_logger
-from playcord.utils.database import Database
 
 log = get_logger("infrastructure.db.pool")
 

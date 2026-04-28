@@ -12,7 +12,7 @@ from typing import Any
 import discord
 
 from playcord.domain.rating import DEFAULT_MU
-from playcord.games import PLUGINS
+from playcord.games import GAMES
 from playcord.infrastructure.locale import Translator
 
 VERSION = "0.7.0"
@@ -46,7 +46,7 @@ CONFIG_FILE = str(_CONFIG_ROOT / "config.yaml")
 EMOJI_CONFIGURATION_FILE = str(_CONFIG_ROOT / "emoji.yaml")
 
 GAME_TYPES: dict[str, list[str]] = {
-    plugin.key: [plugin.module_name, plugin.class_name] for plugin in PLUGINS
+    game.key: [game.module_name, game.class_name] for game in GAMES
 }
 
 MU = DEFAULT_MU
@@ -115,15 +115,14 @@ THREAD_POLICY_SPECTATORS_SILENT = False
 
 def bind_locale_strings(translator: Translator) -> None:
     """Populate locale-backed module attributes (call once at startup)."""
-    global NAME, MANAGED_BY, ERROR_IMPORTED, \
-        ERROR_NO_SYSTEM_CHANNEL, ERROR_INCORRECT_SETUP
-    global TEXTIFY_CURRENT_GAME_TURN, TEXTIFY_GAME_STARTED, \
-        TEXTIFY_BUTTON_JOIN
-    global TEXTIFY_BUTTON_LEAVE, TEXTIFY_BUTTON_START, \
-        TEXTIFY_GAME_OVER, TEXTIFY_GAME_DRAW
+    global NAME, MANAGED_BY, ERROR_IMPORTED
+    global ERROR_NO_SYSTEM_CHANNEL, ERROR_INCORRECT_SETUP
+    global TEXTIFY_CURRENT_GAME_TURN, TEXTIFY_GAME_STARTED, TEXTIFY_BUTTON_JOIN
+    global TEXTIFY_BUTTON_LEAVE, TEXTIFY_BUTTON_START
+    global TEXTIFY_GAME_OVER, TEXTIFY_GAME_DRAW
     global PERMISSION_MSG_NOT_PARTICIPANT, PERMISSION_MSG_SPECTATE_DISABLED
-    global PERMISSION_MSG_WRONG_CHANNEL, PERMISSION_MSG_NO_GAME_HERE, \
-        PERMISSION_MSG_NOT_YOUR_TURN
+    global PERMISSION_MSG_WRONG_CHANNEL, PERMISSION_MSG_NO_GAME_HERE
+    global PERMISSION_MSG_NOT_YOUR_TURN
     global GAME_MSG_ALREADY_OVER, THREAD_POLICY_WARNING_MESSAGE
 
     NAME = translator.get("brand.name")

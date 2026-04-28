@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from playcord.domain.handlers import HandlerSpec
+
 
 @dataclass(frozen=True, slots=True)
 class BotDefinition:
     """Represents a bot difficulty configuration exposed by a game."""
 
     description: str
-    callback: str | None = None
+    callback: HandlerSpec = None

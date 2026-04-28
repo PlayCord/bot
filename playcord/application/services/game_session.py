@@ -5,6 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from playcord.application.repositories import (
+    MatchRepositoryPort,
+    PlayerRepositoryPort,
+    ReplayRepositoryPort,
+)
 from playcord.application.services.session_registry import SessionRegistry
 
 
@@ -13,9 +18,9 @@ class GameSessionService:
     """Coordinates active game sessions and replay/rating side effects."""
 
     registry: SessionRegistry
-    matches: Any
-    replays: Any
-    ratings: Any
+    matches: MatchRepositoryPort
+    replays: ReplayRepositoryPort
+    ratings: PlayerRepositoryPort
 
     def register(self, thread_id: int, session: Any) -> None:
         self.registry.games_by_thread_id[thread_id] = session

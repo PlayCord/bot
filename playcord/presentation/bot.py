@@ -9,8 +9,8 @@ from discord import app_commands
 from discord.app_commands.models import AppCommand, AppCommandGroup, Argument
 from discord.ext import commands
 
-from playcord import state as session_state
 from playcord.application.container import ApplicationContainer
+from playcord.application.runtime_context import bind_application_container
 from playcord.application.services.session_registry import SessionRegistry
 from playcord.infrastructure import Translator, load_settings
 from playcord.infrastructure.app_constants import (
@@ -23,7 +23,6 @@ from playcord.infrastructure.runtime_config import bind_settings
 from playcord.presentation.cogs.general import GeneralCog
 from playcord.presentation.commands import build_tree
 from playcord.presentation.interactions.errors import command_error
-from playcord.utils import database as legacy_database_module
 from playcord.utils import locale as legacy_locale_module
 from playcord.utils.analytics import Timer
 from playcord.utils.bot_owners import STATIC_OWNER_IDS, resolve_effective_owner_ids
@@ -166,12 +165,7 @@ def create_container() -> ApplicationContainer:
     migration_runner = MigrationRunner(
         analytics_retention_days=settings.analytics_retention_days
     )
-    registry = SessionRegistry(
-        games_by_thread_id=session_state.CURRENT_GAMES,
-        matchmaking_by_message_id=session_state.CURRENT_MATCHMAKING,
-        user_to_game=session_state.IN_GAME,
-        user_to_matchmaking=session_state.IN_MATCHMAKING,
-    )
+    registry = SessionRegistry()
     container = ApplicationContainer(
         settings=settings,
         translator=translator,
@@ -180,7 +174,7 @@ def create_container() -> ApplicationContainer:
         registry=registry,
     )
 
-    legacy_database_module.database = pool_manager.database
+    bind_application_container(container)
     return container
 
 

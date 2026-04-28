@@ -1,7 +1,8 @@
+from typing import Any
+
 import discord
 from discord.ext import commands
 
-from playcord import state as session_state
 from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_INVITE,
     BUTTON_PREFIX_JOIN,
@@ -16,14 +17,16 @@ from playcord.utils.discord_utils import followup_send
 from playcord.utils.locale import get
 from playcord.utils.logging_config import get_logger
 
-CURRENT_MATCHMAKING = session_state.CURRENT_MATCHMAKING
-
 log = get_logger()
 
 
 class MatchmakingCog(commands.Cog):
     def __init__(self, bot: discord.Client):
         self.bot = bot
+
+    @property
+    def _lobbies(self) -> dict[int, Any]:
+        return self.bot.container.registry.matchmaking_by_message_id
 
     # No specific commands here yet as they are mostly subcommands of playcord or play
     # But we can store callbacks here
@@ -107,7 +110,7 @@ class MatchmakingCog(commands.Cog):
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
-        if matchmaking_id not in CURRENT_MATCHMAKING:
+        if matchmaking_id not in self._lobbies:
             f_log.info(
                 "Lobby select for expired matchmaking_id=%s by user=%s",
                 matchmaking_id,
@@ -123,7 +126,7 @@ class MatchmakingCog(commands.Cog):
         f_log.debug(
             "lobby option key=%r lobby=%s user=%s", key, matchmaking_id, ctx.user.id
         )
-        matchmaker = CURRENT_MATCHMAKING[matchmaking_id]
+        matchmaker = self._lobbies[matchmaking_id]
         await matchmaker.callback_lobby_option(ctx, key)
 
     async def lobby_role_select_callback(self, ctx: discord.Interaction) -> None:
@@ -178,7 +181,7 @@ class MatchmakingCog(commands.Cog):
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
-        if matchmaking_id not in CURRENT_MATCHMAKING:
+        if matchmaking_id not in self._lobbies:
             f_log.info(
                 "Lobby role select for expired matchmaking_id=%s by user=%s",
                 matchmaking_id,
@@ -197,7 +200,7 @@ class MatchmakingCog(commands.Cog):
             player_id,
             ctx.user.id,
         )
-        matchmaker = CURRENT_MATCHMAKING[matchmaking_id]
+        matchmaker = self._lobbies[matchmaking_id]
         await matchmaker.callback_role_select(ctx, player_id)
 
     async def matchmaking_button_callback(self, ctx: discord.Interaction) -> None:
@@ -264,7 +267,7 @@ class MatchmakingCog(commands.Cog):
             return
 
         # Check if it exists
-        if matchmaking_id not in CURRENT_MATCHMAKING:
+        if matchmaking_id not in self._lobbies:
             f_log.debug(
                 "Matchmaking expired when trying to press button: %s",
                 interaction_context,
@@ -277,7 +280,7 @@ class MatchmakingCog(commands.Cog):
             )
             return
 
-        matchmaker = CURRENT_MATCHMAKING[matchmaking_id]
+        matchmaker = self._lobbies[matchmaking_id]
 
         # Call MatchmakingInterface callbacks
         if leading_str == BUTTON_PREFIX_JOIN:
@@ -332,7 +335,7 @@ class MatchmakingCog(commands.Cog):
             )
             return
 
-        if matchmaking_id not in CURRENT_MATCHMAKING:
+        if matchmaking_id not in self._lobbies:
             await followup_send(
                 ctx,
                 content=get("matchmaking.invite_expired"),
@@ -341,7 +344,7 @@ class MatchmakingCog(commands.Cog):
             )
             return
 
-        matchmaker = CURRENT_MATCHMAKING[matchmaking_id]
+        matchmaker = self._lobbies[matchmaking_id]
         success = await matchmaker.accept_invite(ctx)
 
         if success:

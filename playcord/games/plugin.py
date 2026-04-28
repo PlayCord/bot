@@ -1,14 +1,16 @@
-"""Plugin registry helpers for the final game API."""
+"""Game registration and metadata validation helpers."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from playcord.domain.errors import ConfigurationError
 from playcord.domain.game import GameMetadata, PlayerOrder, RoleMode
-from playcord.games.api import GamePlugin
+from playcord.domain.handlers import HandlerRef, HandlerSpec
+from playcord.games.api import RuntimeGame
 
 
-def resolve_player_count(game_class: type[GamePlugin]) -> int | list[int] | None:
+def resolve_player_count(game_class: type[RuntimeGame]) -> int | list[int] | None:
     player_count = game_class.metadata.player_count
     if isinstance(player_count, int):
         return player_count
@@ -18,9 +20,9 @@ def resolve_player_count(game_class: type[GamePlugin]) -> int | list[int] | None
 
 
 @dataclass(frozen=True, slots=True)
-class RegisteredGamePlugin:
+class RegisteredGame:
     key: str
-    game_class: type[GamePlugin]
+    game_class: type[RuntimeGame]
 
     @property
     def module_name(self) -> str:
@@ -30,17 +32,134 @@ class RegisteredGamePlugin:
     def class_name(self) -> str:
         return self.game_class.__name__
 
-    def load(self) -> type[GamePlugin]:
+    def load(self) -> type[RuntimeGame]:
         return self.game_class
 
     def metadata(self) -> GameMetadata:
         return self.game_class.metadata
 
 
+_REGISTRY: dict[str, RegisteredGame] = {}
+
+
+def _handler_name(spec: HandlerSpec) -> str | None:
+    if spec is None:
+        return None
+    if isinstance(spec, HandlerRef):
+        return spec.name
+    if isinstance(spec, str):
+        return spec
+    return None
+
+
+def _validate_handler(
+    game_class: type[RuntimeGame],
+    spec: HandlerSpec,
+    *,
+    label: str,
+    default_attr: str | None = None,
+) -> None:
+    if spec is None and default_attr is not None:
+        spec = default_attr
+
+    if spec is None:
+        return
+
+    if callable(spec):
+        return
+
+    name = _handler_name(spec)
+    if not name:
+        raise ConfigurationError(
+            f"Invalid handler for {label} on {game_class.__name__}: {spec!r}"
+        )
+    resolved = getattr(game_class, name, None)
+    if not callable(resolved):
+        raise ConfigurationError(
+            f"Configured handler {name!r} for {label} is missing on"
+            f" {game_class.__name__}"
+        )
+
+
+def validate_game_registration(game_class: type[RuntimeGame]) -> None:
+    metadata = game_class.metadata
+    for move in metadata.moves:
+        _validate_handler(
+            game_class,
+            move.callback,
+            label=f"move:{move.name}",
+            default_attr="apply_move",
+        )
+        for option in move.options:
+            if option.autocomplete is None:
+                continue
+            _validate_handler(
+                game_class,
+                option.autocomplete,
+                label=f"autocomplete:{move.name}.{option.name}",
+            )
+
+    for difficulty, definition in metadata.bots.items():
+        _validate_handler(
+            game_class,
+            definition.callback,
+            label=f"bot:{difficulty}",
+            default_attr="bot_move",
+        )
+
+    if metadata.peek_callback is not None:
+        _validate_handler(
+            game_class,
+            metadata.peek_callback,
+            label="peek",
+        )
+
+
+def register_game(
+    game_class: type[RuntimeGame],
+    *,
+    key: str | None = None,
+) -> RegisteredGame:
+    validate_game_registration(game_class)
+    resolved_key = key or game_class.metadata.key
+    if resolved_key != game_class.metadata.key:
+        raise ConfigurationError(
+            f"Registered key {resolved_key!r} must match metadata.key"
+            f" {game_class.metadata.key!r}"
+        )
+
+    existing = _REGISTRY.get(resolved_key)
+    if existing is not None and existing.game_class is not game_class:
+        raise ConfigurationError(
+            f"Game key {resolved_key!r} is already registered by"
+            f" {existing.class_name}"
+        )
+
+    registered = RegisteredGame(resolved_key, game_class)
+    _REGISTRY[resolved_key] = registered
+    return registered
+
+
+def iter_registered_games() -> tuple[RegisteredGame, ...]:
+    return tuple(_REGISTRY.values())
+
+
+def get_registered_game(key: str) -> RegisteredGame | None:
+    return _REGISTRY.get(key)
+
+
+def clear_registry() -> None:
+    _REGISTRY.clear()
+
+
 __all__ = [
-    "GamePlugin",
     "PlayerOrder",
-    "RegisteredGamePlugin",
+    "RegisteredGame",
     "RoleMode",
+    "clear_registry",
+    "get_registered_game",
+    "iter_registered_games",
+    "register_game",
     "resolve_player_count",
+    "validate_game_registration",
 ]

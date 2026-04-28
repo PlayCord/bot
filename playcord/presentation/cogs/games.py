@@ -6,9 +6,10 @@ from discord import app_commands
 from discord.app_commands import Choice
 from discord.ext import commands
 
-from playcord import state as session_state
+from playcord.application.runtime_context import get_container
 from playcord.application.services import replay_viewer
 from playcord.domain.errors import ConfigurationError
+from playcord.domain.handlers import HandlerRef
 from playcord.infrastructure.app_constants import (
     BUTTON_PREFIX_CURRENT_TURN,
     BUTTON_PREFIX_NO_TURN,
@@ -27,7 +28,6 @@ from playcord.infrastructure.app_constants import (
 from playcord.presentation.interactions.error_reporter import ErrorSurface, report
 from playcord.presentation.interactions.router import InteractionRouter
 from playcord.presentation.ui.views.replay_viewer import ReplayViewerView
-from playcord.utils import database as db
 from playcord.utils.containers import LoadingContainer, container_send_kwargs
 from playcord.utils.discord_utils import (
     decode_discord_arguments,
@@ -40,9 +40,6 @@ from playcord.utils.locale import fmt, get
 from playcord.utils.logging_config import get_logger
 from playcord.utils.matchmaking_interface import MatchmakingInterface
 from playcord.utils.matchmaking_user_map import matchmaking_by_user_id
-
-AUTOCOMPLETE_CACHE = session_state.AUTOCOMPLETE_CACHE
-CURRENT_GAMES = session_state.CURRENT_GAMES
 
 log = get_logger()
 GAME_COMPONENT_ROUTER = InteractionRouter()
@@ -115,6 +112,9 @@ async def _pagination_unhandled_fallback(
 class GamesCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        c = bot.container
+        self._matches = c.matches
+        self._games = c.games
         GAME_COMPONENT_ROUTER.register("game", "move", self._route_runtime_move)
         GAME_COMPONENT_ROUTER.register("game", "select", self._route_runtime_select)
         GAME_COMPONENT_ROUTER.register("replay", "nav", self._route_replay_nav)
@@ -122,6 +122,26 @@ class GamesCog(commands.Cog):
     @property
     def _translator(self):
         return getattr(getattr(self.bot, "container", None), "translator", None)
+
+    @property
+    def _replay_source(self) -> replay_viewer.ReplayDataSource | None:
+        container = getattr(self.bot, "container", None)
+        if container is None:
+            return None
+        return replay_viewer.ReplayDataSource(
+            matches=container.matches,
+            games=container.games,
+            players=container.players,
+            replays=container.replays,
+        )
+
+    @property
+    def _reg(self):
+        return self.bot.container.registry
+
+    @property
+    def _active_games(self):
+        return self._reg.games_by_thread_id
 
     @commands.Cog.listener()
     async def on_interaction(self, ctx: discord.Interaction) -> None:
@@ -189,7 +209,19 @@ class GamesCog(commands.Cog):
         except (TypeError, ValueError):
             requested_frame = 0
 
-        replay_ctx = replay_viewer.load_replay_context(parsed.resource_id)
+        source = self._replay_source
+        if source is None:
+            await followup_send(
+                ctx,
+                content=format_user_error_message("replay_not_found"),
+                ephemeral=True,
+            )
+            return
+
+        replay_ctx = replay_viewer.load_replay_context(
+            parsed.resource_id,
+            source=source,
+        )
         if replay_ctx is None or not replay_ctx.events:
             await followup_send(
                 ctx,
@@ -266,7 +298,7 @@ class GamesCog(commands.Cog):
 
     async def _route_runtime_move(self, ctx: discord.Interaction, parsed) -> None:
         await ctx.response.defer()
-        runtime = CURRENT_GAMES.get(parsed.resource_id)
+        runtime = self._active_games.get(parsed.resource_id)
         if runtime is None:
             await _send_game_ended_error(ctx)
             return
@@ -282,7 +314,7 @@ class GamesCog(commands.Cog):
 
     async def _route_runtime_select(self, ctx: discord.Interaction, parsed) -> None:
         await ctx.response.defer()
-        runtime = CURRENT_GAMES.get(parsed.resource_id)
+        runtime = self._active_games.get(parsed.resource_id)
         if runtime is None:
             await _send_game_ended_error(ctx)
             return
@@ -334,7 +366,7 @@ class GamesCog(commands.Cog):
             await _send_game_ended_error(ctx)
             return
 
-        if game_id not in CURRENT_GAMES:
+        if game_id not in self._active_games:
             f_log.info(
                 "Button referenced non-active game_id=%s from user=%s",
                 game_id,
@@ -343,7 +375,7 @@ class GamesCog(commands.Cog):
             await _send_game_ended_error(ctx)
             return
 
-        game = CURRENT_GAMES[game_id]
+        game = self._active_games[game_id]
 
         # Validate user is a participant in this game
         participant_ids = {p.id for p in game.players}
@@ -406,11 +438,11 @@ class GamesCog(commands.Cog):
             await _send_game_ended_error(ctx)
             return
 
-        if game_id not in CURRENT_GAMES:
+        if game_id not in self._active_games:
             await _send_game_ended_error(ctx)
             return
 
-        game = CURRENT_GAMES[game_id]
+        game = self._active_games[game_id]
 
         # Validate user is a participant in this game
         participant_ids = {p.id for p in game.players}
@@ -450,7 +482,7 @@ class GamesCog(commands.Cog):
             )
             await _send_game_ended_error(ctx)
             return
-        if game_id not in CURRENT_GAMES:
+        if game_id not in self._active_games:
             f_log.info(
                 "Spectate referenced non-active game_id=%s from user=%s",
                 game_id,
@@ -459,7 +491,7 @@ class GamesCog(commands.Cog):
             await _send_game_ended_error(ctx)
             return
 
-        game = CURRENT_GAMES[game_id]
+        game = self._active_games[game_id]
         participant_ids = {p.id for p in game.players}
         if ctx.user.id in participant_ids:
             await followup_send(
@@ -490,8 +522,8 @@ class GamesCog(commands.Cog):
             )
             await _send_game_ended_error(ctx)
             return
-        if game_id in CURRENT_GAMES:
-            await CURRENT_GAMES[game_id].handle_peek(ctx)
+        if game_id in self._active_games:
+            await self._active_games[game_id].handle_peek(ctx)
         else:
             f_log.info(
                 "Peek referenced non-active game_id=%s from user=%s",
@@ -526,7 +558,7 @@ class GamesCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        match = db.database.get_match(mid)
+        match = self._matches.get(mid)
         if not match or match.status != MatchStatus.COMPLETED:
             f_log.info(
                 "Rematch requested for mid=%s but not available or not "
@@ -540,7 +572,7 @@ class GamesCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        human_ids = db.database.get_match_human_user_ids_ordered(mid)
+        human_ids = self._matches.get_match_human_user_ids_ordered(mid)
         if ctx.user.id not in human_ids:
             f_log.warning(
                 "User %s attempted rematch for mid=%s but is not participant",
@@ -569,7 +601,7 @@ class GamesCog(commands.Cog):
             )
             await followup_send(ctx, content=get("rematch.bad_channel"), ephemeral=True)
             return
-        game_row = db.database.get_game_by_id(match.game_id)
+        game_row = self._games.get_by_id(match.game_id)
         if not game_row:
             f_log.error(
                 "Rematch: game_row not found for game_id=%s (match=%s)",
@@ -652,7 +684,7 @@ async def begin_game(
         return None
 
     if ctx.guild is not None:
-        pc = db.database.get_playcord_channel_id(ctx.guild.id)
+        pc = get_container().guilds.get_playcord_channel_id(ctx.guild.id)
         if pc is not None and ctx.channel.id != pc:
             await response_send_message(
                 ctx,
@@ -798,7 +830,8 @@ async def handle_move(
             delete_after=EPHEMERAL_DELETE_AFTER,
         )
         return
-    if ctx.channel.id not in CURRENT_GAMES:
+    reg = get_container().registry
+    if ctx.channel.id not in reg.games_by_thread_id:
         _track_move_rejected("no_active_game")
         await followup_send(
             ctx,
@@ -810,7 +843,7 @@ async def handle_move(
             delete_after=EPHEMERAL_DELETE_AFTER,
         )
         return
-    active_game = CURRENT_GAMES[ctx.channel.id]
+    active_game = reg.games_by_thread_id[ctx.channel.id]
     command_parent = getattr(getattr(ctx, "command", None), "parent", None)
     requested_game_type = getattr(command_parent, "name", None)
     if requested_game_type and requested_game_type != active_game.game_type:
@@ -832,7 +865,7 @@ async def handle_move(
     work_args = dict(arguments)
     work_args.pop("ctx", None)
     arguments = {a: await decode_discord_arguments(work_args[a]) for a in work_args}
-    AUTOCOMPLETE_CACHE[ctx.channel.id] = {}
+    reg.autocomplete_cache[ctx.channel.id] = {}
     f_log.info(
         "Dispatching move_by_command for user=%s game_id=%s name=%r args=%r",
         getattr(ctx.user, "id", None),
@@ -849,14 +882,15 @@ async def handle_autocomplete(
     ctx: discord.Interaction, function, current: str, argument
 ) -> list[Choice[str]]:
     try:
-        runtime = CURRENT_GAMES[ctx.channel.id]
+        reg = get_container().registry
+        runtime = reg.games_by_thread_id[ctx.channel.id]
     except KeyError:
         return [
             app_commands.Choice(name=get("autocomplete.no_game_in_channel"), value="")
         ]
     if runtime.plugin.outcome() is not None:
         return [app_commands.Choice(name=get("autocomplete.game_finished"), value="-")]
-    player = db.database.get_player(ctx.user, ctx.guild.id)
+    player = get_container().players.get_discord_player(ctx.user, ctx.guild.id)
     move = next((m for m in runtime.plugin.metadata.moves if m.name == function), None)
     if move is None:
         return [
@@ -865,7 +899,20 @@ async def handle_autocomplete(
     option = next((opt for opt in move.options if opt.name == argument), None)
     if option is None or not option.autocomplete:
         return []
-    callback = getattr(runtime.plugin, option.autocomplete, None)
+    autocomplete = option.autocomplete
+    if isinstance(autocomplete, HandlerRef):
+        callback = getattr(runtime.plugin, autocomplete.name, None)
+    elif isinstance(autocomplete, str):
+        callback = getattr(runtime.plugin, autocomplete, None)
+    elif callable(autocomplete):
+        binder = getattr(autocomplete, "__get__", None)
+        callback = (
+            binder(runtime.plugin, type(runtime.plugin))
+            if callable(binder) and getattr(autocomplete, "__self__", None) is None
+            else autocomplete
+        )
+    else:
+        callback = None
     if not callable(callback):
         return [
             app_commands.Choice(name=get("autocomplete.function_missing"), value="")

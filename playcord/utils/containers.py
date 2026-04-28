@@ -50,6 +50,11 @@ def _chunk_text(text: str, *, max_len: int = _TEXT_DISPLAY_MAX) -> list[str]:
     return chunks or [text[:max_len]]
 
 
+def chunk_text_display_lines(text: str, *, max_len: int = TEXT_DISPLAY_MAX) -> list[str]:
+    """Split content into Discord TextDisplay-sized chunks (newline-aware)."""
+    return _chunk_text(text, max_len=max_len)
+
+
 def _build_container_view(
     body_text: str,
     *,

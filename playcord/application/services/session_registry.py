@@ -14,9 +14,11 @@ class SessionRegistry:
     matchmaking_by_message_id: dict[int, Any] = field(default_factory=dict)
     user_to_game: dict[int, Any] = field(default_factory=dict)
     user_to_matchmaking: dict[int, Any] = field(default_factory=dict)
+    autocomplete_cache: dict[int, Any] = field(default_factory=dict)
 
     def reset(self) -> None:
         self.games_by_thread_id.clear()
         self.matchmaking_by_message_id.clear()
         self.user_to_game.clear()
         self.user_to_matchmaking.clear()
+        self.autocomplete_cache.clear()

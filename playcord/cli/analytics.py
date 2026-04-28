@@ -36,10 +36,10 @@ def run(argv: list[str] | None = None) -> int:
 
     try:
         hours = max(1, min(720, args.hours))
-        database = container.pool_manager.database
-        counts = database.get_analytics_event_counts(hours=hours)
-        by_game = database.get_analytics_event_counts_by_game(hours=hours)
-        recent = database.get_analytics_recent_events(hours=hours, limit=20)
+        repo = container.analytics_repository
+        counts = repo.get_summary(hours=hours)
+        by_game = repo.get_event_counts_by_game(hours=hours)
+        recent = repo.get_recent_events(hours=hours, limit=20)
         summary = render_analytics_markdown_summary(counts, by_game, recent, hours)
         for line in summary:
             sys.stdout.write(line + "\n")

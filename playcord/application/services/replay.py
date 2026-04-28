@@ -5,10 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from playcord.application.repositories import ReplayRepositoryPort
+
 
 @dataclass(slots=True)
 class ReplayService:
-    repository: Any
+    repository: ReplayRepositoryPort
 
     def get_events(self, match_id: int) -> list[dict[str, Any]]:
         return self.repository.get_events(match_id)

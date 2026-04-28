@@ -2,10 +2,21 @@
 
 from typing import Any
 
-from playcord import state as session_state
+from playcord.application.runtime_context import try_get_container
 
-IN_GAME = session_state.IN_GAME
-IN_MATCHMAKING = session_state.IN_MATCHMAKING
+
+def _active_game_map() -> dict[Any, Any]:
+    c = try_get_container()
+    if c is not None:
+        return c.registry.user_to_game
+    return {}
+
+
+def _active_matchmaking_map() -> dict[Any, Any]:
+    c = try_get_container()
+    if c is not None:
+        return c.registry.user_to_matchmaking
+    return {}
 
 
 def _user_in_player_map(mapping: dict[Any, Any], user_id: int) -> bool:
@@ -20,12 +31,12 @@ def _user_in_player_map(mapping: dict[Any, Any], user_id: int) -> bool:
 
 def user_in_active_game(user_id: int) -> bool:
     """Return True when the user is currently in any active game across all servers."""
-    return _user_in_player_map(IN_GAME, user_id)
+    return _user_in_player_map(_active_game_map(), user_id)
 
 
 def user_in_active_matchmaking(user_id: int) -> bool:
     """Return True when the user is currently queued in any active matchmaking lobby."""
-    return _user_in_player_map(IN_MATCHMAKING, user_id)
+    return _user_in_player_map(_active_matchmaking_map(), user_id)
 
 
 def synthetic_bot_name_from_id(user_id: int) -> str:

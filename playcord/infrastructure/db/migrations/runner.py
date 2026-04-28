@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from playcord.infrastructure.db.database import Database
+from playcord.infrastructure.db.migrations import db_migrations
 from playcord.infrastructure.logging import get_logger
-from playcord.utils import db_migrations
-from playcord.utils.database import Database
 
 log = get_logger("infrastructure.db.migrations")
 

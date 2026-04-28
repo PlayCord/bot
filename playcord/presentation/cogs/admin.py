@@ -19,7 +19,6 @@ from playcord.infrastructure.app_constants import (
     SUCCESS_COLOR,
     WARNING_COLOR,
 )
-from playcord.utils import database as db
 from playcord.utils.analytics import (
     render_analytics_markdown_summary,
     render_analytics_matplotlib_summary,
@@ -69,6 +68,8 @@ def _admin_error_text(what_failed: str, reason: str | None = None) -> str:
 class AdminCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self._analytics = bot.container.analytics_repository
+        self._guilds = bot.container.guilds
 
     async def _run_long_admin_task(self, msg: discord.Message, work) -> None:
         """Add ⏳, await ``work(msg) -> bool``, then replace with ✅ or ⛔."""
@@ -199,9 +200,9 @@ class AdminCog(commands.Cog):
                 )
                 return False
         hours = max(1, min(hours, 24 * 30))
-        counts = db.database.get_analytics_event_counts(hours=hours)
-        by_game = db.database.get_analytics_event_counts_by_game(hours=hours)
-        recent = db.database.get_analytics_recent_events(hours=hours, limit=60)
+        counts = self._analytics.get_summary(hours=hours)
+        by_game = self._analytics.get_event_counts_by_game(hours=hours)
+        recent = self._analytics.get_recent_events(hours=hours, limit=60)
         if not counts and not recent and not by_game:
             await msg.reply(
                 **container_send_kwargs(
@@ -379,7 +380,7 @@ class AdminCog(commands.Cog):
                     )
                 )
                 return False
-            db.database.reset_all_data()
+            self._guilds.reset_all_data()
             f_log.info(
                 "Performed full database reset requested by user %r",
                 msg.author.id if msg.author else None,
@@ -421,7 +422,7 @@ class AdminCog(commands.Cog):
             return False
 
         if target == "game":
-            recreated = db.database.reset_game_data(entity_id)
+            recreated = self._guilds.reset_game_data(entity_id)
             f_log.info(
                 "Performed game reset for game_id=%r requested by user %r",
                 entity_id,
@@ -444,7 +445,7 @@ class AdminCog(commands.Cog):
             return True
 
         if target == "user":
-            db.database.reset_user_data(entity_id)
+            self._guilds.reset_user_data(entity_id)
             f_log.info(
                 "Performed user reset for user_id=%r requested by user %r",
                 entity_id,
@@ -465,7 +466,7 @@ class AdminCog(commands.Cog):
             return True
 
         if target == "guild":
-            db.database.reset_guild_data(entity_id)
+            self._guilds.reset_guild_data(entity_id)
             f_log.info(
                 "Performed guild reset for guild_id=%r requested by user %r",
                 entity_id,

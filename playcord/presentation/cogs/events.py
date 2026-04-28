@@ -5,7 +5,6 @@ import subprocess
 import discord
 from discord.ext import commands
 
-from playcord import state as session_state
 from playcord.infrastructure.app_constants import (
     ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS,
     ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS,
@@ -22,14 +21,9 @@ from playcord.infrastructure.app_constants import (
 )
 from playcord.infrastructure.runtime_config import get_settings
 from playcord.utils import analytics as analytics_mod
-from playcord.utils import database as db
 from playcord.utils.containers import CustomContainer, container_send_kwargs
 from playcord.utils.locale import fmt, get
 from playcord.utils.logging_config import get_logger
-
-CURRENT_GAMES = session_state.CURRENT_GAMES
-IN_GAME = session_state.IN_GAME
-IN_MATCHMAKING = session_state.IN_MATCHMAKING
 
 log = get_logger()
 
@@ -110,14 +104,13 @@ class EventsCog(commands.Cog):
                     "Attempting analytics flush and cleanup"
                 )
                 analytics_mod.flush_events()
-                if db.database is not None:
-                    db.database.cleanup_old_analytics(
-                        days=get_settings().analytics_retention_days
-                    )
-                    log.getChild("analytics.flush").debug(
-                        "Cleanup_old_analytics completed (retention_days=%s)",
-                        get_settings().analytics_retention_days,
-                    )
+                self.bot.container.guilds.cleanup_old_analytics(
+                    days=get_settings().analytics_retention_days
+                )
+                log.getChild("analytics.flush").debug(
+                    "Cleanup_old_analytics completed (retention_days=%s)",
+                    get_settings().analytics_retention_days,
+                )
             except Exception:
                 log.exception("Periodic analytics flush/cleanup failed")
             await asyncio.sleep(ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS)
@@ -175,7 +168,7 @@ class EventsCog(commands.Cog):
         f_log = log.getChild("event.guild_remove")
         f_log.info(f"Removed from guild {guild.name!r}! (id={guild.id}).")
         try:
-            db.database.delete_guild(guild.id)
+            self.bot.container.guilds.delete_guild(guild.id)
             f_log.info(f"Successfully purged data for guild {guild.id}")
         except Exception as e:
             f_log.exception("Failed to purge data for guild %s: %s", guild.id, e)
@@ -203,13 +196,14 @@ class EventsCog(commands.Cog):
             return
 
         # Check if this thread has an active game
-        if message.channel.id not in CURRENT_GAMES:
+        reg = self.bot.container.registry
+        if message.channel.id not in reg.games_by_thread_id:
             log.getChild("event.thread_policy").debug(
                 "No active game for thread %s", message.channel.id
             )
             return
 
-        game = CURRENT_GAMES[message.channel.id]
+        game = reg.games_by_thread_id[message.channel.id]
         participant_ids = {p.id for p in game.players}
 
         # If user is a participant, optionally restrict to slash-style messages only
@@ -322,11 +316,18 @@ class EventsCog(commands.Cog):
         if not self.presence_lock.locked():
             async with self.presence_lock:
                 while True:
+                    reg = self.bot.container.registry
                     options = [
                         fmt("presence.catalog_games", count=len(GAME_TYPES)),
-                        fmt("presence.users_playing", count=len(IN_GAME)),
-                        fmt("presence.users_matchmaking", count=len(IN_MATCHMAKING)),
-                        fmt("presence.games_happening_now", count=len(CURRENT_GAMES)),
+                        fmt("presence.users_playing", count=len(reg.user_to_game)),
+                        fmt(
+                            "presence.users_matchmaking",
+                            count=len(reg.user_to_matchmaking),
+                        ),
+                        fmt(
+                            "presence.games_happening_now",
+                            count=len(reg.games_by_thread_id),
+                        ),
                     ]
                     # Include the version (and commit if available) as one of the rotating presence entries.
                     options.append(self.version)

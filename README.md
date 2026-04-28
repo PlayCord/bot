@@ -101,36 +101,76 @@ That's it! Your bot is now running. Use `docker compose logs -f bot` to view the
 
 ## API Usage
 
-PlayCord provides a plugin API for creating new games. See [docs/API.md](docs/API.md) for the current plugin contract.
+PlayCord provides a runtime game API for creating new games. See [docs/API.md](docs/API.md) for the current contract.
+For database and repository contributions, use [docs/PERSISTENCE_GUIDE.md](docs/PERSISTENCE_GUIDE.md).
 
 ### Quick Example
 
 ```python
-from playcord.discord_games.command import Command
-from playcord.discord_games.game import Game
-from playcord.discord_games.message_components import Message, TextDisplay
+from playcord.domain.game import GameMetadata, Move, MoveParameter, ParameterKind
+from playcord.games.api import MessageLayout, ReplayableGame, UpsertMessage, handler
+from playcord.games.plugin import register_game
 
 
-class MyGame(Game):
-    name = "My Game"
-    player_count = 2
-    moves = [Command(name="move", description="Make a move", callback="do_move")]
+class MyGame(ReplayableGame):
+    metadata = GameMetadata(
+        key="mygame",
+        name="My Game",
+        summary="Example game",
+        description="Example game description",
+        move_group_description="Commands for My Game",
+        player_count=2,
+        author="@you",
+        version="1.0",
+        author_link="https://github.com/you",
+        source_link="https://github.com/PlayCord/bot",
+        time="2min",
+        difficulty="Easy",
+        moves=(
+            Move(
+                name="move",
+                description="Make a move",
+                callback=handler("do_move"),
+                options=(
+                    MoveParameter(
+                        name="slot",
+                        description="Board slot",
+                        kind=ParameterKind.string,
+                    ),
+                ),
+            ),
+        ),
+    )
 
-    def __init__(self, players):
-        self.players = players
-        self.turn = 0
-
-    def state(self):
-        return Message(TextDisplay(f"Turn: {self.current_turn().mention}"))
+    def render(self, ctx):
+        return (
+            UpsertMessage(
+                target="thread",
+                key="board",
+                layout=MessageLayout(content=f"Turn: {self.current_turn().mention}"),
+            ),
+        )
 
     def current_turn(self):
-        return self.players[self.turn]
+        ...
 
-    def do_move(self, player):
-        self.turn = (self.turn + 1) % len(self.players)
+    def do_move(self, actor, arguments, *, source, ctx):
+        ...
+
+    def initial_replay_state(self, ctx):
+        ...
+
+    def apply_replay_event(self, state, event):
+        ...
+
+    def render_replay(self, state):
+        ...
 
     def outcome(self):
-        return None  # Game ongoing
+        return None
+
+
+game = register_game(MyGame)
 ```
 
 ## Status
@@ -140,5 +180,3 @@ See [BROKEN.md](BROKEN.md) for the remaining product backlog and follow-up work.
 ## License
 
 GPLv3 License - see LICENSE for details.
-
-

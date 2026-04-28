@@ -5,7 +5,7 @@ Data classes representing database entities for type safety and easier data hand
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 # ============================================================================
@@ -13,7 +13,7 @@ from typing import Any
 # ============================================================================
 
 
-class MatchStatus(str, Enum):
+class MatchStatus(StrEnum):
     """Status of a match"""
 
     IN_PROGRESS = "in_progress"
@@ -22,7 +22,7 @@ class MatchStatus(str, Enum):
     ABANDONED = "abandoned"
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     """Analytics event types (single source of truth; used by utils.analytics.register_event)."""
 
     GAME_STARTED = "game_started"

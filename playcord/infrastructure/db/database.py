@@ -24,8 +24,8 @@ except ImportError as err:
 from playcord.domain.player import Player
 from playcord.domain.rating import DEFAULT_MU, DEFAULT_SIGMA, STARTING_RATING
 from playcord.infrastructure.app_constants import GAME_TYPES
+from playcord.infrastructure.db.migrations import db_migrations
 from playcord.infrastructure.runtime_config import get_settings
-from playcord.utils import db_migrations
 from playcord.utils.logging_config import get_logger
 from playcord.utils.match_codes import generate_match_code
 from playcord.utils.models import (
@@ -344,9 +344,7 @@ class Database:
 
     def _load_sql_asset(self, relative_path: str) -> None:
         """Execute an idempotent SQL asset file (functions/views) shipped with PlayCord."""
-        sql_dir = (
-            Path(__file__).resolve().parent.parent / "infrastructure" / "db" / "sql"
-        )
+        sql_dir = Path(__file__).resolve().parent / "sql"
         sql_path = sql_dir / Path(relative_path).name
         with sql_path.open("r", encoding="utf-8") as fh:
             sql_text = fh.read()
@@ -2565,59 +2563,3 @@ class Database:
                     "sigma": rating.sigma if rating else None,
                 }
             )
-        return results
-
-
-# ============================================================================
-# GLOBAL DATABASE INSTANCE
-# ============================================================================
-
-database: Database | None = None
-
-
-def startup():
-    """Initialize global database instance"""
-    global database
-    from playcord.infrastructure.config import load_settings
-    from playcord.infrastructure.runtime_config import bind_settings
-
-    settings = load_settings()
-    bind_settings(settings)
-    db_settings = settings.db
-    config_db = {
-        "host": db_settings.host,
-        "port": db_settings.port,
-        "user": db_settings.user,
-        "password": db_settings.password,
-        "database": db_settings.database,
-        "pool_size": db_settings.pool_size,
-        "max_overflow": db_settings.max_overflow,
-        "pool_timeout": db_settings.pool_timeout,
-    }
-    try:
-        db = Database(
-            host=config_db.get("host", "localhost"),
-            port=config_db.get("port", 5432),
-            user=config_db.get("user", "playcord"),
-            password=config_db.get("password", "password"),
-            database=config_db.get("database", "playcord"),
-            pool_size=config_db.get("pool_size", 10),
-            max_overflow=config_db.get("max_overflow", 20),
-            pool_timeout=config_db.get("pool_timeout", 30),
-        )
-        db_migrations.apply_migrations(db)
-        db.refresh_sql_assets()
-        db.sync_games_from_code()
-        db.cleanup_old_analytics(days=settings.analytics_retention_days)
-        interrupted = db.interrupt_stale_matches()
-        database = db
-        if interrupted:
-            logger.warning(
-                "Marked %s stale in-progress matches as interrupted during startup",
-                interrupted,
-            )
-        logger.info("Database startup successful")
-        return True
-    except Exception as err:
-        logger.exception("Failed to connect to database: %s", err)
-        return False
