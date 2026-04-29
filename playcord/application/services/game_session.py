@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from playcord.infrastructure.database import (
-    MatchRepository,
-    PlayerRepository,
-    ReplayRepository,
-)
-from playcord.infrastructure.state.user_games import SessionRegistry
+if TYPE_CHECKING:
+    from playcord.infrastructure.database import (
+        MatchRepository,
+        PlayerRepository,
+        ReplayRepository,
+    )
+    from playcord.infrastructure.state.user_games import SessionRegistry
 
 
 @dataclass(slots=True)
@@ -32,7 +33,8 @@ class GameSessionService:
         thread = getattr(runtime, "thread", None)
         thread_id = getattr(thread, "id", None)
         if thread_id is None:
-            raise ValueError("runtime thread is not ready yet")
+            msg = "runtime thread is not ready yet"
+            raise ValueError(msg)
         self.register(int(thread_id), runtime)
 
     def unregister(self, thread_id: int) -> None:

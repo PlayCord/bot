@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
-from playcord.core.player import Player
+if TYPE_CHECKING:
+    from playcord.core.player import Player
 
 
 class MatchOutcomeKind(StrEnum):

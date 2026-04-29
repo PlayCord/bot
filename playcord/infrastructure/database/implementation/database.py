@@ -12,8 +12,9 @@ try:
     from psycopg.rows import dict_row
     from psycopg_pool import ConnectionPool
 except ImportError as err:
+    msg = "psycopg3 is required. Install with: pip install 'psycopg[binary,pool]'"
     raise ImportError(
-        "psycopg3 is required. Install with: pip install 'psycopg[binary,pool]'",
+        msg,
     ) from err
 
 from playcord.infrastructure.database.implementation.core.exceptions import (
@@ -39,7 +40,7 @@ class Database:
         pool_size: int = 10,
         max_overflow: int = 20,
         pool_timeout: int = 30,
-    ):
+    ) -> None:
         self.host = host
         self.port = port
         self.user = user
@@ -56,8 +57,8 @@ class Database:
         self.pool: ConnectionPool | None = None
         self.connect()
 
-    def connect(self):
-        """Initialize connection pool"""
+    def connect(self) -> None:
+        """Initialize connection pool."""
         try:
             self.pool = ConnectionPool(
                 conninfo=self.conninfo,
@@ -70,18 +71,20 @@ class Database:
         except Exception as e:
             logger.exception("Error connecting to PostgreSQL: %s", e)
             self.pool = None
-            raise DatabaseConnectionError(f"Could not connect to database: {e}") from e
+            msg = f"Could not connect to database: {e}"
+            raise DatabaseConnectionError(msg) from e
 
-    def disconnect(self):
-        """Close connection pool"""
+    def disconnect(self) -> None:
+        """Close connection pool."""
         if self.pool:
             self.pool.close()
             logger.info("Database connection pool closed.")
 
     def get_connection(self):
-        """Get a connection from the pool"""
+        """Get a connection from the pool."""
         if not self.pool:
-            raise DatabaseConnectionError("Connection pool not initialized")
+            msg = "Connection pool not initialized"
+            raise DatabaseConnectionError(msg)
         return self.pool.connection()
 
     def _load_sql_asset(self, relative_path: str) -> None:
@@ -113,7 +116,7 @@ class Database:
                 conn.commit()
             except Exception as e:
                 conn.rollback()
-                logger.error("Transaction failed, rolled back: %s", e)
+                logger.exception("Transaction failed, rolled back: %s", e)
                 raise
 
     def execute_query(

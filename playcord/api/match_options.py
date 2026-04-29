@@ -24,53 +24,64 @@ class MatchOptionSpec:
     def __post_init__(self) -> None:
         if self.kind == "choices":
             if not self.choices:
+                msg = f"MatchOptionSpec {self.key!r}: choices required"
                 raise ConfigurationError(
-                    f"MatchOptionSpec {self.key!r}: choices required",
+                    msg,
                 )
             if self.default not in {value for _, value in self.choices}:
+                msg = f"MatchOptionSpec {self.key!r}: default not in choices"
                 raise ConfigurationError(
-                    f"MatchOptionSpec {self.key!r}: default not in choices",
+                    msg,
                 )
             return
 
         if self.kind == "int":
             if self.min_value is None or self.max_value is None:
+                msg = f"MatchOptionSpec {self.key!r}: min_value and max_value required"
                 raise ConfigurationError(
-                    f"MatchOptionSpec {self.key!r}: min_value and max_value required",
+                    msg,
                 )
             if self.min_value > self.max_value:
+                msg = f"MatchOptionSpec {self.key!r}: min_value > max_value"
                 raise ConfigurationError(
-                    f"MatchOptionSpec {self.key!r}: min_value > max_value",
+                    msg,
                 )
             span = self.max_value - self.min_value + 1
             if span > 25:
+                msg = f"MatchOptionSpec {self.key!r}: int range spans {span} options"
                 raise ConfigurationError(
-                    f"MatchOptionSpec {self.key!r}: int range spans {span} options",
+                    msg,
                 )
             default = int(self.default)
             if default < self.min_value or default > self.max_value:
+                msg = f"MatchOptionSpec {self.key!r}: default out of range"
                 raise ConfigurationError(
-                    f"MatchOptionSpec {self.key!r}: default out of range",
+                    msg,
                 )
             return
 
         if self.kind == "bool":
             if str(self.default) not in {"true", "false"}:
-                raise ConfigurationError(
+                msg = (
                     f"MatchOptionSpec {self.key!r}: "
-                    "bool default must be 'true' or 'false'",
+                    "bool default must be 'true' or 'false'"
+                )
+                raise ConfigurationError(
+                    msg,
                 )
             return
 
         if self.kind == "preset":
             if not self.presets:
+                msg = f"MatchOptionSpec {self.key!r}: presets required"
                 raise ConfigurationError(
-                    f"MatchOptionSpec {self.key!r}: presets required",
+                    msg,
                 )
             preset_names = {name for name, _ in self.presets}
             if str(self.default) not in preset_names:
+                msg = f"MatchOptionSpec {self.key!r}: default not in presets"
                 raise ConfigurationError(
-                    f"MatchOptionSpec {self.key!r}: default not in presets",
+                    msg,
                 )
 
     def allowed_values(self) -> set[str]:

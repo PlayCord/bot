@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from playcord.application.services.analytics import AnalyticsService
 from playcord.application.services.game_session import GameSessionService
@@ -10,7 +11,6 @@ from playcord.application.services.matchmaker import Matchmaker
 from playcord.application.services.rating import RatingService
 from playcord.application.services.replay import ReplayService
 from playcord.application.services.stats import StatsService
-from playcord.infrastructure.config import Settings
 from playcord.infrastructure.database import (
     AnalyticsRepository,
     GameRepository,
@@ -26,8 +26,11 @@ from playcord.infrastructure.database import (
 from playcord.infrastructure.database.implementation.core.migrations import (
     apply_migrations,
 )
-from playcord.infrastructure.locale import Translator
 from playcord.infrastructure.state.user_games import SessionRegistry
+
+if TYPE_CHECKING:
+    from playcord.infrastructure.config import Settings
+    from playcord.infrastructure.locale import Translator
 
 
 @dataclass(slots=True)

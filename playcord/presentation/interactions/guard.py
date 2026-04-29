@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import discord
 
-from playcord.infrastructure.locale import Translator
-from playcord.infrastructure.state.user_games import SessionRegistry
 from playcord.presentation.interactions.respond import respond
 from playcord.presentation.ui.views import UserErrorView
+
+if TYPE_CHECKING:
+    from playcord.infrastructure.locale import Translator
+    from playcord.infrastructure.state.user_games import SessionRegistry
 
 
 async def reject_bots(interaction: discord.Interaction) -> bool:

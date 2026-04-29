@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import traceback
 
 import discord
@@ -39,10 +40,8 @@ log = get_logger()
 
 
 async def _add_processing_reaction(msg: discord.Message) -> None:
-    try:
+    with contextlib.suppress(discord.HTTPException):
         await msg.add_reaction(MESSAGE_COMMAND_PENDING)
-    except discord.HTTPException:
-        pass
 
 
 async def _finalize_admin_reactions(
@@ -51,15 +50,11 @@ async def _finalize_admin_reactions(
     *,
     success: bool,
 ) -> None:
-    try:
+    with contextlib.suppress(discord.HTTPException):
         await msg.remove_reaction(MESSAGE_COMMAND_PENDING, bot_user)
-    except discord.HTTPException:
-        pass
     emoji = MESSAGE_COMMAND_SUCCEEDED if success else MESSAGE_COMMAND_FAILED
-    try:
+    with contextlib.suppress(discord.HTTPException):
         await msg.add_reaction(emoji)
-    except discord.HTTPException:
-        pass
 
 
 def _admin_error_text(what_failed: str, reason: str | None = None) -> str:
@@ -72,7 +67,7 @@ def _admin_error_text(what_failed: str, reason: str | None = None) -> str:
 
 
 class AdminCog(commands.Cog):
-    def __init__(self, bot: PlayCordBot):
+    def __init__(self, bot: PlayCordBot) -> None:
         self.bot = bot
         self._analytics = bot.container.analytics_repository
         self._guilds = bot.container.guilds_repository
@@ -85,22 +80,20 @@ class AdminCog(commands.Cog):
             ok = await work(msg)
         except Exception:
             log.exception("Owner admin message task failed")
-            try:
+            with contextlib.suppress(discord.HTTPException):
                 await msg.reply(
                     content=_admin_error_text(
                         get("commands.admin.task_unexpected_error"),
                         traceback.format_exc(),
                     ),
                 )
-            except discord.HTTPException:
-                pass
             ok = False
         finally:
             await _finalize_admin_reactions(msg, self.bot.user, success=ok)
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message) -> None:
-        """Handle message commands for bot administration"""
+        """Handle message commands for bot administration."""
         if msg.author.bot or msg.author.id not in self.bot.effective_owner_ids:
             return
 
@@ -505,5 +498,5 @@ class AdminCog(commands.Cog):
         return False
 
 
-async def setup(bot: commands.Bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(AdminCog(bot))

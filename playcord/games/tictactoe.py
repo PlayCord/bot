@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from playcord.api import (
     BotDefinition,
@@ -23,7 +23,9 @@ from playcord.api import (
 )
 from playcord.api.plugin import register_game
 from playcord.core.errors import IllegalMove, NotPlayersTurn
-from playcord.core.player import Player
+
+if TYPE_CHECKING:
+    from playcord.core.player import Player
 
 Board = list[list[str]]
 MoveCoord = tuple[int, int]
@@ -191,15 +193,18 @@ class TicTacToeGame(ReplayableGame):
         _ = source
         current = self.current_turn()
         if current is None or current.id != actor.id:
-            raise NotPlayersTurn("It is not your turn.")
+            msg = "It is not your turn."
+            raise NotPlayersTurn(msg)
 
         parsed = self._parse_move(arguments.get("move", ""))
         if parsed is None:
-            raise IllegalMove("Choose a valid tile.")
+            msg = "Choose a valid tile."
+            raise IllegalMove(msg)
         col, row = parsed
 
         if self.board[row][col] != EMPTY:
-            raise IllegalMove("That tile is already taken.")
+            msg = "That tile is already taken."
+            raise IllegalMove(msg)
 
         self.board[row][col] = self._marker_for_player(actor, self.players)
         if self.outcome() is None:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from playcord.api import (
     GameContext,
@@ -15,12 +15,14 @@ from playcord.api import (
 )
 from playcord.core.player import Player
 from playcord.games import GAME_BY_KEY
-from playcord.infrastructure.database import (
-    GameRepository,
-    MatchRepository,
-    PlayerRepository,
-    ReplayRepository,
-)
+
+if TYPE_CHECKING:
+    from playcord.infrastructure.database import (
+        GameRepository,
+        MatchRepository,
+        PlayerRepository,
+        ReplayRepository,
+    )
 
 PRECOMPUTE_FRAME_LIMIT = 200
 _FRAME_CACHE_LIMIT = 512

@@ -44,10 +44,7 @@ def _user_in_player_map(mapping: dict[Any, Any], user_id: int) -> bool:
     """True if any key in ``mapping`` is a user id or a player-like object with matching ``id``."""
     if user_id in mapping:
         return True
-    for player in mapping:
-        if getattr(player, "id", None) == user_id:
-            return True
-    return False
+    return any(getattr(player, "id", None) == user_id for player in mapping)
 
 
 def user_in_active_game(user_id: int) -> bool:

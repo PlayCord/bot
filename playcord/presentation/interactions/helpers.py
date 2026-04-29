@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import typing
 from typing import Any
 
@@ -55,10 +56,8 @@ def schedule_ephemeral_message_delete(message: Any, delay: float | None) -> None
         except (discord.NotFound, discord.Forbidden, discord.HTTPException):
             pass
 
-    try:
+    with contextlib.suppress(RuntimeError):
         asyncio.get_running_loop().create_task(_run())
-    except RuntimeError:
-        pass
 
 
 async def followup_send(
@@ -211,7 +210,7 @@ def get_shallow_player(user: discord.User | discord.Member) -> InternalPlayer:
 
 
 async def decode_discord_arguments(argument: Choice | typing.Any) -> typing.Any:
-    """Decode discord arguments from discord so they can be passed to the move function"""
+    """Decode discord arguments from discord so they can be passed to the move function."""
     if isinstance(argument, Choice):
         return argument.value
     return argument

@@ -87,7 +87,7 @@ class MatchmakingInterface:
         message: discord.InteractionMessage,
         rated: bool,
         private: bool,
-    ):
+    ) -> None:
 
         # Whether the startup of the matchmaking interaction failed
         self.failed = None
@@ -279,8 +279,9 @@ class MatchmakingInterface:
         try:
             return int(player_id)
         except (TypeError, ValueError) as exc:
+            msg = f"Player object must expose an int-like id, got {player!r}"
             raise TypeError(
-                f"Player object must expose an int-like id, got {player!r}",
+                msg,
             ) from exc
 
     @staticmethod
@@ -460,7 +461,7 @@ class MatchmakingInterface:
 
     async def update_embed(self) -> None:
         """Update the embed based on the players in self.players
-        :return: Nothing
+        :return: Nothing.
         """
         log = self.logger.getChild("update_embed")
         update_timer = Timer().start()
@@ -721,7 +722,7 @@ class MatchmakingInterface:
     async def accept_invite(self, ctx: discord.Interaction) -> bool:
         """Accept a invite.
         :param ctx: discord context with information about the invite
-        :return: whether the invite succeeded or failed
+        :return: whether the invite succeeded or failed.
         """
         player = get_shallow_player(ctx.user)
 
@@ -802,7 +803,7 @@ class MatchmakingInterface:
         """Ban a player from the game with reason
         :param player: the player to ban
         :param reason: the reason the player was banned
-        :return: Error code or None if no error
+        :return: Error code or None if no error.
         """
         log = self.logger.getChild("ban")
         new_player = get_container().players_repository.get_player(
@@ -862,7 +863,7 @@ class MatchmakingInterface:
         """Kick a player from the game with reason
         :param player: the player to kick
         :param reason: reason the player was kicked
-        :return: error or None if no error
+        :return: error or None if no error.
         """
         log = self.logger.getChild("kick")
         new_player = get_shallow_player(player)
@@ -905,7 +906,7 @@ class MatchmakingInterface:
     async def callback_ready_game(self, ctx: discord.Interaction) -> None:
         """Callback for the selected player to join the game
         :param ctx: discord context
-        :return: Nothing
+        :return: Nothing.
         """
         log = self.logger.getChild("ready_game")
         new_player = get_shallow_player(ctx.user)
@@ -1042,7 +1043,7 @@ class MatchmakingInterface:
     async def callback_leave_game(self, ctx: discord.Interaction) -> None:
         """Callback for the selected player to leave the matchmaking session
         :param ctx: discord context
-        :return: None
+        :return: None.
         """
         log = self.logger.getChild("leave_game")
         log.debug(f"Attempting to leave the game... {contextify(ctx)}")

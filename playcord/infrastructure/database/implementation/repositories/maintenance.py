@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from playcord.infrastructure.database.implementation.core import migrations
-from playcord.infrastructure.database.implementation.database import Database
+
+if TYPE_CHECKING:
+    from playcord.infrastructure.database.implementation.database import Database
 
 
 @dataclass(slots=True)
@@ -252,6 +254,6 @@ class MaintenanceRepository:
         try:
             result = self.database.execute_query("SELECT 1 as check;", fetchone=True)
             return result is not None and result["check"] == 1
-        except Exception as e:  # noqa: BLE001
-            log.error("Health check failed: %s", e)
+        except Exception as e:
+            log.exception("Health check failed: %s", e)
             return False

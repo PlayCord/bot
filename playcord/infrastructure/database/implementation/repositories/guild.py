@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from playcord.infrastructure.database.implementation.database import Database
 from playcord.infrastructure.database.models import Guild, row_to_guild
+
+if TYPE_CHECKING:
+    from playcord.infrastructure.database.implementation.database import Database
 
 
 @dataclass(slots=True)

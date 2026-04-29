@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import html
-from collections.abc import Iterable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 def render_key_value_svg(

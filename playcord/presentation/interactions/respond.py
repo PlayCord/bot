@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import discord
 
-from playcord.presentation.ui.views import View
+if TYPE_CHECKING:
+    from playcord.presentation.ui.views import View
 
 
 def schedule_delete(message: Any, delay: float | None) -> None:
@@ -70,7 +71,8 @@ class CustomId:
     def decode(cls, raw: str) -> CustomId:
         parts = raw.split(":", 3)
         if len(parts) < 3:
-            raise ValueError(f"Invalid custom_id: {raw!r}")
+            msg = f"Invalid custom_id: {raw!r}"
+            raise ValueError(msg)
         payload = parts[3] if len(parts) == 4 else ""
         return cls(
             namespace=parts[0],
@@ -94,7 +96,8 @@ class InteractionRouter:
         try:
             handler = self._handlers[(parsed.namespace, parsed.action)]
         except KeyError as exc:
+            msg = f"No interaction handler for {parsed.namespace}:{parsed.action}"
             raise KeyError(
-                f"No interaction handler for {parsed.namespace}:{parsed.action}",
+                msg,
             ) from exc
         return parsed, handler

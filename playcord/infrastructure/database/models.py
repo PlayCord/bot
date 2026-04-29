@@ -13,7 +13,7 @@ from typing import Any
 
 
 class MatchStatus(StrEnum):
-    """Status of a match"""
+    """Status of a match."""
 
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -55,7 +55,7 @@ class EventType(StrEnum):
 
 @dataclass
 class Guild:
-    """Represents a Discord guild/server"""
+    """Represents a Discord guild/server."""
 
     guild_id: int
     joined_at: datetime
@@ -65,17 +65,17 @@ class Guild:
     updated_at: datetime | None = None
 
     def get_setting(self, key: str, default: Any = None) -> Any:
-        """Get a guild setting with optional default"""
+        """Get a guild setting with optional default."""
         return self.settings.get(key, default)
 
     def set_setting(self, key: str, value: Any) -> None:
-        """Set a guild setting"""
+        """Set a guild setting."""
         self.settings[key] = value
 
 
 @dataclass
 class User:
-    """Represents a Discord user"""
+    """Represents a Discord user."""
 
     user_id: int
     username: str
@@ -87,22 +87,22 @@ class User:
     updated_at: datetime | None = None
 
     def get_preference(self, key: str, default: Any = None) -> Any:
-        """Get a user preference with optional default"""
+        """Get a user preference with optional default."""
         return self.preferences.get(key, default)
 
     def set_preference(self, key: str, value: Any) -> None:
-        """Set a user preference"""
+        """Set a user preference."""
         self.preferences[key] = value
 
     @property
     def mention(self) -> str:
-        """Discord mention string"""
+        """Discord mention string."""
         return f"<@{self.user_id}>"
 
 
 @dataclass
 class Game:
-    """Represents a game type"""
+    """Represents a game type."""
 
     game_id: int
     game_name: str
@@ -117,7 +117,7 @@ class Game:
     updated_at: datetime | None = None
 
     def get_trueskill_param(self, param: str) -> float:
-        """Get a TrueSkill parameter"""
+        """Get a TrueSkill parameter."""
         return self.rating_config.get(param, 0.0)
 
     @property
@@ -162,15 +162,15 @@ class Rating:
 
     @property
     def conservative_rating(self) -> float:
-        """Conservative rating estimate (mu - 3*sigma)"""
+        """Conservative rating estimate (mu - 3*sigma)."""
         return self.mu - (3.0 * self.sigma)
 
     def is_uncertain(self, threshold: float = 0.5) -> bool:
-        """Check if rating is uncertain based on sigma threshold"""
+        """Check if rating is uncertain based on sigma threshold."""
         return self.sigma > (threshold * self.mu)
 
     def format_rating(self, uncertainty_threshold: float = 0.20) -> str:
-        """Format rating with uncertainty indicator"""
+        """Format rating with uncertainty indicator."""
         rating = self.conservative_rating
         if self.is_uncertain(uncertainty_threshold):
             return f"{round(rating)}?"
@@ -179,7 +179,7 @@ class Rating:
 
 @dataclass
 class Match:
-    """Represents a game match"""
+    """Represents a game match."""
 
     match_id: int
     game_id: int
@@ -198,14 +198,14 @@ class Match:
 
     @property
     def duration_seconds(self) -> int | None:
-        """Match duration in seconds"""
+        """Match duration in seconds."""
         if self.ended_at is None:
             return None
         return int((self.ended_at - self.started_at).total_seconds())
 
     @property
     def is_finished(self) -> bool:
-        """Check if match is finished"""
+        """Check if match is finished."""
         return self.status in (
             MatchStatus.COMPLETED,
             MatchStatus.INTERRUPTED,
@@ -214,13 +214,13 @@ class Match:
 
     @property
     def is_in_progress(self) -> bool:
-        """Check if match is currently in progress"""
+        """Check if match is currently in progress."""
         return self.status == MatchStatus.IN_PROGRESS
 
 
 @dataclass
 class Participant:
-    """Represents a participant in a match"""
+    """Represents a participant in a match."""
 
     participant_id: int
     match_id: int
@@ -237,27 +237,27 @@ class Participant:
 
     @property
     def mu_after(self) -> float | None:
-        """Rating after the match"""
+        """Rating after the match."""
         if self.mu_before is None:
             return None
         return self.mu_before + self.mu_delta
 
     @property
     def sigma_after(self) -> float | None:
-        """Uncertainty after the match"""
+        """Uncertainty after the match."""
         if self.sigma_before is None:
             return None
         return self.sigma_before + self.sigma_delta
 
     @property
     def is_winner(self) -> bool:
-        """Check if participant won"""
+        """Check if participant won."""
         return self.final_ranking == 1 if self.final_ranking is not None else False
 
 
 @dataclass
 class Move:
-    """Represents a single move in a match"""
+    """Represents a single move in a match."""
 
     move_id: int
     match_id: int
@@ -272,12 +272,12 @@ class Move:
 
     @property
     def is_system_move(self) -> bool:
-        """Check if move was made by the system"""
+        """Check if move was made by the system."""
         return self.user_id is None
 
     @property
     def time_taken_seconds(self) -> float | None:
-        """Time taken in seconds"""
+        """Time taken in seconds."""
         if self.time_taken_ms is None:
             return None
         return self.time_taken_ms / 1000.0
@@ -285,7 +285,7 @@ class Move:
 
 @dataclass
 class AnalyticsEvent:
-    """Represents an analytics event"""
+    """Represents an analytics event."""
 
     event_id: int
     event_type: EventType
@@ -299,7 +299,7 @@ class AnalyticsEvent:
 
 @dataclass
 class RatingHistory:
-    """Represents a historical rating change"""
+    """Represents a historical rating change."""
 
     history_id: int
     user_id: int
@@ -314,17 +314,17 @@ class RatingHistory:
 
     @property
     def mu_delta(self) -> float:
-        """Change in mu"""
+        """Change in mu."""
         return self.mu_after - self.mu_before
 
     @property
     def sigma_delta(self) -> float:
-        """Change in sigma"""
+        """Change in sigma."""
         return self.sigma_after - self.sigma_before
 
     @property
     def rating_change(self) -> float:
-        """Change in conservative rating"""
+        """Change in conservative rating."""
         before = self.mu_before - (3.0 * self.sigma_before)
         after = self.mu_after - (3.0 * self.sigma_after)
         return after - before
@@ -336,7 +336,7 @@ class RatingHistory:
 
 
 def row_to_user(row: dict[str, Any]) -> User:
-    """Convert database row to User object"""
+    """Convert database row to User object."""
     return User(
         user_id=row["user_id"],
         username=row["username"],
@@ -350,7 +350,7 @@ def row_to_user(row: dict[str, Any]) -> User:
 
 
 def row_to_guild(row: dict[str, Any]) -> Guild:
-    """Convert database row to Guild object"""
+    """Convert database row to Guild object."""
     return Guild(
         guild_id=row["guild_id"],
         joined_at=row.get("joined_at") or row.get("created_at"),
@@ -362,7 +362,7 @@ def row_to_guild(row: dict[str, Any]) -> Guild:
 
 
 def row_to_game(row: dict[str, Any]) -> Game:
-    """Convert database row to Game object"""
+    """Convert database row to Game object."""
     return Game(
         game_id=row["game_id"],
         game_name=row["game_name"],
@@ -379,7 +379,7 @@ def row_to_game(row: dict[str, Any]) -> Game:
 
 
 def row_to_rating(row: dict[str, Any]) -> Rating:
-    """Convert database row to Rating object"""
+    """Convert database row to Rating object."""
     return Rating(
         rating_id=row["rating_id"],
         user_id=row["user_id"],
@@ -395,7 +395,7 @@ def row_to_rating(row: dict[str, Any]) -> Rating:
 
 
 def row_to_match(row: dict[str, Any]) -> Match:
-    """Convert database row to Match object"""
+    """Convert database row to Match object."""
     return Match(
         match_id=row["match_id"],
         game_id=row["game_id"],
@@ -415,7 +415,7 @@ def row_to_match(row: dict[str, Any]) -> Match:
 
 
 def row_to_participant(row: dict[str, Any]) -> Participant:
-    """Convert database row to Participant object"""
+    """Convert database row to Participant object."""
     return Participant(
         participant_id=row["participant_id"],
         match_id=row["match_id"],
@@ -433,7 +433,7 @@ def row_to_participant(row: dict[str, Any]) -> Participant:
 
 
 def row_to_move(row: dict[str, Any]) -> Move:
-    """Convert database row to Move object"""
+    """Convert database row to Move object."""
     return Move(
         move_id=row["move_id"],
         match_id=row["match_id"],

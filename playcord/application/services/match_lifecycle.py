@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from playcord.application.runtime_context import get_container
 from playcord.application.services.game_manager import GameManager
@@ -13,6 +12,9 @@ from playcord.application.services.rating import (
 )
 from playcord.infrastructure.locale import get
 from playcord.infrastructure.logging import get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 log = get_logger("match.lifecycle")
 

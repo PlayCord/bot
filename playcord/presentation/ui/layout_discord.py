@@ -49,7 +49,7 @@ async def _noop_button_interaction(interaction: discord.Interaction) -> None:
 
 
 class DynamicButtonView(discord.ui.LayoutView):
-    """Dynamic button view: this is PAIN"""
+    """Dynamic button view: this is PAIN."""
 
     def __init__(
         self,
@@ -59,7 +59,7 @@ class DynamicButtonView(discord.ui.LayoutView):
     ) -> None:
         """Create a dynamic button view
         :param buttons: list of buttons as dictionaries
-        look at class D
+        look at class D.
         """
         super().__init__(timeout=None)
         container = discord.ui.Container()
@@ -116,7 +116,7 @@ class DynamicButtonView(discord.ui.LayoutView):
         """If a "dead" view is interacted, simply disable each component and update the message
         also send an ephemeral message to the interacter
         :param interaction: discord context
-        :return: nothing
+        :return: nothing.
         """
         for child in self.walk_children():
             if hasattr(child, "disabled"):
@@ -133,7 +133,7 @@ class DynamicButtonView(discord.ui.LayoutView):
 
 
 class MatchmakingView(DynamicButtonView):
-    """View for matchmaking message"""
+    """View for matchmaking message."""
 
     def __init__(
         self,
@@ -176,7 +176,7 @@ class MatchmakingView(DynamicButtonView):
 
 
 class InviteView(DynamicButtonView):
-    """View for invitation DM"""
+    """View for invitation DM."""
 
     def __init__(
         self,
@@ -186,7 +186,7 @@ class InviteView(DynamicButtonView):
     ) -> None:
         """Create a invite view
         :param join_button_id: the custom ID of the join button
-        :param game_link: the link to the game
+        :param game_link: the link to the game.
         """
         super().__init__(
             [
@@ -207,7 +207,7 @@ class InviteView(DynamicButtonView):
 
 
 class SpectateView(DynamicButtonView):
-    """View for status message"""
+    """View for status message."""
 
     def __init__(
         self,
@@ -221,7 +221,7 @@ class SpectateView(DynamicButtonView):
         :param spectate_button_id: custom ID of the spectate button
         :param peek_button_id: custom ID of the peek button
         :param game_link: the link to the game
-        :param table_image_url: optional attachment:// URL for overview table (same slot as DynamicButtonView)
+        :param table_image_url: optional attachment:// URL for overview table (same slot as DynamicButtonView).
         """
         buttons = [
             {
@@ -270,7 +270,7 @@ class PaginationView(discord.ui.LayoutView):
         max_pages: int,
         callback_handler,
         body_text: str | None = None,
-    ):
+    ) -> None:
         """:param guild_id: Guild ID for validation (0 if not in a guild)
         :param user_id: User who invoked the command (only they can use the buttons)
         :param current_page: Current page (1-indexed)
@@ -336,11 +336,9 @@ class PaginationView(discord.ui.LayoutView):
         """Validate that the interaction is from the command invoker."""
         if interaction.user.id != self.user_id:
             return False
-        if interaction.guild_id != self.guild_id:
-            return False
-        return True
+        return interaction.guild_id == self.guild_id
 
-    async def _first_callback(self, interaction: discord.Interaction):
+    async def _first_callback(self, interaction: discord.Interaction) -> None:
         """Navigate to first page."""
         if not self._validate_interaction(interaction):
             await response_send_message(
@@ -354,7 +352,7 @@ class PaginationView(discord.ui.LayoutView):
         await interaction.response.defer()
         await self.callback_handler(interaction, 1)
 
-    async def _prev_callback(self, interaction: discord.Interaction):
+    async def _prev_callback(self, interaction: discord.Interaction) -> None:
         """Navigate to previous page."""
         if not self._validate_interaction(interaction):
             await response_send_message(
@@ -369,7 +367,7 @@ class PaginationView(discord.ui.LayoutView):
         await interaction.response.defer()
         await self.callback_handler(interaction, new_page)
 
-    async def _next_callback(self, interaction: discord.Interaction):
+    async def _next_callback(self, interaction: discord.Interaction) -> None:
         """Navigate to next page."""
         if not self._validate_interaction(interaction):
             await response_send_message(
@@ -384,7 +382,7 @@ class PaginationView(discord.ui.LayoutView):
         await interaction.response.defer()
         await self.callback_handler(interaction, new_page)
 
-    async def _last_callback(self, interaction: discord.Interaction):
+    async def _last_callback(self, interaction: discord.Interaction) -> None:
         """Navigate to last page."""
         if not self._validate_interaction(interaction):
             await response_send_message(
@@ -400,9 +398,9 @@ class PaginationView(discord.ui.LayoutView):
 
 
 class RematchView(DynamicButtonView):
-    """Rematch button; interaction is handled in GamesCog (see callback \"none\")."""
+    r"""Rematch button; interaction is handled in GamesCog (see callback \"none\")."""
 
-    def __init__(self, match_id: int, summary_text: str | None = None):
+    def __init__(self, match_id: int, summary_text: str | None = None) -> None:
         super().__init__(
             [
                 {
@@ -425,14 +423,14 @@ class HelpView(discord.ui.LayoutView):
         user_id: int,
         current_section: str = "main",
         body_text: str | None = None,
-    ):
+    ) -> None:
         super().__init__(timeout=300)
         self.user_id = user_id
         self.current_section = current_section
         self.body_text = body_text
         self._setup_buttons()
 
-    def _setup_buttons(self):
+    def _setup_buttons(self) -> None:
         """Set up navigation buttons based on current section."""
         container = discord.ui.Container(
             discord.ui.TextDisplay("### Help Navigation"),
@@ -532,12 +530,12 @@ class HelpButton(discord.ui.Button):
         section: str,
         style: discord.ButtonStyle,
         user_id: int,
-    ):
+    ) -> None:
         super().__init__(label=label, style=style)
         self.section = section
         self.user_id = user_id
 
-    async def callback(self, interaction: discord.Interaction):
+    async def callback(self, interaction: discord.Interaction) -> None:
         if interaction.user.id != self.user_id:
             await response_send_message(
                 interaction,
@@ -627,12 +625,12 @@ class HelpButton(discord.ui.Button):
 
 
 class GameTutorialButton(discord.ui.Button):
-    def __init__(self, game_id: str, user_id: int):
+    def __init__(self, game_id: str, user_id: int) -> None:
         super().__init__(label=game_id[:80], style=discord.ButtonStyle.primary)
         self.game_id = game_id
         self.user_id = user_id
 
-    async def callback(self, interaction: discord.Interaction):
+    async def callback(self, interaction: discord.Interaction) -> None:
         if interaction.user.id != self.user_id:
             await response_send_message(
                 interaction,
@@ -662,7 +660,7 @@ class ContextualHelpView(discord.ui.LayoutView):
     Shows relevant help information based on the context.
     """
 
-    def __init__(self, help_topic: str = "main", timeout: int = 180):
+    def __init__(self, help_topic: str = "main", timeout: int = 180) -> None:
         """Initialize contextual help view.
 
         Args:
@@ -684,7 +682,7 @@ class ContextualHelpView(discord.ui.LayoutView):
         container.add_item(row)
         self.add_item(container)
 
-    async def help_button(self, interaction: discord.Interaction):
+    async def help_button(self, interaction: discord.Interaction) -> None:
         """Show contextual help based on the topic."""
         if self.help_topic == "getting_started":
             container = HelpGettingStartedContainer()
@@ -711,7 +709,7 @@ class QuickActionsView(discord.ui.LayoutView):
         show_catalog: bool = True,
         show_help: bool = True,
         timeout: int = 180,
-    ):
+    ) -> None:
         super().__init__(timeout=timeout)
         container = discord.ui.Container(discord.ui.TextDisplay("### Quick Actions"))
         row = discord.ui.ActionRow()

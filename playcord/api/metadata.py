@@ -8,18 +8,20 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable, Sized
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from playcord.api.bot import BotDefinition
-from playcord.api.handlers import HandlerSpec
-from playcord.api.match_options import MatchOptionSpec
 from playcord.core.errors import ConfigurationError
-from playcord.core.player import Player
 from playcord.core.rating import (
     DEFAULT_TRUESKILL_PARAMETERS,
     merge_trueskill_parameters,
 )
 from playcord.core.replay import ReplayEvent, ReplayRecorder
+
+if TYPE_CHECKING:
+    from playcord.api.bot import BotDefinition
+    from playcord.api.handlers import HandlerSpec
+    from playcord.api.match_options import MatchOptionSpec
+    from playcord.core.player import Player
 
 
 class ParameterKind(StrEnum):
@@ -203,12 +205,14 @@ def ensure_valid_player_count(game: type[Game], count: int) -> None:
     allowed = game.required_player_count()
     if isinstance(allowed, int):
         if count != allowed:
+            msg = f"{game.metadata.key} requires exactly {allowed} players"
             raise ConfigurationError(
-                f"{game.metadata.key} requires exactly {allowed} players",
+                msg,
             )
         return
     if count not in allowed:
         values = ", ".join(str(value) for value in allowed)
+        msg = f"{game.metadata.key} requires one of these player counts: {values}"
         raise ConfigurationError(
-            f"{game.metadata.key} requires one of these player counts: {values}",
+            msg,
         )

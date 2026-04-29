@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import json
 import random
-from typing import Any
-
-from discord import User
+from typing import TYPE_CHECKING, Any
 
 from playcord.infrastructure.constants import LOGGING_ROOT, LONG_SPACE_EMBED
-from playcord.infrastructure.database.implementation.internal_player import (
-    InternalPlayer,
-)
 from playcord.infrastructure.locale import get
+
+if TYPE_CHECKING:
+    from discord import User
+
+    from playcord.infrastructure.database.implementation.internal_player import (
+        InternalPlayer,
+    )
 
 
 def discord_user_mention(user_id: int | None) -> str:
@@ -23,7 +25,7 @@ def discord_user_mention(user_id: int | None) -> str:
 
 
 def column_names(players: list[InternalPlayer] | set[InternalPlayer]) -> str:
-    """Convert a list of players into a string representing the list of players
+    """Convert a list of players into a string representing the list of players.
 
     @player
     @player2
@@ -41,7 +43,7 @@ def column_elo(
     players: list[InternalPlayer] | set[InternalPlayer],
     game_type: str,
 ) -> str:
-    """Convert a list of players into a string representing the list of players
+    """Convert a list of players into a string representing the list of players.
 
     238
     237?
@@ -59,7 +61,7 @@ def column_creator(
     players: list[InternalPlayer] | set[InternalPlayer],
     creator: InternalPlayer | User,
 ) -> str:
-    """Convert a list of players into a string representing the list of players's creator status
+    """Convert a list of players into a string representing the list of players's creator status.
 
     Creator
     <blank>
@@ -80,7 +82,7 @@ def column_turn(
     players: list[InternalPlayer] | set[InternalPlayer],
     turn: InternalPlayer | User,
 ) -> str:
-    """Convert a list of players into a string representing the list of players and whose turn it is
+    """Convert a list of players into a string representing the list of players and whose turn it is.
 
     ✅
     <blank>
@@ -99,7 +101,7 @@ def textify(basis: dict[str, float], replacements: dict[str, str]) -> str:
     :param replacements: A list of things to replace
     (ex: "The {person} rolls..." with argument {"person": "John Wick"}
     -> "The John Wick rolls..."
-    :return: the randomly generated string
+    :return: the randomly generated string.
     """
     random_float = random.random()  # Pick a number between 0 and 1
     actually_picked_message = None
@@ -140,7 +142,7 @@ def player_representative(possible_players: list[int]):
     """Turns a list of players into a string representing the list of possible players
     e.g. [2, 3, 4, 5] -> 2-5, [2,3,5] -> 2-3, 5
     :param possible_players:
-    :return: string representing the the amount
+    :return: string representing the the amount.
     """
     if isinstance(possible_players, int):
         return str(possible_players)
@@ -168,7 +170,7 @@ def player_verification_function(possible_players: list[int] | int):
      (or equal to a number)
     :param possible_players: either an integer or a
     list of integers representing the possible player count    :return: a function that checks if an argument
-    is in the list of possible player counts
+    is in the list of possible player counts.
     """
     if isinstance(possible_players, int):  # One number
         return lambda x: x == possible_players

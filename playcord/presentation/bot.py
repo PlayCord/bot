@@ -48,7 +48,7 @@ def _collect_remote_command_mentions(ac: AppCommand) -> dict[str, str]:
                 isinstance(opt := option, AppCommandGroup)
                 or getattr(opt, "options", None) is not None
             ):
-                walk(opt, parts + (opt.name,))
+                walk(opt, (*parts, opt.name))
 
     walk(ac, (ac.name,))
     return mentions
@@ -57,7 +57,7 @@ def _collect_remote_command_mentions(ac: AppCommand) -> dict[str, str]:
 class PlayCordBot(commands.Bot):
     """Thin presentation-layer bot."""
 
-    def __init__(self, container: ApplicationContainer):
+    def __init__(self, container: ApplicationContainer) -> None:
         super().__init__(
             command_prefix="!",
             intents=discord.Intents.all(),

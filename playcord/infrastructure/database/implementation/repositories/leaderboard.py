@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from playcord.infrastructure.database.implementation.database import Database
+if TYPE_CHECKING:
+    from playcord.infrastructure.database.implementation.database import Database
 
 
 @dataclass(slots=True)

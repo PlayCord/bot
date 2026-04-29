@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 try:
     from psycopg import errors as pg_errors
@@ -13,7 +13,6 @@ except ImportError:
 
 from playcord.core.generators import generate_match_code
 from playcord.core.rating import DEFAULT_MU, DEFAULT_SIGMA
-from playcord.infrastructure.database.implementation.database import Database
 from playcord.infrastructure.database.models import (
     Match,
     MatchStatus,
@@ -23,6 +22,9 @@ from playcord.infrastructure.database.models import (
     row_to_move,
     row_to_participant,
 )
+
+if TYPE_CHECKING:
+    from playcord.infrastructure.database.implementation.database import Database
 
 
 @dataclass(slots=True)
@@ -232,7 +234,8 @@ class MatchRepository:
                     last_err = e
                     continue
                 raise
-        raise RuntimeError("Could not allocate a unique match_code") from last_err
+        msg = "Could not allocate a unique match_code"
+        raise RuntimeError(msg) from last_err
 
     def end_match(
         self,
@@ -253,9 +256,11 @@ class MatchRepository:
             )
             match = cur.fetchone()
             if not match:
-                raise ValueError(f"Match {match_id} not found")
+                msg = f"Match {match_id} not found"
+                raise ValueError(msg)
             if match["status"] == MatchStatus.COMPLETED.value:
-                raise ValueError(f"Match {match_id} is already completed")
+                msg = f"Match {match_id} is already completed"
+                raise ValueError(msg)
 
             for user_id, result in results.items():
                 cur.execute(
@@ -703,12 +708,14 @@ class MatchRepository:
     ) -> tuple[int, str]:
         game = self.games.get_game(game_name)
         if not game:
-            raise ValueError(f"Game {game_name} not found")
+            msg = f"Game {game_name} not found"
+            raise ValueError(msg)
         self.guilds.create_guild(guild_id)
         status = game_data.get("status", MatchStatus.IN_PROGRESS.value)
         valid_statuses = {s.value for s in MatchStatus}
         if status not in valid_statuses:
-            raise ValueError(f"Invalid match status: {status}")
+            msg = f"Invalid match status: {status}"
+            raise ValueError(msg)
         game_data_json = json.dumps(game_data or {})
         last_err: Exception | None = None
         for _ in range(48):
@@ -747,7 +754,8 @@ class MatchRepository:
                     last_err = e
                     continue
                 raise
-        raise RuntimeError("Could not allocate a unique match_code") from last_err
+        msg = "Could not allocate a unique match_code"
+        raise RuntimeError(msg) from last_err
 
     def create_game(
         self,
@@ -761,7 +769,8 @@ class MatchRepository:
     ) -> tuple[int, str]:
         game = self.games.get_game(game_name)
         if not game:
-            raise ValueError(f"Game {game_name} not found")
+            msg = f"Game {game_name} not found"
+            raise ValueError(msg)
         resolved_channel_id = channel_id if channel_id is not None else 0
         return self.create_match(
             game_id=game.game_id,

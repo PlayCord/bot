@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from playcord.api.plugin import RoleMode, resolve_player_count
 from playcord.core.generators import generate_bot_name
 from playcord.core.player import Player
 from playcord.infrastructure.locale import fmt, get
-from playcord.infrastructure.state.user_games import SessionRegistry
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from playcord.infrastructure.state.user_games import SessionRegistry
 
 
 @dataclass(slots=True)
@@ -83,9 +86,8 @@ def lobby_add_bot(
 
     current_count = human_queue_size + len(roster.bots)
     player_count = resolve_player_count(game)
-    if isinstance(player_count, list):
-        if (current_count + 1) not in player_count:
-            return get("queue.bot_too_many_for_game")
+    if isinstance(player_count, list) and (current_count + 1) not in player_count:
+        return get("queue.bot_too_many_for_game")
     if isinstance(player_count, int) and (current_count + 1) != player_count:
         return get("queue.bot_too_many_for_game")
 

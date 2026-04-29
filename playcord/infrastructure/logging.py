@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import logging
 import sys
-from collections.abc import Mapping
 from logging import Logger
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 
 class Formatter(logging.Formatter):

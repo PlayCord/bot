@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from playcord.infrastructure.config import get_settings
-from playcord.infrastructure.database.implementation.database import Database
-from playcord.infrastructure.database.implementation.repositories.game import (
-    GameRepository,
-)
-from playcord.infrastructure.database.implementation.repositories.leaderboard import (
-    LeaderboardRepository,
-)
 from playcord.infrastructure.database.models import Rating, row_to_rating
+
+if TYPE_CHECKING:
+    from playcord.infrastructure.database.implementation.database import Database
+    from playcord.infrastructure.database.implementation.repositories.game import (
+        GameRepository,
+    )
+    from playcord.infrastructure.database.implementation.repositories.leaderboard import (
+        LeaderboardRepository,
+    )
 
 
 @dataclass(slots=True)
@@ -46,7 +48,8 @@ class RatingRepository:
     def initialize_user_rating(self, user_id: int, game_id: int) -> None:
         game = self.games.get_by_id(game_id)
         if not game:
-            raise ValueError(f"Game {game_id} not found")
+            msg = f"Game {game_id} not found"
+            raise ValueError(msg)
 
         mu = game.default_mu
         sigma = game.default_sigma
@@ -127,7 +130,8 @@ class RatingRepository:
     def reset_user_rating(self, user_id: int, game_id: int) -> None:
         game = self.games.get_by_id(game_id)
         if not game:
-            raise ValueError(f"Game {game_id} not found")
+            msg = f"Game {game_id} not found"
+            raise ValueError(msg)
 
         query = """
             UPDATE user_game_ratings

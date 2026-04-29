@@ -220,7 +220,7 @@ class ContainerField:
 
 
 class CustomContainer:
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         self.title: str | None = kwargs.get("title")
         self.description: str | None = kwargs.get("description")
         self.color: discord.Color | int | None = kwargs.get("color")
@@ -243,9 +243,12 @@ class CustomContainer:
 
     def add_field(self, *, name: str, value: Any, inline: bool = True):
         if len(self.fields) >= MAX_EMBED_FIELDS:
-            raise ContainerValidationError(
+            msg = (
                 f"Cannot add field: container already has {MAX_EMBED_FIELDS} fields (Discord's limit). "
-                f"Field name: {name[:50]}",
+                f"Field name: {name[:50]}"
+            )
+            raise ContainerValidationError(
+                msg,
             )
         self.fields.append(ContainerField(str(name), str(value), inline))
         return self
@@ -272,8 +275,9 @@ class CustomContainer:
     def validate(self) -> None:
         """Validate container doesn't exceed Discord's limits."""
         if len(self.fields) > MAX_EMBED_FIELDS:
+            msg = f"Container has {len(self.fields)} fields, exceeds limit of {MAX_EMBED_FIELDS}"
             raise ContainerValidationError(
-                f"Container has {len(self.fields)} fields, exceeds limit of {MAX_EMBED_FIELDS}",
+                msg,
             )
 
     def to_markdown(self) -> str:
@@ -321,7 +325,7 @@ class CustomContainer:
 
 
 class SuccessContainer(CustomContainer):
-    def __init__(self, title: str = None, description: str = None, **kwargs):
+    def __init__(self, title: str | None = None, description: str | None = None, **kwargs) -> None:
         kwargs["color"] = SUCCESS_COLOR
         kwargs["title"] = f"✅ {title or get('success.default_title')}"
         if description:
@@ -330,7 +334,7 @@ class SuccessContainer(CustomContainer):
 
 
 class WarningContainer(CustomContainer):
-    def __init__(self, title: str = None, description: str = None, **kwargs):
+    def __init__(self, title: str | None = None, description: str | None = None, **kwargs) -> None:
         kwargs["color"] = WARNING_COLOR
         kwargs["title"] = f"⚠️ {title or get('warnings.default_title')}"
         if description:
@@ -339,7 +343,7 @@ class WarningContainer(CustomContainer):
 
 
 class UserErrorContainer(CustomContainer):
-    def __init__(self, description: str = None, suggestion: str = None, **kwargs):
+    def __init__(self, description: str | None = None, suggestion: str | None = None, **kwargs) -> None:
         kwargs["color"] = ERROR_COLOR
         super().__init__(**kwargs)
         if description:
@@ -353,7 +357,7 @@ class UserErrorContainer(CustomContainer):
 
 
 class LoadingContainer(CustomContainer):
-    def __init__(self, message: str = None, **kwargs):
+    def __init__(self, message: str | None = None, **kwargs) -> None:
         kwargs["title"] = f"{message or get('loading.default')}"
         # Get random tagline from the list
         loading_dict = get_dict("loading")
@@ -367,7 +371,7 @@ class LoadingContainer(CustomContainer):
 
 
 class ErrorContainer(CustomContainer):
-    def __init__(self, ctx=None, what_failed=None, reason=None):
+    def __init__(self, ctx=None, what_failed=None, reason=None) -> None:
         current_directory = os.path.dirname(__file__).rstrip("utils")
         super().__init__(
             title=f"{get_emoji_string('facepalm')} {get('system_error.title')}",
@@ -410,7 +414,7 @@ class ErrorContainer(CustomContainer):
 
 
 class GameOverviewContainer(CustomContainer):
-    def __init__(self, game_name, game_type, rated, players, turn):
+    def __init__(self, game_name, game_type, rated, players, turn) -> None:
         title_key = (
             "embeds.game_overview.title_rated"
             if rated
@@ -456,7 +460,7 @@ class GameOverContainer(CustomContainer):
         outcome_global_summary: str | None = None,
         replay_id: str | int | None = None,
         forfeited_player_ids: set[int] | None = None,
-    ):
+    ) -> None:
         super().__init__(
             title=fmt("embeds.game_over.title", game_name=game_name),
             description=get("embeds.game_over.description"),
@@ -500,7 +504,7 @@ class GameOverContainer(CustomContainer):
 
 
 class InviteContainer(CustomContainer):
-    def __init__(self, inviter, game_type, guild_name):
+    def __init__(self, inviter, game_type, guild_name) -> None:
         super().__init__(
             title=get("embeds.invite.title"),
             description=fmt(
@@ -523,7 +527,7 @@ class InviteContainer(CustomContainer):
 
 
 class HelpMainContainer(CustomContainer):
-    def __init__(self):
+    def __init__(self) -> None:
         name = get("brand.name")
         super().__init__(
             title=fmt("help.main.title", name=name),
@@ -548,7 +552,7 @@ class HelpMainContainer(CustomContainer):
 
 
 class HelpGettingStartedContainer(CustomContainer):
-    def __init__(self):
+    def __init__(self) -> None:
         name = get("brand.name")
         super().__init__(
             title=fmt("help.getting_started.title", name=name),
@@ -578,7 +582,7 @@ class HelpGettingStartedContainer(CustomContainer):
 
 
 class HelpCommandsContainer(CustomContainer):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             title=get("help.commands.title"),
             description=get("help.commands.description"),
@@ -602,7 +606,7 @@ class HelpCommandsContainer(CustomContainer):
 
 
 class HelpFaqContainer(CustomContainer):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             title=get("help.faq.title"),
             description=get("help.faq.description"),
@@ -631,7 +635,7 @@ class HelpFaqContainer(CustomContainer):
 
 
 class HelpTutorialsContainer(CustomContainer):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             title=get("help.tutorials.title"),
             description=get("help.tutorials.description"),
@@ -640,7 +644,7 @@ class HelpTutorialsContainer(CustomContainer):
 
 
 class HelpGameInfoContainer(CustomContainer):
-    def __init__(self, game_id: str, game_class):
+    def __init__(self, game_id: str, game_class) -> None:
         metadata = game_class.metadata
         game_name = getattr(metadata, "name", game_id)
         description = getattr(
@@ -712,7 +716,7 @@ class MatchmakingContainer(CustomContainer):
         max_players: int,
         rated: bool = True,
         private: bool = False,
-    ):
+    ) -> None:
         status = (
             get("embeds.matchmaking.status_private")
             if private

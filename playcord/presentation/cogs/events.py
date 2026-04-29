@@ -30,7 +30,7 @@ log = get_logger()
 
 
 class EventsCog(commands.Cog):
-    def __init__(self, bot: PlayCordBot):
+    def __init__(self, bot: PlayCordBot) -> None:
         self.bot = bot
         self.presence_lock = asyncio.Lock()
         self._warned_users = {}  # {thread_id: {user_id: timestamp}} - track warnings to avoid spam
@@ -350,5 +350,5 @@ class EventsCog(commands.Cog):
                         await asyncio.sleep(PRESENCE_TIMEOUT)
 
 
-async def setup(bot: PlayCordBot):
+async def setup(bot: PlayCordBot) -> None:
     await bot.add_cog(EventsCog(bot))

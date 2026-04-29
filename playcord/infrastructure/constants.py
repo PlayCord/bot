@@ -6,13 +6,15 @@ Populated via :func:`bind_locale_strings`.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import discord
 
 from playcord.core.rating import DEFAULT_MU
 from playcord.games import GAMES
-from playcord.infrastructure.locale import Translator
+
+if TYPE_CHECKING:
+    from playcord.infrastructure.locale import Translator
 
 VERSION = "0.7.0"
 NAME = ""

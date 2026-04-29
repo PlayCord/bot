@@ -134,7 +134,7 @@ def flush_events() -> int:
         if flushed:
             logger.info("Flushed %s buffered analytics events.", flushed)
     except Exception as e:
-        logger.error("Failed to flush analytics events: %s", e)
+        logger.exception("Failed to flush analytics events: %s", e)
         if len(_event_buffer) > 500:
             _event_buffer = _event_buffer[-250:]
 
@@ -156,7 +156,7 @@ def get_event_stats() -> dict[str, int]:
 class Timer:
     """Timer utility for measuring execution time."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._start_time = None
 
     @property
@@ -167,12 +167,12 @@ class Timer:
         return 0
 
     def start(self):
-        """Start a new timer"""
+        """Start a new timer."""
         self._start_time = time.perf_counter()
         return self
 
     def stop(self, use_ms=True, round_digits=4):
-        """Stop the timer, and report the elapsed time"""
+        """Stop the timer, and report the elapsed time."""
         if self._start_time is None:
             return None
 

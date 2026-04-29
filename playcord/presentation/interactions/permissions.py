@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-import discord
+from typing import TYPE_CHECKING, Any
 
 from playcord.infrastructure.constants import OWNERS
 from playcord.infrastructure.logging import get_logger
+
+if TYPE_CHECKING:
+    import discord
 
 log = get_logger("bot_owners")
 

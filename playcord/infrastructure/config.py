@@ -63,8 +63,9 @@ def _as_int(value: str | None, *, env_key: str) -> int | None:
     try:
         return int(value)
     except ValueError as exc:
+        msg = f"Environment variable {env_key} must be an integer"
         raise ConfigurationError(
-            f"Environment variable {env_key} must be an integer",
+            msg,
         ) from exc
 
 
@@ -102,7 +103,8 @@ def _apply_environment_overrides(raw: dict[str, Any]) -> dict[str, Any]:
 def load_settings(path: str | Path = DEFAULT_CONFIG_PATH) -> Settings:
     config_path = Path(path)
     if not config_path.exists():
-        raise ConfigurationError(f"Configuration file not found: {config_path}")
+        msg = f"Configuration file not found: {config_path}"
+        raise ConfigurationError(msg)
 
     with config_path.open("r", encoding="utf-8") as handle:
         raw = YAML().load(handle) or {}
@@ -114,7 +116,8 @@ def load_settings(path: str | Path = DEFAULT_CONFIG_PATH) -> Settings:
 
     secret = str(bot_raw.get("secret") or raw.get("secret") or "").strip()
     if not secret:
-        raise ConfigurationError("Bot secret is required in configuration")
+        msg = "Bot secret is required in configuration"
+        raise ConfigurationError(msg)
 
     ratings_raw = dict(raw.get("ratings") or {})
 
@@ -159,8 +162,9 @@ def bind_settings(settings: Settings) -> None:
 
 def get_settings() -> Settings:
     if _bound is None:
+        msg = "Application settings are not bound; call bind_settings() from bootstrap"
         raise ConfigurationError(
-            "Application settings are not bound; call bind_settings() from bootstrap",
+            msg,
         )
     return _bound
 

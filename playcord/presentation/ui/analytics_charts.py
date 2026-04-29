@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-import io
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
 from playcord.presentation.ui.graphics.graphs import generate_analytics_summary_chart
+
+if TYPE_CHECKING:
+    import io
 
 log = get_logger("presentation.analytics_charts")
 

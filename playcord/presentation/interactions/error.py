@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from logging import Logger
 from typing import TYPE_CHECKING, Any, Protocol
 from uuid import uuid4
 
@@ -46,6 +45,8 @@ from playcord.presentation.ui.containers import (
 )
 
 if TYPE_CHECKING:
+    from logging import Logger
+
     from playcord.application.services.game_manager import GameManager
 
 log = get_logger("presentation.error_reporter")

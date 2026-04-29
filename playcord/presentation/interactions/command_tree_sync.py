@@ -143,7 +143,7 @@ def _collect_local_leaves(
     prefix: tuple[str, ...],
 ) -> dict[str, app_commands.Command | app_commands.ContextMenu]:
     if isinstance(cmd, app_commands.Group):
-        new_p = prefix + (cmd.name,)
+        new_p = (*prefix, cmd.name)
         out: dict[str, app_commands.Command | app_commands.ContextMenu] = {}
 
         # FIX: Iterate directly over the list, do not use .values()
@@ -151,7 +151,7 @@ def _collect_local_leaves(
             out.update(_collect_local_leaves(child, new_p))
         return out
 
-    path = " ".join(prefix + (cmd.name,))
+    path = " ".join((*prefix, cmd.name))
     return {path: cmd}
 
 
@@ -183,7 +183,7 @@ def _collect_remote_leaves(ac: AppCommand) -> dict[str, dict[str, Any]]:
                 isinstance(opt, AppCommandGroup)
                 or getattr(opt, "options", None) is not None
             ):
-                walk(opt, parts + (opt.name,))
+                walk(opt, (*parts, opt.name))
 
     walk(ac, (ac.name,))
     return out

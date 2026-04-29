@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from playcord.infrastructure.config import DatabaseSettings
 from playcord.infrastructure.database.implementation.database import Database
 from playcord.infrastructure.logging import get_logger
+
+if TYPE_CHECKING:
+    from playcord.infrastructure.config import DatabaseSettings
 
 log = get_logger("infrastructure.db.pool")
 

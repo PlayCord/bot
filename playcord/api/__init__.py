@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 from playcord.api.bot import BotDefinition
 from playcord.api.handlers import HandlerRef, HandlerSpec, handler
-from playcord.api.match_options import MatchOptionSpec
 from playcord.api.metadata import (
     Game,
     GameMetadata,
@@ -20,7 +18,12 @@ from playcord.api.metadata import (
     RoleMode,
     ensure_valid_player_count,
 )
-from playcord.core.player import Player
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from playcord.api.match_options import MatchOptionSpec
+    from playcord.core.player import Player
 
 ButtonStyle = Literal["primary", "secondary", "success", "danger"]
 MessageTarget = Literal["thread", "overview", "ephemeral"]

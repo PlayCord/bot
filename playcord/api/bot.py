@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from playcord.api.handlers import HandlerSpec
+if TYPE_CHECKING:
+    from playcord.api.handlers import HandlerSpec
 
 
 @dataclass(frozen=True, slots=True)

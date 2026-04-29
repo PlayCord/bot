@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from playcord.api.plugin import resolve_player_count
 from playcord.api.trueskill_config import get_trueskill_parameters
@@ -15,11 +15,13 @@ from playcord.infrastructure.constants import GAME_TYPES
 from playcord.infrastructure.database.implementation.core.exceptions import (
     DatabaseError,
 )
-from playcord.infrastructure.database.implementation.database import Database
 from playcord.infrastructure.database.implementation.repositories.leaderboard import (
     LeaderboardRepository,
 )
 from playcord.infrastructure.database.models import Game, row_to_game
+
+if TYPE_CHECKING:
+    from playcord.infrastructure.database.implementation.database import Database
 
 
 @dataclass(slots=True)
@@ -239,7 +241,8 @@ class GameRepository:
     def reset_game_data(self, game_id: int) -> Game:
         game = self.get_by_id(game_id)
         if game is None:
-            raise ValueError(f"Game {game_id} not found")
+            msg = f"Game {game_id} not found"
+            raise ValueError(msg)
 
         game_name = game.game_name
         self.database.execute_query("DELETE FROM games WHERE game_id = %s;", (game_id,))
@@ -249,8 +252,9 @@ class GameRepository:
         self.sync_games_from_code()
         recreated = self.get(game_name)
         if recreated is None:
+            msg = f"Game {game_name!r} was deleted but not recreated from code"
             raise DatabaseError(
-                f"Game {game_name!r} was deleted but not recreated from code",
+                msg,
             )
         return recreated
 

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from playcord.infrastructure.config import get_settings
-from playcord.infrastructure.database.implementation.database import Database
+
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from playcord.infrastructure.database.implementation.database import Database
 
 
 @dataclass(slots=True)

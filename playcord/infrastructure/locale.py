@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-import logging
 import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from playcord.infrastructure.logging import get_logger
+
+if TYPE_CHECKING:
+    import logging
 
 DEFAULT_LOCALE = "en"
 COMMAND_TOKEN_RE = re.compile(r"\{command:([^{}]+)\}")
@@ -79,7 +81,8 @@ class Translator:
                     self.default_locale,
                 )
                 return self._load_locale(self.default_locale)
-            raise FileNotFoundError(f"Default locale file not found: {locale_path}")
+            msg = f"Default locale file not found: {locale_path}"
+            raise FileNotFoundError(msg)
 
         with locale_path.open("rb") as handle:
             data = tomllib.load(handle)

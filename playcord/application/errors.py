@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from playcord.core.errors import DomainError
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from playcord.core.errors import DomainError
 
 
 class ApplicationError(Exception):
@@ -20,6 +23,6 @@ class ForbiddenError(ApplicationError):
 class WrappedDomainError(ApplicationError):
     """Wraps a domain failure at the application boundary."""
 
-    def __init__(self, error: DomainError):
+    def __init__(self, error: DomainError) -> None:
         super().__init__(str(error))
         self.error = error

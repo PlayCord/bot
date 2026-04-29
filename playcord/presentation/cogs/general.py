@@ -1,7 +1,7 @@
 import importlib
 from datetime import datetime
 from difflib import get_close_matches
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import discord
 from discord import app_commands
@@ -38,7 +38,6 @@ from playcord.presentation.interactions.helpers import (
     interaction_check,
     response_send_message,
 )
-from playcord.presentation.interactions.matchmaking_lobby import MatchmakingInterface
 from playcord.presentation.ui.containers import (
     TEXT_DISPLAY_MAX,
     CustomContainer,
@@ -63,6 +62,11 @@ from playcord.presentation.ui.layout_discord import (
     PaginationView,
 )
 from playcord.presentation.ui.replay_views import ReplayViewerView
+
+if TYPE_CHECKING:
+    from playcord.presentation.interactions.matchmaking_lobby import (
+        MatchmakingInterface,
+    )
 
 log = get_logger()
 
@@ -352,7 +356,7 @@ async def autocomplete_invite_bot(
 
 
 class GeneralCog(commands.Cog):
-    def __init__(self, bot: discord.Client):
+    def __init__(self, bot: discord.Client) -> None:
         self.bot = bot
         c = bot.container
         self._matches = c.matches_repository
@@ -404,17 +408,17 @@ class GeneralCog(commands.Cog):
     async def command_invite(
         self,
         ctx: discord.Interaction,
-        game: str = None,
+        game: str | None = None,
         user: discord.User = None,
         user2: discord.User = None,
         user3: discord.User = None,
         user4: discord.User = None,
         user5: discord.User = None,
-        bot: str = None,
-        bot2: str = None,
-        bot3: str = None,
-        bot4: str = None,
-        bot5: str = None,
+        bot: str | None = None,
+        bot2: str | None = None,
+        bot3: str | None = None,
+        bot4: str | None = None,
+        bot5: str | None = None,
     ) -> None:
         f_log = log.getChild("command.invite")
         f_log.debug(f"/invite called: {contextify(ctx)}")
@@ -583,8 +587,8 @@ class GeneralCog(commands.Cog):
         self,
         ctx: discord.Interaction,
         user: discord.User,
-        reason: str = None,
-    ):
+        reason: str | None = None,
+    ) -> None:
         f_log = log.getChild("command.kick")
         f_log.debug(
             "/kick called by user=%s target=%s reason=%r",
@@ -629,8 +633,8 @@ class GeneralCog(commands.Cog):
         self,
         ctx: discord.Interaction,
         user: discord.User,
-        reason: str = None,
-    ):
+        reason: str | None = None,
+    ) -> None:
         f_log = log.getChild("command.ban")
         f_log.debug(
             "/ban called by user=%s target=%s reason=%r",
@@ -667,7 +671,7 @@ class GeneralCog(commands.Cog):
 
     @command_root.command(name="stats", description=get("commands.stats.description"))
     @app_commands.check(interaction_check)
-    async def command_stats(self, ctx: discord.Interaction):
+    async def command_stats(self, ctx: discord.Interaction) -> None:
         f_log = log.getChild("command.stats")
         f_log.debug(f"/stats called: {contextify(ctx)}")
 
@@ -716,7 +720,7 @@ class GeneralCog(commands.Cog):
 
     @command_root.command(name="about", description=get("commands.about.description"))
     @app_commands.check(interaction_check)
-    async def command_about(self, ctx: discord.Interaction):
+    async def command_about(self, ctx: discord.Interaction) -> None:
         f_log = log.getChild("command.about")
         libraries = [
             "discord.py",
@@ -781,7 +785,7 @@ class GeneralCog(commands.Cog):
             Choice(name=get("help.buttons.faq"), value="faq"),
         ],
     )
-    async def command_help(self, ctx: discord.Interaction, topic: str = None):
+    async def command_help(self, ctx: discord.Interaction, topic: str | None = None) -> None:
         f_log = log.getChild("command.help")
         f_log.debug(f"/help called with topic={topic}: {contextify(ctx)}")
 
@@ -876,7 +880,7 @@ class GeneralCog(commands.Cog):
         game: str,
         scope: str = "server",
         page: int = 1,
-    ):
+    ) -> None:
         f_log = log.getChild("command.leaderboard")
         f_log.debug(
             f"/leaderboard called for game={game}, scope={scope}, page={page}: {contextify(ctx)}",
@@ -1070,9 +1074,9 @@ class GeneralCog(commands.Cog):
         scope: str,
         new_page: int,
         limit: int,
-    ):
+    ) -> None:
         """Callback for leaderboard pagination buttons."""
-        container, has_data, is_last_page = await self._build_leaderboard_container(
+        container, _has_data, is_last_page = await self._build_leaderboard_container(
             game,
             game_name,
             game_id,
@@ -1109,7 +1113,7 @@ class GeneralCog(commands.Cog):
     )
     @app_commands.check(interaction_check)
     @app_commands.describe(page=get("commands.catalog.param_page"))
-    async def command_catalog(self, ctx: discord.Interaction, page: int = 1):
+    async def command_catalog(self, ctx: discord.Interaction, page: int = 1) -> None:
         f_log = log.getChild("command.catalog")
         f_log.debug(f"/catalog called with page={page}: {contextify(ctx)}")
 
@@ -1210,7 +1214,7 @@ class GeneralCog(commands.Cog):
         total_pages: int,
         all_games: list,
         games_per_page: int,
-    ):
+    ) -> None:
         """Callback for catalog pagination buttons."""
         container = self._build_catalog_container(
             new_page,
@@ -1244,7 +1248,7 @@ class GeneralCog(commands.Cog):
         self,
         ctx: discord.Interaction,
         user: discord.User = None,
-    ):
+    ) -> None:
         f_log = log.getChild("command.profile")
         if user is None:
             user = ctx.user
@@ -1429,7 +1433,7 @@ class GeneralCog(commands.Cog):
         user: discord.User = None,
         page: int = 1,
         days: int = 30,
-    ):
+    ) -> None:
         f_log = log.getChild("command.history")
         if user is None:
             user = ctx.user
@@ -1465,7 +1469,7 @@ class GeneralCog(commands.Cog):
 
         game_name = _GAME_METADATA[game]["name"]
 
-        container, chart_file, has_data, is_last_page = self._build_history_container(
+        container, chart_file, _has_data, is_last_page = self._build_history_container(
             user,
             game_name,
             game_db.game_id,
@@ -1649,9 +1653,9 @@ class GeneralCog(commands.Cog):
         new_page: int,
         days: int,
         f_log,
-    ):
+    ) -> None:
         """Callback for history pagination buttons."""
-        container, chart_file, has_data, is_last_page = self._build_history_container(
+        container, _chart_file, _has_data, is_last_page = self._build_history_container(
             user,
             game_name,
             game_id,
@@ -1724,7 +1728,7 @@ class GeneralCog(commands.Cog):
         game_label: str,
         global_summary: str | None,
         replay_display: str,
-    ):
+    ) -> None:
         container = self._build_replay_container(
             match_id,
             game_label,
@@ -1759,7 +1763,7 @@ class GeneralCog(commands.Cog):
         self,
         ctx: discord.Interaction,
         match_ref: app_commands.Range[str, 1, 32],
-    ):
+    ) -> None:
         await ctx.response.defer(ephemeral=True)
         if ctx.guild is None:
             await followup_send(
@@ -1922,7 +1926,7 @@ class GeneralCog(commands.Cog):
         self,
         ctx: discord.Interaction,
         message: app_commands.Range[str, 1, 500],
-    ):
+    ) -> None:
         text = (message or "").strip()
         if not text:
             await response_send_message(
@@ -1972,7 +1976,7 @@ class GeneralCog(commands.Cog):
     @command_root.command(name="forfeit", description=get("forfeit.description"))
     @app_commands.guild_only()
     @app_commands.check(interaction_check)
-    async def command_forfeit(self, ctx: discord.Interaction):
+    async def command_forfeit(self, ctx: discord.Interaction) -> None:
         if ctx.channel.type != discord.ChannelType.private_thread:
             await response_send_message(
                 ctx,
@@ -2020,9 +2024,9 @@ class GeneralCog(commands.Cog):
     async def command_settings(
         self,
         ctx: discord.Interaction,
-        rated: bool = None,
-        private: bool = None,
-    ):
+        rated: bool | None = None,
+        private: bool | None = None,
+    ) -> None:
         f_log = log.getChild("command.settings")
         f_log.debug(
             f"/settings called: rated={rated}, private={private} {contextify(ctx)}",
@@ -2092,7 +2096,7 @@ class GeneralCog(commands.Cog):
         self,
         ctx: discord.Interaction,
         channel: discord.TextChannel | None = None,
-    ):
+    ) -> None:
         if ctx.guild is None:
             await response_send_message(
                 ctx,
@@ -2117,5 +2121,5 @@ class GeneralCog(commands.Cog):
         )
 
 
-async def setup(bot: commands.Bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(GeneralCog(bot))

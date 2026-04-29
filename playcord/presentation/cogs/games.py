@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import TYPE_CHECKING
 from urllib.parse import parse_qs
 
 import discord
 from discord import app_commands
-from discord.app_commands import Choice
 from discord.ext import commands
 
 from playcord.api import HandlerRef
@@ -48,6 +48,8 @@ from playcord.presentation.ui.containers import LoadingContainer, container_send
 from playcord.presentation.ui.replay_views import ReplayViewerView
 
 if TYPE_CHECKING:
+    from discord.app_commands import Choice
+
     from playcord.presentation.bot import PlayCordBot
 
 log = get_logger()
@@ -110,25 +112,23 @@ async def _pagination_unhandled_fallback(
                 interaction.guild_id is not None and gid != interaction.guild_id
             ):
                 msg = get("interactions.pagination_not_yours")
-    try:
+    with contextlib.suppress(discord.HTTPException):
         await response_send_message(
             interaction,
             msg,
             ephemeral=True,
             delete_after=EPHEMERAL_DELETE_AFTER,
         )
-    except discord.HTTPException:
-        pass
 
 
 def _parse_component_id(custom_id: str, prefix: str) -> tuple[int, str]:
     tail = custom_id[len(prefix) :]
-    resource_raw, payload = (tail.split("/", 1) + [""])[:2]
+    resource_raw, payload = ([*tail.split("/", 1), ""])[:2]
     return int(resource_raw), payload
 
 
 class GamesCog(commands.Cog):
-    def __init__(self, bot: PlayCordBot):
+    def __init__(self, bot: PlayCordBot) -> None:
         self.bot = bot
 
     @property
@@ -280,8 +280,9 @@ class GamesCog(commands.Cog):
 
         plugin_class = replay_ctx.plugin_class
         if plugin_class is None:
+            msg = f"Replay plugin for match {replay_ctx.match_id} is not available"
             raise ConfigurationError(
-                f"Replay plugin for match {replay_ctx.match_id} is not available",
+                msg,
             )
 
         total_frames = replay_viewer.replay_frame_count(replay_ctx.events)
@@ -699,10 +700,8 @@ class GamesCog(commands.Cog):
             return
         err = await mm.seed_rematch_players(g, human_ids)
         if err:
-            try:
+            with contextlib.suppress(discord.HTTPException):
                 await loading.delete()
-            except discord.HTTPException:
-                pass
             f_log.error("Failed to seed rematch players for mid=%s: %s", mid, err)
             await followup_send(ctx, content=err, ephemeral=True)
             return
@@ -711,7 +710,7 @@ class GamesCog(commands.Cog):
         await followup_send(ctx, content=get("rematch.created"), ephemeral=True)
 
 
-async def setup(bot: commands.Bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(GamesCog(bot))
 
 

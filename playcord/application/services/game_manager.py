@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlencode
 
 import discord
@@ -40,6 +39,9 @@ from playcord.infrastructure.logging import get_logger
 from playcord.presentation.interactions.helpers import followup_send
 from playcord.presentation.ui.containers import chunk_text_display_lines
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 log = get_logger("game.runtime")
 
 
@@ -61,8 +63,9 @@ def _resolve_callback(
         resolved = getattr(plugin, spec, None)
         if callable(resolved):
             return resolved
+        msg = f"Configured callback {spec!r} was not found on {type(plugin).__name__}"
         raise ConfigurationError(
-            f"Configured callback {spec!r} was not found on {type(plugin).__name__}",
+            msg,
         )
     if callable(spec):
         binder = getattr(spec, "__get__", None)
@@ -73,8 +76,9 @@ def _resolve_callback(
         fallback = getattr(plugin, default_attr, None)
         if callable(fallback):
             return fallback
+    msg = f"Missing callback configuration on {type(plugin).__name__}"
     raise ConfigurationError(
-        f"Missing callback configuration on {type(plugin).__name__}",
+        msg,
     )
 
 
@@ -261,8 +265,9 @@ class GameManager:
         difficulty = str(getattr(current, "bot_difficulty", "") or "easy")
         definition = self.plugin.metadata.bots.get(difficulty)
         if definition is None:
+            msg = f"Bot difficulty {difficulty!r} is not configured for {self.game_type}"
             raise ConfigurationError(
-                f"Bot difficulty {difficulty!r} is not configured for {self.game_type}",
+                msg,
             )
         callback = _resolve_callback(
             self.plugin,
@@ -442,8 +447,9 @@ class GameManager:
                 move = candidate
                 break
         if move is None:
+            msg = f"Move {move_name!r} is not defined for {self.plugin.metadata.key}"
             raise ConfigurationError(
-                f"Move {move_name!r} is not defined for {self.plugin.metadata.key}",
+                msg,
             )
         return _resolve_callback(self.plugin, move.callback, "apply_move")
 
@@ -768,13 +774,12 @@ class GameManager:
                 ),
             )
 
-        select = discord.ui.Select(
+        return discord.ui.Select(
             custom_id=custom_id,
             placeholder=spec.placeholder,
             options=options,
             disabled=spec.disabled,
         )
-        return select
 
     def decode_component_payload(
         self,

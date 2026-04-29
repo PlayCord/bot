@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
 import discord
 from discord import SelectOption
 
-from playcord.api import MessageLayout
 from playcord.infrastructure.constants import (
     BUTTON_PREFIX_REPLAY_NAV,
     BUTTON_PREFIX_REPLAY_NOOP,
@@ -17,6 +17,9 @@ from playcord.presentation.ui.containers import (
     TEXT_DISPLAY_MAX,
     chunk_text_display_lines,
 )
+
+if TYPE_CHECKING:
+    from playcord.api import MessageLayout
 
 
 class ReplayViewerView(discord.ui.LayoutView):

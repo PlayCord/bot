@@ -21,7 +21,7 @@ log = get_logger()
 
 
 class MatchmakingCog(commands.Cog):
-    def __init__(self, bot: discord.Client):
+    def __init__(self, bot: discord.Client) -> None:
         self.bot = bot
 
     @property
@@ -50,9 +50,7 @@ class MatchmakingCog(commands.Cog):
         elif custom_id.startswith(BUTTON_PREFIX_LOBBY_ROLE):
             await self.lobby_role_select_callback(ctx)
         elif (
-            custom_id.startswith(BUTTON_PREFIX_JOIN)
-            or custom_id.startswith(BUTTON_PREFIX_LEAVE)
-            or custom_id.startswith(BUTTON_PREFIX_READY)
+            custom_id.startswith((BUTTON_PREFIX_JOIN, BUTTON_PREFIX_LEAVE, BUTTON_PREFIX_READY))
         ):
             await self.matchmaking_button_callback(ctx)
         elif custom_id.startswith(BUTTON_PREFIX_INVITE):
@@ -207,7 +205,7 @@ class MatchmakingCog(commands.Cog):
         await matchmaker.callback_role_select(ctx, player_id)
 
     async def matchmaking_button_callback(self, ctx: discord.Interaction) -> None:
-        """Handle matchmaking button (Join / Leave / Ready)"""
+        """Handle matchmaking button (Join / Leave / Ready)."""
         await ctx.response.defer()
         f_log = log.getChild("callback.matchmaking_button")
 
@@ -362,5 +360,5 @@ class MatchmakingCog(commands.Cog):
             )
 
 
-async def setup(bot: commands.Bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(MatchmakingCog(bot))

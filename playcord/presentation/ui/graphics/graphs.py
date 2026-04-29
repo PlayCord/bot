@@ -4,9 +4,9 @@ import io
 from datetime import datetime
 from typing import Any
 
-import matplotlib
+import matplotlib as mpl
 
-matplotlib.use("Agg")  # Non-interactive backend for Discord bot
+mpl.use("Agg")  # Non-interactive backend for Discord bot
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 
@@ -33,7 +33,8 @@ def generate_elo_chart(
 
     """
     if not rating_history:
-        raise ValueError("Cannot generate chart: rating_history is empty")
+        msg = "Cannot generate chart: rating_history is empty"
+        raise ValueError(msg)
 
     # Extract timestamps and ratings
     timestamps, ratings = zip(*rating_history, strict=True)
@@ -113,12 +114,12 @@ def generate_elo_chart(
             textcoords="offset points",
             fontsize=9,
             fontweight="bold",
-            bbox=dict(
-                boxstyle="round,pad=0.4",
-                facecolor="white",
-                edgecolor="#5865F2",
-                alpha=0.8,
-            ),
+            bbox={
+                "boxstyle": "round,pad=0.4",
+                "facecolor": "white",
+                "edgecolor": "#5865F2",
+                "alpha": 0.8,
+            },
         )
 
         # End point
@@ -129,12 +130,12 @@ def generate_elo_chart(
             textcoords="offset points",
             fontsize=9,
             fontweight="bold",
-            bbox=dict(
-                boxstyle="round,pad=0.4",
-                facecolor="white",
-                edgecolor="#5865F2",
-                alpha=0.8,
-            ),
+            bbox={
+                "boxstyle": "round,pad=0.4",
+                "facecolor": "white",
+                "edgecolor": "#5865F2",
+                "alpha": 0.8,
+            },
         )
 
     # Tight layout to prevent label cutoff
@@ -179,7 +180,8 @@ def generate_rating_comparison_chart(
 
     """
     if not player_data:
-        raise ValueError("Cannot generate chart: player_data is empty")
+        msg = "Cannot generate chart: player_data is empty"
+        raise ValueError(msg)
 
     # Color palette for multiple lines
     colors = ["#5865F2", "#57F287", "#FEE75C", "#EB459E", "#ED4245", "#00D9FF"]

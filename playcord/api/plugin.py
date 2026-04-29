@@ -75,14 +75,18 @@ def _validate_handler(
 
     name = _handler_name(spec)
     if not name:
+        msg = f"Invalid handler for {label} on {game_class.__name__}: {spec!r}"
         raise ConfigurationError(
-            f"Invalid handler for {label} on {game_class.__name__}: {spec!r}",
+            msg,
         )
     resolved = getattr(game_class, name, None)
     if not callable(resolved):
-        raise ConfigurationError(
+        msg = (
             f"Configured handler {name!r} for {label} is missing on"
-            f" {game_class.__name__}",
+            f" {game_class.__name__}"
+        )
+        raise ConfigurationError(
+            msg,
         )
 
 
@@ -128,15 +132,19 @@ def register_game(
     validate_game_registration(game_class)
     resolved_key = key or game_class.metadata.key
     if resolved_key != game_class.metadata.key:
-        raise ConfigurationError(
+        msg = (
             f"Registered key {resolved_key!r} must match metadata.key"
-            f" {game_class.metadata.key!r}",
+            f" {game_class.metadata.key!r}"
+        )
+        raise ConfigurationError(
+            msg,
         )
 
     existing = _REGISTRY.get(resolved_key)
     if existing is not None and existing.game_class is not game_class:
+        msg = f"Game key {resolved_key!r} is already registered by {existing.class_name}"
         raise ConfigurationError(
-            f"Game key {resolved_key!r} is already registered by {existing.class_name}",
+            msg,
         )
 
     registered = RegisteredGame(resolved_key, game_class)

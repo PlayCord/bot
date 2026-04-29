@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from playcord.infrastructure.database.implementation.database import Database
 from playcord.infrastructure.database.implementation.internal_player import (
     InternalPlayer,
 )
 from playcord.infrastructure.database.models import User, row_to_user
+
+if TYPE_CHECKING:
+    from playcord.infrastructure.database.implementation.database import Database
 
 
 @dataclass(slots=True)
@@ -216,7 +218,8 @@ class PlayerRepository:
     ) -> None:
         game = self.games.get_game(game_name)
         if not game:
-            raise ValueError(f"Game {game_name} not found")
+            msg = f"Game {game_name} not found"
+            raise ValueError(msg)
         self.ratings.initialize_user_rating(user_id, game.game_id)
 
     def update_ratings_after_match(
@@ -230,7 +233,8 @@ class PlayerRepository:
     ) -> None:
         game = self.games.get_game(game_name)
         if not game:
-            raise ValueError(f"Game {game_name} not found")
+            msg = f"Game {game_name} not found"
+            raise ValueError(msg)
         self.ratings.update_rating(
             user_id,
             game.game_id,
@@ -247,7 +251,8 @@ class PlayerRepository:
     ) -> None:
         game = self.games.get_game(game_name)
         if not game:
-            raise ValueError(f"Game {game_name} not found")
+            msg = f"Game {game_name} not found"
+            raise ValueError(msg)
         self.ratings.reset_user_rating(user_id, game.game_id)
 
     def delete_user_game_ratings(
@@ -258,7 +263,8 @@ class PlayerRepository:
     ) -> None:
         game = self.games.get_game(game_name)
         if not game:
-            raise ValueError(f"Game {game_name} not found")
+            msg = f"Game {game_name} not found"
+            raise ValueError(msg)
         self.ratings.delete_user_rating(user_id, game.game_id)
 
     def get_preferences(self, user_id: int) -> dict[str, Any] | None:

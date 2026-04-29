@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import trueskill
 
 from playcord.api.trueskill_config import get_trueskill_parameters
 from playcord.core.rating import DEFAULT_MU, STARTING_RATING
-from playcord.infrastructure.database import PlayerRepository
+
+if TYPE_CHECKING:
+    from playcord.infrastructure.database import PlayerRepository
 
 
 @dataclass(slots=True)
@@ -33,8 +35,9 @@ def player_mu_sigma(player: Any, game_type: str) -> tuple[float, float]:
     if game_mu is not None and game_sigma is not None:
         return float(game_mu), float(game_sigma)
 
+    msg = f"Player {player!r} does not expose rating for game_type={game_type!r}"
     raise AttributeError(
-        f"Player {player!r} does not expose rating for game_type={game_type!r}",
+        msg,
     )
 
 

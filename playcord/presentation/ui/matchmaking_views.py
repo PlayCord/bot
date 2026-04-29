@@ -15,7 +15,7 @@ from playcord.presentation.ui.containers import TEXT_DISPLAY_MAX
 
 class MatchmakingLobbyView(discord.ui.LayoutView):
     """Join / leave / optional Ready, optional string selects for per-game lobby settings (creator-only),
-    and optional per-player role selects for games with CHOSEN role mode. (Game starts when all humans ready.)
+    and optional per-player role selects for games with CHOSEN role mode. (Game starts when all humans ready.).
     """
 
     async def _route_to_cog(self, interaction: discord.Interaction) -> None:

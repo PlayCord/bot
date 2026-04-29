@@ -9,9 +9,9 @@ from playcord.infrastructure.constants import GAME_TYPES
 
 
 class InternalPlayerRatingStatistic:
-    """Rating statistic for a specific game"""
+    """Rating statistic for a specific game."""
 
-    def __init__(self, name: str, mu: float | None, sigma: float | None):
+    def __init__(self, name: str, mu: float | None, sigma: float | None) -> None:
         self.name = name
         if mu is None:
             self.mu = DEFAULT_MU
@@ -36,7 +36,7 @@ class InternalPlayer:
         metadata: dict | None = None,
         id: int | None = None,
         username: str | None = None,
-    ):
+    ) -> None:
         self.name = username
         self.id = id
 
@@ -56,8 +56,8 @@ class InternalPlayer:
 
         self._update_ratings(self.ratings)
 
-    def _update_ratings(self, ratings: dict[str, dict[str, float]]):
-        """Update rating attributes from ratings dict"""
+    def _update_ratings(self, ratings: dict[str, dict[str, float]]) -> None:
+        """Update rating attributes from ratings dict."""
         rating_keys = set(GAME_TYPES) | set(ratings)
         for key in rating_keys:
             if key not in ratings:
@@ -86,7 +86,7 @@ class InternalPlayer:
         self,
         game_type: str,
         include_global_rank: bool = False,
-        game_id: int = None,
+        game_id: int | None = None,
         global_rank: int | None = None,
     ) -> str:
         """Get formatted rating string with uncertainty indicator.
@@ -128,10 +128,10 @@ class InternalPlayer:
     def __hash__(self):
         return hash(self.id)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"InternalPlayer({self.id})"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"InternalPlayer(id={self.id}, is_bot={self.is_bot}, ratings={self.ratings})"
 
 
@@ -139,7 +139,7 @@ def internal_player_to_player(
     internal_player: InternalPlayer,
     game_type: str,
 ) -> Player:
-    """Convert InternalPlayer to API Player object"""
+    """Convert InternalPlayer to API Player object."""
     rating = getattr(internal_player, game_type)
     uid = internal_player.id
     uname = internal_player.name or (f"User {uid}" if uid is not None else "Unknown")

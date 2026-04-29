@@ -3,10 +3,13 @@ from __future__ import annotations
 import io
 import os
 import unicodedata
-from collections.abc import Sequence
 from functools import cache
+from typing import TYPE_CHECKING
 
 from PIL import Image, ImageDraw, ImageFont
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 _BG = "#0b0b0d"
 _BORDER = "#3a3a3f"
@@ -105,17 +108,7 @@ def _split_clusters(text: str) -> list[str]:
         codepoint = ord(char)
         prev_codepoint = ord(current[-1])
         if (
-            current[-1] == "\u200d"
-            or char == "\u200d"
-            or char == "\ufe0f"
-            or char == "\u20e3"
-            or unicodedata.combining(char)
-            or 0x1F3FB <= codepoint <= 0x1F3FF
-            or (
-                _is_regional_indicator(prev_codepoint)
-                and _is_regional_indicator(codepoint)
-                and len(current) == 1
-            )
+            current[-1] == "\u200d" or char in {"\u200d", "️", "⃣"} or unicodedata.combining(char) or 127995 <= codepoint <= 127999 or (_is_regional_indicator(prev_codepoint) and _is_regional_indicator(codepoint) and len(current) == 1)
         ):
             current += char
             continue
@@ -157,9 +150,9 @@ def _segment_metrics(
     embedded_color: bool = False,
 ) -> tuple[int, int]:
     bbox = _text_bbox(draw, text, font, embedded_color=embedded_color)
-    width = max(int(round(draw.textlength(text, font=font))), bbox[2] - bbox[0])
+    width = max(round(draw.textlength(text, font=font)), bbox[2] - bbox[0])
     if not text.strip():
-        width = max(width, max(1, font.size // 3))
+        width = max(width, 1, font.size // 3)
     height = max(bbox[3] - bbox[1], font.size)
     return width, height
 

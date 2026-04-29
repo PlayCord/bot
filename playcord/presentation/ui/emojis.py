@@ -1,4 +1,4 @@
-"""Emoji utilities
+"""Emoji utilities.
 
 Provides functionality for:
 - Loading emojis from configuration
@@ -153,8 +153,7 @@ def get_all_emojis() -> dict[str, dict]:
         initialize_emojis()
 
     # Merge with runtime emojis taking precedence
-    all_emojis = {**emojis, **runtime_emojis}
-    return all_emojis
+    return {**emojis, **runtime_emojis}
 
 
 def get_emoji_count() -> tuple[int, int]:

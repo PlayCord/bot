@@ -57,7 +57,7 @@ def get_migration_hash(migration_sql: str) -> str:
     return hashlib.sha256(migration_sql.strip().encode("utf-8")).hexdigest()
 
 
-def apply_migrations(database):
+def apply_migrations(database) -> None:
     """Apply all pending migrations in order, tracking by version."""
     # Create database_migrations table if it doesn't exist
     try:
@@ -72,7 +72,7 @@ def apply_migrations(database):
                         );
                         """)
     except Exception as e:
-        logger.error(f"Failed to create database_migrations table: {e}")
+        logger.exception(f"Failed to create database_migrations table: {e}")
         raise
 
     applied_versions = set()
@@ -128,8 +128,9 @@ def apply_migrations(database):
             logger.info(f"✓ Migration {version} applied successfully")
 
         except Exception as e:
-            logger.error(f"Migration {version} failed ({type(e).__name__}): {e}")
-            raise Exception(f"Migration {version} failed: {e}") from e
+            logger.exception(f"Migration {version} failed ({type(e).__name__}): {e}")
+            msg = f"Migration {version} failed: {e}"
+            raise Exception(msg) from e
 
 
 @dataclass(slots=True)
