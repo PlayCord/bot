@@ -1,36 +1,5 @@
 # features to add
 
-## 0.8.0
-
-✅ **COMPLETED**
-
-- ✅ Replay UX update
-    - ✅ Recent games now show the outcome with game outcome string and per-player outcomes
-    - ✅ Fixed replay display format to show: `Tic-Tac-Toe (f87ab68) · Draw | rated | +0`
-        - Shows replay ID, game outcome, rated/unrated status, and rating change
-    - ✅ Turn-by-turn replay viewer implemented
-        - Implemented interactive, turn-by-turn viewer that replays game state visually
-        - Per-game renderer applies replay events to reconstruct state
-        - UI controls: previous/next move buttons, jump-to-start/end buttons
-        - Uses Discord components (buttons/selects) with v2 content rules
-        - Minimal metadata persisted in replays to avoid heavy computation
-        - Helper API for games to produce visual representation and apply replay events
-        - Reconstruction from events and UI navigation implemented with edge case handling
-- ✅ Standardize ELO
-    - ✅ All display values standardized to show CR (mu - 3 * sigma) as the rating
-    - ✅ Updated TrueSkill default constants for starting rating
-    - ✅ Removed direct `mu` display; new players start visually at the same rating as before
-    - ✅ Conservative rating formula applied across leaderboards and profiles
-- ✅ API updates
-    - ✅ Removed LegacyGamePlugin
-    - ✅ GamePlugin now strictly utilizes GameMetadata object for configuration
-    - ✅ Metadata callbacks are now resolved and used
-        - Metadata callbacks (`Move.callback`, `MoveParameter.autocomplete`, `BotDefinition.callback`) 
-          are the canonical source for move/autocomplete/bot callbacks
-        - Runtime calls metadata-defined callbacks instead of instance methods
-        - Redundant instance methods removed from GamePlugin
-    - ✅ Migrated TicTacToePlugin to native plugin API with new move callbacks and state-based replay logic
-
 # 0.9.0
 
 - Command / settings rework
