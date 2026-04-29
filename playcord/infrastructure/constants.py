@@ -6,7 +6,7 @@ Populated via :func:`bind_locale_strings`.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any, TYPE_CHECKING
 
 import discord
 
@@ -16,7 +16,7 @@ from playcord.games import GAMES
 if TYPE_CHECKING:
     from playcord.infrastructure.locale import Translator
 
-VERSION = "0.7.0"
+VERSION = "0.8.0"
 NAME = ""
 MANAGED_BY = ""
 LOGGING_ROOT = "playcord"

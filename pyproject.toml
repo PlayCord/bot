@@ -1,6 +1,6 @@
 [project]
 name = "playcord"
-version = "0.7.0"
+version = "0.8.0"
 description = "PlayCord is a discord bot for playing minigames."
 readme = "README.md"
 requires-python = ">=3.12"
