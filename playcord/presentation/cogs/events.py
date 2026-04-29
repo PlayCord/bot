@@ -21,6 +21,7 @@ from playcord.infrastructure.constants import (
     THREAD_POLICY_WARNING_MESSAGE,
     VERSION,
 )
+from playcord.infrastructure.db_thread import run_in_thread
 from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
 from playcord.presentation.bot import PlayCordBot
@@ -34,6 +35,8 @@ class EventsCog(commands.Cog):
         self.bot = bot
         self.presence_lock = asyncio.Lock()
         self._warned_users = {}  # {thread_id: {user_id: timestamp}} - track warnings to avoid spam
+        self._presence_task: asyncio.Task[None] | None = None
+        self._analytics_task: asyncio.Task[None] | None = None
         # Build the version presence string.
         # If git is available and we can read the short commit hash, show:
         #   vx.y.z • f9ab9b
@@ -95,8 +98,8 @@ class EventsCog(commands.Cog):
     async def on_ready(self) -> None:
         startup_logger = log.getChild("startup")
         startup_logger.info("Client connected and ready.")
-        self.bot.loop.create_task(self.presence())
-        self.bot.loop.create_task(self._analytics_periodic_flush())
+        self._presence_task = self.bot.loop.create_task(self.presence())
+        self._analytics_task = self.bot.loop.create_task(self._analytics_periodic_flush())
 
     async def _analytics_periodic_flush(self) -> None:
         """Retry any buffered analytics rows after failed DB writes."""
@@ -106,10 +109,14 @@ class EventsCog(commands.Cog):
                 log.getChild("analytics.flush").debug(
                     "Attempting analytics flush and cleanup",
                 )
-                analytics_mod.flush_events()
-                self.bot.container.guilds_repository.cleanup_old_analytics(
-                    days=get_settings().analytics_retention_days,
-                )
+
+                def _flush_db() -> None:
+                    analytics_mod.flush_events()
+                    self.bot.container.guilds_repository.cleanup_old_analytics(
+                        days=get_settings().analytics_retention_days,
+                    )
+
+                await run_in_thread(_flush_db)
                 log.getChild("analytics.flush").debug(
                     "Cleanup_old_analytics completed (retention_days=%s)",
                     get_settings().analytics_retention_days,
@@ -171,7 +178,10 @@ class EventsCog(commands.Cog):
         f_log = log.getChild("event.guild_remove")
         f_log.info(f"Removed from guild {guild.name!r}! (id={guild.id}).")
         try:
-            self.bot.container.guilds_repository.delete_guild(guild.id)
+            await run_in_thread(
+                self.bot.container.guilds_repository.delete_guild,
+                guild.id,
+            )
             f_log.info(f"Successfully purged data for guild {guild.id}")
         except Exception as e:
             f_log.exception("Failed to purge data for guild %s: %s", guild.id, e)

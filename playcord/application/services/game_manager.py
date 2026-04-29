@@ -34,6 +34,7 @@ from playcord.infrastructure.constants import (
     BUTTON_PREFIX_PEEK,
     BUTTON_PREFIX_SPECTATE,
 )
+from playcord.infrastructure.db_thread import run_in_thread
 from playcord.infrastructure.locale import get
 from playcord.infrastructure.logging import get_logger
 from playcord.presentation.interactions.helpers import followup_send
@@ -368,36 +369,39 @@ class GameManager:
         *,
         source: str,
     ) -> None:
-        try:
-            matches = get_container().matches_repository
-            replays = get_container().replays_repository
-            next_number = matches.get_move_count(self.game_id) + 1
-            matches.record_move(
-                self.game_id,
-                (
-                    int(getattr(actor, "id", 0))
-                    if not getattr(actor, "is_bot", False)
-                    else None
-                ),
-                next_number,
-                {"name": name, "arguments": arguments, "source": source},
-                is_game_affecting=True,
-                kind="system" if source == "bot" else "move",
-            )
-            actor_id = getattr(actor, "id", None)
-            replay_event: dict[str, Any] = {
-                "type": "move",
-                "move_number": next_number,
-                "command_name": name,
-                "arguments": dict(arguments),
-                "source": source,
-            }
-            if actor_id is not None:
-                replay_event["user_id"] = int(actor_id)
-            replays.append_replay_dict(self.game_id, replay_event)
-            replay_viewer.invalidate_match_cache(self.game_id)
-        except Exception:
-            self.logger.exception("Failed to record move match_id=%s", self.game_id)
+        def _sync_record() -> None:
+            try:
+                matches = get_container().matches_repository
+                replays = get_container().replays_repository
+                next_number = matches.get_move_count(self.game_id) + 1
+                matches.record_move(
+                    self.game_id,
+                    (
+                        int(getattr(actor, "id", 0))
+                        if not getattr(actor, "is_bot", False)
+                        else None
+                    ),
+                    next_number,
+                    {"name": name, "arguments": arguments, "source": source},
+                    is_game_affecting=True,
+                    kind="system" if source == "bot" else "move",
+                )
+                actor_id = getattr(actor, "id", None)
+                replay_event: dict[str, Any] = {
+                    "type": "move",
+                    "move_number": next_number,
+                    "command_name": name,
+                    "arguments": dict(arguments),
+                    "source": source,
+                }
+                if actor_id is not None:
+                    replay_event["user_id"] = int(actor_id)
+                replays.append_replay_dict(self.game_id, replay_event)
+                replay_viewer.invalidate_match_cache(self.game_id)
+            except Exception:
+                self.logger.exception("Failed to record move match_id=%s", self.game_id)
+
+        await run_in_thread(_sync_record)
 
     def _plugin_replay_hook(self, event_type: str, payload: dict[str, Any]) -> None:
         try:

@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-import traceback
 
 import discord
 from discord.ext import commands
@@ -23,6 +22,7 @@ from playcord.infrastructure.constants import (
     SUCCESS_COLOR,
     WARNING_COLOR,
 )
+from playcord.infrastructure.db_thread import run_in_thread
 from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
 from playcord.presentation.bot import PlayCordBot
@@ -79,13 +79,14 @@ class AdminCog(commands.Cog):
         ok = False
         try:
             ok = await work(msg)
-        except Exception:
+        except Exception as exc:
             log.exception("Owner admin message task failed")
             with contextlib.suppress(discord.HTTPException):
+                public = f"{type(exc).__name__}: {exc!s}"[:500]
                 await msg.reply(
                     content=_admin_error_text(
                         get("commands.admin.task_unexpected_error"),
-                        traceback.format_exc(),
+                        public,
                     ),
                 )
             ok = False
@@ -136,13 +137,14 @@ class AdminCog(commands.Cog):
             try:
                 await self.bot.tree.sync()
             except Exception as e:
+                log.exception("Owner sync to all guilds failed")
                 await msg.reply(
                     content=_admin_error_text(
                         fmt(
                             "commands.admin.sync_failed",
                             error_type=type(e).__name__,
                         ),
-                        traceback.format_exc(),
+                        f"{type(e).__name__}: {e!s}"[:500],
                     ),
                 )
                 return False
@@ -169,13 +171,14 @@ class AdminCog(commands.Cog):
         try:
             await self.bot.tree.sync(guild=g)
         except Exception as e:
+            log.exception("Owner sync to guild failed guild_id=%s", getattr(g, "id", g))
             await msg.reply(
                 content=_admin_error_text(
                     fmt(
                         "commands.admin.sync_failed",
                         error_type=type(e).__name__,
                     ),
-                    traceback.format_exc(),
+                    f"{type(e).__name__}: {e!s}"[:500],
                 ),
             )
             return False
@@ -204,9 +207,15 @@ class AdminCog(commands.Cog):
                 )
                 return False
         hours = max(1, min(hours, 24 * 30))
-        counts = self._analytics.get_summary(hours=hours)
-        by_game = self._analytics.get_event_counts_by_game(hours=hours)
-        recent = self._analytics.get_recent_events(hours=hours, limit=60)
+
+        def _load_analytics() -> tuple:
+            return (
+                self._analytics.get_summary(hours=hours),
+                self._analytics.get_event_counts_by_game(hours=hours),
+                self._analytics.get_recent_events(hours=hours, limit=60),
+            )
+
+        counts, by_game, recent = await run_in_thread(_load_analytics)
         if not counts and not recent and not by_game:
             await msg.reply(
                 **container_send_kwargs(
@@ -310,11 +319,12 @@ class AdminCog(commands.Cog):
                 ),
             )
             return False
-        except Exception:
+        except Exception as e:
+            log.exception("Tree diff / fetch failed")
             await msg.reply(
                 content=_admin_error_text(
                     get("commands.treediff.message_failed"),
-                    traceback.format_exc(),
+                    f"{type(e).__name__}: {e!s}"[:500],
                 ),
             )
             return False
@@ -391,7 +401,7 @@ class AdminCog(commands.Cog):
                     ),
                 )
                 return False
-            self._guilds.reset_all_data()
+            await run_in_thread(self._guilds.reset_all_data)
             f_log.info(
                 "Performed full database reset requested by user %r",
                 msg.author.id if msg.author else None,
@@ -433,7 +443,7 @@ class AdminCog(commands.Cog):
             return False
 
         if target == "game":
-            recreated = self._guilds.reset_game_data(entity_id)
+            recreated = await run_in_thread(self._guilds.reset_game_data, entity_id)
             f_log.info(
                 "Performed game reset for game_id=%r requested by user %r",
                 entity_id,
@@ -456,7 +466,7 @@ class AdminCog(commands.Cog):
             return True
 
         if target == "user":
-            self._guilds.reset_user_data(entity_id)
+            await run_in_thread(self._guilds.reset_user_data, entity_id)
             f_log.info(
                 "Performed user reset for user_id=%r requested by user %r",
                 entity_id,
@@ -477,7 +487,7 @@ class AdminCog(commands.Cog):
             return True
 
         if target == "guild":
-            self._guilds.reset_guild_data(entity_id)
+            await run_in_thread(self._guilds.reset_guild_data, entity_id)
             f_log.info(
                 "Performed guild reset for guild_id=%r requested by user %r",
                 entity_id,

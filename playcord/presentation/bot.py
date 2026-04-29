@@ -25,7 +25,7 @@ from playcord.presentation.cogs.general import GeneralCog
 from playcord.presentation.interactions.command_tree_sync import build_tree
 from playcord.presentation.interactions.error import command_error
 from playcord.presentation.interactions.permissions import (
-    STATIC_OWNER_IDS,
+    get_configured_static_owner_ids,
     resolve_effective_owner_ids,
 )
 
@@ -70,7 +70,7 @@ class PlayCordBot(commands.Bot):
     def effective_owner_ids(self) -> frozenset[int]:
         if self._effective_owner_ids is not None:
             return self._effective_owner_ids
-        return STATIC_OWNER_IDS
+        return get_configured_static_owner_ids()
 
     async def setup_hook(self) -> None:
         self._effective_owner_ids = await resolve_effective_owner_ids(self)

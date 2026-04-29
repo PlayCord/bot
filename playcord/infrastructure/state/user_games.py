@@ -25,6 +25,10 @@ class SessionRegistry:
         self.user_to_matchmaking.clear()
         self.autocomplete_cache.clear()
 
+    def discard_thread_cache(self, thread_id: int) -> None:
+        """Drop move-autocomplete cache for a game thread (call when a match ends)."""
+        self.autocomplete_cache.pop(thread_id, None)
+
 
 def _active_game_map() -> dict[Any, Any]:
     c = try_get_container()

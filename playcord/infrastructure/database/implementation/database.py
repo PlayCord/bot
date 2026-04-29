@@ -5,8 +5,10 @@ Domain operations live in :mod:`playcord.infrastructure.database.implementation.
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 try:
     from psycopg.rows import dict_row
@@ -158,3 +160,22 @@ class Database:
                         e,
                     )
                     raise
+
+    async def aexecute_query(
+        self,
+        query: str,
+        params: tuple | None = None,
+        fetchone: bool = False,
+        fetchall: bool = False,
+    ) -> Any:
+        """Async wrapper: run :meth:`execute_query` in a worker thread.
+
+        Use from coroutines so psycopg does not block the Discord event loop.
+        """
+        return await asyncio.to_thread(
+            self.execute_query,
+            query,
+            params,
+            fetchone,
+            fetchall,
+        )

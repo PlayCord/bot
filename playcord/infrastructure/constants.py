@@ -31,8 +31,6 @@ MESSAGE_COMMAND_TREEDIFF = "treediff"
 MESSAGE_COMMAND_DBRESET = "dbreset"
 MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER = "this"
 
-OWNERS: list[int] = [897146430664355850, 1085939954758205561]
-
 EMBED_COLOR = discord.Color.from_str("#6877ED")
 ERROR_COLOR = discord.Color.from_str("#ED6868")
 INFO_COLOR = discord.Color.from_str("#9A9CB0")

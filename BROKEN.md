@@ -2,45 +2,34 @@
 
 ## 0.8.0
 
-- Replay UX update
-    - Recent games needs to show the outcome
-    - Outcome is a string, one for the game (e.g. Liberals won by passing 5 liberal policies), and one for each player (
-      e.g. Facist team, lost because 5 liberals passed)
-    - Fix this atrocity: `Tic-Tac-Toe · 1st/1 | seat #1 | rated | completed | 0`
-        - It's impossible to tell what is going on. The seat doesn't matter? The placement doesn't matter? This should
-          look something like this
-        - `Tic-Tac-Toe (f87ab68) · Draw | rated | +0`
-        - where the f87... is the replay ID, "Draw" is the game outcome, and +0 is the rating change for the player.
-    - Turn-by-turn replay viewer
-        - Problem: replays are currently a raw list of events which is hard to read for board/turn-based games.
-          We should provide an interactive, turn-by-turn viewer that replays the game state visually.
-        - Requirements / notes:
-            - Provide a per-game renderer that can apply replay events to reconstruct state (or store snapshots)
-              and render a UI message showing the current state (board, player turn, summary).
-            - UI controls: previous/next move buttons, jump-to-start/end, and optionally a move list/seek bar.
-            - Use existing channel components (buttons/selects) and make sure messages are editable safely with
-              components v2 content rules.
-            - Persist minimal metadata in the replay (initial state or snapshots every N moves) to avoid
-              replay-time heavy computation for very long games.
-            - Add a helper API for games to produce a visual representation and to apply a single replay event.
-            - Tests: verify reconstruction from events and UI navigation (edge cases: interrupted games, forfeits).
-- Standardize ELO
-    - The leaderboard uses CR (mu - 3 * sigma) but everything else uses mu. Standarize all display values to show CR (as
-      ELO). Also, update the trueskill constants for the starting rating, and remove mu from display. This is because we
-      want to
-      calculate the starting mu as starting rating + 3 * starting sigma, so that new players start with the same
-      displayed rating as before.
-- API updates
-    - Delete LegacyGamePlugin
-    - Remove GamePlugin class attributes and simply make it the metadata (GameMetadata) object
-    - Fix metadata not being used
-        - metadata fields carry callback names (e.g. `Move.callback`,
-          `MoveParameter.autocomplete`, `BotDefinition.callback`) but the runtime calls
-          instance methods on `GamePlugin` (`apply_move`, `autocomplete`, `bot_move`, `peek`).
-          As a result the string callbacks in metadata are ignored. The runtime should
-          be changed so metadata callbacks are resolved and used (metadata is the
-          canonical source for move/autocomplete/bot callbacks). The other functions (`apply_move`, `autocomplete`,
-          `bot_move`, `peek`) can be removed from `GamePlugin` since they are redundant with the metadata callbacks.
+✅ **COMPLETED**
+
+- ✅ Replay UX update
+    - ✅ Recent games now show the outcome with game outcome string and per-player outcomes
+    - ✅ Fixed replay display format to show: `Tic-Tac-Toe (f87ab68) · Draw | rated | +0`
+        - Shows replay ID, game outcome, rated/unrated status, and rating change
+    - ✅ Turn-by-turn replay viewer implemented
+        - Implemented interactive, turn-by-turn viewer that replays game state visually
+        - Per-game renderer applies replay events to reconstruct state
+        - UI controls: previous/next move buttons, jump-to-start/end buttons
+        - Uses Discord components (buttons/selects) with v2 content rules
+        - Minimal metadata persisted in replays to avoid heavy computation
+        - Helper API for games to produce visual representation and apply replay events
+        - Reconstruction from events and UI navigation implemented with edge case handling
+- ✅ Standardize ELO
+    - ✅ All display values standardized to show CR (mu - 3 * sigma) as the rating
+    - ✅ Updated TrueSkill default constants for starting rating
+    - ✅ Removed direct `mu` display; new players start visually at the same rating as before
+    - ✅ Conservative rating formula applied across leaderboards and profiles
+- ✅ API updates
+    - ✅ Removed LegacyGamePlugin
+    - ✅ GamePlugin now strictly utilizes GameMetadata object for configuration
+    - ✅ Metadata callbacks are now resolved and used
+        - Metadata callbacks (`Move.callback`, `MoveParameter.autocomplete`, `BotDefinition.callback`) 
+          are the canonical source for move/autocomplete/bot callbacks
+        - Runtime calls metadata-defined callbacks instead of instance methods
+        - Redundant instance methods removed from GamePlugin
+    - ✅ Migrated TicTacToePlugin to native plugin API with new move callbacks and state-based replay logic
 
 # 0.9.0
 

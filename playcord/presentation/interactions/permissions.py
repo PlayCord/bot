@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Any
 
-from playcord.infrastructure.constants import OWNERS
 from playcord.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -12,8 +12,27 @@ if TYPE_CHECKING:
 
 log = get_logger("bot_owners")
 
-# Configured co-owners / operators (always treated as owners).
-STATIC_OWNER_IDS: frozenset[int] = frozenset(int(x) for x in OWNERS)
+
+def get_configured_static_owner_ids() -> frozenset[int]:
+    """User IDs from ``bot.owner_user_ids`` in config and/or ``PLAYCORD_OWNER_IDS``."""
+    try:
+        from playcord.infrastructure.config import get_settings
+
+        return frozenset(int(x) for x in get_settings().bot.owner_user_ids)
+    except Exception:
+        raw = os.getenv("PLAYCORD_OWNER_IDS", "")
+        if not raw.strip():
+            return frozenset()
+        out: set[int] = set()
+        for part in raw.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                out.add(int(part))
+            except ValueError:
+                log.warning("Invalid integer in PLAYCORD_OWNER_IDS: %r", part)
+        return frozenset(out)
 
 
 def portal_owner_ids_from_appinfo(app_info: Any) -> frozenset[int]:
@@ -60,12 +79,12 @@ def portal_owner_ids_from_appinfo(app_info: Any) -> frozenset[int]:
 
 
 async def resolve_effective_owner_ids(client: discord.Client) -> frozenset[int]:
-    """Merge ``STATIC_OWNER_IDS`` with portal owner(s). Falls back
+    """Merge configured owner IDs with portal owner(s). Falls back
     to static-only if the API call fails.
     """
-    merged: set[int] = set(STATIC_OWNER_IDS)
+    merged: set[int] = set(get_configured_static_owner_ids())
     log.debug(
-        "resolve_effective_owner_ids: starting with STATIC_OWNER_IDS=%s",
+        "resolve_effective_owner_ids: starting with configured owner ids=%s",
         sorted(merged),
     )
 
@@ -79,7 +98,7 @@ async def resolve_effective_owner_ids(client: discord.Client) -> frozenset[int]:
     except Exception:
         log.warning(
             "resolve_effective_owner_ids: application_info() failed; using "
-            "STATIC_OWNER_IDS only for owner checks",
+            "configured owner ids only for owner checks",
             exc_info=True,
         )
         return frozenset(merged)

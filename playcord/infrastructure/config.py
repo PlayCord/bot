@@ -38,6 +38,7 @@ class BotSettings:
     secret: str
     auto_sync_commands: bool = False
     compare_command_tree_on_startup: bool = False
+    owner_user_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +98,22 @@ def _apply_environment_overrides(raw: dict[str, Any]) -> dict[str, Any]:
             db[field_name] = value
 
     updated["db"] = db
+
+    owner_env = os.getenv("PLAYCORD_OWNER_IDS", "").strip()
+    if owner_env:
+        bot = dict(updated.get("bot") or {})
+        existing = {int(x) for x in (bot.get("owner_user_ids") or []) if x is not None}
+        for part in owner_env.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                existing.add(int(part))
+            except ValueError:
+                continue
+        bot["owner_user_ids"] = sorted(existing)
+        updated["bot"] = bot
+
     return updated
 
 
@@ -121,6 +138,17 @@ def load_settings(path: str | Path = DEFAULT_CONFIG_PATH) -> Settings:
 
     ratings_raw = dict(raw.get("ratings") or {})
 
+    owner_raw = bot_raw.get("owner_user_ids")
+    if owner_raw is None:
+        owner_user_ids: tuple[int, ...] = ()
+    else:
+        if not isinstance(owner_raw, (list, tuple)):
+            msg = "bot.owner_user_ids must be a list of integers"
+            raise ConfigurationError(
+                msg,
+            )
+        owner_user_ids = tuple(int(x) for x in owner_raw)
+
     return Settings(
         bot=BotSettings(
             secret=secret,
@@ -128,6 +156,7 @@ def load_settings(path: str | Path = DEFAULT_CONFIG_PATH) -> Settings:
             compare_command_tree_on_startup=bool(
                 bot_raw.get("compare_command_tree_on_startup", False),
             ),
+            owner_user_ids=owner_user_ids,
         ),
         db=DatabaseSettings(
             type=str(db_raw.get("type", "postgresql")),

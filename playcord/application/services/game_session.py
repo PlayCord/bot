@@ -39,6 +39,7 @@ class GameSessionService:
 
     def unregister(self, thread_id: int) -> None:
         session = self.registry.games_by_thread_id.pop(thread_id, None)
+        self.registry.discard_thread_cache(thread_id)
         if session is None:
             return
         for player in getattr(session, "players", []) or []:

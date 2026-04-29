@@ -7,6 +7,7 @@ from typing import Any
 from playcord.application.runtime_context import get_container
 from playcord.infrastructure.analytics_client import register_event
 from playcord.infrastructure.database.models import EventType, MatchStatus
+from playcord.infrastructure.db_thread import run_in_thread
 from playcord.infrastructure.logging import get_logger
 
 log = get_logger("application.match_interrupt")
@@ -34,15 +35,16 @@ def _release_interface_locks(interface: Any) -> None:
     thread = getattr(interface, "thread", None)
     thread_id = getattr(thread, "id", None)
     if thread_id is not None:
-        reg.games_by_thread_id.pop(thread_id, None)
+        reg.discard_thread_cache(int(thread_id))
+        reg.games_by_thread_id.pop(int(thread_id), None)
 
 
 async def interrupt_match(
-    interface: Any,
-    error: BaseException,
-    *,
-    trace_id: str | None = None,
-    logger=None,
+        interface: Any,
+        error: BaseException,
+        *,
+        trace_id: str | None = None,
+        logger=None,
 ) -> None:
     logger = logger or log
     if getattr(interface, "_interrupt_started", False):
@@ -57,7 +59,8 @@ async def interrupt_match(
 
     try:
         if match_id is not None:
-            get_container().matches_repository.update_status(
+            await run_in_thread(
+                get_container().matches_repository.update_status,
                 match_id,
                 MatchStatus.INTERRUPTED.value,
                 metadata_patch={"reason": reason_payload},

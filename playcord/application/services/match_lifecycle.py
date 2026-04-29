@@ -10,6 +10,7 @@ from playcord.application.services.rating import (
     rated_results_for_placements,
     unrated_results_for_placements,
 )
+from playcord.infrastructure.db_thread import run_in_thread
 from playcord.infrastructure.locale import get
 from playcord.infrastructure.logging import get_logger
 
@@ -42,13 +43,15 @@ async def start_match_from_lobby(
 
     match_options = dict(getattr(interface, "match_settings", {}) or {})
     matches = get_container().matches_repository
-    match_id, match_code = matches.create_game(
-        game_name=interface.game_type,
-        guild_id=message.guild.id,
-        participants=[player.id for player in players],
-        is_rated=bool(interface.rated and not has_bots),
-        channel_id=message.channel.id,
-        game_config={"match_options": match_options},
+    match_id, match_code = await run_in_thread(
+        matches.create_game,
+        interface.game_type,
+        message.guild.id,
+        [player.id for player in players],
+        bool(interface.rated and not has_bots),
+        message.channel.id,
+        None,
+        {"match_options": match_options},
     )
     runtime = GameManager(
         game_type=interface.game_type,
@@ -63,7 +66,8 @@ async def start_match_from_lobby(
     )
     runtime.rematch_view_factory = rematch_view_factory
     await runtime.setup()
-    matches.update_match_context(
+    await run_in_thread(
+        matches.update_match_context,
         match_id,
         channel_id=message.channel.id,
         thread_id=runtime.thread.id if runtime.thread is not None else None,
@@ -87,7 +91,12 @@ async def finish_match(runtime: GameManager, outcome: Any) -> None:
         ],
     }
     matches = get_container().matches_repository
-    matches.end_match(runtime.game_id, final_state, results)
+    await run_in_thread(
+        matches.end_match,
+        runtime.game_id,
+        final_state,
+        results,
+    )
 
     global_summary: str | None = None
     summaries: dict[int, str] | None = None
@@ -115,7 +124,8 @@ async def finish_match(runtime: GameManager, outcome: Any) -> None:
 
     if (global_summary and str(global_summary).strip()) or summaries:
         try:
-            matches.merge_match_metadata_outcome_display(
+            await run_in_thread(
+                matches.merge_match_metadata_outcome_display,
                 runtime.game_id,
                 summaries=summaries,
                 global_summary=global_summary,
@@ -132,7 +142,9 @@ async def finish_match(runtime: GameManager, outcome: Any) -> None:
         if player_id is not None:
             reg.user_to_game.pop(int(player_id), None)
     if runtime.thread is not None:
-        reg.games_by_thread_id.pop(runtime.thread.id, None)
+        tid = runtime.thread.id
+        reg.discard_thread_cache(tid)
+        reg.games_by_thread_id.pop(tid, None)
 
     summary = _summary_text(runtime, outcome, results)
     if runtime.thread is not None:
