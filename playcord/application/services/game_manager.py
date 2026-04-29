@@ -152,7 +152,7 @@ class GameManager:
                 except Exception:
                     self.logger.debug("Failed to add player %s to thread", player_id)
         reg.games_by_thread_id[self.thread.id] = self
-        self._record_initial_replay_state()
+        await self._record_initial_replay_state_async()
         await self.render_state()
 
     def build_context(self) -> GameContext:
@@ -404,18 +404,30 @@ class GameManager:
         await run_in_thread(_sync_record)
 
     def _plugin_replay_hook(self, event_type: str, payload: dict[str, Any]) -> None:
-        try:
-            body: dict[str, Any] = {"type": event_type, **dict(payload)}
-            get_container().replays_repository.append_replay_dict(self.game_id, body)
-            replay_viewer.invalidate_match_cache(self.game_id)
-        except Exception:
-            self.logger.exception(
-                "Failed to append plugin replay event match_id=%s type=%s",
-                self.game_id,
-                event_type,
-            )
+        """Synchronous callback from plugins; schedule DB I/O to avoid blocking the event loop."""
+        def _write() -> None:
+            try:
+                body: dict[str, Any] = {"type": event_type, **dict(payload)}
+                get_container().replays_repository.append_replay_dict(
+                    self.game_id,
+                    body,
+                )
+                replay_viewer.invalidate_match_cache(self.game_id)
+            except Exception:
+                self.logger.exception(
+                    "Failed to append plugin replay event match_id=%s type=%s",
+                    self.game_id,
+                    event_type,
+                )
 
-    def _record_initial_replay_state(self) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            _write()
+            return
+        loop.create_task(run_in_thread(_write))
+
+    async def _record_initial_replay_state_async(self) -> None:
         try:
             replay_state = self.plugin.initial_replay_state(self.build_context())
         except Exception:
@@ -432,17 +444,21 @@ class GameManager:
             "move_index": int(replay_state.move_index),
             "state": replay_state.state,
         }
-        try:
-            get_container().replays_repository.append_replay_dict(
-                self.game_id,
-                {"type": "replay_init", "state": payload},
-            )
-            replay_viewer.invalidate_match_cache(self.game_id)
-        except Exception:
-            self.logger.exception(
-                "Failed to record replay_init match_id=%s",
-                self.game_id,
-            )
+
+        def _write() -> None:
+            try:
+                get_container().replays_repository.append_replay_dict(
+                    self.game_id,
+                    {"type": "replay_init", "state": payload},
+                )
+                replay_viewer.invalidate_match_cache(self.game_id)
+            except Exception:
+                self.logger.exception(
+                    "Failed to record replay_init match_id=%s",
+                    self.game_id,
+                )
+
+        await run_in_thread(_write)
 
     def _resolve_move_callback(self, move_name: str) -> Callable[..., Any]:
         move: Move | None = None
