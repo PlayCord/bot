@@ -16,6 +16,9 @@ class ReplayService:
         return self.repository.get_events(match_id)
 
     def append_event(
-        self, match_id: int, event_type: str, payload: dict[str, Any],
+        self,
+        match_id: int,
+        event_type: str,
+        payload: dict[str, Any],
     ) -> None:
         self.repository.append_event(match_id, event_type, payload)

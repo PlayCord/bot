@@ -39,7 +39,10 @@ class AnalyticsRepository:
         return self.get_analytics_event_counts(hours=hours)
 
     def get_recent_events(
-        self, *, hours: int = 24, limit: int = 50,
+        self,
+        *,
+        hours: int = 24,
+        limit: int = 50,
     ) -> list[dict[str, Any]]:
         return self.get_analytics_recent_events(hours=hours, limit=limit)
 
@@ -74,7 +77,8 @@ class AnalyticsRepository:
             VALUES (%s, %s, %s, %s, %s, %s::jsonb);
         """
         self.database.execute_query(
-            query, (event_type, user_id, guild_id, game_id, match_id, metadata_json),
+            query,
+            (event_type, user_id, guild_id, game_id, match_id, metadata_json),
         )
 
     def record_analytics_event(
@@ -170,7 +174,9 @@ class AnalyticsRepository:
         return rows or []
 
     def get_analytics_recent_events(
-        self, hours: int = 24, limit: int = 60,
+        self,
+        hours: int = 24,
+        limit: int = 60,
     ) -> list[dict[str, Any]]:
         query = """
             SELECT event_id, event_type, created_at, user_id, guild_id, game_id, match_id, metadata
@@ -183,7 +189,8 @@ class AnalyticsRepository:
         return rows or []
 
     def get_analytics_event_counts_by_game(
-        self, hours: int = 24,
+        self,
+        hours: int = 24,
     ) -> list[dict[str, Any]]:
         query = """
             SELECT g.game_name AS game_type, COUNT(*)::BIGINT AS cnt

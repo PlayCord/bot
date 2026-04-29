@@ -230,7 +230,11 @@ class ReplayViewerView(discord.ui.LayoutView):
 
     @staticmethod
     def _nav_custom_id(
-        *, match_id: int, owner_id: int, target_frame: int, button_index: int = 0,
+        *,
+        match_id: int,
+        owner_id: int,
+        target_frame: int,
+        button_index: int = 0,
     ) -> str:
         payload = urlencode(
             {

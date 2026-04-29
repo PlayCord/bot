@@ -154,7 +154,8 @@ class GameManager:
         owned = []
         for key, message in self.owned_messages.items():
             purpose = self.owned_message_purposes.get(
-                key, "board" if key == "board" else "overview",
+                key,
+                "board" if key == "board" else "overview",
             )
             owned.append(
                 OwnedMessage(
@@ -264,7 +265,9 @@ class GameManager:
                 f"Bot difficulty {difficulty!r} is not configured for {self.game_type}",
             )
         callback = _resolve_callback(
-            self.plugin, getattr(definition, "callback", None), "bot_move",
+            self.plugin,
+            getattr(definition, "callback", None),
+            "bot_move",
         )
         move = callback(current, ctx=self.build_context())
         if not move:
@@ -290,7 +293,11 @@ class GameManager:
         await finish_match(self, outcome)
 
     async def _apply_bot_move(
-        self, ctx: Any, *, name: str, arguments: dict[str, Any],
+        self,
+        ctx: Any,
+        *,
+        name: str,
+        arguments: dict[str, Any],
     ) -> None:
         async with self._processing_move:
             actor = self._player_by_id(getattr(ctx.user, "id", None))
@@ -321,13 +328,17 @@ class GameManager:
             actor = self._player_by_id(getattr(ctx.user, "id", None))
             if actor is None:
                 await followup_send(
-                    ctx, get("move.no_active_game_description"), ephemeral=True,
+                    ctx,
+                    get("move.no_active_game_description"),
+                    ephemeral=True,
                 )
                 return
             current = self.plugin.current_turn()
             if current_turn_required and current is not None and current.id != actor.id:
                 await followup_send(
-                    ctx, get("permissions.not_your_turn"), ephemeral=True,
+                    ctx,
+                    get("permissions.not_your_turn"),
+                    ephemeral=True,
                 )
                 return
             callback = self._resolve_move_callback(name)
@@ -400,7 +411,8 @@ class GameManager:
             replay_state = self.plugin.initial_replay_state(self.build_context())
         except Exception:
             self.logger.exception(
-                "initial_replay_state failed match_id=%s", self.game_id,
+                "initial_replay_state failed match_id=%s",
+                self.game_id,
             )
             return
         if replay_state is None:
@@ -413,12 +425,14 @@ class GameManager:
         }
         try:
             get_container().replays_repository.append_replay_dict(
-                self.game_id, {"type": "replay_init", "state": payload},
+                self.game_id,
+                {"type": "replay_init", "state": payload},
             )
             replay_viewer.invalidate_match_cache(self.game_id)
         except Exception:
             self.logger.exception(
-                "Failed to record replay_init match_id=%s", self.game_id,
+                "Failed to record replay_init match_id=%s",
+                self.game_id,
             )
 
     def _resolve_move_callback(self, move_name: str) -> Callable[..., Any]:
@@ -531,7 +545,9 @@ class GameManager:
             return
         if view is None:
             await self._safe_edit_message(
-                existing, content=action.layout.content, attachments=files,
+                existing,
+                content=action.layout.content,
+                attachments=files,
             )
         else:
             await self._safe_edit_message(existing, view=view, attachments=files)
@@ -548,7 +564,10 @@ class GameManager:
             self.logger.debug("Failed to delete owned message key=%s", key)
 
     async def _safe_edit_message(
-        self, message: discord.Message | None, /, **kwargs,
+        self,
+        message: discord.Message | None,
+        /,
+        **kwargs,
     ) -> None:
         """Edit a message while handling Discord components-v2 content restrictions."""
         if message is None:
@@ -581,12 +600,14 @@ class GameManager:
                     return
                 except Exception:
                     self.logger.exception(
-                        "Failed to edit message %s", getattr(message, "id", None),
+                        "Failed to edit message %s",
+                        getattr(message, "id", None),
                     )
                     return
 
             self.logger.exception(
-                "Failed to edit message %s", getattr(message, "id", None),
+                "Failed to edit message %s",
+                getattr(message, "id", None),
             )
 
     @staticmethod
@@ -741,7 +762,9 @@ class GameManager:
             )
             options.append(
                 discord.SelectOption(
-                    label=opt_label, value=option.value, default=option.default,
+                    label=opt_label,
+                    value=option.value,
+                    default=option.default,
                 ),
             )
 
@@ -754,7 +777,8 @@ class GameManager:
         return select
 
     def decode_component_payload(
-        self, payload: str,
+        self,
+        payload: str,
     ) -> tuple[str, dict[str, Any], bool]:
         parsed = parse_qs(payload)
         name = parsed.get("name", [""])[0]

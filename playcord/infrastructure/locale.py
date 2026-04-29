@@ -87,7 +87,11 @@ class Translator:
         return data
 
     def get(
-        self, key: str, default: str | None = None, *, locale: str | None = None,
+        self,
+        key: str,
+        default: str | None = None,
+        *,
+        locale: str | None = None,
     ) -> str:
         selected_locale = locale or self.current_locale
         data = self._load_locale(selected_locale)
@@ -96,7 +100,9 @@ class Translator:
             if default is not None:
                 return self._replace_command_tokens(default)
             self.log.warning(
-                "Missing locale key: %r in locale %r", key, selected_locale,
+                "Missing locale key: %r in locale %r",
+                key,
+                selected_locale,
             )
             return f"[{key}]"
         return self._replace_command_tokens(str(value))

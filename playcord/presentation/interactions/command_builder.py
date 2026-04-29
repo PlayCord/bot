@@ -45,7 +45,8 @@ def build_function_definitions() -> dict[Group, list[Any]]:
     context = {}
     for game in GAME_TYPES:
         game_class = getattr(
-            importlib.import_module(GAME_TYPES[game][0]), GAME_TYPES[game][1],
+            importlib.import_module(GAME_TYPES[game][0]),
+            GAME_TYPES[game][1],
         )
         metadata = game_class.metadata
         moves = metadata.moves

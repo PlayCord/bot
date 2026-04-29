@@ -78,7 +78,9 @@ class Player:
     def from_legacy(cls, legacy: Any) -> Player:
         """Create a canonical player from either legacy player model."""
         display_name = getattr(legacy, "display_name", None) or getattr(
-            legacy, "name", None,
+            legacy,
+            "name",
+            None,
         )
         rating = Rating(
             mu=float(getattr(legacy, "mu", DEFAULT_MU)),

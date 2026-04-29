@@ -143,7 +143,9 @@ def lobby_ban_phase(
     kicked = remove_queued_player(new_player.id) is not None
     if queued_count() == 0:
         return BanPhaseResult(
-            kicked_from_queue=kicked, lobby_empty=True, whitelist_error=None,
+            kicked_from_queue=kicked,
+            lobby_empty=True,
+            whitelist_error=None,
         )
     rotate_creator_if_needed(target_user_id)
     if private:
@@ -156,7 +158,9 @@ def lobby_ban_phase(
     else:
         roster.blacklist.add(new_player)
     return BanPhaseResult(
-        kicked_from_queue=kicked, lobby_empty=False, whitelist_error=None,
+        kicked_from_queue=kicked,
+        lobby_empty=False,
+        whitelist_error=None,
     )
 
 

@@ -60,7 +60,11 @@ class GameRepository:
         min_matches: int = 5,
     ) -> list[dict[str, Any]]:
         return self._leaderboard.get_leaderboard(
-            member_user_ids, game_id, limit, offset, min_matches,
+            member_user_ids,
+            game_id,
+            limit,
+            offset,
+            min_matches,
         )
 
     def get_global_leaderboard(
@@ -72,7 +76,10 @@ class GameRepository:
         min_matches: int = 5,
     ) -> list[dict[str, Any]]:
         return self._leaderboard.get_global_leaderboard(
-            game_id, limit=limit, offset=offset, min_matches=min_matches,
+            game_id,
+            limit=limit,
+            offset=offset,
+            min_matches=min_matches,
         )
 
     def register_game(
@@ -141,7 +148,9 @@ class GameRepository:
             cls = getattr(mod, cls_name)
             metadata = cls.metadata
             display_name = getattr(
-                metadata, "name", game_name.replace("_", " ").title(),
+                metadata,
+                "name",
+                game_name.replace("_", " ").title(),
             )
             spec = resolve_player_count(cls)
             if isinstance(spec, list):
@@ -267,5 +276,8 @@ class GameRepository:
         if not game:
             return []
         return self.get_leaderboard(
-            member_user_ids, game.game_id, limit=limit, min_matches=min_matches,
+            member_user_ids,
+            game.game_id,
+            limit=limit,
+            min_matches=min_matches,
         )

@@ -229,7 +229,10 @@ class TicTacToeGame(ReplayableGame):
         return self._bot_move_for_difficulty(player, "easy")
 
     def bot_medium(
-        self, player: Player, *, ctx: GameContext,
+        self,
+        player: Player,
+        *,
+        ctx: GameContext,
     ) -> dict[str, object] | None:
         _ = ctx
         return self._bot_move_for_difficulty(player, "medium")
@@ -252,7 +255,9 @@ class TicTacToeGame(ReplayableGame):
         )
 
     def apply_replay_event(
-        self, state: ReplayState, event: dict[str, object],
+        self,
+        state: ReplayState,
+        event: dict[str, object],
     ) -> ReplayState | None:
         if event.get("type") != "move":
             return state
@@ -307,7 +312,9 @@ class TicTacToeGame(ReplayableGame):
         )
 
     def _bot_move_for_difficulty(
-        self, player: Player, difficulty: str,
+        self,
+        player: Player,
+        difficulty: str,
     ) -> dict[str, object] | None:
         available = self._available_moves(self.board)
         if not available:
@@ -354,7 +361,11 @@ class TicTacToeGame(ReplayableGame):
         ]
 
     def _board_buttons(
-        self, board: Board, *, disable_all: bool = False, game_over: bool = False,
+        self,
+        board: Board,
+        *,
+        disable_all: bool = False,
+        game_over: bool = False,
     ) -> tuple[ButtonSpec, ...]:
         return tuple(
             ButtonSpec(
@@ -373,7 +384,10 @@ class TicTacToeGame(ReplayableGame):
         return self._status_line_for_board(self.board, self.players, self.turn)
 
     def _status_line_for_board(
-        self, board: list[list[str]], players: list[Player], turn: int,
+        self,
+        board: list[list[str]],
+        players: list[Player],
+        turn: int,
     ) -> str:
         outcome = self._outcome_for_board(board, players)
         if outcome is not None:
@@ -385,7 +399,9 @@ class TicTacToeGame(ReplayableGame):
         return f"Turn: {players[turn % len(players)].mention}"
 
     def _outcome_for_board(
-        self, board: Board, players: list[Player] | None = None,
+        self,
+        board: Board,
+        players: list[Player] | None = None,
     ) -> Outcome | None:
         roster = players or self.players
         if len(roster) < 2:
@@ -461,7 +477,10 @@ class TicTacToeGame(ReplayableGame):
         return MARK_O
 
     def _marker_for_replay_actor(
-        self, players: list[Player], actor: object, turn: int,
+        self,
+        players: list[Player],
+        actor: object,
+        turn: int,
     ) -> str:
         marker = MARK_X if turn % 2 == 0 else MARK_O
         actor_id = self._parse_int(actor, default=-1)

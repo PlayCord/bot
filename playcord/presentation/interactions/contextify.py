@@ -6,8 +6,7 @@ import discord
 
 
 def contextify(ctx: discord.Interaction | discord.Member) -> str:
-    """Return a string with guild/user/interaction details for log lines and analytics.
-    """
+    """Return a string with guild/user/interaction details for log lines and analytics."""
     is_guild_command = ctx.guild is not None
     guild_id = ctx.guild.id if is_guild_command else None
     guild_name = ctx.guild.name if is_guild_command else None

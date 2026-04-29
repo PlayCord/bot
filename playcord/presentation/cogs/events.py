@@ -45,7 +45,8 @@ class EventsCog(commands.Cog):
         if not git_executable:
             # Git isn't installed or isn't in the system's PATH at all
             git_log.debug(
-                "git executable not found in PATH; using version base %s", version_base,
+                "git executable not found in PATH; using version base %s",
+                version_base,
             )
             self.version = version_base
         else:
@@ -61,7 +62,8 @@ class EventsCog(commands.Cog):
                 if short:
                     self.version = f"{version_base} \u2022 {short}"
                     git_log.info(
-                        "Using git short commit %s for presence version", short,
+                        "Using git short commit %s for presence version",
+                        short,
                     )
                 else:
                     git_log.debug(
@@ -74,7 +76,9 @@ class EventsCog(commands.Cog):
                 # This catches errors if the command runs but fails
                 # (e.g., the ".." directory is not actually a git repository)
                 git_log.debug(
-                    "git rev-parse failed: %s; using version base %s", e, version_base,
+                    "git rev-parse failed: %s; using version base %s",
+                    e,
+                    version_base,
                 )
                 self.version = version_base
             except FileNotFoundError as e:
@@ -174,8 +178,7 @@ class EventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
-        """Handle messages in game threads - enforce thread policy for non-participants.
-        """
+        """Handle messages in game threads - enforce thread policy for non-participants."""
         # Ignore messages from bots (including ourselves)
         if message.author.bot:
             log.getChild("event.thread_policy").debug(
@@ -197,7 +200,8 @@ class EventsCog(commands.Cog):
         reg = self.bot.container.registry
         if message.channel.id not in reg.games_by_thread_id:
             log.getChild("event.thread_policy").debug(
-                "No active game for thread %s", message.channel.id,
+                "No active game for thread %s",
+                message.channel.id,
             )
             return
 
@@ -330,15 +334,18 @@ class EventsCog(commands.Cog):
                     for option in options:
                         try:
                             activity = discord.Activity(
-                                type=discord.ActivityType.playing, name=option,
+                                type=discord.ActivityType.playing,
+                                name=option,
                             )
                             log.getChild("presence").debug(
-                                "Setting presence to: %s", option,
+                                "Setting presence to: %s",
+                                option,
                             )
                             await self.bot.change_presence(activity=activity)
                         except Exception:
                             log.getChild("presence").exception(
-                                "Failed to change presence to %s", option,
+                                "Failed to change presence to %s",
+                                option,
                             )
                         await asyncio.sleep(PRESENCE_TIMEOUT)
 

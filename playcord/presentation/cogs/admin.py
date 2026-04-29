@@ -46,7 +46,10 @@ async def _add_processing_reaction(msg: discord.Message) -> None:
 
 
 async def _finalize_admin_reactions(
-    msg: discord.Message, bot_user: discord.abc.User, *, success: bool,
+    msg: discord.Message,
+    bot_user: discord.abc.User,
+    *,
+    success: bool,
 ) -> None:
     try:
         await msg.remove_reaction(MESSAGE_COMMAND_PENDING, bot_user)
@@ -97,8 +100,7 @@ class AdminCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message) -> None:
-        """Handle message commands for bot administration
-        """
+        """Handle message commands for bot administration"""
         if msg.author.bot or msg.author.id not in self.bot.effective_owner_ids:
             return
 
@@ -211,7 +213,8 @@ class AdminCog(commands.Cog):
                     CustomContainer(
                         title=fmt("commands.analytics.embed_title", hours=hours),
                         description=fmt(
-                            "commands.analytics.message_empty", hours=hours,
+                            "commands.analytics.message_empty",
+                            hours=hours,
                         ),
                     ),
                 ),
@@ -219,7 +222,10 @@ class AdminCog(commands.Cog):
             return True
 
         chart_buf = await asyncio.to_thread(
-            render_analytics_matplotlib_summary, counts, by_game, hours,
+            render_analytics_matplotlib_summary,
+            counts,
+            by_game,
+            hours,
         )
         main_container = CustomContainer(
             title=fmt("commands.analytics.embed_title", hours=hours),
@@ -234,7 +240,10 @@ class AdminCog(commands.Cog):
             main_container.set_image(url="attachment://playcord-analytics.png")
 
         recent_lines: list[str] = render_analytics_markdown_summary(
-            counts, by_game, recent, hours,
+            counts,
+            by_game,
+            recent,
+            hours,
         )
         append_container_sections(
             main_container,

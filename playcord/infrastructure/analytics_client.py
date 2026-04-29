@@ -55,8 +55,7 @@ def register_event(
     latency_ms: float | None = None,
     outcome: str | None = None,
 ) -> None:
-    """Register an analytics event (written to the database immediately when connected).
-    """
+    """Register an analytics event (written to the database immediately when connected)."""
     et = event_type.value if isinstance(event_type, EventType) else str(event_type)
     meta = dict(metadata or {})
     meta.setdefault("bot_version", VERSION)
@@ -191,8 +190,7 @@ def format_ascii_bar_chart(
     label_key: str = "event_type",
     width: int = 22,
 ) -> list[str]:
-    """Turn count rows into simple Unicode bar lines for Discord (monospace-friendly).
-    """
+    """Turn count rows into simple Unicode bar lines for Discord (monospace-friendly)."""
     if not rows:
         return []
     mx = max(int(r[value_key]) for r in rows) or 1

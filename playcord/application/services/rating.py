@@ -39,7 +39,9 @@ def player_mu_sigma(player: Any, game_type: str) -> tuple[float, float]:
 
 
 def rated_results_for_placements(
-    players: list[Any], game_type: str, placements: list[list[Any]],
+    players: list[Any],
+    game_type: str,
+    placements: list[list[Any]],
 ) -> dict[int, dict[str, Any]]:
     """Compute post-match rating rows for a rated game."""
     ts = get_trueskill_parameters(game_type)
@@ -80,7 +82,9 @@ def rated_results_for_placements(
 
 
 def unrated_results_for_placements(
-    players: list[Any], game_type: str, placements: list[list[Any]],
+    players: list[Any],
+    game_type: str,
+    placements: list[list[Any]],
 ) -> dict[int, dict[str, Any]]:
     """Build neutral rating rows for an unrated game."""
     ranking_by_id: dict[int, int] = {}

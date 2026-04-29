@@ -200,7 +200,9 @@ class RuntimeGame(ABC):
         return None
 
     def apply_replay_event(
-        self, state: ReplayState, event: dict[str, Any],
+        self,
+        state: ReplayState,
+        event: dict[str, Any],
     ) -> ReplayState | None:
         return None
 
@@ -223,7 +225,9 @@ class ReplayableGame(RuntimeGame, ABC):
 
     @abstractmethod
     def apply_replay_event(
-        self, state: ReplayState, event: dict[str, Any],
+        self,
+        state: ReplayState,
+        event: dict[str, Any],
     ) -> ReplayState | None:
         raise NotImplementedError
 

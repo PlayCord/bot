@@ -1,5 +1,4 @@
-"""Graph generation utilities for PlayCord bot using matplotlib.
-"""
+"""Graph generation utilities for PlayCord bot using matplotlib."""
 
 import io
 from datetime import datetime
@@ -45,7 +44,12 @@ def generate_elo_chart(
     # Handle single data point
     if len(ratings) == 1:
         ax.plot(
-            timestamps, ratings, "o", color="#5865F2", markersize=10, label="Rating",
+            timestamps,
+            ratings,
+            "o",
+            color="#5865F2",
+            markersize=10,
+            label="Rating",
         )
     else:
         # Plot line chart
@@ -139,7 +143,11 @@ def generate_elo_chart(
     # Save to BytesIO buffer
     buffer = io.BytesIO()
     fig.savefig(
-        buffer, format="png", bbox_inches="tight", facecolor="white", edgecolor="none",
+        buffer,
+        format="png",
+        bbox_inches="tight",
+        facecolor="white",
+        edgecolor="none",
     )
     buffer.seek(0)
 
@@ -217,7 +225,11 @@ def generate_rating_comparison_chart(
     # Save to BytesIO buffer
     buffer = io.BytesIO()
     fig.savefig(
-        buffer, format="png", bbox_inches="tight", facecolor="white", edgecolor="none",
+        buffer,
+        format="png",
+        bbox_inches="tight",
+        facecolor="white",
+        edgecolor="none",
     )
     buffer.seek(0)
 
@@ -292,7 +304,11 @@ def generate_analytics_summary_chart(
 
     buffer = io.BytesIO()
     fig.savefig(
-        buffer, format="png", bbox_inches="tight", facecolor="white", edgecolor="none",
+        buffer,
+        format="png",
+        bbox_inches="tight",
+        facecolor="white",
+        edgecolor="none",
     )
     plt.close(fig)
     buffer.seek(0)

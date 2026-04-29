@@ -277,7 +277,9 @@ class MatchRepository:
                     ),
                 )
                 new_mu, new_sigma = self.ratings.clamp_rating(
-                    result["new_mu"], result["new_sigma"], match["game_id"],
+                    result["new_mu"],
+                    result["new_sigma"],
+                    match["game_id"],
                 )
                 cur.execute(
                     """
@@ -342,7 +344,10 @@ class MatchRepository:
         return [row_to_match(row) for row in results] if results else []
 
     def get_recent_matches(
-        self, guild_id: int, game_id: int, limit: int = 10,
+        self,
+        guild_id: int,
+        game_id: int,
+        limit: int = 10,
     ) -> list[Match]:
         query = """
             SELECT * FROM matches
@@ -351,7 +356,9 @@ class MatchRepository:
             LIMIT %s;
         """
         results = self.database.execute_query(
-            query, (guild_id, game_id, limit), fetchall=True,
+            query,
+            (guild_id, game_id, limit),
+            fetchall=True,
         )
         return [row_to_match(row) for row in results] if results else []
 
@@ -379,7 +386,8 @@ class MatchRepository:
             VALUES (%s, %s, %s, %s, %s);
         """
         self.database.execute_query(
-            query, (match_id, user_id, player_number, mu_before, sigma_before),
+            query,
+            (match_id, user_id, player_number, mu_before, sigma_before),
         )
 
     def get_participants(self, match_id: int) -> list[Participant]:
@@ -408,7 +416,8 @@ class MatchRepository:
             WHERE participant_id = %s;
         """
         self.database.execute_query(
-            query, (ranking, score, mu_delta, sigma_delta, participant_id),
+            query,
+            (ranking, score, mu_delta, sigma_delta, participant_id),
         )
 
     def remove_participant(self, match_id: int, user_id: int) -> None:
@@ -540,11 +549,18 @@ class MatchRepository:
         offset: int = 0,
     ) -> list[dict[str, Any]]:
         return self.get_user_match_history(
-            user_id, guild_id, game_id=game_id, limit=limit, offset=offset,
+            user_id,
+            guild_id,
+            game_id=game_id,
+            limit=limit,
+            offset=offset,
         )
 
     def get_head_to_head(
-        self, user1_id: int, user2_id: int, game_id: int | None = None,
+        self,
+        user1_id: int,
+        user2_id: int,
+        game_id: int | None = None,
     ) -> list[dict[str, Any]]:
         if game_id is not None:
             query = """
@@ -564,7 +580,9 @@ class MatchRepository:
                 GROUP BY m.game_id, g.display_name;
             """
             results = self.database.execute_query(
-                query, (user1_id, user2_id, game_id), fetchall=True,
+                query,
+                (user1_id, user2_id, game_id),
+                fetchall=True,
             )
         else:
             query = """
@@ -585,7 +603,9 @@ class MatchRepository:
                 ORDER BY total_matches DESC;
             """
             results = self.database.execute_query(
-                query, (user1_id, user2_id), fetchall=True,
+                query,
+                (user1_id, user2_id),
+                fetchall=True,
             )
         return results or []
 
@@ -621,7 +641,10 @@ class MatchRepository:
         }
 
     def count_matches_for_game(
-        self, guild_id: int, game_name: str, is_rated: bool | None = None,
+        self,
+        guild_id: int,
+        game_name: str,
+        is_rated: bool | None = None,
     ) -> int:
         game = self.games.get_game(game_name)
         if not game:
@@ -632,7 +655,9 @@ class MatchRepository:
                 WHERE guild_id = %s AND game_id = %s AND is_rated = %s;
             """
             result = self.database.execute_query(
-                query, (guild_id, game.game_id, is_rated), fetchone=True,
+                query,
+                (guild_id, game.game_id, is_rated),
+                fetchone=True,
             )
         else:
             query = """
@@ -640,12 +665,17 @@ class MatchRepository:
                 WHERE guild_id = %s AND game_id = %s;
             """
             result = self.database.execute_query(
-                query, (guild_id, game.game_id), fetchone=True,
+                query,
+                (guild_id, game.game_id),
+                fetchone=True,
             )
         return result["count"] if result else 0
 
     def count_matches_for_user(
-        self, user_id: int, guild_id: int, is_rated: bool | None = None,
+        self,
+        user_id: int,
+        guild_id: int,
+        is_rated: bool | None = None,
     ) -> int:
         query = """
             SELECT COUNT(DISTINCT m.match_id) AS total_matches
@@ -767,7 +797,10 @@ class MatchRepository:
         self.end_match(match_id, final_state, results)
 
     def get_recent_matches_for_game(
-        self, guild_id: int, game_name: str, limit: int = 10,
+        self,
+        guild_id: int,
+        game_name: str,
+        limit: int = 10,
     ) -> list[dict[str, Any]]:
         game = self.games.get_game(game_name)
         if not game:
@@ -854,7 +887,8 @@ class ReplayRepository:
         replay_payload = dict(payload or {})
         with self.database.transaction() as cur:
             cur.execute(
-                "SELECT 1 FROM matches WHERE match_id = %s FOR UPDATE;", (match_id,),
+                "SELECT 1 FROM matches WHERE match_id = %s FOR UPDATE;",
+                (match_id,),
             )
             cur.execute(
                 """

@@ -136,7 +136,9 @@ async def finish_match(runtime: GameManager, outcome: Any) -> None:
     if runtime.thread is not None:
         await runtime.thread.send(summary)
         await runtime.thread.edit(
-            locked=True, archived=True, reason=get("threads.game_over"),
+            locked=True,
+            archived=True,
+            reason=get("threads.game_over"),
         )
     rematch_view_factory = getattr(runtime, "rematch_view_factory", None)
     rematch_view = (
@@ -161,11 +163,15 @@ async def finish_match(runtime: GameManager, outcome: Any) -> None:
 
 
 def _summary_text(
-    runtime: GameManager, outcome: Any, results: dict[int, dict[str, Any]],
+    runtime: GameManager,
+    outcome: Any,
+    results: dict[int, dict[str, Any]],
 ) -> str:
     lines = [f"**{runtime.plugin.metadata.name}** finished."]
     if getattr(outcome, "kind", None) == "winner" and getattr(
-        outcome, "placements", None,
+        outcome,
+        "placements",
+        None,
     ):
         winner = outcome.placements[0][0]
         lines.append(f"Winner: {winner.mention}")

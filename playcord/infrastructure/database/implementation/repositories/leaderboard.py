@@ -43,12 +43,18 @@ class LeaderboardRepository:
             LIMIT %s OFFSET %s;
         """
         results = self.database.execute_query(
-            query, (game_id, member_user_ids, min_matches, limit, offset), fetchall=True,
+            query,
+            (game_id, member_user_ids, min_matches, limit, offset),
+            fetchall=True,
         )
         return results or []
 
     def get_global_leaderboard(
-        self, game_id: int, limit: int = 10, offset: int = 0, min_matches: int = 10,
+        self,
+        game_id: int,
+        limit: int = 10,
+        offset: int = 0,
+        min_matches: int = 10,
     ) -> list[dict[str, Any]]:
         """Global leaderboard (all users with a rating row for this game)."""
         query = """
@@ -68,7 +74,9 @@ class LeaderboardRepository:
             LIMIT %s OFFSET %s;
         """
         results = self.database.execute_query(
-            query, (game_id, min_matches, limit, offset), fetchall=True,
+            query,
+            (game_id, min_matches, limit, offset),
+            fetchall=True,
         )
         return results or []
 
@@ -96,12 +104,17 @@ class LeaderboardRepository:
             SELECT rank FROM ranked WHERE user_id = %s;
         """
         result = self.database.execute_query(
-            query, (game_id, member_user_ids, min_matches, user_id), fetchone=True,
+            query,
+            (game_id, member_user_ids, min_matches, user_id),
+            fetchone=True,
         )
         return result["rank"] if result else -1
 
     def get_user_global_rank(
-        self, user_id: int, game_id: int, min_matches: int = 5,
+        self,
+        user_id: int,
+        game_id: int,
+        min_matches: int = 5,
     ) -> int | None:
         query = """
             WITH ranked AS (
@@ -115,7 +128,9 @@ class LeaderboardRepository:
             SELECT rank FROM ranked WHERE user_id = %s;
         """
         result = self.database.execute_query(
-            query, (game_id, min_matches, user_id), fetchone=True,
+            query,
+            (game_id, min_matches, user_id),
+            fetchone=True,
         )
         return result["rank"] if result else None
 
@@ -128,6 +143,8 @@ class LeaderboardRepository:
               AND is_deleted = FALSE;
         """
         result = self.database.execute_query(
-            query, (game_id, min_matches), fetchone=True,
+            query,
+            (game_id, min_matches),
+            fetchone=True,
         )
         return result["count"] if result else 0

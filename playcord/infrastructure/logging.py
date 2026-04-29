@@ -88,7 +88,9 @@ def configure_logging_from_config(
 
 
 def get_logger(
-    name: str | None = None, *, root_name: str = DEFAULT_LOGGING_ROOT,
+    name: str | None = None,
+    *,
+    root_name: str = DEFAULT_LOGGING_ROOT,
 ) -> logging.Logger:
     if name is None or not str(name).strip():
         return logging.getLogger(root_name)

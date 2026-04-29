@@ -38,7 +38,8 @@ def column_names(players: list[InternalPlayer] | set[InternalPlayer]) -> str:
 
 
 def column_elo(
-    players: list[InternalPlayer] | set[InternalPlayer], game_type: str,
+    players: list[InternalPlayer] | set[InternalPlayer],
+    game_type: str,
 ) -> str:
     """Convert a list of players into a string representing the list of players
 
@@ -55,7 +56,8 @@ def column_elo(
 
 
 def column_creator(
-    players: list[InternalPlayer] | set[InternalPlayer], creator: InternalPlayer | User,
+    players: list[InternalPlayer] | set[InternalPlayer],
+    creator: InternalPlayer | User,
 ) -> str:
     """Convert a list of players into a string representing the list of players's creator status
 
@@ -75,7 +77,8 @@ def column_creator(
 
 
 def column_turn(
-    players: list[InternalPlayer] | set[InternalPlayer], turn: InternalPlayer | User,
+    players: list[InternalPlayer] | set[InternalPlayer],
+    turn: InternalPlayer | User,
 ) -> str:
     """Convert a list of players into a string representing the list of players and whose turn it is
 
@@ -126,7 +129,8 @@ def textify(basis: dict[str, float], replacements: dict[str, str]) -> str:
     # Replace the strings with their replacements (great english)
     for replacement in replacements:
         actually_picked_message = actually_picked_message.replace(
-            "{" + replacement + "}", replacements[replacement],
+            "{" + replacement + "}",
+            replacements[replacement],
         )
 
     return actually_picked_message
@@ -195,7 +199,10 @@ def format_replay_event_line(evt: dict[str, Any]) -> str:
 
 
 def chunk_replay_lines(
-    lines: list[str], *, per_page: int = 12, max_chars: int = 3200,
+    lines: list[str],
+    *,
+    per_page: int = 12,
+    max_chars: int = 3200,
 ) -> list[str]:
     """Split lines into pages that fit a single embed description (with code fence)."""
     if not lines:

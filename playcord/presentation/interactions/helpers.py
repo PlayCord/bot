@@ -62,7 +62,9 @@ def schedule_ephemeral_message_delete(message: Any, delay: float | None) -> None
 
 
 async def followup_send(
-    interaction: discord.Interaction, *args: Any, **kwargs: Any,
+    interaction: discord.Interaction,
+    *args: Any,
+    **kwargs: Any,
 ) -> Any:
     delay = kwargs.pop("delete_after", None)
     msg = await interaction.followup.send(*args, **kwargs)
@@ -71,7 +73,9 @@ async def followup_send(
 
 
 async def response_send_message(
-    interaction: discord.Interaction, *args: Any, **kwargs: Any,
+    interaction: discord.Interaction,
+    *args: Any,
+    **kwargs: Any,
 ) -> Any:
     delay = kwargs.pop("delete_after", None)
     msg = await interaction.response.send_message(*args, **kwargs)
@@ -119,7 +123,9 @@ async def send_simple_embed(
 ) -> None:
     """Send a short status using the shared container UI."""
     card = CustomContainer(
-        title=title, description=description or None, color=INFO_COLOR,
+        title=title,
+        description=description or None,
+        color=INFO_COLOR,
     )
     kwargs = {
         **container_send_kwargs(card),
@@ -127,11 +133,15 @@ async def send_simple_embed(
     }
     if not responded:
         await response_send_message(
-            ctx, **kwargs, delete_after=EPHEMERAL_DELETE_AFTER if ephemeral else None,
+            ctx,
+            **kwargs,
+            delete_after=EPHEMERAL_DELETE_AFTER if ephemeral else None,
         )
     else:
         await followup_send(
-            ctx, **kwargs, delete_after=EPHEMERAL_DELETE_AFTER if ephemeral else None,
+            ctx,
+            **kwargs,
+            delete_after=EPHEMERAL_DELETE_AFTER if ephemeral else None,
         )
 
 
@@ -158,11 +168,17 @@ async def interaction_check(ctx: discord.Interaction) -> bool:
         msg = get("playcord.active_thread_command_restricted")
         if ctx.response.is_done():
             await followup_send(
-                ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER,
+                ctx,
+                content=msg,
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
         else:
             await response_send_message(
-                ctx, content=msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER,
+                ctx,
+                content=msg,
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
         return False
 
@@ -195,8 +211,7 @@ def get_shallow_player(user: discord.User | discord.Member) -> InternalPlayer:
 
 
 async def decode_discord_arguments(argument: Choice | typing.Any) -> typing.Any:
-    """Decode discord arguments from discord so they can be passed to the move function
-    """
+    """Decode discord arguments from discord so they can be passed to the move function"""
     if isinstance(argument, Choice):
         return argument.value
     return argument

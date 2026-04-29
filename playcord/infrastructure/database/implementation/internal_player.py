@@ -69,7 +69,9 @@ class InternalPlayer:
                 self,
                 key,
                 InternalPlayerRatingStatistic(
-                    key, ratings[key]["mu"], ratings[key]["sigma"],
+                    key,
+                    ratings[key]["mu"],
+                    ratings[key]["sigma"],
                 ),
             )
 
@@ -134,7 +136,8 @@ class InternalPlayer:
 
 
 def internal_player_to_player(
-    internal_player: InternalPlayer, game_type: str,
+    internal_player: InternalPlayer,
+    game_type: str,
 ) -> Player:
     """Convert InternalPlayer to API Player object"""
     rating = getattr(internal_player, game_type)

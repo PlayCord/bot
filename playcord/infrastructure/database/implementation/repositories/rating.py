@@ -23,7 +23,10 @@ class RatingRepository:
     leaderboard: LeaderboardRepository
 
     def clamp_rating(
-        self, mu: float, sigma: float, game_id: int,
+        self,
+        mu: float,
+        sigma: float,
+        game_id: int,
     ) -> tuple[float, float]:
         """Clamp mu/sigma using global config and per-game rating_config floors."""
         cfg = get_settings().ratings
@@ -91,7 +94,8 @@ class RatingRepository:
             WHERE user_id = %s AND game_id = %s;
         """
         self.database.execute_query(
-            query, (mu, sigma, matches_increment, user_id, game_id),
+            query,
+            (mu, sigma, matches_increment, user_id, game_id),
         )
 
     def bulk_update_ratings(self, updates: list[dict[str, Any]]) -> None:
@@ -105,7 +109,9 @@ class RatingRepository:
                     WHERE user_id = %s AND game_id = %s;
                 """
                 mu_c, sig_c = self.clamp_rating(
-                    update["mu"], update["sigma"], update["game_id"],
+                    update["mu"],
+                    update["sigma"],
+                    update["game_id"],
                 )
                 cur.execute(
                     query,
@@ -134,7 +140,8 @@ class RatingRepository:
             WHERE user_id = %s AND game_id = %s;
         """
         self.database.execute_query(
-            query, (game.default_mu, game.default_sigma, user_id, game_id),
+            query,
+            (game.default_mu, game.default_sigma, user_id, game_id),
         )
 
     def delete_user_rating(self, user_id: int, game_id: int) -> None:
@@ -179,10 +186,15 @@ class RatingRepository:
         return results or []
 
     def get_user_global_rank(
-        self, user_id: int, game_id: int, min_matches: int = 5,
+        self,
+        user_id: int,
+        game_id: int,
+        min_matches: int = 5,
     ) -> int | None:
         return self.leaderboard.get_user_global_rank(
-            user_id, game_id, min_matches=min_matches,
+            user_id,
+            game_id,
+            min_matches=min_matches,
         )
 
     def calculate_global_ratings(self, game_id: int) -> int:

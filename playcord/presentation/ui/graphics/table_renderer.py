@@ -165,7 +165,10 @@ def _segment_metrics(
 
 
 def _measure_text(
-    draw: ImageDraw.ImageDraw, text: str, *, header: bool = False,
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    *,
+    header: bool = False,
 ) -> tuple[int, int]:
     target_size = _HEADER_FONT_SIZE if header else _FONT_SIZE
     base_font = _load_font(target_size)
@@ -175,7 +178,10 @@ def _measure_text(
         use_emoji = _is_emoji_cluster(cluster)
         font = _load_font(target_size, emoji=True) if use_emoji else base_font
         cluster_width, cluster_height = _segment_metrics(
-            draw, cluster, font, embedded_color=use_emoji,
+            draw,
+            cluster,
+            font,
+            embedded_color=use_emoji,
         )
         width += cluster_width
         height = max(height, cluster_height)
@@ -206,7 +212,10 @@ def _draw_text_in_cell(
         use_emoji = _is_emoji_cluster(cluster)
         font = _load_font(target_size, emoji=True) if use_emoji else base_font
         segment_width, segment_height = _segment_metrics(
-            draw, cluster, font, embedded_color=use_emoji,
+            draw,
+            cluster,
+            font,
+            embedded_color=use_emoji,
         )
         segment_y = y + max((cell_height - max(total_height, segment_height)) // 2, 0)
         kwargs = {"font": font}
@@ -274,7 +283,8 @@ def render_table_as_png(headers: Sequence[str], rows: Sequence[Sequence[str]]) -
     for row_index in range(len(normalized_rows)):
         fill = _ROW_BG if row_index % 2 == 0 else _ALT_ROW_BG
         draw.rectangle(
-            (table_left, y, table_left + table_width, y + _ROW_HEIGHT), fill=fill,
+            (table_left, y, table_left + table_width, y + _ROW_HEIGHT),
+            fill=fill,
         )
         y += _ROW_HEIGHT
 

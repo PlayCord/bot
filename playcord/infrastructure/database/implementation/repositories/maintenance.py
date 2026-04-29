@@ -30,7 +30,9 @@ class MaintenanceRepository:
         self.games.sync_games_from_code()
 
     def apply_skill_decay(
-        self, days_inactive: int = 30, sigma_increase: float = 0.1,
+        self,
+        days_inactive: int = 30,
+        sigma_increase: float = 0.1,
     ) -> int:
         query = """
             UPDATE user_game_ratings
@@ -145,12 +147,18 @@ class MaintenanceRepository:
             FROM active_players, total_players;
         """
         result = self.database.execute_query(
-            query, (guild_id, guild_id, days), fetchone=True,
+            query,
+            (guild_id, guild_id, days),
+            fetchone=True,
         )
         return result["retention_rate"] if result else 0.0
 
     def get_most_active_players(
-        self, guild_id: int, game_id: int, days: int = 7, limit: int = 10,
+        self,
+        guild_id: int,
+        game_id: int,
+        days: int = 7,
+        limit: int = 10,
     ) -> list[dict[str, Any]]:
         query = """
             SELECT
@@ -170,12 +178,17 @@ class MaintenanceRepository:
             LIMIT %s;
         """
         results = self.database.execute_query(
-            query, (guild_id, game_id, days, limit), fetchall=True,
+            query,
+            (guild_id, game_id, days, limit),
+            fetchall=True,
         )
         return results or []
 
     def count_matches(
-        self, guild_id: int, game_id: int, is_rated: bool | None = None,
+        self,
+        guild_id: int,
+        game_id: int,
+        is_rated: bool | None = None,
     ) -> int:
         if is_rated is not None:
             query = """
@@ -183,7 +196,9 @@ class MaintenanceRepository:
                 WHERE guild_id = %s AND game_id = %s AND is_rated = %s;
             """
             result = self.database.execute_query(
-                query, (guild_id, game_id, is_rated), fetchone=True,
+                query,
+                (guild_id, game_id, is_rated),
+                fetchone=True,
             )
         else:
             query = """
@@ -191,7 +206,9 @@ class MaintenanceRepository:
                 WHERE guild_id = %s AND game_id = %s;
             """
             result = self.database.execute_query(
-                query, (guild_id, game_id), fetchone=True,
+                query,
+                (guild_id, game_id),
+                fetchone=True,
             )
         return result["count"] if result else 0
 

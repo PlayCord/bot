@@ -55,7 +55,8 @@ log = get_logger()
 
 async def _send_game_ended_error(ctx: discord.Interaction) -> None:
     log.getChild("interaction.game_error").debug(
-        "Sending game_ended error to user=%s", getattr(ctx.user, "id", None),
+        "Sending game_ended error to user=%s",
+        getattr(ctx.user, "id", None),
     )
     await followup_send(
         ctx,
@@ -82,7 +83,8 @@ _PAGINATION_PREFIXES = (
 
 
 async def _pagination_unhandled_fallback(
-    interaction: discord.Interaction, custom_id: str,
+    interaction: discord.Interaction,
+    custom_id: str,
 ) -> None:
     """If no registered PaginationView handled the click (e.g. after restart).
 
@@ -104,11 +106,16 @@ async def _pagination_unhandled_fallback(
         except ValueError:
             pass
         else:
-            if interaction.user.id != uid or (interaction.guild_id is not None and gid != interaction.guild_id):
+            if interaction.user.id != uid or (
+                interaction.guild_id is not None and gid != interaction.guild_id
+            ):
                 msg = get("interactions.pagination_not_yours")
     try:
         await response_send_message(
-            interaction, msg, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER,
+            interaction,
+            msg,
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
         )
     except discord.HTTPException:
         pass
@@ -161,24 +168,33 @@ class GamesCog(commands.Cog):
         try:
             if custom_id.startswith(BUTTON_PREFIX_GAME_MOVE):
                 resource_id, payload = _parse_component_id(
-                    custom_id, BUTTON_PREFIX_GAME_MOVE,
+                    custom_id,
+                    BUTTON_PREFIX_GAME_MOVE,
                 )
                 await self._route_runtime_move(
-                    ctx, resource_id=resource_id, payload=payload,
+                    ctx,
+                    resource_id=resource_id,
+                    payload=payload,
                 )
             elif custom_id.startswith(BUTTON_PREFIX_GAME_SELECT):
                 resource_id, payload = _parse_component_id(
-                    custom_id, BUTTON_PREFIX_GAME_SELECT,
+                    custom_id,
+                    BUTTON_PREFIX_GAME_SELECT,
                 )
                 await self._route_runtime_select(
-                    ctx, resource_id=resource_id, payload=payload,
+                    ctx,
+                    resource_id=resource_id,
+                    payload=payload,
                 )
             elif custom_id.startswith(BUTTON_PREFIX_REPLAY_NAV):
                 resource_id, payload = _parse_component_id(
-                    custom_id, BUTTON_PREFIX_REPLAY_NAV,
+                    custom_id,
+                    BUTTON_PREFIX_REPLAY_NAV,
                 )
                 await self._route_replay_nav(
-                    ctx, resource_id=resource_id, payload=payload,
+                    ctx,
+                    resource_id=resource_id,
+                    payload=payload,
                 )
             elif custom_id.startswith(BUTTON_PREFIX_SELECT_CURRENT):
                 await self.game_select_callback(ctx, current_turn_required=True)
@@ -203,7 +219,10 @@ class GamesCog(commands.Cog):
             )
 
     async def _route_replay_nav(
-        self, ctx: discord.Interaction, resource_id: int, payload: str,
+        self,
+        ctx: discord.Interaction,
+        resource_id: int,
+        payload: str,
     ) -> None:
         await ctx.response.defer()
         payload_data = parse_qs(payload)
@@ -319,7 +338,10 @@ class GamesCog(commands.Cog):
         await ctx.edit_original_response(view=view)
 
     async def _route_runtime_move(
-        self, ctx: discord.Interaction, resource_id: int, payload: str,
+        self,
+        ctx: discord.Interaction,
+        resource_id: int,
+        payload: str,
     ) -> None:
         await ctx.response.defer()
         runtime = self._active_games.get(resource_id)
@@ -337,7 +359,10 @@ class GamesCog(commands.Cog):
         )
 
     async def _route_runtime_select(
-        self, ctx: discord.Interaction, resource_id: int, payload: str,
+        self,
+        ctx: discord.Interaction,
+        resource_id: int,
+        payload: str,
     ) -> None:
         await ctx.response.defer()
         runtime = self._active_games.get(resource_id)
@@ -354,7 +379,9 @@ class GamesCog(commands.Cog):
         )
 
     async def game_button_callback(
-        self, ctx: discord.Interaction, current_turn_required: bool = True,
+        self,
+        ctx: discord.Interaction,
+        current_turn_required: bool = True,
     ) -> None:
         await ctx.response.defer()
         f_log = log.getChild("interaction.game_button")
@@ -436,7 +463,9 @@ class GamesCog(commands.Cog):
         )
 
     async def game_select_callback(
-        self, ctx: discord.Interaction, current_turn_required: bool = True,
+        self,
+        ctx: discord.Interaction,
+        current_turn_required: bool = True,
     ) -> None:
         await ctx.response.defer()
         f_log = log.getChild("interaction.game_select")
@@ -487,7 +516,9 @@ class GamesCog(commands.Cog):
             return
 
         await game.move_by_select(
-            ctx=ctx, name=function_id, current_turn_required=current_turn_required,
+            ctx=ctx,
+            name=function_id,
+            current_turn_required=current_turn_required,
         )
 
     async def spectate_callback(self, ctx: discord.Interaction) -> None:
@@ -608,7 +639,9 @@ class GamesCog(commands.Cog):
                 mid,
             )
             await followup_send(
-                ctx, content=get("rematch.not_participant"), ephemeral=True,
+                ctx,
+                content=get("rematch.not_participant"),
+                ephemeral=True,
             )
             return
         for uid in human_ids:
@@ -619,13 +652,16 @@ class GamesCog(commands.Cog):
                     uid,
                 )
                 await followup_send(
-                    ctx, content=get("rematch.someone_busy"), ephemeral=True,
+                    ctx,
+                    content=get("rematch.someone_busy"),
+                    ephemeral=True,
                 )
                 return
         g = ctx.guild
         if g is None or not isinstance(ctx.channel, discord.TextChannel):
             f_log.warning(
-                "Rematch attempted in invalid channel by user=%s", ctx.user.id,
+                "Rematch attempted in invalid channel by user=%s",
+                ctx.user.id,
             )
             await followup_send(ctx, content=get("rematch.bad_channel"), ephemeral=True)
             return
@@ -637,7 +673,9 @@ class GamesCog(commands.Cog):
                 mid,
             )
             await followup_send(
-                ctx, content=get("rematch.unknown_game"), ephemeral=True,
+                ctx,
+                content=get("rematch.unknown_game"),
+                ephemeral=True,
             )
             return
         game_type = game_row.game_name
@@ -645,11 +683,16 @@ class GamesCog(commands.Cog):
             **container_send_kwargs(LoadingContainer().remove_footer()),
         )
         mm = MatchmakingInterface(
-            ctx.user, game_type, loading, rated=match.is_rated, private=False,
+            ctx.user,
+            game_type,
+            loading,
+            rated=match.is_rated,
+            private=False,
         )
         if mm.failed is not None:
             f_log.error(
-                "MatchmakingInterface failed during rematch seed: %s", mm.failed,
+                "MatchmakingInterface failed during rematch seed: %s",
+                mm.failed,
             )
             await loading.edit(content=str(mm.failed), view=None, attachments=[])
             await followup_send(ctx, content=get("rematch.failed"), ephemeral=True)
@@ -673,7 +716,10 @@ async def setup(bot: commands.Bot):
 
 
 async def begin_game(
-    ctx: discord.Interaction, game_type: str, rated: bool = True, private: bool = False,
+    ctx: discord.Interaction,
+    game_type: str,
+    rated: bool = True,
+    private: bool = False,
 ) -> MatchmakingInterface | None:
     f_log = log.getChild("command.matchmaking")
     f_log.debug(
@@ -729,11 +775,17 @@ async def begin_game(
     game_overview_message = await ctx.original_response()
     try:
         interface = MatchmakingInterface(
-            ctx.user, game_type, game_overview_message, rated=rated, private=private,
+            ctx.user,
+            game_type,
+            game_overview_message,
+            rated=rated,
+            private=private,
         )
         if interface.failed is not None:
             await game_overview_message.edit(
-                content=str(interface.failed), view=None, attachments=[],
+                content=str(interface.failed),
+                view=None,
+                attachments=[],
             )
             return None
         await interface.update_embed()
@@ -811,7 +863,10 @@ async def add_matchmaking_bot(ctx: discord.Interaction, difficulty: str) -> bool
 
 
 async def handle_move(
-    ctx: discord.Interaction, name, arguments, current_turn_required: bool = True,
+    ctx: discord.Interaction,
+    name,
+    arguments,
+    current_turn_required: bool = True,
 ) -> None:
     from playcord.infrastructure.analytics_client import EventType, register_event
 
@@ -825,11 +880,16 @@ async def handle_move(
     )
 
     requested_group = getattr(
-        getattr(getattr(ctx, "command", None), "parent", None), "name", None,
+        getattr(getattr(ctx, "command", None), "parent", None),
+        "name",
+        None,
     )
 
     def _track_move_rejected(
-        reason: str, *, game_type: str | None = None, match_id: int | None = None,
+        reason: str,
+        *,
+        game_type: str | None = None,
+        match_id: int | None = None,
     ) -> None:
         register_event(
             EventType.MOVE_REJECTED,
@@ -902,12 +962,18 @@ async def handle_move(
         arguments,
     )
     await active_game.move_by_command(
-        ctx, name, arguments, current_turn_required=current_turn_required,
+        ctx,
+        name,
+        arguments,
+        current_turn_required=current_turn_required,
     )
 
 
 async def handle_autocomplete(
-    ctx: discord.Interaction, function, current: str, argument,
+    ctx: discord.Interaction,
+    function,
+    current: str,
+    argument,
 ) -> list[Choice[str]]:
     try:
         reg = get_container().registry
@@ -919,7 +985,8 @@ async def handle_autocomplete(
     if runtime.plugin.outcome() is not None:
         return [app_commands.Choice(name=get("autocomplete.game_finished"), value="-")]
     player = get_container().players_repository.get_player(
-        ctx.user.id, discord_user_db_label(ctx.user),
+        ctx.user.id,
+        discord_user_db_label(ctx.user),
     )
     move = next((m for m in runtime.plugin.metadata.moves if m.name == function), None)
     if move is None:
@@ -962,7 +1029,8 @@ async def handle_autocomplete(
         if current.lower() in label.lower():
             valid_player_options.append([label, value])
     final_autocomplete = sorted(
-        valid_player_options, key=lambda x: _autocomplete_sort_key(x[0], current),
+        valid_player_options,
+        key=lambda x: _autocomplete_sort_key(x[0], current),
     )
     return [
         app_commands.Choice(name=ac_option[0], value=ac_option[1])

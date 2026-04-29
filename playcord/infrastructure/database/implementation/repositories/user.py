@@ -23,7 +23,10 @@ class PlayerRepository:
         return self.get_user(user_id)
 
     def create_user(
-        self, user_id: int, username: str = "Unknown", is_bot: bool = False,
+        self,
+        user_id: int,
+        username: str = "Unknown",
+        is_bot: bool = False,
     ) -> None:
         query = """
             INSERT INTO users (user_id, username, is_bot)
@@ -41,7 +44,9 @@ class PlayerRepository:
         return row_to_user(result) if result else None
 
     def update_user_preferences(
-        self, user_id: int, preferences: dict[str, Any],
+        self,
+        user_id: int,
+        preferences: dict[str, Any],
     ) -> None:
         preferences_json = json.dumps(preferences)
         query = """
@@ -125,10 +130,15 @@ class PlayerRepository:
         return self.ratings.get_user_all_ratings(user_id)
 
     def get_user_global_rank(
-        self, user_id: int, game_id: int, min_matches: int = 5,
+        self,
+        user_id: int,
+        game_id: int,
+        min_matches: int = 5,
     ) -> int | None:
         return self.ratings.get_user_global_rank(
-            user_id, game_id, min_matches=min_matches,
+            user_id,
+            game_id,
+            min_matches=min_matches,
         )
 
     def get_rating_history(
@@ -142,7 +152,9 @@ class PlayerRepository:
         return self.ratings.get_rating_history(user_id, guild_id, game_id, days=days)
 
     def get_player(
-        self, user_id: int, username: str | None = None,
+        self,
+        user_id: int,
+        username: str | None = None,
     ) -> InternalPlayer | None:
         preferences = self.get_user_preferences(user_id)
         metadata = (
@@ -220,7 +232,11 @@ class PlayerRepository:
         if not game:
             raise ValueError(f"Game {game_name} not found")
         self.ratings.update_rating(
-            user_id, game.game_id, mu, sigma, matches_increment=matches_played_increment,
+            user_id,
+            game.game_id,
+            mu,
+            sigma,
+            matches_increment=matches_played_increment,
         )
 
     def reset_user_game_ratings(

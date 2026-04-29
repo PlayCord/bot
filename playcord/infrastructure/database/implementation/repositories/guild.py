@@ -19,7 +19,9 @@ class GuildRepository:
     maintenance: Any  # MaintenanceRepository
 
     def create_guild(
-        self, guild_id: int, settings: dict[str, Any] | None = None,
+        self,
+        guild_id: int,
+        settings: dict[str, Any] | None = None,
     ) -> None:
         settings_json = json.dumps(settings or {})
         query = """

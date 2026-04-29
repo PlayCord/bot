@@ -56,7 +56,9 @@ def _chunk_text(text: str, *, max_len: int = _TEXT_DISPLAY_MAX) -> list[str]:
 
 
 def chunk_text_display_lines(
-    text: str, *, max_len: int = TEXT_DISPLAY_MAX,
+    text: str,
+    *,
+    max_len: int = TEXT_DISPLAY_MAX,
 ) -> list[str]:
     """Split content into Discord TextDisplay-sized chunks (newline-aware)."""
     return _chunk_text(text, max_len=max_len)
@@ -116,7 +118,10 @@ def container_send_kwargs(
         thumbnail = None
     kwargs: dict[str, Any] = {
         "view": _build_container_view(
-            body, accent_color=accent, media_urls=media, thumbnail_url=thumbnail,
+            body,
+            accent_color=accent,
+            media_urls=media,
+            thumbnail_url=thumbnail,
         ),
     }
     if files:
@@ -144,7 +149,10 @@ def container_edit_kwargs(
         thumbnail = None
     kwargs: dict[str, Any] = {
         "view": _build_container_view(
-            body, accent_color=accent, media_urls=media, thumbnail_url=thumbnail,
+            body,
+            accent_color=accent,
+            media_urls=media,
+            thumbnail_url=thumbnail,
         ),
     }
     if attachments is not None:
@@ -460,7 +468,9 @@ class GameOverContainer(CustomContainer):
                 inline=False,
             )
         self.add_field(
-            name=get("embeds.game_over.field_rankings"), value=rankings, inline=True,
+            name=get("embeds.game_over.field_rankings"),
+            value=rankings,
+            inline=True,
         )
         if outcome_summaries and players:
             block = _outcome_summaries_value(players, outcome_summaries)
@@ -634,7 +644,9 @@ class HelpGameInfoContainer(CustomContainer):
         metadata = game_class.metadata
         game_name = getattr(metadata, "name", game_id)
         description = getattr(
-            metadata, "description", get("help.game_info.no_description"),
+            metadata,
+            "description",
+            get("help.game_info.no_description"),
         )
         players = resolve_player_count(game_class)
         if players is None:
@@ -658,13 +670,19 @@ class HelpGameInfoContainer(CustomContainer):
             color=GAME_COLOR,
         )
         self.add_field(
-            name=get("help.game_info.field_players"), value=player_text, inline=True,
+            name=get("help.game_info.field_players"),
+            value=player_text,
+            inline=True,
         )
         self.add_field(
-            name=get("help.game_info.field_duration"), value=time_est, inline=True,
+            name=get("help.game_info.field_duration"),
+            value=time_est,
+            inline=True,
         )
         self.add_field(
-            name=get("help.game_info.field_difficulty"), value=difficulty, inline=True,
+            name=get("help.game_info.field_difficulty"),
+            value=difficulty,
+            inline=True,
         )
         self.add_field(
             name=get("help.game_info.field_quick_start"),
@@ -672,7 +690,9 @@ class HelpGameInfoContainer(CustomContainer):
             inline=False,
         )
         self.add_field(
-            name=get("help.game_info.field_author"), value=author, inline=True,
+            name=get("help.game_info.field_author"),
+            value=author,
+            inline=True,
         )
         self.add_field(
             name=get("help.game_info.field_learn_more"),
@@ -706,7 +726,8 @@ class MatchmakingContainer(CustomContainer):
         super().__init__(
             title=fmt("embeds.matchmaking.title", game_name=game_name),
             description=fmt(
-                "embeds.matchmaking.description", creator=creator.display_name,
+                "embeds.matchmaking.description",
+                creator=creator.display_name,
             ),
             color=MATCHMAKING_COLOR,
         )

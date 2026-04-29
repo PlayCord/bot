@@ -49,8 +49,7 @@ async def _noop_button_interaction(interaction: discord.Interaction) -> None:
 
 
 class DynamicButtonView(discord.ui.LayoutView):
-    """Dynamic button view: this is PAIN
-    """
+    """Dynamic button view: this is PAIN"""
 
     def __init__(
         self,
@@ -134,8 +133,7 @@ class DynamicButtonView(discord.ui.LayoutView):
 
 
 class MatchmakingView(DynamicButtonView):
-    """View for matchmaking message
-    """
+    """View for matchmaking message"""
 
     def __init__(
         self,
@@ -146,8 +144,7 @@ class MatchmakingView(DynamicButtonView):
         summary_text: str | None = None,
         table_image_url: str | None = None,
     ) -> None:
-        """Create a matchmaking view (Join / Leave / optional Ready — no Start; game begins when all ready).
-        """
+        """Create a matchmaking view (Join / Leave / optional Ready — no Start; game begins when all ready)."""
         buttons: list[dict] = [
             {
                 "label": get("buttons.join"),
@@ -172,16 +169,20 @@ class MatchmakingView(DynamicButtonView):
                 },
             )
         super().__init__(
-            buttons, summary_text=summary_text, table_image_url=table_image_url,
+            buttons,
+            summary_text=summary_text,
+            table_image_url=table_image_url,
         )
 
 
 class InviteView(DynamicButtonView):
-    """View for invitation DM
-    """
+    """View for invitation DM"""
 
     def __init__(
-        self, join_button_id=None, game_link=None, summary_text: str | None = None,
+        self,
+        join_button_id=None,
+        game_link=None,
+        summary_text: str | None = None,
     ) -> None:
         """Create a invite view
         :param join_button_id: the custom ID of the join button
@@ -206,8 +207,7 @@ class InviteView(DynamicButtonView):
 
 
 class SpectateView(DynamicButtonView):
-    """View for status message
-    """
+    """View for status message"""
 
     def __init__(
         self,
@@ -248,7 +248,9 @@ class SpectateView(DynamicButtonView):
             },
         )
         super().__init__(
-            buttons, summary_text=summary_text, table_image_url=table_image_url,
+            buttons,
+            summary_text=summary_text,
+            table_image_url=table_image_url,
         )
 
 
@@ -416,11 +418,13 @@ class RematchView(DynamicButtonView):
 
 
 class HelpView(discord.ui.LayoutView):
-    """Interactive help menu with navigation buttons.
-    """
+    """Interactive help menu with navigation buttons."""
 
     def __init__(
-        self, user_id: int, current_section: str = "main", body_text: str | None = None,
+        self,
+        user_id: int,
+        current_section: str = "main",
+        body_text: str | None = None,
     ):
         super().__init__(timeout=300)
         self.user_id = user_id
@@ -523,7 +527,11 @@ class HelpButton(discord.ui.Button):
     """Button for help menu navigation."""
 
     def __init__(
-        self, label: str, section: str, style: discord.ButtonStyle, user_id: int,
+        self,
+        label: str,
+        section: str,
+        style: discord.ButtonStyle,
+        user_id: int,
     ):
         super().__init__(label=label, style=style)
         self.section = section
@@ -699,7 +707,10 @@ class QuickActionsView(discord.ui.LayoutView):
     """
 
     def __init__(
-        self, show_catalog: bool = True, show_help: bool = True, timeout: int = 180,
+        self,
+        show_catalog: bool = True,
+        show_help: bool = True,
+        timeout: int = 180,
     ):
         super().__init__(timeout=timeout)
         container = discord.ui.Container(discord.ui.TextDisplay("### Quick Actions"))

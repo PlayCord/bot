@@ -108,7 +108,8 @@ class MatchmakingInterface:
         self._lobby_roster = LobbyRoster.initial(
             {
                 get_container().players_repository.get_player(
-                    creator.id, discord_user_db_label(creator),
+                    creator.id,
+                    discord_user_db_label(creator),
                 ),
             },
         )
@@ -188,7 +189,9 @@ class MatchmakingInterface:
         if (
             self._specs
             and getattr(
-                self.game, "customization_forces_unrated_when_non_default", True,
+                self.game,
+                "customization_forces_unrated_when_non_default",
+                True,
             )
             and not self._match_settings_are_default()
         ):
@@ -421,7 +424,9 @@ class MatchmakingInterface:
         )
 
     async def callback_role_select(
-        self, ctx: discord.Interaction, player_id: int,
+        self,
+        ctx: discord.Interaction,
+        player_id: int,
     ) -> None:
         """Handle per-player role string select for CHOSEN :attr:`role_mode`."""
         log = self.logger.getChild("lobby_role_select")
@@ -477,7 +482,9 @@ class MatchmakingInterface:
             and not self.has_bots
             and not self._match_settings_are_default()
             and getattr(
-                self.game, "customization_forces_unrated_when_non_default", True,
+                self.game,
+                "customization_forces_unrated_when_non_default",
+                True,
             )
         ):
             desc_suffix = f"\n\n{get('queue.customization_unrated_note')}"
@@ -578,7 +585,9 @@ class MatchmakingInterface:
             auth = game_metadata.get("author")
             if auth:
                 container.add_field(
-                    name=get("queue.field_game_by"), value=str(auth), inline=False,
+                    name=get("queue.field_game_by"),
+                    value=str(auth),
+                    inline=False,
                 )
 
         if self._specs:
@@ -687,7 +696,9 @@ class MatchmakingInterface:
         log.debug(f"Finished matchmaking update task in {update_timer.stop()}ms.")
 
     async def seed_rematch_players(
-        self, guild: discord.Guild, user_ids: list[int],
+        self,
+        guild: discord.Guild,
+        user_ids: list[int],
     ) -> str | None:
         """Add humans from a finished match to this lobby (creator is already queued)."""
         present = {p.id for p in self.queued_players}
@@ -699,7 +710,8 @@ class MatchmakingInterface:
             except (discord.NotFound, discord.HTTPException):
                 return fmt("rematch.member_missing", mention=f"<@{uid}>")
             player = get_container().players_repository.get_player(
-                member.id, discord_user_db_label(member),
+                member.id,
+                discord_user_db_label(member),
             )
             if player is None:
                 return get("rematch.db_failed")
@@ -734,7 +746,8 @@ class MatchmakingInterface:
             return False
 
         if MatchmakingInterface._is_queued_player(
-            self, player.id,
+            self,
+            player.id,
         ):  # Can't join if you are already in
             log.debug(
                 f"Player.py {player} attempted to accept invite, but they are already in the game! "
@@ -793,7 +806,8 @@ class MatchmakingInterface:
         """
         log = self.logger.getChild("ban")
         new_player = get_container().players_repository.get_player(
-            player.id, discord_user_db_label(player),
+            player.id,
+            discord_user_db_label(player),
         )
         log.debug(f"Attempting to ban player {new_player} for reason {reason!r}...")
         if new_player is None:  # Couldn't retrieve information, so don't join them
@@ -806,7 +820,8 @@ class MatchmakingInterface:
             new_player=new_player,
             target_user_id=player.id,
             remove_queued_player=lambda uid: MatchmakingInterface._remove_queued_player(
-                self, uid,
+                self,
+                uid,
             ),
             rotate_creator_if_needed=lambda uid: (
                 MatchmakingInterface._rotate_creator_if_needed(self, uid)
@@ -859,7 +874,8 @@ class MatchmakingInterface:
         phase = lobby_kick_phase(
             user_id=new_player.id,
             remove_queued_player=lambda uid: MatchmakingInterface._remove_queued_player(
-                self, uid,
+                self,
+                uid,
             ),
             rotate_creator_if_needed=lambda uid: (
                 MatchmakingInterface._rotate_creator_if_needed(self, uid)
@@ -896,7 +912,8 @@ class MatchmakingInterface:
         log.debug(f"Attempting to join the game... {contextify(ctx)}")
         if new_player is None:
             log.warning(
-                "Attempted to join but player lookup failed. %s", contextify(ctx),
+                "Attempted to join but player lookup failed. %s",
+                contextify(ctx),
             )
             await followup_send(
                 ctx,
@@ -906,7 +923,8 @@ class MatchmakingInterface:
             )
             return
         if MatchmakingInterface._is_queued_player(
-            self, ctx.user.id,
+            self,
+            ctx.user.id,
         ):  # Can't join if you are already in
             log.info(
                 f"Attempted to join player {new_player} but failed because they were already in the queue."
@@ -944,7 +962,8 @@ class MatchmakingInterface:
             return
         elif not self.private:
             if MatchmakingInterface._contains_player_id(
-                self.blacklist, new_player.id,
+                self.blacklist,
+                new_player.id,
             ):
                 log.info(
                     f"Attempted to join player {new_player} but failed because they are banned."
@@ -961,7 +980,8 @@ class MatchmakingInterface:
             await self.update_embed()  # Update embed on discord side
         else:
             if not MatchmakingInterface._contains_player_id(
-                self.whitelist, new_player.id,
+                self.whitelist,
+                new_player.id,
             ):
                 log.info(
                     f"Attempted to join player {new_player} to private game but failed because"
@@ -1013,7 +1033,10 @@ class MatchmakingInterface:
             notice = get("queue.ready_confirmed")
         await self.update_embed()
         await followup_send(
-            ctx, notice, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER,
+            ctx,
+            notice,
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
         )
 
     async def callback_leave_game(self, ctx: discord.Interaction) -> None:
@@ -1034,7 +1057,8 @@ class MatchmakingInterface:
             return
 
         if not MatchmakingInterface._is_queued_player(
-            self, player.id,
+            self,
+            player.id,
         ):  # Can't leave if you weren't even there
             log.info(
                 f"Attempted to remove player {player} but failed because they weren't in the queue to begin with."

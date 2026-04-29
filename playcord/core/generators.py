@@ -26,8 +26,7 @@ BOT_FIRST_NAMES = [
 
 
 def generate_bot_name(used_names: set[str] | None = None) -> str:
-    """Generate a unique display name for a bot in the form "<Name> (Bot)".
-    """
+    """Generate a unique display name for a bot in the form "<Name> (Bot)"."""
     used_names = used_names or set()
     shuffled = BOT_FIRST_NAMES[:]
     random.shuffle(shuffled)

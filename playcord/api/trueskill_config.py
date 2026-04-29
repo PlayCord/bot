@@ -32,8 +32,7 @@ def get_seed_trueskill_parameters(game_type_key: str) -> dict[str, float]:
 
 
 def get_trueskill_parameters(game_type_key: str) -> dict[str, float]:
-    """Return ``sigma``, ``beta``, ``tau``, ``draw`` scaled by ``STARTING_RATING``.
-    """
+    """Return ``sigma``, ``beta``, ``tau``, ``draw`` scaled by ``STARTING_RATING``."""
     from playcord.core.rating import STARTING_RATING
 
     try:

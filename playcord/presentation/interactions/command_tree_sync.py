@@ -156,7 +156,9 @@ def _collect_local_leaves(
 
 
 def collect_local_tree(
-    tree: app_commands.CommandTree, *, guild: discord.abc.Snowflake | None,
+    tree: app_commands.CommandTree,
+    *,
+    guild: discord.abc.Snowflake | None,
 ) -> dict[str, app_commands.Command]:
     merged: dict[str, app_commands.Command] = {}
     for top in tree.get_commands(guild=guild):
@@ -403,7 +405,8 @@ def drift_to_container(
         container.add_field(
             name=get("commands.treediff.field_more_modified"),
             value=fmt(
-                "commands.treediff.more_modified_detail", n=len(mod_sorted) - shown,
+                "commands.treediff.more_modified_detail",
+                n=len(mod_sorted) - shown,
             ),
             inline=False,
         )
@@ -412,11 +415,14 @@ def drift_to_container(
 
 
 async def fetch_and_analyze_tree(
-    tree: app_commands.CommandTree, *, guild: discord.abc.Snowflake | None = None,
+    tree: app_commands.CommandTree,
+    *,
+    guild: discord.abc.Snowflake | None = None,
 ) -> dict[str, Any]:
     remote = await tree.fetch_commands(guild=guild)
     local_leaves = collect_local_tree(tree, guild=guild)
     remote_leaves = collect_remote_tree(list(remote))
     return analyze_command_tree_drift(
-        local_leaves=local_leaves, remote_leaves=remote_leaves,
+        local_leaves=local_leaves,
+        remote_leaves=remote_leaves,
     )

@@ -33,8 +33,7 @@ class MatchmakingCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_interaction(self, ctx: discord.Interaction) -> None:
-        """Callback activated after every bot interaction.
-        """
+        """Callback activated after every bot interaction."""
         data = ctx.data if ctx.data is not None else {}
         custom_id = data.get("custom_id")
         if custom_id is None:
@@ -124,7 +123,10 @@ class MatchmakingCog(commands.Cog):
             )
             return
         f_log.debug(
-            "lobby option key=%r lobby=%s user=%s", key, matchmaking_id, ctx.user.id,
+            "lobby option key=%r lobby=%s user=%s",
+            key,
+            matchmaking_id,
+            ctx.user.id,
         )
         matchmaker = self._lobbies[matchmaking_id]
         await matchmaker.callback_lobby_option(ctx, key)
@@ -205,8 +207,7 @@ class MatchmakingCog(commands.Cog):
         await matchmaker.callback_role_select(ctx, player_id)
 
     async def matchmaking_button_callback(self, ctx: discord.Interaction) -> None:
-        """Handle matchmaking button (Join / Leave / Ready)
-        """
+        """Handle matchmaking button (Join / Leave / Ready)"""
         await ctx.response.defer()
         f_log = log.getChild("callback.matchmaking_button")
 
@@ -231,7 +232,9 @@ class MatchmakingCog(commands.Cog):
             f"matchmaking button pressed! ID: {cid} context: {interaction_context}",
         )
         f_log.debug(
-            "matchmaking_button cid=%r user=%s", cid, getattr(ctx.user, "id", None),
+            "matchmaking_button cid=%r user=%s",
+            cid,
+            getattr(ctx.user, "id", None),
         )
 
         # Leading ID of custom ID string
@@ -306,8 +309,7 @@ class MatchmakingCog(commands.Cog):
             await matchmaker.callback_toggle_ready(ctx)
 
     async def invite_accept_callback(self, ctx: discord.Interaction) -> None:
-        """Invite accept button callback.
-        """
+        """Invite accept button callback."""
         await ctx.response.defer()
         f_log = log.getChild("callback.invite_accept")
         f_log.debug(

@@ -59,7 +59,10 @@ class ErrorView(View):
 class UserErrorView(View):
     @classmethod
     def create(
-        cls, message: str, *, title: str = "Something went wrong",
+        cls,
+        message: str,
+        *,
+        title: str = "Something went wrong",
     ) -> UserErrorView:
         base = _single_card(message, title=title, accent_color=PALETTE.warning)
         return cls(layout=base.layout, content=base.content)

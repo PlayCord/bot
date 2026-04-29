@@ -42,14 +42,18 @@ class ApplicationContainer:
     players_repository: PlayerRepository = field(init=False, repr=False, compare=False)
     games_repository: GameRepository = field(init=False, repr=False, compare=False)
     maintenance_repository: MaintenanceRepository = field(
-        init=False, repr=False, compare=False,
+        init=False,
+        repr=False,
+        compare=False,
     )
     matches_repository: MatchRepository = field(init=False, repr=False, compare=False)
     ratings_repository: RatingRepository = field(init=False, repr=False, compare=False)
     replays_repository: ReplayRepository = field(init=False, repr=False, compare=False)
     guilds_repository: GuildRepository = field(init=False, repr=False, compare=False)
     analytics_repository: AnalyticsRepository = field(
-        init=False, repr=False, compare=False,
+        init=False,
+        repr=False,
+        compare=False,
     )
     analytics_service: AnalyticsService = field(init=False, repr=False, compare=False)
     replay_service: ReplayService = field(init=False, repr=False, compare=False)
@@ -57,7 +61,9 @@ class ApplicationContainer:
     stats_service: StatsService = field(init=False, repr=False, compare=False)
     matchmaker: Matchmaker = field(init=False, repr=False, compare=False)
     game_session_service: GameSessionService = field(
-        init=False, repr=False, compare=False,
+        init=False,
+        repr=False,
+        compare=False,
     )
 
     def __post_init__(self) -> None:
@@ -66,14 +72,19 @@ class ApplicationContainer:
 
         self.games_repository = GameRepository(database)
         self.ratings_repository = RatingRepository(
-            database, self.games_repository, self.games_repository.leaderboard,
+            database,
+            self.games_repository,
+            self.games_repository.leaderboard,
         )
         self.players_repository = PlayerRepository(
-            database, self.games_repository, self.ratings_repository,
+            database,
+            self.games_repository,
+            self.ratings_repository,
         )
         self.analytics_repository = AnalyticsRepository(database, self.games_repository)
         self.maintenance_repository = MaintenanceRepository(
-            database, self.games_repository,
+            database,
+            self.games_repository,
         )
         self.guilds_repository = GuildRepository(
             database,
@@ -102,7 +113,8 @@ class ApplicationContainer:
         self.replay_service = ReplayService(self.replays_repository)
         self.rating_service = RatingService(self.players_repository)
         self.stats_service = StatsService(
-            self.matches_repository, self.players_repository,
+            self.matches_repository,
+            self.players_repository,
         )
         self.matchmaker = Matchmaker(self.registry)
         self.game_session_service = GameSessionService(

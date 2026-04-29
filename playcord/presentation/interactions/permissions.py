@@ -33,7 +33,8 @@ def portal_owner_ids_from_appinfo(app_info: Any) -> frozenset[int]:
                 )
             except (TypeError, ValueError):
                 log.warning(
-                    "portal_owner_ids_from_appinfo: invalid owner id value=%r", oid,
+                    "portal_owner_ids_from_appinfo: invalid owner id value=%r",
+                    oid,
                 )
 
     team = getattr(app_info, "team", None)
@@ -44,7 +45,8 @@ def portal_owner_ids_from_appinfo(app_info: Any) -> frozenset[int]:
                 toid_i = int(toid)
                 ids.add(toid_i)
                 log.debug(
-                    "portal_owner_ids_from_appinfo: found team owner id=%d", toid_i,
+                    "portal_owner_ids_from_appinfo: found team owner id=%d",
+                    toid_i,
                 )
             except (TypeError, ValueError):
                 log.warning(
@@ -62,7 +64,8 @@ async def resolve_effective_owner_ids(client: discord.Client) -> frozenset[int]:
     """
     merged: set[int] = set(STATIC_OWNER_IDS)
     log.debug(
-        "resolve_effective_owner_ids: starting with STATIC_OWNER_IDS=%s", sorted(merged),
+        "resolve_effective_owner_ids: starting with STATIC_OWNER_IDS=%s",
+        sorted(merged),
     )
 
     try:
@@ -83,7 +86,8 @@ async def resolve_effective_owner_ids(client: discord.Client) -> frozenset[int]:
     try:
         portal_ids = portal_owner_ids_from_appinfo(app_info)
         log.debug(
-            "resolve_effective_owner_ids: portal owner ids=%s", sorted(portal_ids),
+            "resolve_effective_owner_ids: portal owner ids=%s",
+            sorted(portal_ids),
         )
     except Exception:
         log.exception(
