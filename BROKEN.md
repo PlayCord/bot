@@ -53,29 +53,29 @@
         - if a plugin does not implement the role API, that game does not support roles.
         - if implemented, plugin defines the supported role behavior via metadata.
     - Metadata-defined role flows:
-      -
-            1) Selectable roles only:
+    -
+        1) Selectable roles only:
 
-            - plugin exposes a metadata option with role IDs and human-readable role names.
-            - lobby shows role selectors (for example, per-player dropdowns) and displays selected roles next to player
-              names in matchmaking.
-            - after each role update, call `validate_roles(...)`; it returns whether the lobby is startable and may
-              include an optional error message.
-        -
-            2) Random roles only:
+        - plugin exposes a metadata option with role IDs and human-readable role names.
+        - lobby shows role selectors (for example, per-player dropdowns) and displays selected roles next to player
+          names in matchmaking.
+        - after each role update, call `validate_roles(...)`; it returns whether the lobby is startable and may
+          include an optional error message.
+    -
+        2) Random roles only:
 
-            - no role selection UI and no role visibility in matchmaking.
-            - `assign_roles(...)` returns a valid player-to-role mapping for match start and does not mutate lobby
-              player state directly.
-        -
-            3) Selectable + random:
+        - no role selection UI and no role visibility in matchmaking.
+        - `assign_roles(...)` returns a valid player-to-role mapping for match start and does not mutate lobby
+          player state directly.
+    -
+        3) Selectable + random:
 
-            - selectable-role UI is shown, and selected roles are visible in matchmaking.
-            - add an `Assign Roles` button to the left of `Ready` to run plugin assignment for the lobby.
-        -
-            4) No role support:
+        - selectable-role UI is shown, and selected roles are visible in matchmaking.
+        - add an `Assign Roles` button to the left of `Ready` to run plugin assignment for the lobby.
+    -
+        4) No role support:
 
-            - no role UI, no role display in matchmaking, and no role operations for that game.
+        - no role UI, no role display in matchmaking, and no role operations for that game.
     - Plugin role API contract (high level):
         - `validate_roles(...)` - checks whether current lobby role state is valid and may provide an error message.
         - `role_selection_options(...)` - returns per-player role choices for lobby UI, if any.
@@ -92,9 +92,45 @@
         - add tests that assert unsupported plugins have no role UX and reject role operations cleanly.
         - add tests for plugins that do implement role APIs (humans + bots, edge cases, replay consistency).
 
+- `/playcord history` facelift and improvements
+    - Right now, the history command really sucks. It doesn't look good at all and it doesn't convey the information we
+      want it to.
+    - We should redesign the output of this command to be more visually appealing and informative.
+        - Each line should look like this:
+        - [relative timestamp] [Game Name] <player-specific outcome from the API>
+          ID: [Replay Link] [if rated, show rating change]
+    - Can also pass a replay ID to show information about the specific match, including the players, the game, the
+      outcome, the time it lasted, etc
+
+
 - API documentation / pdoc configuration
     - Add docstrings to all public API functions and classes, and configure pdoc to generate documentation from these
       docstrings.
     - Ensure that the generated documentation is comprehensive and easy to navigate for developers.
     - Update the playcord.github.io site to include the new documentation and make it the primary reference for
       developers using the PlayCord API.
+
+- Tictactoe improvements
+    - The buttons should be empty unless selected (use a zero-width space)
+    - Improve the peek functionality
+
+- Warning
+    - There's currently functionality to warn people for typing in game threads. Remove it.
+
+- Rendering improvements
+    - Use matplotlib for graphs and other visualizations for the following commands:
+        - `/playcord history` (e.g. graph of rating over time, distribution of outcomes, etc)
+        - `/playcord profile` (the player's ELO over time)
+        - any other command that could benefit from a visual representation of data
+    - Also add
+
+- Make the "Private" option use a private thread for the game (and don't allow spectators). This is done to reduce spam
+  etc etc
+- Remove the "Rematch" button as it doesn't really help.
+- Remove the entire `/playcord help` command.
+- Send a AFK warning for a player if they haven't made a move in a while (configurable timeout, default 1 minutes). If
+  they don't respond to the warning by making a move within 4 minutes, they automatically forfeit the game. Use the
+  discord timestamp to create a good-looking countdown.
+- Show the git commit hash with the version in the about command as well as the uptime of the bot.
+- Remove the tip from `/playcord profile` and use the updated history command's game line to show the same information
+  in a more intuitive way.
