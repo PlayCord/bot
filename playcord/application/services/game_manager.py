@@ -266,7 +266,9 @@ class GameManager:
         difficulty = str(getattr(current, "bot_difficulty", "") or "easy")
         definition = self.plugin.metadata.bots.get(difficulty)
         if definition is None:
-            msg = f"Bot difficulty {difficulty!r} is not configured for {self.game_type}"
+            msg = (
+                f"Bot difficulty {difficulty!r} is not configured for {self.game_type}"
+            )
             raise ConfigurationError(
                 msg,
             )
@@ -405,6 +407,7 @@ class GameManager:
 
     def _plugin_replay_hook(self, event_type: str, payload: dict[str, Any]) -> None:
         """Synchronous callback from plugins; schedule DB I/O to avoid blocking the event loop."""
+
         def _write() -> None:
             try:
                 body: dict[str, Any] = {"type": event_type, **dict(payload)}

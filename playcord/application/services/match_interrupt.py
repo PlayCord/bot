@@ -40,11 +40,11 @@ def _release_interface_locks(interface: Any) -> None:
 
 
 async def interrupt_match(
-        interface: Any,
-        error: BaseException,
-        *,
-        trace_id: str | None = None,
-        logger=None,
+    interface: Any,
+    error: BaseException,
+    *,
+    trace_id: str | None = None,
+    logger=None,
 ) -> None:
     logger = logger or log
     if getattr(interface, "_interrupt_started", False):

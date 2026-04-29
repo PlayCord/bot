@@ -6,7 +6,7 @@ Populated via :func:`bind_locale_strings`.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import discord
 

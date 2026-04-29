@@ -142,7 +142,9 @@ def register_game(
 
     existing = _REGISTRY.get(resolved_key)
     if existing is not None and existing.game_class is not game_class:
-        msg = f"Game key {resolved_key!r} is already registered by {existing.class_name}"
+        msg = (
+            f"Game key {resolved_key!r} is already registered by {existing.class_name}"
+        )
         raise ConfigurationError(
             msg,
         )

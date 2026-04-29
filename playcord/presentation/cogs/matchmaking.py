@@ -49,8 +49,8 @@ class MatchmakingCog(commands.Cog):
             await self.lobby_select_callback(ctx)
         elif custom_id.startswith(BUTTON_PREFIX_LOBBY_ROLE):
             await self.lobby_role_select_callback(ctx)
-        elif (
-            custom_id.startswith((BUTTON_PREFIX_JOIN, BUTTON_PREFIX_LEAVE, BUTTON_PREFIX_READY))
+        elif custom_id.startswith(
+            (BUTTON_PREFIX_JOIN, BUTTON_PREFIX_LEAVE, BUTTON_PREFIX_READY)
         ):
             await self.matchmaking_button_callback(ctx)
         elif custom_id.startswith(BUTTON_PREFIX_INVITE):

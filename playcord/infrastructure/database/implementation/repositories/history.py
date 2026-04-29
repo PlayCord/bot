@@ -230,7 +230,8 @@ class MatchRepository:
                 return match_id, match_code
             except Exception as e:
                 if pg_errors and isinstance(
-                    e, pg_errors.UniqueViolation,
+                    e,
+                    pg_errors.UniqueViolation,
                 ):  # type: ignore[misc]
                     last_err = e
                     continue
@@ -750,7 +751,8 @@ class MatchRepository:
                     return result["match_id"], code
             except Exception as e:
                 if pg_errors and isinstance(
-                    e, pg_errors.UniqueViolation,
+                    e,
+                    pg_errors.UniqueViolation,
                 ):  # type: ignore[misc]
                     last_err = e
                     continue

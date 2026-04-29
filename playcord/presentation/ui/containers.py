@@ -7,11 +7,8 @@ from typing import Any
 
 import discord
 
-from playcord.api.plugin import resolve_player_count
 from playcord.infrastructure.constants import (
     ERROR_COLOR,
-    GAME_COLOR,
-    INFO_COLOR,
     MATCHMAKING_COLOR,
     SUCCESS_COLOR,
     WARNING_COLOR,
@@ -325,7 +322,9 @@ class CustomContainer:
 
 
 class SuccessContainer(CustomContainer):
-    def __init__(self, title: str | None = None, description: str | None = None, **kwargs) -> None:
+    def __init__(
+        self, title: str | None = None, description: str | None = None, **kwargs
+    ) -> None:
         kwargs["color"] = SUCCESS_COLOR
         kwargs["title"] = f"✅ {title or get('success.default_title')}"
         if description:
@@ -334,7 +333,9 @@ class SuccessContainer(CustomContainer):
 
 
 class WarningContainer(CustomContainer):
-    def __init__(self, title: str | None = None, description: str | None = None, **kwargs) -> None:
+    def __init__(
+        self, title: str | None = None, description: str | None = None, **kwargs
+    ) -> None:
         kwargs["color"] = WARNING_COLOR
         kwargs["title"] = f"⚠️ {title or get('warnings.default_title')}"
         if description:
@@ -343,7 +344,9 @@ class WarningContainer(CustomContainer):
 
 
 class UserErrorContainer(CustomContainer):
-    def __init__(self, description: str | None = None, suggestion: str | None = None, **kwargs) -> None:
+    def __init__(
+        self, description: str | None = None, suggestion: str | None = None, **kwargs
+    ) -> None:
         kwargs["color"] = ERROR_COLOR
         super().__init__(**kwargs)
         if description:
@@ -501,208 +504,6 @@ class GameOverContainer(CustomContainer):
         if replay_id:
             footer_text = fmt("embeds.game_over.footer_with_id", replay_id=replay_id)
             self.set_footer(text=footer_text)
-
-
-class InviteContainer(CustomContainer):
-    def __init__(self, inviter, game_type, guild_name) -> None:
-        super().__init__(
-            title=get("embeds.invite.title"),
-            description=fmt(
-                "embeds.invite.description",
-                inviter=inviter.mention,
-                game_type=game_type,
-                guild_name=guild_name,
-            ),
-        )
-        self.add_field(
-            name=get("embeds.invite.field_how_to_join"),
-            value=get("embeds.invite.field_how_to_join_value"),
-            inline=False,
-        )
-        self.add_field(
-            name=get("embeds.invite.field_note"),
-            value=get("embeds.invite.field_note_value"),
-            inline=False,
-        )
-
-
-class HelpMainContainer(CustomContainer):
-    def __init__(self) -> None:
-        name = get("brand.name")
-        super().__init__(
-            title=fmt("help.main.title", name=name),
-            description=fmt("help.main.description", name=name),
-            color=INFO_COLOR,
-        )
-        self.add_field(
-            name=get("help.main.fields.getting_started.name"),
-            value=get("help.main.fields.getting_started.value"),
-            inline=True,
-        )
-        self.add_field(
-            name=get("help.main.fields.game_list.name"),
-            value=get("help.main.fields.game_list.value"),
-            inline=True,
-        )
-        self.add_field(
-            name=get("help.main.fields.commands.name"),
-            value=get("help.main.fields.commands.value"),
-            inline=True,
-        )
-
-
-class HelpGettingStartedContainer(CustomContainer):
-    def __init__(self) -> None:
-        name = get("brand.name")
-        super().__init__(
-            title=fmt("help.getting_started.title", name=name),
-            description=get("help.getting_started.description"),
-            color=SUCCESS_COLOR,
-        )
-        self.add_field(
-            name=get("help.getting_started.fields.step1.name"),
-            value=get("help.getting_started.fields.step1.value"),
-            inline=False,
-        )
-        self.add_field(
-            name=get("help.getting_started.fields.step2.name"),
-            value=get("help.getting_started.fields.step2.value"),
-            inline=False,
-        )
-        self.add_field(
-            name=get("help.getting_started.fields.step3.name"),
-            value=get("help.getting_started.fields.step3.value"),
-            inline=False,
-        )
-        self.add_field(
-            name=get("help.getting_started.fields.tips.name"),
-            value=get("help.getting_started.fields.tips.value"),
-            inline=False,
-        )
-
-
-class HelpCommandsContainer(CustomContainer):
-    def __init__(self) -> None:
-        super().__init__(
-            title=get("help.commands.title"),
-            description=get("help.commands.description"),
-            color=INFO_COLOR,
-        )
-        self.add_field(
-            name=get("help.commands.fields.playing.name"),
-            value=get("help.commands.fields.playing.value"),
-            inline=False,
-        )
-        self.add_field(
-            name=get("help.commands.fields.stats.name"),
-            value=get("help.commands.fields.stats.value"),
-            inline=False,
-        )
-        self.add_field(
-            name=get("help.commands.fields.info.name"),
-            value=get("help.commands.fields.info.value"),
-            inline=False,
-        )
-
-
-class HelpFaqContainer(CustomContainer):
-    def __init__(self) -> None:
-        super().__init__(
-            title=get("help.faq.title"),
-            description=get("help.faq.description"),
-            color=INFO_COLOR,
-        )
-        self.add_field(
-            name=get("help.faq.fields.play_again.name"),
-            value=get("help.faq.fields.play_again.value"),
-            inline=False,
-        )
-        self.add_field(
-            name=get("help.faq.fields.channel.name"),
-            value=get("help.faq.fields.channel.value"),
-            inline=False,
-        )
-        self.add_field(
-            name=get("help.faq.fields.replay.name"),
-            value=get("help.faq.fields.replay.value"),
-            inline=False,
-        )
-        self.add_field(
-            name=get("help.faq.fields.private_info.name"),
-            value=get("help.faq.fields.private_info.value"),
-            inline=False,
-        )
-
-
-class HelpTutorialsContainer(CustomContainer):
-    def __init__(self) -> None:
-        super().__init__(
-            title=get("help.tutorials.title"),
-            description=get("help.tutorials.description"),
-            color=GAME_COLOR,
-        )
-
-
-class HelpGameInfoContainer(CustomContainer):
-    def __init__(self, game_id: str, game_class) -> None:
-        metadata = game_class.metadata
-        game_name = getattr(metadata, "name", game_id)
-        description = getattr(
-            metadata,
-            "description",
-            get("help.game_info.no_description"),
-        )
-        players = resolve_player_count(game_class)
-        if players is None:
-            players = get("help.game_info.unknown")
-        time_est = getattr(metadata, "time", get("help.game_info.unknown"))
-        difficulty = getattr(metadata, "difficulty", get("help.game_info.unknown"))
-        author = getattr(metadata, "author", get("help.game_info.unknown"))
-
-        if isinstance(players, list):
-            player_text = fmt(
-                "help.game_info.players_range_format",
-                min=min(players),
-                max=max(players),
-            )
-        else:
-            player_text = fmt("help.game_info.players_format", count=players)
-
-        super().__init__(
-            title=fmt("help.game_info.title", game_name=game_name),
-            description=description,
-            color=GAME_COLOR,
-        )
-        self.add_field(
-            name=get("help.game_info.field_players"),
-            value=player_text,
-            inline=True,
-        )
-        self.add_field(
-            name=get("help.game_info.field_duration"),
-            value=time_est,
-            inline=True,
-        )
-        self.add_field(
-            name=get("help.game_info.field_difficulty"),
-            value=difficulty,
-            inline=True,
-        )
-        self.add_field(
-            name=get("help.game_info.field_quick_start"),
-            value=fmt("help.game_info.field_quick_start_value", game_id=game_id),
-            inline=False,
-        )
-        self.add_field(
-            name=get("help.game_info.field_author"),
-            value=author,
-            inline=True,
-        )
-        self.add_field(
-            name=get("help.game_info.field_learn_more"),
-            value=fmt("help.game_info.field_learn_more_value", game_id=game_id),
-            inline=False,
-        )
 
 
 class MatchmakingContainer(CustomContainer):

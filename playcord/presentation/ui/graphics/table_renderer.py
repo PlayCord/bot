@@ -108,7 +108,15 @@ def _split_clusters(text: str) -> list[str]:
         codepoint = ord(char)
         prev_codepoint = ord(current[-1])
         if (
-            current[-1] == "\u200d" or char in {"\u200d", "️", "⃣"} or unicodedata.combining(char) or 127995 <= codepoint <= 127999 or (_is_regional_indicator(prev_codepoint) and _is_regional_indicator(codepoint) and len(current) == 1)
+            current[-1] == "\u200d"
+            or char in {"\u200d", "️", "⃣"}
+            or unicodedata.combining(char)
+            or 127995 <= codepoint <= 127999
+            or (
+                _is_regional_indicator(prev_codepoint)
+                and _is_regional_indicator(codepoint)
+                and len(current) == 1
+            )
         ):
             current += char
             continue

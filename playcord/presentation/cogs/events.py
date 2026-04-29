@@ -10,15 +10,12 @@ from playcord.infrastructure.config import get_settings
 from playcord.infrastructure.constants import (
     ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS,
     ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS,
-    EPHEMERAL_DELETE_AFTER,
     ERROR_NO_SYSTEM_CHANNEL,
     GAME_TYPES,
     PRESENCE_TIMEOUT,
     THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES,
     THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY,
     THREAD_POLICY_SPECTATORS_SILENT,
-    THREAD_POLICY_WARN_NON_PARTICIPANTS,
-    THREAD_POLICY_WARNING_MESSAGE,
     VERSION,
 )
 from playcord.infrastructure.db_thread import run_in_thread
@@ -34,7 +31,6 @@ class EventsCog(commands.Cog):
     def __init__(self, bot: PlayCordBot) -> None:
         self.bot = bot
         self.presence_lock = asyncio.Lock()
-        self._warned_users = {}  # {thread_id: {user_id: timestamp}} - track warnings to avoid spam
         self._presence_task: asyncio.Task[None] | None = None
         self._analytics_task: asyncio.Task[None] | None = None
         # Build the version presence string.
@@ -99,7 +95,9 @@ class EventsCog(commands.Cog):
         startup_logger = log.getChild("startup")
         startup_logger.info("Client connected and ready.")
         self._presence_task = self.bot.loop.create_task(self.presence())
-        self._analytics_task = self.bot.loop.create_task(self._analytics_periodic_flush())
+        self._analytics_task = self.bot.loop.create_task(
+            self._analytics_periodic_flush()
+        )
 
     async def _analytics_periodic_flush(self) -> None:
         """Retry any buffered analytics rows after failed DB writes."""
@@ -275,51 +273,6 @@ class EventsCog(commands.Cog):
                 f_log.debug(
                     "Message already deleted when attempting to remove non-participant message in thread %s",
                     message.channel.id,
-                )
-
-        # Warn the user (with rate limiting to avoid spam)
-        if THREAD_POLICY_WARN_NON_PARTICIPANTS:
-            import time
-
-            current_time = time.time()
-            thread_id = message.channel.id
-            user_id = message.author.id
-
-            # Initialize tracking for this thread if needed
-            if thread_id not in self._warned_users:
-                self._warned_users[thread_id] = {}
-
-            # Only warn once per 60 seconds per user per thread
-            last_warned = self._warned_users[thread_id].get(user_id, 0)
-            if current_time - last_warned > PRESENCE_TIMEOUT:
-                self._warned_users[thread_id][user_id] = current_time
-                try:
-                    f_log.info(
-                        "Sending warning to non-participant %s in thread %s",
-                        user_id,
-                        thread_id,
-                    )
-                    warning = await message.channel.send(
-                        f"{message.author.mention} {THREAD_POLICY_WARNING_MESSAGE}",
-                    )
-                    await warning.delete(delay=EPHEMERAL_DELETE_AFTER)
-                except discord.Forbidden:
-                    f_log.warning(
-                        "Cannot send warning - missing permissions in thread %s",
-                        message.channel.id,
-                    )
-                except Exception:
-                    f_log.exception(
-                        "Failed to send/delete warning message in thread %s for user %s",
-                        thread_id,
-                        user_id,
-                    )
-            else:
-                f_log.debug(
-                    "Skipping warning for user %s in thread %s due to rate limiting (last_warned=%s)",
-                    user_id,
-                    thread_id,
-                    last_warned,
                 )
 
     async def presence(self) -> None:
