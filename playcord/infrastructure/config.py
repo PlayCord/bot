@@ -9,7 +9,7 @@ from typing import Any
 
 from ruamel.yaml import YAML
 
-from playcord.domain.errors import ConfigurationError
+from playcord.core.errors import ConfigurationError
 
 _PLAYCORD_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = _PLAYCORD_ROOT / "configuration" / "config.yaml"
@@ -64,7 +64,7 @@ def _as_int(value: str | None, *, env_key: str) -> int | None:
         return int(value)
     except ValueError as exc:
         raise ConfigurationError(
-            f"Environment variable {env_key} must be an integer"
+            f"Environment variable {env_key} must be an integer",
         ) from exc
 
 
@@ -123,7 +123,7 @@ def load_settings(path: str | Path = DEFAULT_CONFIG_PATH) -> Settings:
             secret=secret,
             auto_sync_commands=bool(bot_raw.get("auto_sync_commands", False)),
             compare_command_tree_on_startup=bool(
-                bot_raw.get("compare_command_tree_on_startup", False)
+                bot_raw.get("compare_command_tree_on_startup", False),
             ),
         ),
         db=DatabaseSettings(
@@ -146,3 +146,26 @@ def load_settings(path: str | Path = DEFAULT_CONFIG_PATH) -> Settings:
             min_sigma=float(ratings_raw.get("min_sigma", 0.001)),
         ),
     )
+
+
+_bound: Settings | None = None
+
+
+def bind_settings(settings: Settings) -> None:
+    """Bind loaded settings for code paths that cannot receive DI."""
+    global _bound
+    _bound = settings
+
+
+def get_settings() -> Settings:
+    if _bound is None:
+        raise ConfigurationError(
+            "Application settings are not bound; call bind_settings() from bootstrap",
+        )
+    return _bound
+
+
+def reset_settings_binding() -> None:
+    """Test helper."""
+    global _bound
+    _bound = None

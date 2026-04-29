@@ -4,7 +4,10 @@ import traceback
 import discord
 from discord.ext import commands
 
-from playcord.infrastructure.app_constants import (
+from playcord.infrastructure.analytics_client import (
+    render_analytics_markdown_summary,
+)
+from playcord.infrastructure.constants import (
     INFO_COLOR,
     LOGGING_ROOT,
     MESSAGE_COMMAND_ANALYTICS,
@@ -21,11 +24,11 @@ from playcord.infrastructure.app_constants import (
 )
 from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
-from playcord.utils.analytics import (
-    render_analytics_markdown_summary,
+from playcord.presentation.bot import PlayCordBot
+from playcord.presentation.ui.analytics_charts import (
     render_analytics_matplotlib_summary,
 )
-from playcord.utils.containers import (
+from playcord.presentation.ui.containers import (
     CustomContainer,
     append_container_sections,
     container_send_kwargs,
@@ -43,7 +46,7 @@ async def _add_processing_reaction(msg: discord.Message) -> None:
 
 
 async def _finalize_admin_reactions(
-    msg: discord.Message, bot_user: discord.abc.User, *, success: bool
+    msg: discord.Message, bot_user: discord.abc.User, *, success: bool,
 ) -> None:
     try:
         await msg.remove_reaction(MESSAGE_COMMAND_PENDING, bot_user)
@@ -66,10 +69,10 @@ def _admin_error_text(what_failed: str, reason: str | None = None) -> str:
 
 
 class AdminCog(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: PlayCordBot):
         self.bot = bot
         self._analytics = bot.container.analytics_repository
-        self._guilds = bot.container.guilds
+        self._guilds = bot.container.guilds_repository
 
     async def _run_long_admin_task(self, msg: discord.Message, work) -> None:
         """Add ⏳, await ``work(msg) -> bool``, then replace with ✅ or ⛔."""
@@ -84,7 +87,7 @@ class AdminCog(commands.Cog):
                     content=_admin_error_text(
                         get("commands.admin.task_unexpected_error"),
                         traceback.format_exc(),
-                    )
+                    ),
                 )
             except discord.HTTPException:
                 pass
@@ -94,8 +97,7 @@ class AdminCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message) -> None:
-        """
-        Handle message commands for bot administration
+        """Handle message commands for bot administration
         """
         if msg.author.bot or msg.author.id not in self.bot.effective_owner_ids:
             return
@@ -139,11 +141,11 @@ class AdminCog(commands.Cog):
                             error_type=type(e).__name__,
                         ),
                         traceback.format_exc(),
-                    )
+                    ),
                 )
                 return False
             f_log.info(
-                f"Performed authorized sync from user {msg.author.id} to all guilds."
+                f"Performed authorized sync from user {msg.author.id} to all guilds.",
             )
             return True
 
@@ -157,7 +159,7 @@ class AdminCog(commands.Cog):
                 g = discord.Object(id=int(split[1]))
             except ValueError:
                 await msg.reply(
-                    fmt("commands.admin.sync_usage", prefix=f"{LOGGING_ROOT}/")
+                    fmt("commands.admin.sync_usage", prefix=f"{LOGGING_ROOT}/"),
                 )
                 return False
 
@@ -172,11 +174,11 @@ class AdminCog(commands.Cog):
                         error_type=type(e).__name__,
                     ),
                     traceback.format_exc(),
-                )
+                ),
             )
             return False
         f_log.info(
-            f"Performed authorized sync from user {msg.author.id} to guild {g.id}"
+            f"Performed authorized sync from user {msg.author.id} to guild {g.id}",
         )
         return True
 
@@ -195,8 +197,8 @@ class AdminCog(commands.Cog):
                                 prefix=f"{LOGGING_ROOT}/",
                             ),
                             color=INFO_COLOR,
-                        )
-                    )
+                        ),
+                    ),
                 )
                 return False
         hours = max(1, min(hours, 24 * 30))
@@ -209,15 +211,15 @@ class AdminCog(commands.Cog):
                     CustomContainer(
                         title=fmt("commands.analytics.embed_title", hours=hours),
                         description=fmt(
-                            "commands.analytics.message_empty", hours=hours
+                            "commands.analytics.message_empty", hours=hours,
                         ),
-                    )
-                )
+                    ),
+                ),
             )
             return True
 
         chart_buf = await asyncio.to_thread(
-            render_analytics_matplotlib_summary, counts, by_game, hours
+            render_analytics_matplotlib_summary, counts, by_game, hours,
         )
         main_container = CustomContainer(
             title=fmt("commands.analytics.embed_title", hours=hours),
@@ -232,7 +234,7 @@ class AdminCog(commands.Cog):
             main_container.set_image(url="attachment://playcord-analytics.png")
 
         recent_lines: list[str] = render_analytics_markdown_summary(
-            counts, by_game, recent, hours
+            counts, by_game, recent, hours,
         )
         append_container_sections(
             main_container,
@@ -246,7 +248,7 @@ class AdminCog(commands.Cog):
                 **container_send_kwargs(
                     main_container,
                     files=[discord.File(chart_buf, filename="playcord-analytics.png")],
-                )
+                ),
             )
         else:
             await msg.reply(**container_send_kwargs(main_container))
@@ -263,8 +265,8 @@ class AdminCog(commands.Cog):
                             CustomContainer(
                                 description=get("commands.treediff.need_guild"),
                                 color=WARNING_COLOR,
-                            )
-                        )
+                            ),
+                        ),
                     )
                     return False
                 guild = msg.guild
@@ -280,12 +282,12 @@ class AdminCog(commands.Cog):
                                     prefix=f"{LOGGING_ROOT}/",
                                 ),
                                 color=INFO_COLOR,
-                            )
-                        )
+                            ),
+                        ),
                     )
                     return False
         try:
-            from playcord.utils.command_tree_diff import (
+            from playcord.presentation.interactions.command_tree_sync import (
                 drift_to_container,
                 fetch_and_analyze_tree,
             )
@@ -296,7 +298,7 @@ class AdminCog(commands.Cog):
                 content=_admin_error_text(
                     get("commands.treediff.message_failed"),
                     str(e),
-                )
+                ),
             )
             return False
         except Exception:
@@ -304,7 +306,7 @@ class AdminCog(commands.Cog):
                 content=_admin_error_text(
                     get("commands.treediff.message_failed"),
                     traceback.format_exc(),
-                )
+                ),
             )
             return False
         diff_container = drift_to_container(
@@ -323,7 +325,7 @@ class AdminCog(commands.Cog):
             await self.bot.tree.sync()
             f_log.info(
                 f"Performed authorized command tree clear from user "
-                f"{msg.author.id} to all guilds."
+                f"{msg.author.id} to all guilds.",
             )
             return True
 
@@ -337,14 +339,14 @@ class AdminCog(commands.Cog):
                 g = discord.Object(id=int(split[1]))
             except ValueError:
                 await msg.reply(
-                    fmt("commands.admin.clear_usage", prefix=f"{LOGGING_ROOT}/")
+                    fmt("commands.admin.clear_usage", prefix=f"{LOGGING_ROOT}/"),
                 )
                 return False
         self.bot.tree.clear_commands(guild=g)
         await self.bot.tree.sync(guild=g)
         f_log.info(
             f"Performed authorized command tree clear from user "
-            f"{msg.author.id} to guild {g.id}"
+            f"{msg.author.id} to guild {g.id}",
         )
         return True
 
@@ -366,8 +368,8 @@ class AdminCog(commands.Cog):
         if len(split) < 2:
             await msg.reply(
                 **container_send_kwargs(
-                    CustomContainer(description=usage, color=INFO_COLOR)
-                )
+                    CustomContainer(description=usage, color=INFO_COLOR),
+                ),
             )
             return False
 
@@ -376,8 +378,8 @@ class AdminCog(commands.Cog):
             if len(split) != 2:
                 await msg.reply(
                     **container_send_kwargs(
-                        CustomContainer(description=usage, color=INFO_COLOR)
-                    )
+                        CustomContainer(description=usage, color=INFO_COLOR),
+                    ),
                 )
                 return False
             self._guilds.reset_all_data()
@@ -391,16 +393,16 @@ class AdminCog(commands.Cog):
                         title=get("commands.admin.dbreset_all_title"),
                         description=get("commands.admin.dbreset_all_description"),
                         color=SUCCESS_COLOR,
-                    )
-                )
+                    ),
+                ),
             )
             return True
 
         if len(split) != 3:
             await msg.reply(
                 **container_send_kwargs(
-                    CustomContainer(description=usage, color=INFO_COLOR)
-                )
+                    CustomContainer(description=usage, color=INFO_COLOR),
+                ),
             )
             return False
 
@@ -416,8 +418,8 @@ class AdminCog(commands.Cog):
         except ValueError:
             await msg.reply(
                 **container_send_kwargs(
-                    CustomContainer(description=usage, color=INFO_COLOR)
-                )
+                    CustomContainer(description=usage, color=INFO_COLOR),
+                ),
             )
             return False
 
@@ -439,8 +441,8 @@ class AdminCog(commands.Cog):
                             game_id=recreated.game_id,
                         ),
                         color=SUCCESS_COLOR,
-                    )
-                )
+                    ),
+                ),
             )
             return True
 
@@ -460,8 +462,8 @@ class AdminCog(commands.Cog):
                             entity_id=entity_id,
                         ),
                         color=SUCCESS_COLOR,
-                    )
-                )
+                    ),
+                ),
             )
             return True
 
@@ -481,15 +483,15 @@ class AdminCog(commands.Cog):
                             entity_id=entity_id,
                         ),
                         color=SUCCESS_COLOR,
-                    )
-                )
+                    ),
+                ),
             )
             return True
 
         await msg.reply(
             **container_send_kwargs(
-                CustomContainer(description=usage, color=INFO_COLOR)
-            )
+                CustomContainer(description=usage, color=INFO_COLOR),
+            ),
         )
         return False
 

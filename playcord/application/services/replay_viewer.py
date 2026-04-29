@@ -6,20 +6,20 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any
 
-from playcord.application.repositories import (
-    GameRepositoryPort,
-    MatchRepositoryPort,
-    PlayerRepositoryPort,
-    ReplayRepositoryPort,
-)
-from playcord.domain.player import Player
-from playcord.games import GAME_BY_KEY
-from playcord.games.api import (
+from playcord.api import (
     GameContext,
     MessageLayout,
     ReplayableGame,
     ReplayState,
     RuntimeGame,
+)
+from playcord.core.player import Player
+from playcord.games import GAME_BY_KEY
+from playcord.infrastructure.database import (
+    GameRepository,
+    MatchRepository,
+    PlayerRepository,
+    ReplayRepository,
 )
 
 PRECOMPUTE_FRAME_LIMIT = 200
@@ -31,10 +31,10 @@ _FRAME_CACHE: OrderedDict[tuple[int, int], MessageLayout] = OrderedDict()
 
 @dataclass(slots=True)
 class ReplayDataSource:
-    matches: MatchRepositoryPort
-    games: GameRepositoryPort
-    players: PlayerRepositoryPort
-    replays: ReplayRepositoryPort
+    matches_repository: MatchRepository
+    games_repository: GameRepository
+    players_repository: PlayerRepository
+    replays_repository: ReplayRepository
 
 
 @dataclass(slots=True)
@@ -69,11 +69,11 @@ def load_replay_context(
     *,
     source: ReplayDataSource,
 ) -> ReplayContext | None:
-    match = source.matches.get(match_id)
+    match = source.matches_repository.get(match_id)
     if match is None:
         return None
 
-    game = source.games.get_by_id(match.game_id)
+    game = source.games_repository.get_by_id(match.game_id)
     game_key = game.game_name if game is not None else None
     game_label = (
         (game.display_name if game is not None else None)
@@ -87,17 +87,17 @@ def load_replay_context(
         if registry_game is not None:
             plugin_class = registry_game.load()
 
-    participants = source.matches.get_participants(match.match_id)
+    participants = source.matches_repository.get_participants(match.match_id)
     players: list[Player] = []
     for participant in participants:
         user_id = int(participant.user_id)
-        user = source.players.get(user_id)
+        user = source.players_repository.get(user_id)
         players.append(
             Player(
                 id=user_id,
                 display_name=(getattr(user, "username", None) if user else None),
                 is_bot=bool(getattr(user, "is_bot", False)) if user else False,
-            )
+            ),
         )
 
     game_config = match.game_config if isinstance(match.game_config, dict) else {}
@@ -110,7 +110,7 @@ def load_replay_context(
     if global_summary is not None:
         global_summary = str(global_summary).strip() or None
 
-    events = source.replays.get_events(match.match_id)
+    events = source.replays_repository.get_events(match.match_id)
     return ReplayContext(
         match_id=match.match_id,
         game_label=game_label,
@@ -177,7 +177,7 @@ def _initial_state(
             game_key=game_key,
             players=list(players),
             match_options=dict(match_options),
-        )
+        ),
     )
 
 

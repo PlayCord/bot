@@ -11,20 +11,23 @@ from discord.ext import commands
 
 from playcord.application.container import ApplicationContainer
 from playcord.application.runtime_context import bind_application_container
-from playcord.application.services.session_registry import SessionRegistry
 from playcord.infrastructure import Translator, load_settings
-from playcord.infrastructure.app_constants import (
+from playcord.infrastructure.analytics_client import Timer
+from playcord.infrastructure.config import bind_settings
+from playcord.infrastructure.constants import (
     EPHEMERAL_DELETE_AFTER,
     bind_locale_strings,
 )
-from playcord.infrastructure.db import MigrationRunner, PoolManager
+from playcord.infrastructure.database import MigrationRunner, PoolManager
 from playcord.infrastructure.logging import configure_logging, get_logger
-from playcord.infrastructure.runtime_config import bind_settings
+from playcord.infrastructure.state.user_games import SessionRegistry
 from playcord.presentation.cogs.general import GeneralCog
-from playcord.presentation.commands import build_tree
-from playcord.presentation.interactions.errors import command_error
-from playcord.utils.analytics import Timer
-from playcord.utils.bot_owners import STATIC_OWNER_IDS, resolve_effective_owner_ids
+from playcord.presentation.interactions.command_tree_sync import build_tree
+from playcord.presentation.interactions.error import command_error
+from playcord.presentation.interactions.permissions import (
+    STATIC_OWNER_IDS,
+    resolve_effective_owner_ids,
+)
 
 log = get_logger()
 startup_log = log.getChild("startup")
@@ -119,7 +122,7 @@ class PlayCordBot(commands.Bot):
         if not self.container.settings.bot.compare_command_tree_on_startup:
             return
         try:
-            from playcord.utils.command_tree_diff import (
+            from playcord.presentation.interactions.command_tree_sync import (
                 fetch_and_analyze_tree,
                 format_drift_report,
             )
@@ -140,7 +143,7 @@ class PlayCordBot(commands.Bot):
             remote_commands = await self.tree.fetch_commands()
         except Exception:
             startup_log.exception(
-                "Could not fetch slash commands for locale mention tokens"
+                "Could not fetch slash commands for locale mention tokens",
             )
             self.container.translator.set_command_mentions(None)
             return
@@ -160,7 +163,7 @@ def create_container() -> ApplicationContainer:
     bind_locale_strings(translator)
     pool_manager = PoolManager(settings.db)
     migration_runner = MigrationRunner(
-        analytics_retention_days=settings.analytics_retention_days
+        analytics_retention_days=settings.analytics_retention_days,
     )
     registry = SessionRegistry()
     container = ApplicationContainer(

@@ -1,25 +1,28 @@
-"""Match start/finish orchestration for GameRuntime."""
+"""Match start/finish orchestration for GameManager."""
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from playcord.application.runtime_context import get_container
-from playcord.application.services.game_runtime import GameRuntime
+from playcord.application.services.game_manager import GameManager
 from playcord.application.services.rating import (
     rated_results_for_placements,
     unrated_results_for_placements,
 )
 from playcord.infrastructure.locale import get
 from playcord.infrastructure.logging import get_logger
-from playcord.presentation.discord_views import RematchView
 
 log = get_logger("match.lifecycle")
 
 
 async def start_match_from_lobby(
-    interface: Any, plugin_class: type[Any]
-) -> GameRuntime:
+    interface: Any,
+    plugin_class: type[Any],
+    *,
+    rematch_view_factory: Callable[[int, str], Any] | None = None,
+) -> GameManager:
     message = interface.message
     players = (
         interface.all_players()
@@ -36,7 +39,7 @@ async def start_match_from_lobby(
     reg.matchmaking_by_message_id.pop(message.id, None)
 
     match_options = dict(getattr(interface, "match_settings", {}) or {})
-    matches = get_container().matches
+    matches = get_container().matches_repository
     match_id, match_code = matches.create_game(
         game_name=interface.game_type,
         guild_id=message.guild.id,
@@ -45,7 +48,7 @@ async def start_match_from_lobby(
         channel_id=message.channel.id,
         game_config={"match_options": match_options},
     )
-    runtime = GameRuntime(
+    runtime = GameManager(
         game_type=interface.game_type,
         plugin_class=plugin_class,
         overview_message=message,
@@ -56,6 +59,7 @@ async def start_match_from_lobby(
         match_public_code=match_code,
         match_options=match_options,
     )
+    runtime.rematch_view_factory = rematch_view_factory
     await runtime.setup()
     matches.update_match_context(
         match_id,
@@ -65,15 +69,13 @@ async def start_match_from_lobby(
     return runtime
 
 
-async def finish_match(runtime: GameRuntime, outcome: Any) -> None:
+async def finish_match(runtime: GameManager, outcome: Any) -> None:
     placements = getattr(outcome, "placements", []) or []
     players = list(runtime.players)
     if runtime.rated:
         results = rated_results_for_placements(players, runtime.game_type, placements)
     else:
-        results = unrated_results_for_placements(
-            players, runtime.game_type, placements
-        )
+        results = unrated_results_for_placements(players, runtime.game_type, placements)
 
     final_state = {
         "outcome": getattr(outcome, "kind", "winner"),
@@ -82,7 +84,7 @@ async def finish_match(runtime: GameRuntime, outcome: Any) -> None:
             [getattr(player, "id", None) for player in group] for group in placements
         ],
     }
-    matches = get_container().matches
+    matches = get_container().matches_repository
     matches.end_match(runtime.game_id, final_state, results)
 
     global_summary: str | None = None
@@ -134,9 +136,14 @@ async def finish_match(runtime: GameRuntime, outcome: Any) -> None:
     if runtime.thread is not None:
         await runtime.thread.send(summary)
         await runtime.thread.edit(
-            locked=True, archived=True, reason=get("threads.game_over")
+            locked=True, archived=True, reason=get("threads.game_over"),
         )
-    rematch_view = RematchView(runtime.game_id, summary_text=summary)
+    rematch_view_factory = getattr(runtime, "rematch_view_factory", None)
+    rematch_view = (
+        rematch_view_factory(runtime.game_id, summary)
+        if callable(rematch_view_factory)
+        else None
+    )
     safe_edit = getattr(runtime, "_safe_edit_message", None)
     if callable(safe_edit):
         await safe_edit(
@@ -154,11 +161,11 @@ async def finish_match(runtime: GameRuntime, outcome: Any) -> None:
 
 
 def _summary_text(
-    runtime: GameRuntime, outcome: Any, results: dict[int, dict[str, Any]]
+    runtime: GameManager, outcome: Any, results: dict[int, dict[str, Any]],
 ) -> str:
     lines = [f"**{runtime.plugin.metadata.name}** finished."]
     if getattr(outcome, "kind", None) == "winner" and getattr(
-        outcome, "placements", None
+        outcome, "placements", None,
     ):
         winner = outcome.placements[0][0]
         lines.append(f"Winner: {winner.mention}")

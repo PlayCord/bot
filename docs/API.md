@@ -2,16 +2,16 @@
 
 PlayCord game authors should only need three surfaces:
 
-1. `playcord/games/api.py` for runtime primitives.
-2. `playcord/domain/game.py` for metadata (`GameMetadata`, `Move`, `MoveParameter`).
-3. `playcord/games/<your_game>/__init__.py` for the game implementation and registration.
+1. `playcord/api/__init__.py` for runtime primitives.
+2. `playcord/api/__init__.py` for metadata (`GameMetadata`, `Move`, `MoveParameter`).
+3. `playcord/games/<your_game>.py` for the game implementation and registration.
 
 ## Minimal game structure
 
 ```python
-from playcord.domain.game import GameMetadata, Move, MoveParameter, ParameterKind
-from playcord.games.api import ReplayableGame, GameContext, MessageLayout, Outcome, UpsertMessage, handler
-from playcord.games.plugin import register_game
+from playcord.api import GameMetadata, Move, MoveParameter, ParameterKind
+from playcord.api import ReplayableGame, GameContext, MessageLayout, Outcome, UpsertMessage, handler
+from playcord.api.plugin import register_game
 
 
 class MyGame(ReplayableGame):
@@ -84,7 +84,7 @@ Games can implement either move signature:
 - Legacy: `def do_move(self, actor, arguments, *, source, ctx) -> tuple[...]`
 - Typed: `def do_move(self, request) -> tuple[...]` where `request` is `MoveRequest`.
 
-Both are supported by `GameRuntime`.
+Both are supported by `GameManager`.
 
 ## Replay capability
 

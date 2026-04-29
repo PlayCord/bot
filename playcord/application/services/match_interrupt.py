@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from playcord.application.runtime_context import get_container
+from playcord.infrastructure.analytics_client import register_event
+from playcord.infrastructure.database.models import EventType, MatchStatus
 from playcord.infrastructure.logging import get_logger
-from playcord.utils.analytics import register_event
-from playcord.utils.models import EventType, MatchStatus
 
 log = get_logger("application.match_interrupt")
 
@@ -42,7 +42,6 @@ async def interrupt_match(
     error: BaseException,
     *,
     trace_id: str | None = None,
-    error_card: Any | None = None,
     logger=None,
 ) -> None:
     logger = logger or log
@@ -55,11 +54,10 @@ async def interrupt_match(
     reason_payload = _reason_payload(error, trace_id=trace_id)
     match_id = getattr(interface, "game_id", None)
     thread = getattr(interface, "thread", None)
-    status_message = getattr(interface, "status_message", None)
 
     try:
         if match_id is not None:
-            get_container().matches.update_status(
+            get_container().matches_repository.update_status(
                 match_id,
                 MatchStatus.INTERRUPTED.value,
                 metadata_patch={"reason": reason_payload},
@@ -84,22 +82,6 @@ async def interrupt_match(
         )
     except Exception:
         logger.exception("Failed to register game_errored analytics event")
-
-    if error_card is not None:
-        try:
-            from playcord.presentation.interactions.error_reporter import (
-                notify_error_destinations,
-            )
-
-            await notify_error_destinations(
-                error_card,
-                logger=logger,
-                game_message=getattr(interface, "game_message", None),
-                thread=thread,
-                status_message=status_message,
-            )
-        except Exception:
-            logger.exception("Failed to notify users about interrupted match")
 
     if thread is not None:
         try:

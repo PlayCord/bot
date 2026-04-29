@@ -8,7 +8,32 @@ from collections.abc import Mapping
 from logging import Logger
 from typing import Any
 
-from playcord.utils.formatter import Formatter
+
+class Formatter(logging.Formatter):
+    """Colored console formatter for local bot logs."""
+
+    grey = "\x1b[38;20m"
+    yellow = "\x1b[33;20m"
+    red = "\x1b[31;20m"
+    bold_red = "\x1b[31;1m"
+    reset = "\x1b[0m"
+    format = (
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
+    )
+
+    FORMATS = {
+        logging.DEBUG: grey + format + reset,
+        logging.INFO: grey + format + reset,
+        logging.WARNING: yellow + format + reset,
+        logging.ERROR: red + format + reset,
+        logging.CRITICAL: bold_red + format + reset,
+    }
+
+    def format(self, record):
+        log_fmt = self.FORMATS.get(record.levelno)
+        formatter = logging.Formatter(log_fmt)
+        return formatter.format(record)
+
 
 DEFAULT_LOGGING_ROOT = "playcord"
 DEFAULT_LEVEL = logging.INFO
@@ -63,7 +88,7 @@ def configure_logging_from_config(
 
 
 def get_logger(
-    name: str | None = None, *, root_name: str = DEFAULT_LOGGING_ROOT
+    name: str | None = None, *, root_name: str = DEFAULT_LOGGING_ROOT,
 ) -> logging.Logger:
     if name is None or not str(name).strip():
         return logging.getLogger(root_name)

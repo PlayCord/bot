@@ -5,19 +5,26 @@ import subprocess
 import discord
 from discord.ext import commands
 
-from playcord.presentation.bot import PlayCordBot
-from playcord.infrastructure.app_constants import (ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS,
-                                                   ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS, EPHEMERAL_DELETE_AFTER,
-                                                   ERROR_NO_SYSTEM_CHANNEL, GAME_TYPES, PRESENCE_TIMEOUT,
-                                                   THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES,
-                                                   THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY,
-                                                   THREAD_POLICY_SPECTATORS_SILENT, THREAD_POLICY_WARNING_MESSAGE,
-                                                   THREAD_POLICY_WARN_NON_PARTICIPANTS, VERSION)
+from playcord.infrastructure import analytics_client as analytics_mod
+from playcord.infrastructure.config import get_settings
+from playcord.infrastructure.constants import (
+    ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS,
+    ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS,
+    EPHEMERAL_DELETE_AFTER,
+    ERROR_NO_SYSTEM_CHANNEL,
+    GAME_TYPES,
+    PRESENCE_TIMEOUT,
+    THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES,
+    THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY,
+    THREAD_POLICY_SPECTATORS_SILENT,
+    THREAD_POLICY_WARN_NON_PARTICIPANTS,
+    THREAD_POLICY_WARNING_MESSAGE,
+    VERSION,
+)
 from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
-from playcord.infrastructure.runtime_config import get_settings
-from playcord.utils import analytics as analytics_mod
-from playcord.utils.containers import CustomContainer, container_send_kwargs
+from playcord.presentation.bot import PlayCordBot
+from playcord.presentation.ui.containers import CustomContainer, container_send_kwargs
 
 log = get_logger()
 
@@ -26,9 +33,7 @@ class EventsCog(commands.Cog):
     def __init__(self, bot: PlayCordBot):
         self.bot = bot
         self.presence_lock = asyncio.Lock()
-        self._warned_users = (
-            {}
-        )  # {thread_id: {user_id: timestamp}} - track warnings to avoid spam
+        self._warned_users = {}  # {thread_id: {user_id: timestamp}} - track warnings to avoid spam
         # Build the version presence string.
         # If git is available and we can read the short commit hash, show:
         #   vx.y.z • f9ab9b
@@ -40,7 +45,7 @@ class EventsCog(commands.Cog):
         if not git_executable:
             # Git isn't installed or isn't in the system's PATH at all
             git_log.debug(
-                "git executable not found in PATH; using version base %s", version_base
+                "git executable not found in PATH; using version base %s", version_base,
             )
             self.version = version_base
         else:
@@ -56,7 +61,7 @@ class EventsCog(commands.Cog):
                 if short:
                     self.version = f"{version_base} \u2022 {short}"
                     git_log.info(
-                        "Using git short commit %s for presence version", short
+                        "Using git short commit %s for presence version", short,
                     )
                 else:
                     git_log.debug(
@@ -69,7 +74,7 @@ class EventsCog(commands.Cog):
                 # This catches errors if the command runs but fails
                 # (e.g., the ".." directory is not actually a git repository)
                 git_log.debug(
-                    "git rev-parse failed: %s; using version base %s", e, version_base
+                    "git rev-parse failed: %s; using version base %s", e, version_base,
                 )
                 self.version = version_base
             except FileNotFoundError as e:
@@ -95,11 +100,11 @@ class EventsCog(commands.Cog):
         while True:
             try:
                 log.getChild("analytics.flush").debug(
-                    "Attempting analytics flush and cleanup"
+                    "Attempting analytics flush and cleanup",
                 )
                 analytics_mod.flush_events()
-                self.bot.container.guilds.cleanup_old_analytics(
-                    days=get_settings().analytics_retention_days
+                self.bot.container.guilds_repository.cleanup_old_analytics(
+                    days=get_settings().analytics_retention_days,
                 )
                 log.getChild("analytics.flush").debug(
                     "Cleanup_old_analytics completed (retention_days=%s)",
@@ -162,15 +167,14 @@ class EventsCog(commands.Cog):
         f_log = log.getChild("event.guild_remove")
         f_log.info(f"Removed from guild {guild.name!r}! (id={guild.id}).")
         try:
-            self.bot.container.guilds.delete_guild(guild.id)
+            self.bot.container.guilds_repository.delete_guild(guild.id)
             f_log.info(f"Successfully purged data for guild {guild.id}")
         except Exception as e:
             f_log.exception("Failed to purge data for guild %s: %s", guild.id, e)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:
-        """
-        Handle messages in game threads - enforce thread policy for non-participants.
+        """Handle messages in game threads - enforce thread policy for non-participants.
         """
         # Ignore messages from bots (including ourselves)
         if message.author.bot:
@@ -193,7 +197,7 @@ class EventsCog(commands.Cog):
         reg = self.bot.container.registry
         if message.channel.id not in reg.games_by_thread_id:
             log.getChild("event.thread_policy").debug(
-                "No active game for thread %s", message.channel.id
+                "No active game for thread %s", message.channel.id,
             )
             return
 
@@ -226,9 +230,7 @@ class EventsCog(commands.Cog):
                             message.channel.id,
                         )
                     except discord.NotFound:
-                        f_log.debug(
-                            "Message to delete was not found (already deleted)"
-                        )
+                        f_log.debug("Message to delete was not found (already deleted)")
             return
 
         f_log = log.getChild("event.thread_policy")
@@ -240,8 +242,8 @@ class EventsCog(commands.Cog):
 
         # Delete message if configured to do so (spectator-silent is independent of the generic delete flag)
         if (
-                THREAD_POLICY_SPECTATORS_SILENT
-                or THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES
+            THREAD_POLICY_SPECTATORS_SILENT
+            or THREAD_POLICY_DELETE_NON_PARTICIPANT_MESSAGES
         ):
             try:
                 await message.delete()
@@ -311,27 +313,32 @@ class EventsCog(commands.Cog):
             async with self.presence_lock:
                 while True:
                     reg = self.bot.container.registry
-                    options = [fmt("presence.catalog_games", count=len(GAME_TYPES)),
-                               fmt("presence.users_playing", count=len(reg.user_to_game)), fmt(
+                    options = [
+                        fmt("presence.catalog_games", count=len(GAME_TYPES)),
+                        fmt("presence.users_playing", count=len(reg.user_to_game)),
+                        fmt(
                             "presence.users_matchmaking",
                             count=len(reg.user_to_matchmaking),
-                        ), fmt(
+                        ),
+                        fmt(
                             "presence.games_happening_now",
                             count=len(reg.games_by_thread_id),
-                        ), self.version]
+                        ),
+                        self.version,
+                    ]
                     # Include the version (and commit if available) as one of the rotating presence entries.
                     for option in options:
                         try:
                             activity = discord.Activity(
-                                type=discord.ActivityType.playing, name=option
+                                type=discord.ActivityType.playing, name=option,
                             )
                             log.getChild("presence").debug(
-                                "Setting presence to: %s", option
+                                "Setting presence to: %s", option,
                             )
                             await self.bot.change_presence(activity=activity)
                         except Exception:
                             log.getChild("presence").exception(
-                                "Failed to change presence to %s", option
+                                "Failed to change presence to %s", option,
                             )
                         await asyncio.sleep(PRESENCE_TIMEOUT)
 

@@ -4,33 +4,30 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from playcord.application.repositories import (
-    AnalyticsRepositoryPort,
-    GameRepositoryPort,
-    GuildRepositoryPort,
-    MatchRepositoryPort,
-    PlayerRepositoryPort,
-    ReplayRepositoryPort,
-)
 from playcord.application.services.analytics import AnalyticsService
 from playcord.application.services.game_session import GameSessionService
-from playcord.application.services.matchmaking import MatchmakingService
+from playcord.application.services.matchmaker import Matchmaker
 from playcord.application.services.rating import RatingService
 from playcord.application.services.replay import ReplayService
-from playcord.application.services.session_registry import SessionRegistry
 from playcord.application.services.stats import StatsService
 from playcord.infrastructure.config import Settings
-from playcord.infrastructure.db import (
+from playcord.infrastructure.database import (
     AnalyticsRepository,
     GameRepository,
     GuildRepository,
+    MaintenanceRepository,
     MatchRepository,
     MigrationRunner,
     PlayerRepository,
     PoolManager,
+    RatingRepository,
     ReplayRepository,
 )
+from playcord.infrastructure.database.implementation.core.migrations import (
+    apply_migrations,
+)
 from playcord.infrastructure.locale import Translator
+from playcord.infrastructure.state.user_games import SessionRegistry
 
 
 @dataclass(slots=True)
@@ -42,46 +39,77 @@ class ApplicationContainer:
     pool_manager: PoolManager
     migration_runner: MigrationRunner
     registry: SessionRegistry = field(default_factory=SessionRegistry)
-    players: PlayerRepositoryPort = field(init=False, repr=False, compare=False)
-    games: GameRepositoryPort = field(init=False, repr=False, compare=False)
-    matches: MatchRepositoryPort = field(init=False, repr=False, compare=False)
-    replays: ReplayRepositoryPort = field(init=False, repr=False, compare=False)
-    guilds: GuildRepositoryPort = field(init=False, repr=False, compare=False)
-    analytics_repository: AnalyticsRepositoryPort = field(
-        init=False, repr=False, compare=False
+    players_repository: PlayerRepository = field(init=False, repr=False, compare=False)
+    games_repository: GameRepository = field(init=False, repr=False, compare=False)
+    maintenance_repository: MaintenanceRepository = field(
+        init=False, repr=False, compare=False,
     )
-    analytics: AnalyticsService = field(init=False, repr=False, compare=False)
+    matches_repository: MatchRepository = field(init=False, repr=False, compare=False)
+    ratings_repository: RatingRepository = field(init=False, repr=False, compare=False)
+    replays_repository: ReplayRepository = field(init=False, repr=False, compare=False)
+    guilds_repository: GuildRepository = field(init=False, repr=False, compare=False)
+    analytics_repository: AnalyticsRepository = field(
+        init=False, repr=False, compare=False,
+    )
+    analytics_service: AnalyticsService = field(init=False, repr=False, compare=False)
     replay_service: ReplayService = field(init=False, repr=False, compare=False)
     rating_service: RatingService = field(init=False, repr=False, compare=False)
     stats_service: StatsService = field(init=False, repr=False, compare=False)
-    matchmaking_service: MatchmakingService = field(
-        init=False, repr=False, compare=False
-    )
+    matchmaker: Matchmaker = field(init=False, repr=False, compare=False)
     game_session_service: GameSessionService = field(
-        init=False, repr=False, compare=False
+        init=False, repr=False, compare=False,
     )
 
     def __post_init__(self) -> None:
         database = self.pool_manager.connect()
-        self.migration_runner.apply(database)
+        apply_migrations(database)
 
-        self.players = PlayerRepository(database)
-        self.games = GameRepository(database)
-        self.matches = MatchRepository(database)
-        self.replays = ReplayRepository(database)
-        self.guilds = GuildRepository(database)
-        self.analytics_repository = AnalyticsRepository(database)
+        self.games_repository = GameRepository(database)
+        self.ratings_repository = RatingRepository(
+            database, self.games_repository, self.games_repository.leaderboard,
+        )
+        self.players_repository = PlayerRepository(
+            database, self.games_repository, self.ratings_repository,
+        )
+        self.analytics_repository = AnalyticsRepository(database, self.games_repository)
+        self.maintenance_repository = MaintenanceRepository(
+            database, self.games_repository,
+        )
+        self.guilds_repository = GuildRepository(
+            database,
+            self.analytics_repository,
+            self.players_repository,
+            self.games_repository,
+            self.maintenance_repository,
+        )
+        self.matches_repository = MatchRepository(
+            database,
+            self.players_repository,
+            self.guilds_repository,
+            self.games_repository,
+            self.ratings_repository,
+        )
+        self.replays_repository = ReplayRepository(database)
 
-        self.analytics = AnalyticsService(self.analytics_repository)
-        self.replay_service = ReplayService(self.replays)
-        self.rating_service = RatingService(self.players)
-        self.stats_service = StatsService(self.matches, self.players)
-        self.matchmaking_service = MatchmakingService(self.registry)
+        self.migration_runner.run_startup(
+            database,
+            self.games_repository,
+            self.analytics_repository,
+            self.matches_repository,
+        )
+
+        self.analytics_service = AnalyticsService(self.analytics_repository)
+        self.replay_service = ReplayService(self.replays_repository)
+        self.rating_service = RatingService(self.players_repository)
+        self.stats_service = StatsService(
+            self.matches_repository, self.players_repository,
+        )
+        self.matchmaker = Matchmaker(self.registry)
         self.game_session_service = GameSessionService(
             registry=self.registry,
-            matches=self.matches,
-            replays=self.replays,
-            ratings=self.players,
+            matches=self.matches_repository,
+            replays=self.replays_repository,
+            ratings=self.players_repository,
         )
 
     def close(self) -> None:

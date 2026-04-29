@@ -107,9 +107,9 @@ For database and repository contributions, use [docs/PERSISTENCE_GUIDE.md](docs/
 ### Quick Example
 
 ```python
-from playcord.domain.game import GameMetadata, Move, MoveParameter, ParameterKind
-from playcord.games.api import MessageLayout, ReplayableGame, UpsertMessage, handler
-from playcord.games.plugin import register_game
+from playcord.api import GameMetadata, Move, MoveParameter, ParameterKind
+from playcord.api import MessageLayout, ReplayableGame, UpsertMessage, handler
+from playcord.api.plugin import register_game
 
 
 class MyGame(ReplayableGame):

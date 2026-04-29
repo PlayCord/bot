@@ -21,6 +21,8 @@ def try_get_container() -> ApplicationContainer | None:
 
 def get_container() -> ApplicationContainer:
     if _container is None:
-        msg = "Application container is not bound; call bind_application_container first"
+        msg = (
+            "Application container is not bound; call bind_application_container first"
+        )
         raise RuntimeError(msg)
     return _container

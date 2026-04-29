@@ -45,7 +45,6 @@ dev = [
 
 [project.scripts]
 playcord = "playcord.presentation.bot:main"
-playcord-cli = "playcord.cli.__main__:main"
 
 [project.urls]
 Repository = "https://github.com/PlayCord/bot.git"
@@ -55,40 +54,13 @@ Repository = "https://github.com/PlayCord/bot.git"
 requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
-[tool.black]
-line-length = 88
-target-version = ["py312"]
-
 [tool.ruff]
 line-length = 88
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+select = ["ALL"]
 
-[tool.mypy]
-python_version = "3.12"
-warn_unused_configs = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-strict_equality = true
-check_untyped_defs = true
-disallow_any_generics = true
-disallow_untyped_defs = true
-no_implicit_optional = true
-mypy_path = ["."]
-exclude = ["^tests/"]
-
-[[tool.mypy.overrides]]
-module = [
-    "discord.*",
-    "trueskill",
-    "cairosvg",
-    "svg",
-    "emoji",
-    "matplotlib.*",
-]
-ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "8.0"

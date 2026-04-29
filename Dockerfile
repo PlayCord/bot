@@ -20,7 +20,8 @@ RUN apt-get update \
 
 COPY pyproject.toml README.md /app/
 COPY playcord /app/playcord
-RUN pip install --no-cache-dir ".[dev]"
+RUN pip install ".[dev]"
+
 
 CMD ["python", "-m", "playcord.presentation.bot"]
 

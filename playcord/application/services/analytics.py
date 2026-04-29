@@ -5,12 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from playcord.application.repositories import AnalyticsRepositoryPort
+from playcord.infrastructure.database import AnalyticsRepository
 
 
 @dataclass(slots=True)
 class AnalyticsService:
-    repository: AnalyticsRepositoryPort
+    repository: AnalyticsRepository
 
     def record(self, event_type: str, payload: dict[str, Any] | None = None) -> None:
         self.repository.record_event(event_type, payload or {})

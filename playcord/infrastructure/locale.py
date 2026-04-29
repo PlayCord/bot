@@ -31,7 +31,7 @@ class Translator:
     locale_directory: Path = field(
         default_factory=lambda: (
             Path(__file__).resolve().parent.parent / "configuration" / "locale"
-        )
+        ),
     )
     default_locale: str = DEFAULT_LOCALE
     current_locale: str = DEFAULT_LOCALE
@@ -53,7 +53,7 @@ class Translator:
             raw_path = match.group(1)
             normalized = self._normalize_command_path(raw_path)
             mention = self.command_mentions.get(normalized)
-            return mention if mention else f"/{normalized}"
+            return mention or f"/{normalized}"
 
         return COMMAND_TOKEN_RE.sub(_resolve, text)
 
@@ -87,7 +87,7 @@ class Translator:
         return data
 
     def get(
-        self, key: str, default: str | None = None, *, locale: str | None = None
+        self, key: str, default: str | None = None, *, locale: str | None = None,
     ) -> str:
         selected_locale = locale or self.current_locale
         data = self._load_locale(selected_locale)
@@ -96,7 +96,7 @@ class Translator:
             if default is not None:
                 return self._replace_command_tokens(default)
             self.log.warning(
-                "Missing locale key: %r in locale %r", key, selected_locale
+                "Missing locale key: %r in locale %r", key, selected_locale,
             )
             return f"[{key}]"
         return self._replace_command_tokens(str(value))
@@ -168,9 +168,7 @@ def _active_translator() -> Translator:
     return _standalone_translator
 
 
-def get(
-    key: str, default: str | None = None, *, locale: str | None = None
-) -> str:
+def get(key: str, default: str | None = None, *, locale: str | None = None) -> str:
     return _active_translator().get(key, default, locale=locale)
 
 

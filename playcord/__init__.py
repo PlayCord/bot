@@ -2,7 +2,6 @@
 
 __all__ = [
     "application",
-    "domain",
     "games",
     "infrastructure",
     "presentation",

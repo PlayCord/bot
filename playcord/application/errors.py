@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from playcord.domain.errors import DomainError
+from playcord.core.errors import DomainError
 
 
 class ApplicationError(Exception):

@@ -7,14 +7,14 @@ from typing import Any
 
 import trueskill
 
-from playcord.application.repositories import PlayerRepositoryPort
-from playcord.domain.rating import DEFAULT_MU, STARTING_RATING
-from playcord.utils.trueskill_params import get_trueskill_parameters
+from playcord.api.trueskill_config import get_trueskill_parameters
+from playcord.core.rating import DEFAULT_MU, STARTING_RATING
+from playcord.infrastructure.database import PlayerRepository
 
 
 @dataclass(slots=True)
 class RatingService:
-    repository: PlayerRepositoryPort
+    repository: PlayerRepository
 
     def get_for_user(self, user_id: int) -> Any | None:
         return self.repository.get(user_id)
@@ -34,12 +34,12 @@ def player_mu_sigma(player: Any, game_type: str) -> tuple[float, float]:
         return float(game_mu), float(game_sigma)
 
     raise AttributeError(
-        f"Player {player!r} does not expose rating for game_type={game_type!r}"
+        f"Player {player!r} does not expose rating for game_type={game_type!r}",
     )
 
 
 def rated_results_for_placements(
-    players: list[Any], game_type: str, placements: list[list[Any]]
+    players: list[Any], game_type: str, placements: list[list[Any]],
 ) -> dict[int, dict[str, Any]]:
     """Compute post-match rating rows for a rated game."""
     ts = get_trueskill_parameters(game_type)
@@ -80,7 +80,7 @@ def rated_results_for_placements(
 
 
 def unrated_results_for_placements(
-    players: list[Any], game_type: str, placements: list[list[Any]]
+    players: list[Any], game_type: str, placements: list[list[Any]],
 ) -> dict[int, dict[str, Any]]:
     """Build neutral rating rows for an unrated game."""
     ranking_by_id: dict[int, int] = {}
