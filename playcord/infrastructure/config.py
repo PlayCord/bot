@@ -26,7 +26,7 @@ class DatabaseSettings:
     host: str = "localhost"
     port: int = 5432
     user: str = "playcord"
-    password: str = "password"
+    password: str = ""
     database: str = "playcord"
     pool_size: int = 10
     max_overflow: int = 20
@@ -134,7 +134,7 @@ def load_settings(path: str | Path = DEFAULT_CONFIG_PATH) -> Settings:
             host=str(db_raw.get("host", "localhost")),
             port=int(db_raw.get("port", 5432)),
             user=str(db_raw.get("user", "playcord")),
-            password=str(db_raw.get("password", "password")),
+            password=str(db_raw.get("password", "")),
             database=str(db_raw.get("database", "playcord")),
             pool_size=int(db_raw.get("pool_size", 10)),
             max_overflow=int(db_raw.get("max_overflow", 20)),

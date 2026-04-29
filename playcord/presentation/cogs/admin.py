@@ -71,6 +71,7 @@ class AdminCog(commands.Cog):
         self.bot = bot
         self._analytics = bot.container.analytics_repository
         self._guilds = bot.container.guilds_repository
+        self._background_tasks: set = set()
 
     async def _run_long_admin_task(self, msg: discord.Message, work) -> None:
         """Add ⏳, await ``work(msg) -> bool``, then replace with ✅ or ⛔."""
@@ -102,25 +103,31 @@ class AdminCog(commands.Cog):
         if msg.content.startswith(f"{LOGGING_ROOT}/"):
             f_log.info(f"Received authorized message command {msg.content!r}.")
 
+        def _add_task(coro):
+            task = asyncio.create_task(coro)
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+            return task
+
         # Sync (Discord API — can be slow)
         if msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_SYNC}"):
-            asyncio.create_task(self._run_long_admin_task(msg, self._task_sync))
+            _add_task(self._run_long_admin_task(msg, self._task_sync))
 
         # Analytics — owner message `playcord/analytics [hours]` (DB + matplotlib)
         elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_ANALYTICS}"):
-            asyncio.create_task(self._run_long_admin_task(msg, self._task_analytics))
+            _add_task(self._run_long_admin_task(msg, self._task_analytics))
 
         # Slash tree deep diff
         elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_TREEDIFF}"):
-            asyncio.create_task(self._run_long_admin_task(msg, self._task_treediff))
+            _add_task(self._run_long_admin_task(msg, self._task_treediff))
 
         # Clear (tree sync — can be slow)
         elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_CLEAR}"):
-            asyncio.create_task(self._run_long_admin_task(msg, self._task_clear))
+            _add_task(self._run_long_admin_task(msg, self._task_clear))
 
         # Database reset helpers
         elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET}"):
-            asyncio.create_task(self._run_long_admin_task(msg, self._task_dbreset))
+            _add_task(self._run_long_admin_task(msg, self._task_dbreset))
 
     async def _task_sync(self, msg: discord.Message) -> bool:
         f_log = log.getChild("event.on_message")

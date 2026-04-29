@@ -34,11 +34,11 @@ class InternalPlayer:
         ratings: dict[str, dict[str, float]],
         *,
         metadata: dict | None = None,
-        id: int | None = None,
+        user_id: int | None = None,
         username: str | None = None,
     ) -> None:
         self.name = username
-        self.id = id
+        self.id = user_id
 
         if metadata is not None:
             self.metadata = metadata

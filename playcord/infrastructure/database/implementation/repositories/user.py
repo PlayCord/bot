@@ -175,7 +175,7 @@ class PlayerRepository:
         return InternalPlayer(
             ratings=ratings,
             metadata=metadata,
-            id=user_id,
+            user_id=user_id,
             username=username,
         )
 

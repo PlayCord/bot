@@ -160,6 +160,7 @@ class MatchRepository:
         if not updates:
             return
         params.append(match_id)
+        # Safe: updates list contains only hardcoded field names; all values use %s parameters
         query = f"UPDATE matches SET {', '.join(updates)} WHERE match_id = %s;"
         self.database.execute_query(query, tuple(params))
 
@@ -228,9 +229,9 @@ class MatchRepository:
                         )
                 return match_id, match_code
             except Exception as e:
-                if (
-                    pg_errors and isinstance(e, pg_errors.UniqueViolation)  # type: ignore[misc]
-                ):
+                if pg_errors and isinstance(
+                    e, pg_errors.UniqueViolation,
+                ):  # type: ignore[misc]
                     last_err = e
                     continue
                 raise
@@ -748,9 +749,9 @@ class MatchRepository:
                     conn.commit()
                     return result["match_id"], code
             except Exception as e:
-                if (
-                    pg_errors and isinstance(e, pg_errors.UniqueViolation)  # type: ignore[misc]
-                ):
+                if pg_errors and isinstance(
+                    e, pg_errors.UniqueViolation,
+                ):  # type: ignore[misc]
                     last_err = e
                     continue
                 raise

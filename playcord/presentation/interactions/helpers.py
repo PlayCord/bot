@@ -199,7 +199,7 @@ def shallow_player_from_discord_user(
     """Build a rating-empty InternalPlayer from Discord identity (presentation-only)."""
     return InternalPlayer(
         ratings={},
-        id=int(user.id),
+        user_id=int(user.id),
         username=discord_user_db_label(user),
     )
 
