@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import parse_qs, urlencode
 from uuid import uuid4
 
@@ -16,6 +16,7 @@ from playcord.api import (
     BinaryAsset,
     ButtonInput,
     CommandInput,
+    GameEngineRuntime,
     DeleteMessage,
     GameContext,
     GameInput,
@@ -26,6 +27,7 @@ from playcord.api import (
     MessageLayout,
     MessagePurpose,
     MessageTarget,
+    Outcome,
     OwnedMessage,
     RuntimeGame,
     SelectInput,
@@ -43,7 +45,7 @@ from playcord.infrastructure.constants import (
     EPHEMERAL_DELETE_AFTER,
 )
 from playcord.infrastructure.db_thread import run_in_thread
-from playcord.infrastructure.locale import get
+from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
 from playcord.presentation.interactions.helpers import followup_send
 from playcord.presentation.ui.containers import chunk_text_display_lines
@@ -110,6 +112,42 @@ def _resolve_callback(
     raise ConfigurationError(msg)
 
 
+def _mention_for_overview(player: Any) -> str:
+    mention = getattr(player, "mention", None)
+    if isinstance(mention, str) and mention.strip():
+        return mention
+    player_id = getattr(player, "id", None)
+    if player_id is None:
+        return get("game.started_overview.unknown_player")
+    return f"<@{player_id}>"
+
+
+def _format_started_overview_text(game_name: str, players: list[Any]) -> str:
+    human_mentions = [
+        _mention_for_overview(player)
+        for player in players
+        if not getattr(player, "is_bot", False)
+    ]
+    players_text = ", ".join(human_mentions) or get(
+        "game.started_overview.no_human_players"
+    )
+    bot_count = sum(1 for player in players if getattr(player, "is_bot", False))
+    bot_word = get(
+        (
+            "game.started_overview.bot_word_singular"
+            if bot_count == 1
+            else "game.started_overview.bot_word_plural"
+        ),
+    )
+    return fmt(
+        "game.started_overview.playing",
+        game=game_name,
+        players=players_text,
+        bot_count=bot_count,
+        bot_word=bot_word,
+    )
+
+
 class RuntimeView(discord.ui.LayoutView):
     """Game UI: components v2 (LayoutView + Container), like lobbies and help."""
 
@@ -140,7 +178,7 @@ class GameManager:
             players=list(players),
             match_options=match_options or {},
         )
-        self.plugin._bind_runtime(self)
+        self.plugin._bind_runtime(cast(GameEngineRuntime, self))
         self.game = self.plugin
         self.creator = creator
         self.players = list(players)
@@ -199,20 +237,23 @@ class GameManager:
         self._main_task = asyncio.create_task(self._run_main())
 
     async def _show_started_overview(self) -> None:
-        text = f"Currently playing {self.plugin.metadata.name}"
-        try:
-            await self.status_message.edit(content=text, view=None, attachments=[])
-        except discord.errors.HTTPException as e:
-            if (
-                e.code == 50035
-            ):  # Invalid Form Body - likely IS_COMPONENTS_V2 flag issue
-                self.logger.debug(
-                    "Cannot update content on message with MessageFlags.IS_COMPONENTS_V2"
-                )
-            else:
-                self.logger.exception("Failed to update started overview")
-        except Exception:
-            self.logger.exception("Failed to update started overview")
+        if (getattr(self.status_message, "content", "") or "").strip():
+            return
+        text = _format_started_overview_text(self.plugin.metadata.name, self.players)
+        view = self._build_overview_view(MessageLayout(content=text))
+        if view is not None:
+            await self._safe_edit_message(
+                self.status_message,
+                view=view,
+                attachments=[],
+            )
+            return
+        await self._safe_edit_message(
+            self.status_message,
+            content=text,
+            view=None,
+            attachments=[],
+        )
 
     async def _run_main(self) -> None:
         try:
@@ -244,7 +285,7 @@ class GameManager:
         for key, message in self.owned_messages.items():
             purpose = self.owned_message_purposes.get(
                 key,
-                "board" if key == "board" else "overview",
+                MessagePurpose.board if key == "board" else MessagePurpose.overview,
             )
             owned.append(
                 OwnedMessage(
@@ -273,25 +314,25 @@ class GameManager:
 
     async def update_message(
         self,
-        message_id: str,
+        key: str,
         layout: MessageLayout,
         *,
-        target: MessageTarget = "thread",
-        purpose: MessagePurpose = "board",
+        target: MessageTarget = MessageTarget.thread,
+        purpose: MessagePurpose = MessagePurpose.board,
     ) -> None:
         await self._apply_actions(
             (
                 UpsertMessage(
-                    target=target, key=message_id, layout=layout, purpose=purpose
+                    target=target, key=key, layout=layout, purpose=purpose
                 ),
             ),
         )
 
     async def delete_message(
         self,
-        message_id: str,
+        key: str,
         *,
-        target: MessageTarget = "thread",
+        target: MessageTarget = MessageTarget.thread,
     ) -> None:
         await self._apply_actions((DeleteMessage(target=target, key=message_id),))
 
@@ -301,12 +342,12 @@ class GameManager:
         players: Sequence[Any],
         inputs: Sequence[GameInputSpec],
         timeout: float,
-        mode: InputMode = "first",
+        mode: InputMode = InputMode.first,
         min_responses: int | None = None,
-        message_id: str | None = None,
+        key: str | None = None,
         layout: MessageLayout | None = None,
-        target: MessageTarget = "thread",
-        purpose: MessagePurpose = "board",
+        target: MessageTarget = MessageTarget.thread,
+        purpose: MessagePurpose = MessagePurpose.board,
         auto_remove_on_timeout: bool = False,
         send_timeout_warning: bool = True,
     ) -> GameInput | list[GameInput] | InputTimeout:
@@ -329,17 +370,17 @@ class GameManager:
                 min_responses=(
                     min_responses
                     if min_responses is not None
-                    else (1 if mode == "first" else len(players))
+                    else (1 if mode == InputMode.first else len(players))
                 ),
                 future=loop.create_future(),
             )
             self._pending = request
-            if layout is not None and message_id is not None:
+            if layout is not None and key is not None:
                 request_layout = self._layout_with_request_inputs(
                     layout, request.inputs
                 )
                 await self.update_message(
-                    message_id,
+                    key,
                     request_layout,
                     target=target,
                     purpose=purpose,
@@ -424,7 +465,7 @@ class GameManager:
             actor=player,
             request_id=request.request_id,
             input_id=input_id,
-            source="bot",
+            source=InputSource.bot,
             arguments=arguments,
             values=values,
             interaction=None,
@@ -439,7 +480,7 @@ class GameManager:
     ) -> None:
         request_id, input_id, arguments = self.decode_input_payload(payload)
         values: tuple[str, ...] = ()
-        if source == "select":
+        if source == InputSource.select:
             values = tuple(str(value) for value in (ctx.data or {}).get("values") or ())
         actor = self._player_by_id(getattr(ctx.user, "id", None))
         await self._accept_input(
@@ -478,7 +519,7 @@ class GameManager:
             actor=actor,
             request_id=request_id,
             input_id=input_id,
-            source="command",
+            source=InputSource.command,
             arguments=arguments,
             values=(),
             interaction=ctx,
@@ -533,7 +574,7 @@ class GameManager:
             pending.responses[player_id] = game_input
             if pending.future.done():
                 return True
-            if pending.mode == "first":
+            if pending.mode == InputMode.first:
                 pending.future.set_result(game_input)
             elif len(pending.responses) >= pending.min_responses:
                 ordered = [
@@ -547,10 +588,10 @@ class GameManager:
     @staticmethod
     def _source_matches_spec(source: InputSource, spec: GameInputSpec) -> bool:
         return (
-            (source == "button" and isinstance(spec, ButtonInput))
-            or (source == "select" and isinstance(spec, SelectInput))
-            or (source == "command" and isinstance(spec, CommandInput))
-            or source == "bot"
+            (source == InputSource.button and isinstance(spec, ButtonInput))
+            or (source == InputSource.select and isinstance(spec, SelectInput))
+            or (source == InputSource.command and isinstance(spec, CommandInput))
+            or source == InputSource.bot
         )
 
     async def _send_invalid_input(
@@ -626,18 +667,19 @@ class GameManager:
 
     async def forfeit_player(
         self, player_or_id: Any, *, reason: str = "forfeit"
-    ) -> Any:
+    ) -> Outcome:
         player = (
             self._player_by_id(player_or_id)
             if not hasattr(player_or_id, "id")
             else player_or_id
         )
         if player is None:
-            return get("forfeit.not_in_game")
+            msg = get("forfeit.not_in_game")
+            raise ValueError(msg)
         self.forfeited_player_ids.add(int(player.id))
         outcome = self.plugin.outcome_for_forfeit([player], reason=reason)
         await self.finish(outcome)
-        return f"{player.mention} forfeited."
+        return outcome
 
     async def handle_spectate(self, ctx: discord.Interaction) -> None:
         if self.thread is not None:
@@ -998,7 +1040,7 @@ class GameManager:
         return discord.ui.Button(
             label=label,
             emoji=spec.emoji,
-            style=style_map[spec.style],
+            style=style_map[str(spec.style)],
             custom_id=custom_id,
             disabled=spec.disabled or not request_id,
         )

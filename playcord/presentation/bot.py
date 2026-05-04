@@ -9,6 +9,7 @@ from discord import app_commands
 from discord.app_commands.models import AppCommand, AppCommandGroup, Argument
 from discord.ext import commands
 
+from playcord.api.trueskill_config import bind_rating_config_provider
 from playcord.application.container import ApplicationContainer
 from playcord.application.runtime_context import bind_application_container
 from playcord.infrastructure import Translator, load_settings
@@ -175,6 +176,14 @@ def create_container() -> ApplicationContainer:
     )
 
     bind_application_container(container)
+
+    def _rating_config_provider(game_type_key: str) -> dict[str, float] | None:
+        game = container.games_repository.get(game_type_key)
+        if game is None or not game.rating_config:
+            return None
+        return game.rating_config
+
+    bind_rating_config_provider(_rating_config_provider)
     return container
 
 

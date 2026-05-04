@@ -771,6 +771,13 @@ last = "Last"
 "Alright {players}, let's see what you've got!" = 0.04
 "In a world where only one can win... {players} enter the arena." = 0.01
 
+[game.started_overview]
+playing = "Playing {game} with {players} and {bot_count} {bot_word}."
+no_human_players = "no human players"
+unknown_player = "unknown player"
+bot_word_singular = "bot"
+bot_word_plural = "bots"
+
 [game.over]
 "Game over! {winner} wins!" = 0.4
 "And the winner is... {winner}!" = 0.3
@@ -960,19 +967,10 @@ already_in_game_title = "Already In Game"
 already_in_game_description = "You are already in an active game in another server. Finish that game before starting a new one."
 
 [move]
-invalid_context_title = "Move commands can only be run during a game"
-invalid_context_description = "Move commands can only be run during a game in a private thread."
-no_active_game_description = "No active game found in this thread."
-wrong_game_type_description = "That move belongs to a different game. Use the `{game}` command group for this thread."
+invalid_context = "Move commands can only be run during a game"
+no_active_game = "No active game found in this thread."
+wrong_game_type = "That move belongs to a different game. Use the `{game}` command group for this thread."
 unexpected_processing_error = "An unexpected error occurred while processing your move. Please try again or report on GitHub if it keeps happening."
-
-
-# =============================================================================
-# BOT DISABLED MESSAGE
-# =============================================================================
-[bot]
-disabled_title = "Bot has been disabled!"
-disabled_description = "{name} has been temporarily disabled."
 
 # =============================================================================
 # PLURALIZATION
@@ -1007,4 +1005,4 @@ wrong_channel = "Use {command:playcord forfeit} inside your active private game 
 summary = "Forfeited"
 
 [timeout]
-warning = "⏱️ Input timeout for {players} ({timestamp}). They have been removed from the game."
+warning = "Input timeout for {players} ({timestamp}). They have been removed from the game."

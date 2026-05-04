@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import inspect
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, overload
+from enum import StrEnum
+from typing import Any, Generic, Literal, Protocol, TYPE_CHECKING, TypeVar, overload
 
 from playcord.api.bot import BotDefinition
 from playcord.api.handlers import HandlerRef, HandlerSpec, handler
@@ -24,21 +26,65 @@ from playcord.api.metadata import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
-
     from playcord.api.match_options import MatchOptionSpec
     from playcord.core.player import Player
 
-ButtonStyle = Literal["primary", "secondary", "success", "danger"]
-MessageTarget = Literal["thread", "overview", "ephemeral"]
-MessagePurpose = Literal["board", "announcement", "ephemeral", "custom", "overview"]
-OutcomeKind = Literal["winner", "draw", "interrupted"]
-InputSource = Literal["command", "button", "select", "bot"]
-InputMode = Literal["first", "all"]
+
+class ButtonStyle(StrEnum):
+    primary = "primary"
+    secondary = "secondary"
+    success = "success"
+    danger = "danger"
 
 
-class MessageId:
-    """Standard message ID constants for use with update_message() and
+class MessageTarget(StrEnum):
+    thread = "thread"
+    overview = "overview"
+    ephemeral = "ephemeral"
+
+
+class MessagePurpose(StrEnum):
+    board = "board"
+    announcement = "announcement"
+    ephemeral = "ephemeral"
+    custom = "custom"
+    overview = "overview"
+
+
+class OutcomeKind(StrEnum):
+    winner = "winner"
+    draw = "draw"
+    interrupted = "interrupted"
+
+
+class InputSource(StrEnum):
+    command = "command"
+    button = "button"
+    select = "select"
+    bot = "bot"
+
+
+class InputMode(StrEnum):
+    first = "first"
+    all = "all"
+
+
+ButtonStyleValue = ButtonStyle | Literal["primary", "secondary", "success", "danger"]
+MessageTargetValue = MessageTarget | Literal["thread", "overview", "ephemeral"]
+MessagePurposeValue = MessagePurpose | Literal[
+    "board",
+    "announcement",
+    "ephemeral",
+    "custom",
+    "overview",
+]
+OutcomeKindValue = OutcomeKind | Literal["winner", "draw", "interrupted"]
+InputSourceValue = InputSource | Literal["command", "button", "select", "bot"]
+InputModeValue = InputMode | Literal["first", "all"]
+
+
+class MessageKey:
+    """Standard message key constants for use with update_message() and
     request_input().
     """
 
@@ -79,7 +125,7 @@ class ButtonInput:
     id: str
     label: str | None = None
     arguments: dict[str, Any] = field(default_factory=dict)
-    style: ButtonStyle = "secondary"
+    style: ButtonStyleValue = ButtonStyle.secondary
     emoji: str | None = None
     disabled: bool = False
 
@@ -172,7 +218,7 @@ class ChannelAction:
 
     """
 
-    target: MessageTarget
+    target: MessageTargetValue
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,7 +234,7 @@ class UpsertMessage(ChannelAction):
 
     key: str
     layout: MessageLayout
-    purpose: MessagePurpose = "custom"
+    purpose: MessagePurposeValue = MessagePurpose.custom
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,7 +256,7 @@ class Outcome:
     Attributes:
         kind: Type of outcome ("winner" for games with winners, "draw" for ties,
               "interrupted" for games that were interrupted before completion).
-        placements: List of player groups representing final standings.
+        placements: Tuple of player groups representing final standings.
                    For "winner" outcomes, first group is winners, second is losers, etc.
                    For "draw" outcomes, typically all players in a single group.
                    For "interrupted" outcomes, contains forfeited players.
@@ -218,13 +264,45 @@ class Outcome:
 
     """
 
-    kind: OutcomeKind
-    placements: list[list[Player]] = field(default_factory=list)
+    kind: OutcomeKindValue
+    placements: tuple[tuple[Player, ...], ...] = ()
     reason: str | None = None
+
+    @classmethod
+    def win(
+            cls,
+            winners: Sequence[Player],
+            losers: Sequence[Player],
+            *,
+            reason: str | None = None,
+    ) -> Outcome:
+        """Factory to create a standard winner/loser outcome."""
+        return cls(
+            kind=OutcomeKind.winner,
+            placements=(tuple(winners), tuple(losers)),
+            reason=reason,
+        )
+
+    @classmethod
+    def draw(cls, players: Sequence[Player], *, reason: str | None = None) -> Outcome:
+        """Factory to create a draw outcome."""
+        return cls(kind=OutcomeKind.draw, placements=(tuple(players),), reason=reason)
+
+    @classmethod
+    def interrupted(
+            cls, players: Sequence[Player], *, reason: str | None = None
+    ) -> Outcome:
+        """Factory to create an interrupted outcome."""
+        return cls(
+            kind=OutcomeKind.interrupted, placements=(tuple(players),), reason=reason
+        )
+
+
+T_State = TypeVar("T_State")
 
 
 @dataclass(frozen=True, slots=True)
-class ReplayState:
+class ReplayState(Generic[T_State]):
     """State snapshot for replaying game events.
 
     Used by ReplayableGame implementations to reconstruct game state frame-by-frame.
@@ -242,7 +320,7 @@ class ReplayState:
     players: list[Player]
     match_options: dict[str, Any]
     move_index: int
-    state: Any
+    state: T_State
 
 
 @dataclass(frozen=True, slots=True)
@@ -326,7 +404,7 @@ class GameInput:
     request_id: str
     input_id: str
     actor: Player
-    source: InputSource
+    source: InputSourceValue
     arguments: dict[str, Any]
     values: tuple[str, ...] = ()
     ctx: GameContext | None = None
@@ -358,6 +436,95 @@ class AutoForfeit(Exception):
         super().__init__("Input request timed out")
 
 
+class GameEngineRuntime(Protocol):
+    def build_context(self) -> GameContext: ...
+
+    async def update_message(
+            self,
+            key: str,
+            layout: MessageLayout,
+            *,
+            target: MessageTargetValue = MessageTarget.thread,
+            purpose: MessagePurposeValue = MessagePurpose.board,
+    ) -> None: ...
+
+    async def delete_message(
+            self,
+            key: str,
+            *,
+            target: MessageTargetValue = MessageTarget.thread,
+    ) -> None: ...
+
+    @overload
+    async def request_input(
+            self,
+            *,
+            players: Sequence[Player],
+            inputs: Sequence[GameInputSpec],
+            timeout: float,
+            mode: Literal["first"] = "first",
+            min_responses: int | None = None,
+            key: str | None = None,
+            layout: MessageLayout | None = None,
+            target: MessageTargetValue = MessageTarget.thread,
+            purpose: MessagePurposeValue = MessagePurpose.board,
+            auto_remove_on_timeout: bool = False,
+            send_timeout_warning: bool = True,
+    ) -> GameInput | InputTimeout: ...
+
+    @overload
+    async def request_input(
+            self,
+            *,
+            players: Sequence[Player],
+            inputs: Sequence[GameInputSpec],
+            timeout: float,
+            mode: Literal["all"],
+            min_responses: int | None = None,
+            key: str | None = None,
+            layout: MessageLayout | None = None,
+            target: MessageTargetValue = MessageTarget.thread,
+            purpose: MessagePurposeValue = MessagePurpose.board,
+            auto_remove_on_timeout: bool = False,
+            send_timeout_warning: bool = True,
+    ) -> list[GameInput] | InputTimeout: ...
+
+    async def request_input(
+            self,
+            *,
+            players: Sequence[Player],
+            inputs: Sequence[GameInputSpec],
+            timeout: float,
+            mode: InputModeValue = InputMode.first,
+            min_responses: int | None = None,
+            key: str | None = None,
+            layout: MessageLayout | None = None,
+            target: MessageTargetValue = MessageTarget.thread,
+            purpose: MessagePurposeValue = MessagePurpose.board,
+            auto_remove_on_timeout: bool = False,
+            send_timeout_warning: bool = True,
+    ) -> GameInput | list[GameInput] | InputTimeout: ...
+
+    async def record_move(
+            self,
+            actor: Player,
+            name: str,
+            arguments: dict[str, Any],
+            *,
+            source: InputSourceValue,
+            input_id: str | None = None,
+    ) -> None: ...
+
+    def log_replay_event(self, event_type: str, **payload: Any) -> None: ...
+
+    async def forfeit_player(
+            self,
+            player: Player,
+            *,
+            reason: str = "forfeit",
+    ) -> Outcome: ...
+
+
 class RuntimeGame(ABC):
     """Stateful game instance managed by GameManager.
 
@@ -386,7 +553,7 @@ class RuntimeGame(ABC):
             async def main(self) -> Outcome:
                 # Game loop here
                 layout = MessageLayout(content="Game board", buttons=(...))
-                await self.update_message(MessageId.BOARD, layout)
+                await self.update_message(MessageKey.BOARD, layout)
 
                 result = await self.request_input(
                     self.players,
@@ -405,10 +572,7 @@ class RuntimeGame(ABC):
                 )
 
                 # ...determine winner
-                return Outcome(
-                    kind="winner",
-                    placements=[winners, losers],
-                )
+                return Outcome.win(winners=winners, losers=losers)
         ```
 
     """
@@ -416,20 +580,20 @@ class RuntimeGame(ABC):
     metadata: GameMetadata
 
     def __init__(
-        self,
-        players: list[Player],
-        *,
-        match_options: dict[str, Any] | None = None,
+            self,
+            players: list[Player],
+            *,
+            match_options: dict[str, Any] | None = None,
     ) -> None:
         self.players = players
         self.match_options = dict(match_options or {})
-        self._runtime: Any | None = None
+        self._runtime: GameEngineRuntime | None = None
 
-    def _bind_runtime(self, runtime: Any) -> None:
+    def _bind_runtime(self, runtime: GameEngineRuntime) -> None:
         self._runtime = runtime
 
     @property
-    def runtime(self) -> Any:
+    def runtime(self) -> GameEngineRuntime:
         if self._runtime is None:
             msg = "Game runtime is not bound yet"
             raise RuntimeError(msg)
@@ -438,6 +602,17 @@ class RuntimeGame(ABC):
     @property
     def context(self) -> GameContext:
         return self.runtime.build_context()
+
+    def get_player(self, player_id: int) -> Player | None:
+        """Find a participating player by their ID."""
+        for player in self.players:
+            if int(player.id) == player_id:
+                return player
+        return None
+
+    def get_player_role(self, player: Player) -> str | None:
+        """Get the assigned role ID for a specific player."""
+        return self.context.roles.get(int(player.id))
 
     @classmethod
     def option_specs(cls) -> tuple[MatchOptionSpec, ...]:
@@ -448,20 +623,20 @@ class RuntimeGame(ABC):
         """Run the game until it returns a final outcome."""
 
     async def update_message(
-        self,
-        message_id: str,
-        layout: MessageLayout,
-        *,
-        target: MessageTarget = "thread",
-        purpose: MessagePurpose = "board",
+            self,
+            key: str,
+            layout: MessageLayout,
+            *,
+            target: MessageTargetValue = MessageTarget.thread,
+            purpose: MessagePurposeValue = MessagePurpose.board,
     ) -> None:
         """Update or create a message with game content.
 
-        If message_id already exists, updates the existing message.
+        If key already exists, updates the existing message.
         Otherwise, creates a new message and stores it with the given key.
 
         Args:
-            message_id: Unique key for this message (e.g., MessageId.BOARD or "my_custom_message").
+            key: Unique key for this message (e.g., MessageKey.BOARD or "my_custom_message").
             layout: MessageLayout describing content, buttons, and attachments.
             target: Where to send message ("thread" for game thread, "overview" for match overview, "ephemeral" for visible only to sender).
             purpose: Category for the message ("board", "announcement", "custom", etc) for tracking.
@@ -475,83 +650,85 @@ class RuntimeGame(ABC):
                     ButtonInput(id="move_b", label="Move B"),
                 ),
             )
-            await self.update_message(MessageId.BOARD, board)
+            await self.update_message(MessageKey.BOARD, board)
             ```
 
         """
         await self.runtime.update_message(
-            message_id,
+            key,
             layout,
             target=target,
             purpose=purpose,
         )
 
     async def delete_message(
-        self,
-        message_id: str,
-        *,
-        target: MessageTarget = "thread",
+            self,
+            key: str,
+            *,
+            target: MessageTargetValue = MessageTarget.thread,
     ) -> None:
         """Delete a previously sent message.
 
         Args:
-            message_id: Key of the message to delete (must match the key used in update_message).
+            key: Key of the message to delete (must match the key used in update_message).
             target: Which channel to delete from (must match the target used when creating the message).
 
         """
-        await self.runtime.delete_message(message_id, target=target)
+        await self.runtime.delete_message(key, target=target)
 
     @overload
     async def request_input(
-        self,
-        players: Sequence[Player],
-        inputs: Sequence[GameInputSpec],
-        *,
-        timeout: float,
-        mode: Literal["first"] = "first",
-        min_responses: int | None = None,
-        on_timeout: Callable[[InputTimeout], Any] | None = None,
-        message_id: str | None = None,
-        layout: MessageLayout | None = None,
-        target: MessageTarget = "thread",
-        purpose: MessagePurpose = "board",
-        auto_remove_on_timeout: bool = False,
-        send_timeout_warning: bool = True,
-    ) -> GameInput | InputTimeout: ...
+            self,
+            players: Sequence[Player],
+            inputs: Sequence[GameInputSpec],
+            *,
+            timeout: float,
+            mode: Literal["first"] = "first",
+            min_responses: int | None = None,
+            on_timeout: Callable[[InputTimeout], Any] | None = None,
+            key: str | None = None,
+            layout: MessageLayout | None = None,
+            target: MessageTargetValue = MessageTarget.thread,
+            purpose: MessagePurposeValue = MessagePurpose.board,
+            auto_remove_on_timeout: bool = False,
+            send_timeout_warning: bool = True,
+    ) -> GameInput | InputTimeout:
+        ...
 
     @overload
     async def request_input(
-        self,
-        players: Sequence[Player],
-        inputs: Sequence[GameInputSpec],
-        *,
-        timeout: float,
-        mode: Literal["all"],
-        min_responses: int | None = None,
-        on_timeout: Callable[[InputTimeout], Any] | None = None,
-        message_id: str | None = None,
-        layout: MessageLayout | None = None,
-        target: MessageTarget = "thread",
-        purpose: MessagePurpose = "board",
-        auto_remove_on_timeout: bool = False,
-        send_timeout_warning: bool = True,
-    ) -> list[GameInput] | InputTimeout: ...
+            self,
+            players: Sequence[Player],
+            inputs: Sequence[GameInputSpec],
+            *,
+            timeout: float,
+            mode: Literal["all"],
+            min_responses: int | None = None,
+            on_timeout: Callable[[InputTimeout], Any] | None = None,
+            key: str | None = None,
+            layout: MessageLayout | None = None,
+            target: MessageTargetValue = MessageTarget.thread,
+            purpose: MessagePurposeValue = MessagePurpose.board,
+            auto_remove_on_timeout: bool = False,
+            send_timeout_warning: bool = True,
+    ) -> list[GameInput] | InputTimeout:
+        ...
 
     async def request_input(
-        self,
-        players: Sequence[Player],
-        inputs: Sequence[GameInputSpec],
-        *,
-        timeout: float,
-        mode: InputMode = "first",
-        min_responses: int | None = None,
-        on_timeout: Callable[[InputTimeout], Any] | None = None,
-        message_id: str | None = None,
-        layout: MessageLayout | None = None,
-        target: MessageTarget = "thread",
-        purpose: MessagePurpose = "board",
-        auto_remove_on_timeout: bool = False,
-        send_timeout_warning: bool = True,
+            self,
+            players: Sequence[Player],
+            inputs: Sequence[GameInputSpec],
+            *,
+            timeout: float,
+            mode: InputModeValue = InputMode.first,
+            min_responses: int | None = None,
+            on_timeout: Callable[[InputTimeout], Any] | None = None,
+            key: str | None = None,
+            layout: MessageLayout | None = None,
+            target: MessageTargetValue = MessageTarget.thread,
+            purpose: MessagePurposeValue = MessagePurpose.board,
+            auto_remove_on_timeout: bool = False,
+            send_timeout_warning: bool = True,
     ) -> GameInput | list[GameInput] | InputTimeout:
         """Request input from one or more players.
 
@@ -568,7 +745,7 @@ class RuntimeGame(ABC):
             min_responses: Minimum responses needed to stop waiting (default: all players if mode="all").
             on_timeout: Optional callback when timeout occurs. Can return Outcome to end game,
                        or InputTimeout to propagate the timeout. Supports async functions.
-            message_id: Optional key to identify/update this message later.
+            key: Optional key to identify/update this message later.
             layout: Optional message layout to display with the input request.
             target: Where to send the message ("thread", "overview", or "ephemeral").
             purpose: Message purpose for tracking ("board", "announcement", etc).
@@ -578,10 +755,7 @@ class RuntimeGame(ABC):
         Returns:
             GameInput (single response) when mode="first"
             list[GameInput] (multiple responses) when mode="all"
-            InputTimeout if timeout occurs and no on_timeout handler is provided
-
-        Raises:
-            AutoForfeit: If timeout occurs with no on_timeout handler (unless auto_remove_on_timeout=True).
+            InputTimeout if timeout occurs and is not handled by on_timeout
 
         """
         result = await self.runtime.request_input(
@@ -590,7 +764,7 @@ class RuntimeGame(ABC):
             timeout=timeout,
             mode=mode,
             min_responses=min_responses,
-            message_id=message_id,
+            key=key,
             layout=layout,
             target=target,
             purpose=purpose,
@@ -598,10 +772,8 @@ class RuntimeGame(ABC):
             send_timeout_warning=send_timeout_warning,
         )
         if isinstance(result, InputTimeout):
-            if auto_remove_on_timeout:
-                return result
             if on_timeout is None:
-                raise AutoForfeit(result.missing_players)
+                return result
             handled = on_timeout(result)
             if inspect.isawaitable(handled):
                 return await handled
@@ -609,13 +781,13 @@ class RuntimeGame(ABC):
         return result
 
     async def record_move(
-        self,
-        actor: Player,
-        name: str,
-        arguments: dict[str, Any],
-        *,
-        source: InputSource,
-        input_id: str | None = None,
+            self,
+            actor: Player,
+            name: str,
+            arguments: dict[str, Any],
+            *,
+            source: InputSourceValue,
+            input_id: str | None = None,
     ) -> None:
         """Record a player's move to the game's replay history.
 
@@ -661,10 +833,10 @@ class RuntimeGame(ABC):
         self.runtime.log_replay_event(event_type, **payload)
 
     async def forfeit_player(
-        self,
-        player: Player,
-        *,
-        reason: str = "forfeit",
+            self,
+            player: Player,
+            *,
+            reason: str = "forfeit",
     ) -> Outcome:
         """Handle a player forfeiting and return the final outcome.
 
@@ -679,17 +851,17 @@ class RuntimeGame(ABC):
         return await self.runtime.forfeit_player(player, reason=reason)
 
     def outcome_for_forfeit(
-        self,
-        players: Sequence[Player],
-        *,
-        reason: str = "forfeit",
+            self,
+            players: Sequence[Player],
+            *,
+            reason: str = "forfeit",
     ) -> Outcome:
         forfeited = {int(player.id) for player in players}
         winners = [player for player in self.players if int(player.id) not in forfeited]
         losers = [player for player in self.players if int(player.id) in forfeited]
         if winners:
-            return Outcome(kind="winner", placements=[winners, losers], reason=reason)
-        return Outcome(kind="interrupted", placements=[losers], reason=reason)
+            return Outcome.win(winners=winners, losers=losers, reason=reason)
+        return Outcome.interrupted(players=losers, reason=reason)
 
     def get_roles(self) -> tuple[Role, ...]:
         return ()
@@ -698,14 +870,14 @@ class RuntimeGame(ABC):
         return True
 
     def role_selection_options(
-        self,
-        player_ids: list[int],
+            self,
+            player_ids: list[int],
     ) -> dict[int, tuple[Role, ...]]:
         return {}
 
     def assign_roles(
-        self,
-        selections: dict[int, str] | None = None,
+            self,
+            selections: dict[int, str] | None = None,
     ) -> list[RoleAssignment]:
         return []
 
@@ -715,37 +887,37 @@ class RuntimeGame(ABC):
     def match_summary(self, outcome: Outcome) -> dict[int, str] | None:
         return None
 
-    def initial_replay_state(self, ctx: GameContext) -> ReplayState | None:
+    def initial_replay_state(self, ctx: GameContext) -> ReplayState[Any] | None:
         return None
 
     def apply_replay_event(
-        self,
-        state: ReplayState,
-        event: dict[str, Any],
-    ) -> ReplayState | None:
+            self,
+            state: ReplayState[Any],
+            event: dict[str, Any],
+    ) -> ReplayState[Any] | None:
         return None
 
-    def render_replay(self, state: ReplayState) -> MessageLayout | None:
+    def render_replay(self, state: ReplayState[Any]) -> MessageLayout | None:
         return None
 
 
-class ReplayableGame(RuntimeGame, ABC):
+class ReplayableGame(RuntimeGame, ABC, Generic[T_State]):
     """Explicit replay capability for games that support frame reconstruction."""
 
     @abstractmethod
-    def initial_replay_state(self, ctx: GameContext) -> ReplayState | None:
+    def initial_replay_state(self, ctx: GameContext) -> ReplayState[T_State]:
         raise NotImplementedError
 
     @abstractmethod
     def apply_replay_event(
-        self,
-        state: ReplayState,
-        event: dict[str, Any],
-    ) -> ReplayState | None:
+            self,
+            state: ReplayState[T_State],
+            event: dict[str, Any],
+    ) -> ReplayState[T_State]:
         raise NotImplementedError
 
     @abstractmethod
-    def render_replay(self, state: ReplayState) -> MessageLayout | None:
+    def render_replay(self, state: ReplayState[T_State]) -> MessageLayout:
         raise NotImplementedError
 
 
@@ -759,6 +931,7 @@ __all__ = [
     "CommandInput",
     "DeleteMessage",
     "GameContext",
+    "GameEngineRuntime",
     "GameInput",
     "GameInputSpec",
     "GameMetadata",
@@ -767,7 +940,7 @@ __all__ = [
     "InputMode",
     "InputSource",
     "InputTimeout",
-    "MessageId",
+    "MessageKey",
     "MessageLayout",
     "MessagePurpose",
     "MessageTarget",

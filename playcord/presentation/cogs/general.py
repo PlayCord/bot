@@ -1713,10 +1713,10 @@ class GeneralCog(commands.Cog):
             return
 
         await ctx.response.defer(ephemeral=True)
-        result = await game.forfeit_player(ctx.user.id)
+        await game.forfeit_player(ctx.user.id)
         await followup_send(
             ctx,
-            result,
+            f"{ctx.user.mention} forfeited.",
             ephemeral=True,
             delete_after=EPHEMERAL_DELETE_AFTER,
         )

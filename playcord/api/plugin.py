@@ -44,7 +44,46 @@ class RegisteredGame:
         return self.game_class.metadata
 
 
-_REGISTRY: dict[str, RegisteredGame] = {}
+class GameRegistry:
+    def __init__(self) -> None:
+        self._games: dict[str, RegisteredGame] = {}
+
+    def register(
+        self,
+        game_class: type[RuntimeGame],
+        *,
+        key: str | None = None,
+    ) -> RegisteredGame:
+        validate_game_registration(game_class)
+        resolved_key = key or game_class.metadata.key
+        if resolved_key != game_class.metadata.key:
+            msg = (
+                f"Registered key {resolved_key!r} must match metadata.key"
+                f" {game_class.metadata.key!r}"
+            )
+            raise ConfigurationError(
+                msg,
+            )
+
+        existing = self._games.get(resolved_key)
+        if existing is not None and existing.game_class is not game_class:
+            msg = f"Game key {resolved_key!r} is already registered by {existing.class_name}"
+            raise ConfigurationError(
+                msg,
+            )
+
+        registered = RegisteredGame(resolved_key, game_class)
+        self._games[resolved_key] = registered
+        return registered
+
+    def iter_registered_games(self) -> tuple[RegisteredGame, ...]:
+        return tuple(self._games.values())
+
+    def get(self, key: str) -> RegisteredGame | None:
+        return self._games.get(key)
+
+    def clear(self) -> None:
+        self._games.clear()
 
 
 def _handler_name(spec: HandlerSpec) -> str | None:
@@ -128,48 +167,31 @@ def register_game(
     *,
     key: str | None = None,
 ) -> RegisteredGame:
-    validate_game_registration(game_class)
-    resolved_key = key or game_class.metadata.key
-    if resolved_key != game_class.metadata.key:
-        msg = (
-            f"Registered key {resolved_key!r} must match metadata.key"
-            f" {game_class.metadata.key!r}"
-        )
-        raise ConfigurationError(
-            msg,
-        )
-
-    existing = _REGISTRY.get(resolved_key)
-    if existing is not None and existing.game_class is not game_class:
-        msg = (
-            f"Game key {resolved_key!r} is already registered by {existing.class_name}"
-        )
-        raise ConfigurationError(
-            msg,
-        )
-
-    registered = RegisteredGame(resolved_key, game_class)
-    _REGISTRY[resolved_key] = registered
-    return registered
+    return default_registry.register(game_class, key=key)
 
 
 def iter_registered_games() -> tuple[RegisteredGame, ...]:
-    return tuple(_REGISTRY.values())
+    return default_registry.iter_registered_games()
 
 
 def get_registered_game(key: str) -> RegisteredGame | None:
-    return _REGISTRY.get(key)
+    return default_registry.get(key)
 
 
 def clear_registry() -> None:
-    _REGISTRY.clear()
+    default_registry.clear()
+
+
+default_registry = GameRegistry()
 
 
 __all__ = [
     "PlayerOrder",
+    "GameRegistry",
     "RegisteredGame",
     "RoleMode",
     "clear_registry",
+    "default_registry",
     "get_registered_game",
     "iter_registered_games",
     "register_game",
