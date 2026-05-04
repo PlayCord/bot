@@ -16,7 +16,6 @@ from playcord.infrastructure.constants import (
 from playcord.infrastructure.locale import fmt, get, get_dict
 from playcord.presentation.interactions.contextify import contextify
 from playcord.presentation.ui.emojis import get_emoji_string
-from playcord.presentation.ui.exceptions import ContainerValidationError
 from playcord.presentation.ui.formatting import (
     column_elo,
     column_names,
@@ -244,9 +243,7 @@ class CustomContainer:
                 f"Cannot add field: container already has {MAX_EMBED_FIELDS} fields (Discord's limit). "
                 f"Field name: {name[:50]}"
             )
-            raise ContainerValidationError(
-                msg,
-            )
+            raise ValueError(msg)
         self.fields.append(ContainerField(str(name), str(value), inline))
         return self
 
@@ -273,9 +270,7 @@ class CustomContainer:
         """Validate container doesn't exceed Discord's limits."""
         if len(self.fields) > MAX_EMBED_FIELDS:
             msg = f"Container has {len(self.fields)} fields, exceeds limit of {MAX_EMBED_FIELDS}"
-            raise ContainerValidationError(
-                msg,
-            )
+            raise ValueError(msg)
 
     def to_markdown(self) -> str:
         parts: list[str] = []
