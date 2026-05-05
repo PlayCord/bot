@@ -36,13 +36,13 @@ class LobbyRoster:
 
 
 def lobby_base_start_conditions_met(
-        *,
-        bots: list[Any],
-        game: Any,
-        metadata: Any,
-        queued_players: Any,
-        role_selections: dict[int, str],
-        specs: tuple[Any, ...],
+    *,
+    bots: list[Any],
+    game: Any,
+    metadata: Any,
+    queued_players: Any,
+    role_selections: dict[int, str],
+    specs: tuple[Any, ...],
 ) -> bool:
     total_players = len(queued_players) + len(bots)
     player_count = resolve_player_count(game)
@@ -69,13 +69,13 @@ def lobby_base_start_conditions_met(
 
 
 def lobby_add_bot(
-        roster: LobbyRoster,
-        difficulty: str,
-        *,
-        game: Any,
-        metadata: Any,
-        human_queue_size: int,
-        number: int = 1,
+    roster: LobbyRoster,
+    difficulty: str,
+    *,
+    game: Any,
+    metadata: Any,
+    human_queue_size: int,
+    number: int = 1,
 ) -> str | None:
     available_bots = getattr(metadata, "bots", {})
     if not available_bots:
@@ -84,7 +84,8 @@ def lobby_add_bot(
         return fmt("queue.bot_invalid_difficulty", difficulty=difficulty)
 
     used_names: set[str] = {
-        name for name in (getattr(p, "name", None) for p in roster.bots)
+        name
+        for name in (getattr(p, "name", None) for p in roster.bots)
         if name is not None
     }
 
@@ -103,7 +104,7 @@ def lobby_add_bot(
 
 def lobby_remove_bot(roster: LobbyRoster, bot_name: str) -> str | None:
     """Remove a bot from the roster by name.
-    
+
     Returns an error message if the bot is not found, or None on success.
     """
     for i, bot in enumerate(roster.bots):
@@ -122,11 +123,11 @@ class KickPhaseResult:
 
 
 def lobby_kick_phase(
-        *,
-        user_id: int,
-        remove_queued_player: Callable[[int], Any | None],
-        rotate_creator_if_needed: Callable[[int], None],
-        queued_count: Callable[[], int],
+    *,
+    user_id: int,
+    remove_queued_player: Callable[[int], Any | None],
+    rotate_creator_if_needed: Callable[[int], None],
+    queued_count: Callable[[], int],
 ) -> KickPhaseResult:
     kicked = remove_queued_player(user_id) is not None
     if queued_count() == 0:
@@ -143,15 +144,15 @@ class BanPhaseResult:
 
 
 def lobby_ban_phase(
-        roster: LobbyRoster,
-        *,
-        private: bool,
-        new_player: Any,
-        target_user_id: int,
-        remove_queued_player: Callable[[int], Any | None],
-        rotate_creator_if_needed: Callable[[int], None],
-        queued_count: Callable[[], int],
-        discard_from_whitelist: Callable[[int], Any | None],
+    roster: LobbyRoster,
+    *,
+    private: bool,
+    new_player: Any,
+    target_user_id: int,
+    remove_queued_player: Callable[[int], Any | None],
+    rotate_creator_if_needed: Callable[[int], None],
+    queued_count: Callable[[], int],
+    discard_from_whitelist: Callable[[int], Any | None],
 ) -> BanPhaseResult:
     kicked = remove_queued_player(new_player.id) is not None
     if queued_count() == 0:

@@ -3,11 +3,25 @@
 from __future__ import annotations
 
 import random
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from playcord.api import (BotDefinition, ButtonInput, CommandInput, GameContext, GameInput, GameMetadata, InputTimeout,
-                          MessageLayout, Move, MoveParameter, Outcome, ParameterKind, ReplayState, ReplayableGame,
-                          handler)
+from playcord.api import (
+    BotDefinition,
+    ButtonInput,
+    CommandInput,
+    GameContext,
+    GameInput,
+    GameMetadata,
+    InputTimeout,
+    MessageLayout,
+    Move,
+    MoveParameter,
+    Outcome,
+    ParameterKind,
+    ReplayableGame,
+    ReplayState,
+    handler,
+)
 from playcord.api.plugin import register_game
 
 if TYPE_CHECKING:
@@ -101,10 +115,10 @@ class TicTacToeGame(ReplayableGame):
     )
 
     def __init__(
-            self,
-            players: list[Player],
-            *,
-            match_options: dict[str, object] | None = None,
+        self,
+        players: list[Player],
+        *,
+        match_options: dict[str, object] | None = None,
     ) -> None:
         super().__init__(players, match_options=match_options)
         self.board = _new_board()
@@ -133,7 +147,9 @@ class TicTacToeGame(ReplayableGame):
                 for move in self._available_moves(self.board)
             ]
             # Ensure the board message is created/updated before requesting input
-            await self.update_message("board", self._layout(game_over=False), purpose="board")
+            await self.update_message(
+                "board", self._layout(game_over=False), purpose="board"
+            )
 
             result = await self.request_input(
                 [actor],
@@ -148,7 +164,8 @@ class TicTacToeGame(ReplayableGame):
             )
             if isinstance(result, InputTimeout):
                 return self.outcome_for_forfeit(
-                    result.missing_players, reason="timeout"
+                    result.missing_players,
+                    reason="timeout",
                 )
             if not isinstance(result, GameInput):
                 continue
@@ -173,7 +190,9 @@ class TicTacToeGame(ReplayableGame):
     def current_player(self) -> Player:
         return self.players[self.turn % len(self.players)]
 
-    def match_global_summary(self, outcome: Outcome, *, ctx: GameContext | None = None) -> str | None:
+    def match_global_summary(
+        self, outcome: Outcome, *, ctx: GameContext | None = None
+    ) -> str | None:
         if outcome.kind == "draw":
             return "Draw"
         if outcome.kind == "winner" and outcome.placements:
@@ -185,7 +204,9 @@ class TicTacToeGame(ReplayableGame):
             return "Interrupted"
         return None
 
-    def match_summary(self, outcome: Outcome, *, ctx: GameContext | None = None) -> dict[int, str] | None:
+    def match_summary(
+        self, outcome: Outcome, *, ctx: GameContext | None = None
+    ) -> dict[int, str] | None:
         if outcome.kind == "draw":
             return {int(player.id): "Draw" for player in self.players}
         if outcome.kind == "winner" and outcome.placements:
@@ -199,11 +220,11 @@ class TicTacToeGame(ReplayableGame):
         return None
 
     def autocomplete_move(
-            self,
-            actor: Player,
-            current: str,
-            *,
-            ctx: GameContext,
+        self,
+        actor: Player,
+        current: str,
+        *,
+        ctx: GameContext,
     ) -> list[tuple[str, str]]:
         _ = actor
         _ = ctx
@@ -217,33 +238,33 @@ class TicTacToeGame(ReplayableGame):
         return values[:25]
 
     def bot_easy(
-            self,
-            player: Player,
-            *,
-            request: Any,
-            ctx: GameContext,
+        self,
+        player: Player,
+        *,
+        request: Any,
+        ctx: GameContext,
     ) -> dict[str, object] | None:
         _ = request
         _ = ctx
         return self._bot_decision(player, "easy")
 
     def bot_medium(
-            self,
-            player: Player,
-            *,
-            request: Any,
-            ctx: GameContext,
+        self,
+        player: Player,
+        *,
+        request: Any,
+        ctx: GameContext,
     ) -> dict[str, object] | None:
         _ = request
         _ = ctx
         return self._bot_decision(player, "medium")
 
     def bot_hard(
-            self,
-            player: Player,
-            *,
-            request: Any,
-            ctx: GameContext,
+        self,
+        player: Player,
+        *,
+        request: Any,
+        ctx: GameContext,
     ) -> dict[str, object] | None:
         _ = request
         _ = ctx
@@ -253,7 +274,9 @@ class TicTacToeGame(ReplayableGame):
         _ = ctx
         return self._status_line()
 
-    def initial_replay_state(self, ctx: GameContext | None = None) -> ReplayState | None:
+    def initial_replay_state(
+        self, ctx: GameContext | None = None
+    ) -> ReplayState | None:
         # Accept either a positional or keyword GameContext. If none provided,
         # fall back to using the game's own current players and options.
         if ctx is None:
@@ -273,11 +296,11 @@ class TicTacToeGame(ReplayableGame):
         )
 
     def apply_replay_event(
-            self,
-            state: ReplayState,
-            event: dict[str, Any],
-            *,
-            ctx: GameContext | None = None,
+        self,
+        state: ReplayState,
+        event: dict[str, Any],
+        *,
+        ctx: GameContext | None = None,
     ) -> ReplayState | None:
         if event.get("type") != "move":
             return state
@@ -308,12 +331,14 @@ class TicTacToeGame(ReplayableGame):
             state={"board": board, "turn": turn},
         )
 
-    def render_replay(self, state: ReplayState, *, ctx: GameContext | None = None) -> MessageLayout | None:
+    def render_replay(
+        self, state: ReplayState, *, ctx: GameContext | None = None
+    ) -> MessageLayout | None:
         raw = state.state if isinstance(state.state, dict) else {}
         board = _copy_board(raw.get("board", _new_board()))
         turn = int(raw.get("turn", 0) or 0)
         outcome = self._outcome_for_board(board)
-        
+
         if outcome is not None:
             if outcome.kind == "draw":
                 content = "Draw."
@@ -328,7 +353,7 @@ class TicTacToeGame(ReplayableGame):
             content = f"Turn: {player.mention} ({marker})"
         else:
             content = "Playing..."
-            
+
         return MessageLayout(
             content=content,
             buttons=self._board_buttons(board, game_over=outcome is not None),
@@ -359,13 +384,15 @@ class TicTacToeGame(ReplayableGame):
             return f"Winner: {winner.mention}"
         return "Game Over"
 
-    def _board_buttons(self, board: Board, *, game_over: bool) -> tuple[ButtonInput, ...]:
+    def _board_buttons(
+        self, board: Board, *, game_over: bool
+    ) -> tuple[ButtonInput, ...]:
         buttons: list[ButtonInput] = []
         for row in range(BOARD_SIZE):
             for col in range(BOARD_SIZE):
                 move = f"{col}{row}"
                 mark = board[row][col]
-                
+
                 if mark == MARK_X:
                     style = "success"
                 elif mark == MARK_O:
@@ -385,16 +412,16 @@ class TicTacToeGame(ReplayableGame):
         return tuple(buttons)
 
     def _move_from_input(self, result: GameInput) -> str | None:
-        if result.source == "button":
-            raw = result.arguments.get("move")
-        elif result.source == "bot":
+        if result.source == "button" or result.source == "bot":
             raw = result.arguments.get("move")
         else:
             raw = result.arguments.get("move")
         return str(raw) if raw is not None else None
 
     def _bot_decision(
-            self, player: Player, difficulty: str
+        self,
+        player: Player,
+        difficulty: str,
     ) -> dict[str, object] | None:
         move = self._bot_move_for_difficulty(player, difficulty)
         if move is None:
@@ -455,7 +482,7 @@ class TicTacToeGame(ReplayableGame):
                 next_board = _copy_board(board)
                 next_board[row][col] = active
                 scores.append(
-                    score(next_board, opponent if active == marker else marker)
+                    score(next_board, opponent if active == marker else marker),
                 )
             return max(scores) if active == marker else min(scores)
 
@@ -477,11 +504,15 @@ class TicTacToeGame(ReplayableGame):
                 winner = self.players[0] if marker == MARK_X else self.players[1]
                 loser = self.players[1] if marker == MARK_X else self.players[0]
                 return Outcome(
-                    kind="winner", placements=[[winner], [loser]], reason=reason
+                    kind="winner",
+                    placements=[[winner], [loser]],
+                    reason=reason,
                 )
         if not self._available_moves(board):
             return Outcome(
-                kind="draw", placements=[list(self.players)], reason="board full"
+                kind="draw",
+                placements=[list(self.players)],
+                reason="board full",
             )
         return None
 

@@ -28,7 +28,9 @@ def discord_user_mention(user_id: int | None) -> str:
 def player_display_label(user: Any) -> str:
     """Discord mention for humans; bot name and difficulty for AI players."""
     if getattr(user, "is_bot", False):
-        base = getattr(user, "display_name", None) or getattr(user, "name", None) or "Bot"
+        base = (
+            getattr(user, "display_name", None) or getattr(user, "name", None) or "Bot"
+        )
         diff = getattr(user, "bot_difficulty", None)
         if diff:
             return f"{base} ({diff})"
@@ -90,8 +92,8 @@ def _turn_marker_ids(turn: Any | None) -> set[int]:
     if turn is None:
         return set()
     if isinstance(turn, (tuple, list, frozenset, set)):
-        return {int(getattr(p, "id")) for p in turn}
-    return {int(getattr(turn, "id"))}
+        return {int(p.id) for p in turn}
+    return {int(turn.id)}
 
 
 def column_turn(
@@ -104,10 +106,7 @@ def column_turn(
     """
     eligible_ids = _turn_marker_ids(turn)
     return "\n".join(
-        [
-            "✅" if int(getattr(u, "id")) in eligible_ids else LONG_SPACE_EMBED
-            for u in players
-        ],
+        ["✅" if int(u.id) in eligible_ids else LONG_SPACE_EMBED for u in players],
     )
 
 

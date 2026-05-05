@@ -216,10 +216,14 @@ def _summary_text(
         "placements",
         None,
     ):
-        winner = outcome.placements[0][0]
-        lines.append(f"Winner: {winner.mention}")
+        winners = ", ".join(player.mention for player in outcome.placements[0])
+        label = "Winners" if len(outcome.placements[0]) != 1 else "Winner"
+        lines.append(f"{label}: {winners}")
     elif getattr(outcome, "kind", None) == "draw":
         lines.append("Result: Draw")
+    reason = getattr(outcome, "reason", None)
+    if reason:
+        lines.append(f"Outcome: {reason}")
     if runtime.rated:
         lines.append("")
         for player in runtime.players:

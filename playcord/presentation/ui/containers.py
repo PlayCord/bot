@@ -318,7 +318,10 @@ class CustomContainer:
 
 class SuccessContainer(CustomContainer):
     def __init__(
-        self, title: str | None = None, description: str | None = None, **kwargs,
+        self,
+        title: str | None = None,
+        description: str | None = None,
+        **kwargs,
     ) -> None:
         kwargs["color"] = SUCCESS_COLOR
         kwargs["title"] = f"✅ {title or get('success.default_title')}"
@@ -329,7 +332,10 @@ class SuccessContainer(CustomContainer):
 
 class WarningContainer(CustomContainer):
     def __init__(
-        self, title: str | None = None, description: str | None = None, **kwargs,
+        self,
+        title: str | None = None,
+        description: str | None = None,
+        **kwargs,
     ) -> None:
         kwargs["color"] = WARNING_COLOR
         kwargs["title"] = f"⚠️ {title or get('warnings.default_title')}"
@@ -340,7 +346,10 @@ class WarningContainer(CustomContainer):
 
 class UserErrorContainer(CustomContainer):
     def __init__(
-        self, description: str | None = None, suggestion: str | None = None, **kwargs,
+        self,
+        description: str | None = None,
+        suggestion: str | None = None,
+        **kwargs,
     ) -> None:
         kwargs["color"] = ERROR_COLOR
         super().__init__(**kwargs)

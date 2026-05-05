@@ -81,8 +81,8 @@ _PAGINATION_PREFIXES = (
 
 
 async def _pagination_unhandled_fallback(
-        interaction: discord.Interaction,
-        custom_id: str,
+    interaction: discord.Interaction,
+    custom_id: str,
 ) -> None:
     """If no registered PaginationView handled the click (e.g. after restart).
 
@@ -94,7 +94,7 @@ async def _pagination_unhandled_fallback(
     rest = custom_id
     for prefix in _PAGINATION_PREFIXES:
         if custom_id.startswith(prefix):
-            rest = custom_id[len(prefix):]
+            rest = custom_id[len(prefix) :]
             break
     msg = get("interactions.pagination_outdated")
     parts = rest.split("/")
@@ -105,7 +105,7 @@ async def _pagination_unhandled_fallback(
             pass
         else:
             if interaction.user.id != uid or (
-                    interaction.guild_id is not None and gid != interaction.guild_id
+                interaction.guild_id is not None and gid != interaction.guild_id
             ):
                 msg = get("interactions.pagination_not_yours")
     with contextlib.suppress(discord.HTTPException):
@@ -118,7 +118,7 @@ async def _pagination_unhandled_fallback(
 
 
 def _parse_component_id(custom_id: str, prefix: str) -> tuple[int, str]:
-    tail = custom_id[len(prefix):]
+    tail = custom_id[len(prefix) :]
     resource_raw, payload = ([*tail.split("/", 1), ""])[:2]
     return int(resource_raw), payload
 
@@ -156,7 +156,7 @@ class GamesCog(commands.Cog):
             return
 
         if ctx.type is discord.InteractionType.component and any(
-                custom_id.startswith(p) for p in _PAGINATION_PREFIXES
+            custom_id.startswith(p) for p in _PAGINATION_PREFIXES
         ):
             asyncio.create_task(_pagination_unhandled_fallback(ctx, custom_id))
             return
@@ -207,10 +207,10 @@ class GamesCog(commands.Cog):
             )
 
     async def _route_replay_nav(
-            self,
-            ctx: discord.Interaction,
-            resource_id: int,
-            payload: str,
+        self,
+        ctx: discord.Interaction,
+        resource_id: int,
+        payload: str,
     ) -> None:
         await ctx.response.defer()
         payload_data = parse_qs(payload)
@@ -327,10 +327,10 @@ class GamesCog(commands.Cog):
         await ctx.edit_original_response(view=view)
 
     async def _route_runtime_move(
-            self,
-            ctx: discord.Interaction,
-            resource_id: int,
-            payload: str,
+        self,
+        ctx: discord.Interaction,
+        resource_id: int,
+        payload: str,
     ) -> None:
         await ctx.response.defer()
         runtime = self._active_games.get(resource_id)
@@ -344,10 +344,10 @@ class GamesCog(commands.Cog):
         )
 
     async def _route_runtime_select(
-            self,
-            ctx: discord.Interaction,
-            resource_id: int,
-            payload: str,
+        self,
+        ctx: discord.Interaction,
+        resource_id: int,
+        payload: str,
     ) -> None:
         await ctx.response.defer()
         runtime = self._active_games.get(resource_id)
@@ -563,10 +563,10 @@ async def setup(bot: commands.Bot) -> None:
 
 
 async def begin_game(
-        ctx: discord.Interaction,
-        game_type: str,
-        rated: bool = True,
-        private: bool = False,
+    ctx: discord.Interaction,
+    game_type: str,
+    rated: bool = True,
+    private: bool = False,
 ) -> MatchmakingInterface | None:
     f_log = log.getChild("command.matchmaking")
     f_log.debug(
@@ -719,9 +719,9 @@ async def add_matchmaking_bot(ctx: discord.Interaction, difficulty: str) -> bool
 
 
 async def handle_move(
-        ctx: discord.Interaction,
-        name,
-        arguments,
+    ctx: discord.Interaction,
+    name,
+    arguments,
 ) -> None:
     from playcord.infrastructure.analytics_client import EventType, register_event
 
@@ -740,10 +740,10 @@ async def handle_move(
     )
 
     def _track_move_rejected(
-            reason: str,
-            *,
-            game_type: str | None = None,
-            match_id: int | None = None,
+        reason: str,
+        *,
+        game_type: str | None = None,
+        match_id: int | None = None,
     ) -> None:
         register_event(
             EventType.MOVE_REJECTED,
@@ -759,13 +759,15 @@ async def handle_move(
             },
         )
 
-    if ctx.channel.type != discord.ChannelType.private_thread:
+    # Both public and private threads are valid, error without an additional check if it's not one of those
+    if ctx.channel.type not in [
+        discord.ChannelType.private_thread,
+        discord.ChannelType.public_thread,
+    ]:
         _track_move_rejected("wrong_channel")
         await followup_send(
             ctx,
-            content=(
-                get('move.invalid_context')
-            ),
+            content=(get("move.invalid_context")),
             ephemeral=True,
             delete_after=EPHEMERAL_DELETE_AFTER,
         )
@@ -775,9 +777,7 @@ async def handle_move(
         _track_move_rejected("no_active_game")
         await followup_send(
             ctx,
-            content=(
-                get('move.invalid_context')
-            ),
+            content=(get("move.invalid_context")),
             ephemeral=True,
             delete_after=EPHEMERAL_DELETE_AFTER,
         )
@@ -820,10 +820,10 @@ async def handle_move(
 
 
 async def handle_autocomplete(
-        ctx: discord.Interaction,
-        function,
-        current: str,
-        argument,
+    ctx: discord.Interaction,
+    function,
+    current: str,
+    argument,
 ) -> list[Choice[str]]:
     try:
         reg = get_container().registry

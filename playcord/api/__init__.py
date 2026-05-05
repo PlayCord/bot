@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Generic, Literal, Protocol, TYPE_CHECKING, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Generic, Literal, Protocol, TypeVar, overload
 
 from playcord.api.bot import BotDefinition
 from playcord.api.handlers import HandlerRef, HandlerSpec, handler
@@ -71,13 +71,16 @@ class InputMode(StrEnum):
 
 ButtonStyleValue = ButtonStyle | Literal["primary", "secondary", "success", "danger"]
 MessageTargetValue = MessageTarget | Literal["thread", "overview", "ephemeral"]
-MessagePurposeValue = MessagePurpose | Literal[
-    "board",
-    "announcement",
-    "ephemeral",
-    "custom",
-    "overview",
-]
+MessagePurposeValue = (
+    MessagePurpose
+    | Literal[
+        "board",
+        "announcement",
+        "ephemeral",
+        "custom",
+        "overview",
+    ]
+)
 OutcomeKindValue = OutcomeKind | Literal["winner", "draw", "interrupted"]
 InputSourceValue = InputSource | Literal["command", "button", "select", "bot"]
 InputModeValue = InputMode | Literal["first", "all"]
@@ -270,11 +273,11 @@ class Outcome:
 
     @classmethod
     def win(
-            cls,
-            winners: Sequence[Player],
-            losers: Sequence[Player],
-            *,
-            reason: str | None = None,
+        cls,
+        winners: Sequence[Player],
+        losers: Sequence[Player],
+        *,
+        reason: str | None = None,
     ) -> Outcome:
         """Factory to create a standard winner/loser outcome."""
         return cls(
@@ -290,11 +293,16 @@ class Outcome:
 
     @classmethod
     def interrupted(
-            cls, players: Sequence[Player], *, reason: str | None = None
+        cls,
+        players: Sequence[Player],
+        *,
+        reason: str | None = None,
     ) -> Outcome:
         """Factory to create an interrupted outcome."""
         return cls(
-            kind=OutcomeKind.interrupted, placements=(tuple(players),), reason=reason
+            kind=OutcomeKind.interrupted,
+            placements=(tuple(players),),
+            reason=reason,
         )
 
 
@@ -440,88 +448,88 @@ class GameEngineRuntime(Protocol):
     def build_context(self) -> GameContext: ...
 
     async def update_message(
-            self,
-            key: str,
-            layout: MessageLayout,
-            *,
-            target: MessageTargetValue = MessageTarget.thread,
-            purpose: MessagePurposeValue = MessagePurpose.board,
+        self,
+        key: str,
+        layout: MessageLayout,
+        *,
+        target: MessageTargetValue = MessageTarget.thread,
+        purpose: MessagePurposeValue = MessagePurpose.board,
     ) -> None: ...
 
     async def delete_message(
-            self,
-            key: str,
-            *,
-            target: MessageTargetValue = MessageTarget.thread,
+        self,
+        key: str,
+        *,
+        target: MessageTargetValue = MessageTarget.thread,
     ) -> None: ...
 
     @overload
     async def request_input(
-            self,
-            *,
-            players: Sequence[Player],
-            inputs: Sequence[GameInputSpec],
-            timeout: float,
-            mode: Literal["first"] = "first",
-            min_responses: int | None = None,
-            key: str | None = None,
-            layout: MessageLayout | None = None,
-            target: MessageTargetValue = MessageTarget.thread,
-            purpose: MessagePurposeValue = MessagePurpose.board,
-            auto_remove_on_timeout: bool = False,
-            send_timeout_warning: bool = True,
+        self,
+        *,
+        players: Sequence[Player],
+        inputs: Sequence[GameInputSpec],
+        timeout: float,
+        mode: Literal["first"] = "first",
+        min_responses: int | None = None,
+        key: str | None = None,
+        layout: MessageLayout | None = None,
+        target: MessageTargetValue = MessageTarget.thread,
+        purpose: MessagePurposeValue = MessagePurpose.board,
+        auto_remove_on_timeout: bool = False,
+        send_timeout_warning: bool = True,
     ) -> GameInput | InputTimeout: ...
 
     @overload
     async def request_input(
-            self,
-            *,
-            players: Sequence[Player],
-            inputs: Sequence[GameInputSpec],
-            timeout: float,
-            mode: Literal["all"],
-            min_responses: int | None = None,
-            key: str | None = None,
-            layout: MessageLayout | None = None,
-            target: MessageTargetValue = MessageTarget.thread,
-            purpose: MessagePurposeValue = MessagePurpose.board,
-            auto_remove_on_timeout: bool = False,
-            send_timeout_warning: bool = True,
+        self,
+        *,
+        players: Sequence[Player],
+        inputs: Sequence[GameInputSpec],
+        timeout: float,
+        mode: Literal["all"],
+        min_responses: int | None = None,
+        key: str | None = None,
+        layout: MessageLayout | None = None,
+        target: MessageTargetValue = MessageTarget.thread,
+        purpose: MessagePurposeValue = MessagePurpose.board,
+        auto_remove_on_timeout: bool = False,
+        send_timeout_warning: bool = True,
     ) -> list[GameInput] | InputTimeout: ...
 
     async def request_input(
-            self,
-            *,
-            players: Sequence[Player],
-            inputs: Sequence[GameInputSpec],
-            timeout: float,
-            mode: InputModeValue = InputMode.first,
-            min_responses: int | None = None,
-            key: str | None = None,
-            layout: MessageLayout | None = None,
-            target: MessageTargetValue = MessageTarget.thread,
-            purpose: MessagePurposeValue = MessagePurpose.board,
-            auto_remove_on_timeout: bool = False,
-            send_timeout_warning: bool = True,
+        self,
+        *,
+        players: Sequence[Player],
+        inputs: Sequence[GameInputSpec],
+        timeout: float,
+        mode: InputModeValue = InputMode.first,
+        min_responses: int | None = None,
+        key: str | None = None,
+        layout: MessageLayout | None = None,
+        target: MessageTargetValue = MessageTarget.thread,
+        purpose: MessagePurposeValue = MessagePurpose.board,
+        auto_remove_on_timeout: bool = False,
+        send_timeout_warning: bool = True,
     ) -> GameInput | list[GameInput] | InputTimeout: ...
 
     async def record_move(
-            self,
-            actor: Player,
-            name: str,
-            arguments: dict[str, Any],
-            *,
-            source: InputSourceValue,
-            input_id: str | None = None,
+        self,
+        actor: Player,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        source: InputSourceValue,
+        input_id: str | None = None,
     ) -> None: ...
 
     def log_replay_event(self, event_type: str, **payload: Any) -> None: ...
 
     async def forfeit_player(
-            self,
-            player: Player,
-            *,
-            reason: str = "forfeit",
+        self,
+        player: Player,
+        *,
+        reason: str = "forfeit",
     ) -> Outcome: ...
 
 
@@ -580,10 +588,10 @@ class RuntimeGame(ABC):
     metadata: GameMetadata
 
     def __init__(
-            self,
-            players: list[Player],
-            *,
-            match_options: dict[str, Any] | None = None,
+        self,
+        players: list[Player],
+        *,
+        match_options: dict[str, Any] | None = None,
     ) -> None:
         self.players = players
         self.match_options = dict(match_options or {})
@@ -623,12 +631,12 @@ class RuntimeGame(ABC):
         """Run the game until it returns a final outcome."""
 
     async def update_message(
-            self,
-            key: str,
-            layout: MessageLayout,
-            *,
-            target: MessageTargetValue = MessageTarget.thread,
-            purpose: MessagePurposeValue = MessagePurpose.board,
+        self,
+        key: str,
+        layout: MessageLayout,
+        *,
+        target: MessageTargetValue = MessageTarget.thread,
+        purpose: MessagePurposeValue = MessagePurpose.board,
     ) -> None:
         """Update or create a message with game content.
 
@@ -662,10 +670,10 @@ class RuntimeGame(ABC):
         )
 
     async def delete_message(
-            self,
-            key: str,
-            *,
-            target: MessageTargetValue = MessageTarget.thread,
+        self,
+        key: str,
+        *,
+        target: MessageTargetValue = MessageTarget.thread,
     ) -> None:
         """Delete a previously sent message.
 
@@ -678,57 +686,55 @@ class RuntimeGame(ABC):
 
     @overload
     async def request_input(
-            self,
-            players: Sequence[Player],
-            inputs: Sequence[GameInputSpec],
-            *,
-            timeout: float,
-            mode: Literal["first"] = "first",
-            min_responses: int | None = None,
-            on_timeout: Callable[[InputTimeout], Any] | None = None,
-            key: str | None = None,
-            layout: MessageLayout | None = None,
-            target: MessageTargetValue = MessageTarget.thread,
-            purpose: MessagePurposeValue = MessagePurpose.board,
-            auto_remove_on_timeout: bool = False,
-            send_timeout_warning: bool = True,
-    ) -> GameInput | InputTimeout:
-        ...
+        self,
+        players: Sequence[Player],
+        inputs: Sequence[GameInputSpec],
+        *,
+        timeout: float,
+        mode: Literal["first"] = "first",
+        min_responses: int | None = None,
+        on_timeout: Callable[[InputTimeout], Any] | None = None,
+        key: str | None = None,
+        layout: MessageLayout | None = None,
+        target: MessageTargetValue = MessageTarget.thread,
+        purpose: MessagePurposeValue = MessagePurpose.board,
+        auto_remove_on_timeout: bool = False,
+        send_timeout_warning: bool = True,
+    ) -> GameInput | InputTimeout: ...
 
     @overload
     async def request_input(
-            self,
-            players: Sequence[Player],
-            inputs: Sequence[GameInputSpec],
-            *,
-            timeout: float,
-            mode: Literal["all"],
-            min_responses: int | None = None,
-            on_timeout: Callable[[InputTimeout], Any] | None = None,
-            key: str | None = None,
-            layout: MessageLayout | None = None,
-            target: MessageTargetValue = MessageTarget.thread,
-            purpose: MessagePurposeValue = MessagePurpose.board,
-            auto_remove_on_timeout: bool = False,
-            send_timeout_warning: bool = True,
-    ) -> list[GameInput] | InputTimeout:
-        ...
+        self,
+        players: Sequence[Player],
+        inputs: Sequence[GameInputSpec],
+        *,
+        timeout: float,
+        mode: Literal["all"],
+        min_responses: int | None = None,
+        on_timeout: Callable[[InputTimeout], Any] | None = None,
+        key: str | None = None,
+        layout: MessageLayout | None = None,
+        target: MessageTargetValue = MessageTarget.thread,
+        purpose: MessagePurposeValue = MessagePurpose.board,
+        auto_remove_on_timeout: bool = False,
+        send_timeout_warning: bool = True,
+    ) -> list[GameInput] | InputTimeout: ...
 
     async def request_input(
-            self,
-            players: Sequence[Player],
-            inputs: Sequence[GameInputSpec],
-            *,
-            timeout: float,
-            mode: InputModeValue = InputMode.first,
-            min_responses: int | None = None,
-            on_timeout: Callable[[InputTimeout], Any] | None = None,
-            key: str | None = None,
-            layout: MessageLayout | None = None,
-            target: MessageTargetValue = MessageTarget.thread,
-            purpose: MessagePurposeValue = MessagePurpose.board,
-            auto_remove_on_timeout: bool = False,
-            send_timeout_warning: bool = True,
+        self,
+        players: Sequence[Player],
+        inputs: Sequence[GameInputSpec],
+        *,
+        timeout: float,
+        mode: InputModeValue = InputMode.first,
+        min_responses: int | None = None,
+        on_timeout: Callable[[InputTimeout], Any] | None = None,
+        key: str | None = None,
+        layout: MessageLayout | None = None,
+        target: MessageTargetValue = MessageTarget.thread,
+        purpose: MessagePurposeValue = MessagePurpose.board,
+        auto_remove_on_timeout: bool = False,
+        send_timeout_warning: bool = True,
     ) -> GameInput | list[GameInput] | InputTimeout:
         """Request input from one or more players.
 
@@ -781,13 +787,13 @@ class RuntimeGame(ABC):
         return result
 
     async def record_move(
-            self,
-            actor: Player,
-            name: str,
-            arguments: dict[str, Any],
-            *,
-            source: InputSourceValue,
-            input_id: str | None = None,
+        self,
+        actor: Player,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        source: InputSourceValue,
+        input_id: str | None = None,
     ) -> None:
         """Record a player's move to the game's replay history.
 
@@ -833,10 +839,10 @@ class RuntimeGame(ABC):
         self.runtime.log_replay_event(event_type, **payload)
 
     async def forfeit_player(
-            self,
-            player: Player,
-            *,
-            reason: str = "forfeit",
+        self,
+        player: Player,
+        *,
+        reason: str = "forfeit",
     ) -> Outcome:
         """Handle a player forfeiting and return the final outcome.
 
@@ -851,10 +857,10 @@ class RuntimeGame(ABC):
         return await self.runtime.forfeit_player(player, reason=reason)
 
     def outcome_for_forfeit(
-            self,
-            players: Sequence[Player],
-            *,
-            reason: str = "forfeit",
+        self,
+        players: Sequence[Player],
+        *,
+        reason: str = "forfeit",
     ) -> Outcome:
         forfeited = {int(player.id) for player in players}
         winners = [player for player in self.players if int(player.id) not in forfeited]
@@ -870,14 +876,14 @@ class RuntimeGame(ABC):
         return True
 
     def role_selection_options(
-            self,
-            player_ids: list[int],
+        self,
+        player_ids: list[int],
     ) -> dict[int, tuple[Role, ...]]:
         return {}
 
     def assign_roles(
-            self,
-            selections: dict[int, str] | None = None,
+        self,
+        selections: dict[int, str] | None = None,
     ) -> list[RoleAssignment]:
         return []
 
@@ -891,9 +897,9 @@ class RuntimeGame(ABC):
         return None
 
     def apply_replay_event(
-            self,
-            state: ReplayState[Any],
-            event: dict[str, Any],
+        self,
+        state: ReplayState[Any],
+        event: dict[str, Any],
     ) -> ReplayState[Any] | None:
         return None
 
@@ -910,9 +916,9 @@ class ReplayableGame(RuntimeGame, ABC, Generic[T_State]):
 
     @abstractmethod
     def apply_replay_event(
-            self,
-            state: ReplayState[T_State],
-            event: dict[str, Any],
+        self,
+        state: ReplayState[T_State],
+        event: dict[str, Any],
     ) -> ReplayState[T_State]:
         raise NotImplementedError
 

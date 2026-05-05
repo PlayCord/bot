@@ -860,7 +860,7 @@ field_ids_name = "IDs"
 field_ids_value = "Lobby message `{lobby_id}` · game `{game}` — an 8-character match code appears in the private game thread title and works with {command:playcord replay}."
 source = "Source"
 already_in_game = "You are already in the game!"
-already_in_active_game_other_server = "You are already in an active game in another server. Finish that game before joining this lobby."
+already_in_active_game = "You are already in an active game. Finish that game before joining this lobby."
 already_in_another_queue = "You are already queued in another lobby. Leave that queue before joining this one."
 couldnt_connect_db = "Couldn't connect to DB!"
 self_ban_only_player = "idk why you banned yourself when you are the only one in the lobby, lol"
@@ -912,7 +912,7 @@ dead_view = "That interaction is no longer active due to a bot restart! Please c
 pagination_outdated = "This pagination is outdated due to a bot restart. Please just run {command:playcord catalog} again to see the latest games :)"
 
 [autocomplete]
-no_game_in_channel = "There is no game in this channel!"
+no_game_in_channel = "No active game in this thread. Use the private game thread (or start a new game if the bot restarted)."
 game_finished = "This game is already over."
 function_missing = "Autocomplete function is not defined!"
 
@@ -967,7 +967,7 @@ already_in_game_title = "Already In Game"
 already_in_game_description = "You are already in an active game in another server. Finish that game before starting a new one."
 
 [move]
-invalid_context = "Move commands can only be run during a game"
+invalid_context = "Move commands can only be run during a game."
 no_active_game = "No active game found in this thread."
 wrong_game_type = "That move belongs to a different game. Use the `{game}` command group for this thread."
 unexpected_processing_error = "An unexpected error occurred while processing your move. Please try again or report on GitHub if it keeps happening."
@@ -1005,4 +1005,5 @@ wrong_channel = "Use {command:playcord forfeit} inside your active private game 
 summary = "Forfeited"
 
 [timeout]
-warning = "Input timeout for {players} ({timestamp}). They have been removed from the game."
+warning = "{players} must move {timestamp} or they will time out."
+timed_out = "{players} timed out."

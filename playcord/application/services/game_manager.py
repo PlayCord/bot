@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import parse_qs, urlencode
@@ -16,9 +17,9 @@ from playcord.api import (
     BinaryAsset,
     ButtonInput,
     CommandInput,
-    GameEngineRuntime,
     DeleteMessage,
     GameContext,
+    GameEngineRuntime,
     GameInput,
     GameInputSpec,
     InputMode,
@@ -66,6 +67,10 @@ class PendingInputRequest:
     future: asyncio.Future[Any]
     responses: dict[int, GameInput] = field(default_factory=dict)
     bot_tasks: list[asyncio.Task[Any]] = field(default_factory=list)
+    timeout_warning_task: asyncio.Task[Any] | None = None
+    timeout_warning_message: discord.Message | None = None
+    timeout_warning_player_ids: set[int] = field(default_factory=set)
+    timeout_deadline_unix: int | None = None
 
     @property
     def player_ids(self) -> set[int]:
@@ -83,6 +88,15 @@ class PendingInputRequest:
         responded = set(self.responses)
         return tuple(
             player for player in self.players if int(player.id) not in responded
+        )
+
+    def warned_missing_players(self) -> tuple[Any, ...]:
+        responded = set(self.responses)
+        return tuple(
+            player
+            for player in self.players
+            if int(player.id) in self.timeout_warning_player_ids
+            and int(player.id) not in responded
         )
 
 
@@ -129,7 +143,7 @@ def _format_started_overview_text(game_name: str, players: list[Any]) -> str:
         if not getattr(player, "is_bot", False)
     ]
     players_text = ", ".join(human_mentions) or get(
-        "game.started_overview.no_human_players"
+        "game.started_overview.no_human_players",
     )
     bot_count = sum(1 for player in players if getattr(player, "is_bot", False))
     bot_word = get(
@@ -178,7 +192,7 @@ class GameManager:
             players=list(players),
             match_options=match_options or {},
         )
-        self.plugin._bind_runtime(cast(GameEngineRuntime, self))
+        self.plugin._bind_runtime(cast("GameEngineRuntime", self))
         self.game = self.plugin
         self.creator = creator
         self.players = list(players)
@@ -323,7 +337,10 @@ class GameManager:
         await self._apply_actions(
             (
                 UpsertMessage(
-                    target=target, key=key, layout=layout, purpose=purpose
+                    target=target,
+                    key=key,
+                    layout=layout,
+                    purpose=purpose,
                 ),
             ),
         )
@@ -334,7 +351,7 @@ class GameManager:
         *,
         target: MessageTarget = MessageTarget.thread,
     ) -> None:
-        await self._apply_actions((DeleteMessage(target=target, key=message_id),))
+        await self._apply_actions((DeleteMessage(target=target, key=key),))
 
     async def request_input(
         self,
@@ -377,7 +394,8 @@ class GameManager:
             self._pending = request
             if layout is not None and key is not None:
                 request_layout = self._layout_with_request_inputs(
-                    layout, request.inputs
+                    layout,
+                    request.inputs,
                 )
                 await self.update_message(
                     key,
@@ -386,6 +404,8 @@ class GameManager:
                     purpose=purpose,
                 )
             self._schedule_bot_inputs(request)
+            if send_timeout_warning and timeout > 0:
+                self._schedule_timeout_warning(request, timeout=timeout)
         try:
             return await asyncio.wait_for(request.future, timeout=timeout)
         except TimeoutError:
@@ -408,6 +428,8 @@ class GameManager:
                     self._pending = None
                 for task in request.bot_tasks:
                     task.cancel()
+                if request.timeout_warning_task is not None:
+                    request.timeout_warning_task.cancel()
 
     @staticmethod
     def _layout_with_request_inputs(
@@ -432,11 +454,116 @@ class GameManager:
         for player in request.players:
             if getattr(player, "is_bot", False):
                 request.bot_tasks.append(
-                    asyncio.create_task(self._submit_bot_input(player, request))
+                    asyncio.create_task(self._submit_bot_input(player, request)),
                 )
 
+    def _schedule_timeout_warning(
+        self,
+        request: PendingInputRequest,
+        *,
+        timeout: float,
+    ) -> None:
+        if self.thread is None:
+            return
+        request.timeout_deadline_unix = int(time.time() + timeout)
+        request.timeout_warning_task = asyncio.create_task(
+            self._send_timeout_warning_at_threshold(request, delay=timeout / 2),
+        )
+
+    @staticmethod
+    def _format_timeout_player_mentions(players: tuple[Any, ...]) -> str:
+        return ", ".join(_mention_for_overview(player) for player in players)
+
+    def _format_timeout_warning_message(
+        self,
+        players: tuple[Any, ...],
+        *,
+        deadline_unix: int,
+    ) -> str:
+        return get("timeout.warning").format(
+            players=self._format_timeout_player_mentions(players),
+            timestamp=f"<t:{deadline_unix}:R>",
+        )
+
+    async def _send_timeout_warning_at_threshold(
+        self,
+        request: PendingInputRequest,
+        *,
+        delay: float,
+    ) -> None:
+        try:
+            await asyncio.sleep(delay)
+        except asyncio.CancelledError:
+            return
+        async with self._request_lock:
+            if (
+                self._pending is not request
+                or request.future.done()
+                or self.thread is None
+            ):
+                return
+            missing_players = request.missing_players()
+            if not missing_players:
+                return
+            warning_text = self._format_timeout_warning_message(
+                missing_players,
+                deadline_unix=request.timeout_deadline_unix or int(time.time()),
+            )
+            thread = self.thread
+            warned_player_ids = {int(player.id) for player in missing_players}
+        try:
+            warning_message = await thread.send(warning_text)
+        except Exception:
+            self.logger.exception("Failed to send timeout warning")
+            return
+        should_delete = False
+        async with self._request_lock:
+            if self._pending is not request or request.future.done():
+                should_delete = True
+            else:
+                request.timeout_warning_message = warning_message
+                request.timeout_warning_player_ids = warned_player_ids
+        if should_delete:
+            try:
+                await warning_message.delete()
+            except Exception:
+                self.logger.exception("Failed to delete timeout warning")
+            return
+        await self._sync_timeout_warning_message(request)
+
+    async def _sync_timeout_warning_message(self, request: PendingInputRequest) -> None:
+        async with self._request_lock:
+            if self._pending is not request:
+                return
+            warning_message = request.timeout_warning_message
+            if warning_message is None:
+                return
+            remaining_players = request.warned_missing_players()
+            deadline_unix = request.timeout_deadline_unix or int(time.time())
+        if not remaining_players:
+            try:
+                await warning_message.delete()
+            except Exception:
+                self.logger.exception("Failed to delete timeout warning")
+            finally:
+                async with self._request_lock:
+                    if request.timeout_warning_message is warning_message:
+                        request.timeout_warning_message = None
+                        request.timeout_warning_player_ids.clear()
+            return
+        warning_text = self._format_timeout_warning_message(
+            remaining_players,
+            deadline_unix=deadline_unix,
+        )
+        try:
+            await warning_message.edit(content=warning_text)
+        except Exception:
+            self.logger.exception("Failed to update timeout warning")
+
     async def _submit_bot_input(
-        self, player: Any, request: PendingInputRequest
+        self,
+        player: Any,
+        request: PendingInputRequest,
     ) -> None:
         await asyncio.sleep(0.5)
         if self.ending_game:
@@ -543,22 +670,26 @@ class GameManager:
         values: tuple[str, ...],
         interaction: discord.Interaction | None,
     ) -> bool:
+        warning_request: PendingInputRequest | None = None
         async with self._request_lock:
             pending = self._pending
             if pending is None or pending.request_id != request_id:
                 await self._send_invalid_input(
-                    interaction, "That input is not valid right now."
+                    interaction,
+                    "That input is not valid right now.",
                 )
                 return False
             if actor is None or int(actor.id) not in pending.player_ids:
                 await self._send_invalid_input(
-                    interaction, get("permissions.not_participant")
+                    interaction,
+                    get("permissions.not_participant"),
                 )
                 return False
             spec = pending.input_by_id.get(input_id)
             if spec is None or not self._source_matches_spec(source, spec):
                 await self._send_invalid_input(
-                    interaction, "That input is not valid right now."
+                    interaction,
+                    "That input is not valid right now.",
                 )
                 return False
             player_id = int(actor.id)
@@ -572,9 +703,14 @@ class GameManager:
                 ctx=self.build_context(),
             )
             pending.responses[player_id] = game_input
+            if (
+                pending.timeout_warning_message is not None
+                and player_id in pending.timeout_warning_player_ids
+            ):
+                warning_request = pending
             if pending.future.done():
-                return True
-            if pending.mode == InputMode.first:
+                pass
+            elif pending.mode == InputMode.first:
                 pending.future.set_result(game_input)
             elif len(pending.responses) >= pending.min_responses:
                 ordered = [
@@ -583,6 +719,8 @@ class GameManager:
                     if int(player.id) in pending.responses
                 ]
                 pending.future.set_result(ordered)
+        if warning_request is not None:
+            await self._sync_timeout_warning_message(warning_request)
         return True
 
     @staticmethod
@@ -632,27 +770,19 @@ class GameManager:
         auto_remove: bool = False,
         send_warning: bool = True,
     ) -> None:
-        """Handle input timeout by sending warnings and optionally removing players."""
-        import time
-
+        """Handle input timeout by notifying and optionally removing players."""
         missing_players = timeout_result.missing_players
         if not missing_players:
             return
 
-        if send_warning and self.thread is not None:
-            current_time = int(time.time())
-            timestamp_str = f"<t:{current_time}:R>"
-            warning_msg = get(
-                "timeout.warning",
-                default="⏱️ Input timeout for {players} ({timestamp}).",
-            ).format(
-                players=", ".join(p.mention for p in missing_players),
-                timestamp=timestamp_str,
+        if send_warning and not auto_remove and self.thread is not None:
+            timed_out_msg = get("timeout.timed_out").format(
+                players=self._format_timeout_player_mentions(missing_players),
             )
             try:
-                await self.thread.send(warning_msg, delete_after=EPHEMERAL_DELETE_AFTER)
+                await self.thread.send(timed_out_msg)
             except Exception:
-                self.logger.exception("Failed to send timeout warning")
+                self.logger.exception("Failed to send timeout message")
 
         if auto_remove:
             for player in missing_players:
@@ -666,7 +796,10 @@ class GameManager:
                 await self.finish(outcome)
 
     async def forfeit_player(
-        self, player_or_id: Any, *, reason: str = "forfeit"
+        self,
+        player_or_id: Any,
+        *,
+        reason: str = "forfeit",
     ) -> Outcome:
         player = (
             self._player_by_id(player_or_id)
@@ -691,7 +824,21 @@ class GameManager:
         peek_callback = getattr(self.plugin.metadata, "peek_callback", None)
         if peek_callback:
             callback = _resolve_callback(self.plugin, peek_callback)
-            value = callback(ctx=self.build_context())
+            kwargs = {"ctx": self.build_context()}
+            try:
+                sig = inspect.signature(callback)
+                params = sig.parameters.values()
+                accepts_actor = any(param.name == "actor" for param in params)
+                accepts_kwargs = any(
+                    param.kind == inspect.Parameter.VAR_KEYWORD for param in params
+                )
+                if accepts_actor or accepts_kwargs:
+                    actor = self._player_by_id(getattr(ctx.user, "id", None))
+                    if actor is not None:
+                        kwargs["actor"] = actor
+            except (TypeError, ValueError):
+                pass
+            value = callback(**kwargs)
             if inspect.isawaitable(value):
                 value = await value
             if value is not None:

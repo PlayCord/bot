@@ -186,8 +186,8 @@ default_registry = GameRegistry()
 
 
 __all__ = [
-    "PlayerOrder",
     "GameRegistry",
+    "PlayerOrder",
     "RegisteredGame",
     "RoleMode",
     "clear_registry",

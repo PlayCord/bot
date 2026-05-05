@@ -399,7 +399,7 @@ class MatchmakingInterface:
 
     def remove_bot(self, bot_name: str) -> str | None:
         """Remove a bot by name.
-        
+
         Returns an error message if not found, or None on success.
         """
         err = lobby_remove_bot(self._lobby_roster, bot_name)
@@ -938,7 +938,7 @@ class MatchmakingInterface:
             )
             await followup_send(
                 ctx,
-                get("queue.already_in_active_game_other_server"),
+                get("queue.already_in_active_game"),
                 ephemeral=True,
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
@@ -1115,7 +1115,7 @@ class MatchmakingInterface:
             )
             await followup_send(
                 ctx,
-                get("queue.already_in_active_game_other_server"),
+                get("queue.already_in_active_game"),
                 ephemeral=True,
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )

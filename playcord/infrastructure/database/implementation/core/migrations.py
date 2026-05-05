@@ -157,11 +157,11 @@ class MigrationRunner:
         apply_migrations(database)
 
     def run_startup(
-            self,
-            database: Database,
-            games: object,
-            analytics: object,
-            matches: object,
+        self,
+        database: Database,
+        games: object,
+        analytics: object,
+        matches: object,
     ) -> None:
         """After migrations: refresh SQL assets, sync game registry, analytics cleanup,
         and mark stale in-progress matches interrupted.
