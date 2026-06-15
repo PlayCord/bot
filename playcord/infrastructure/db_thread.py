@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from typing import Any, TypeVar
-
-T = TypeVar("T")
+from typing import Any
 
 
-async def run_in_thread(
+async def run_in_thread[T](
     func: Callable[..., T],
     /,
     *args: Any,

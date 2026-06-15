@@ -13,8 +13,6 @@ from playcord.infrastructure.locale import fmt, get
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from playcord.infrastructure.state.user_games import SessionRegistry
-
 
 @dataclass(slots=True)
 class LobbyRoster:
@@ -43,6 +41,7 @@ def lobby_base_start_conditions_met(
     queued_players: Any,
     role_selections: dict[int, str],
     specs: tuple[Any, ...],
+    match_settings: dict[str, Any] | None = None,
 ) -> bool:
     total_players = len(queued_players) + len(bots)
     player_count = resolve_player_count(game)
@@ -51,6 +50,12 @@ def lobby_base_start_conditions_met(
             return False
     elif isinstance(player_count, int) and total_players != player_count:
         return False
+
+    validate_options = getattr(game, "validate_match_options", None)
+    if callable(validate_options):
+        result = validate_options(total_players, dict(match_settings or {}))
+        if result is not True:
+            return False
 
     role_mode = getattr(metadata, "role_mode", RoleMode.none)
     if role_mode == RoleMode.chosen:
@@ -77,6 +82,7 @@ def lobby_add_bot(
     human_queue_size: int,
     number: int = 1,
 ) -> str | None:
+    _ = (game, human_queue_size)
     available_bots = getattr(metadata, "bots", {})
     if not available_bots:
         return get("queue.bot_not_supported")
@@ -177,29 +183,3 @@ def lobby_ban_phase(
         lobby_empty=False,
         whitelist_error=None,
     )
-
-
-@dataclass(slots=True)
-class Matchmaker:
-    """Tracks active matchmaking sessions."""
-
-    registry: SessionRegistry
-
-    def register(self, message_id: int, lobby: Any) -> None:
-        self.registry.matchmaking_by_message_id[message_id] = lobby
-        for player in getattr(lobby, "players", []) or []:
-            player_id = getattr(player, "id", None)
-            if player_id is not None:
-                self.registry.user_to_matchmaking[int(player_id)] = lobby
-
-    def unregister(self, message_id: int) -> None:
-        lobby = self.registry.matchmaking_by_message_id.pop(message_id, None)
-        if lobby is None:
-            return
-        for player in getattr(lobby, "players", []) or []:
-            player_id = getattr(player, "id", None)
-            if player_id is not None:
-                self.registry.user_to_matchmaking.pop(int(player_id), None)
-
-    def by_user_id(self, user_id: int) -> Any | None:
-        return self.registry.user_to_matchmaking.get(user_id)

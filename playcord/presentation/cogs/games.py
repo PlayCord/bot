@@ -40,7 +40,6 @@ from playcord.presentation.interactions.helpers import (
     response_send_message,
 )
 from playcord.presentation.interactions.matchmaking_lobby import MatchmakingInterface
-from playcord.presentation.ui.containers import LoadingContainer, container_send_kwargs
 from playcord.presentation.ui.replay_views import ReplayViewerView
 
 if TYPE_CHECKING:
@@ -127,6 +126,13 @@ def _parse_component_id(custom_id: str, prefix: str) -> tuple[int, str]:
 class GamesCog(commands.Cog):
     def __init__(self, bot: PlayCordBot) -> None:
         self.bot = bot
+        self._background_tasks: set[asyncio.Task[object]] = set()
+
+    def _track_task(self, coro) -> asyncio.Task[object]:
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
 
     @property
     def _translator(self):
@@ -159,7 +165,7 @@ class GamesCog(commands.Cog):
         if ctx.type is discord.InteractionType.component and any(
             custom_id.startswith(p) for p in _PAGINATION_PREFIXES
         ):
-            asyncio.create_task(_pagination_unhandled_fallback(ctx, custom_id))
+            self._track_task(_pagination_unhandled_fallback(ctx, custom_id))
             return
 
         try:
@@ -509,9 +515,6 @@ class GamesCog(commands.Cog):
             )
             return
         game_type = game_row.game_name
-        loading = await ctx.channel.send(
-            **container_send_kwargs(LoadingContainer().remove_footer()),
-        )
         creator_row = await run_in_thread(
             get_container().players_repository.get_player,
             ctx.user.id,
@@ -520,7 +523,6 @@ class GamesCog(commands.Cog):
         mm = MatchmakingInterface(
             ctx.user,
             game_type,
-            loading,
             private=False,
             creator_db_player=creator_row,
         )
@@ -529,17 +531,20 @@ class GamesCog(commands.Cog):
                 "MatchmakingInterface failed during rematch seed: %s",
                 mm.failed,
             )
-            await loading.edit(content=str(mm.failed), view=None, attachments=[])
-            await followup_send(ctx, content=get("rematch.failed"), ephemeral=True)
+            await followup_send(
+                ctx,
+                content=str(mm.failed),
+                ephemeral=True,
+            )
             return
         err = await mm.seed_rematch_players(g, human_ids)
         if err:
-            with contextlib.suppress(discord.HTTPException):
-                await loading.delete()
+            mm._unregister_lobby()
             f_log.error("Failed to seed rematch players for mid=%s: %s", mid, err)
             await followup_send(ctx, content=err, ephemeral=True)
             return
-        await mm.update_embed()
+        lobby_msg = await ctx.channel.send(**mm.lobby_send_kwargs())
+        mm.attach_message(lobby_msg)
         f_log.info("Rematch lobby created for mid=%s by user=%s", mid, ctx.user.id)
         await followup_send(ctx, content=get("rematch.created"), ephemeral=True)
 
@@ -602,11 +607,8 @@ async def begin_game(
             )
             return None
 
-    await response_send_message(
-        ctx,
-        **container_send_kwargs(LoadingContainer().remove_footer()),
-    )
-    game_overview_message = await ctx.original_response()
+    await ctx.response.defer()
+    game_overview_message: discord.Message | None = None
     try:
         creator_row = await run_in_thread(
             get_container().players_repository.get_player,
@@ -616,18 +618,22 @@ async def begin_game(
         interface = MatchmakingInterface(
             ctx.user,
             game_type,
-            game_overview_message,
             private=private,
             creator_db_player=creator_row,
         )
         if interface.failed is not None:
-            await game_overview_message.edit(
+            await followup_send(
+                ctx,
                 content=str(interface.failed),
-                view=None,
-                attachments=[],
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return None
-        await interface.update_embed()
+        game_overview_message = await ctx.followup.send(
+            **interface.lobby_send_kwargs(),
+            wait=True,
+        )
+        interface.attach_message(game_overview_message)
         from playcord.infrastructure.analytics_client import EventType, register_event
 
         register_event(
@@ -635,7 +641,10 @@ async def begin_game(
             user_id=ctx.user.id,
             guild_id=ctx.guild.id if ctx.guild else None,
             game_type=game_type,
-            metadata={"lobby_message_id": game_overview_message.id},
+            metadata={
+                "lobby_key": interface.lobby_key,
+                "lobby_discord_message_id": game_overview_message.id,
+            },
         )
         return interface
     except Exception as exc:
@@ -659,9 +668,11 @@ async def add_matchmaking_bot(ctx: discord.Interaction, difficulty: str) -> bool
     )
 
     async def _send(message: str) -> None:
-        kwargs = dict(
-            content=message, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER
-        )
+        kwargs = {
+            "content": message,
+            "ephemeral": True,
+            "delete_after": EPHEMERAL_DELETE_AFTER,
+        }
         if ctx.response.is_done():
             await followup_send(ctx, **kwargs)
         else:

@@ -75,31 +75,3 @@ class RoleRepository:
                 seat_index = row["seat_index"]
                 result[int(player_id)] = (str(role_id), int(seat_index))
             return result
-
-    def get_player_role(
-        self,
-        match_id: int,
-        player_id: int,
-    ) -> str | None:
-        """
-        Get role for a specific player in a match.
-
-        Args:
-            match_id: Match ID
-            player_id: Player ID
-
-        Returns:
-            Role ID or None if not assigned
-
-        """
-        with self.database.transaction() as cur:
-            cur.execute(
-                """
-                SELECT role_id
-                FROM match_role_assignments
-                WHERE match_id = %s AND player_id = %s;
-                """,
-                (match_id, player_id),
-            )
-            row = cur.fetchone()
-            return str(row["role_id"]) if row else None

@@ -39,6 +39,12 @@ board_title = "Game"
 stats_title = "Stats"
 thread_restricted_title = "Not Available Here"
 
+[ui]
+breadcrumb_separator = " › "
+
+[footer]
+standard = "© {year} {name} · v{version}"
+
 # =============================================================================
 # ERROR CARD TITLES (mapped exceptions in error.py)
 # =============================================================================
@@ -55,6 +61,37 @@ players_format = "{count} players"
 players_range_format = "{min}-{max} players"
 no_description = "No description available."
 unknown = "Unknown"
+
+# =============================================================================
+# RICH COMMAND DISPLAY (formatting helpers)
+# =============================================================================
+[display.features]
+roles = "🎭 Roles"
+replays = "🎬 Replays"
+bots = "🤖 Bots"
+options = "⚙️ Options"
+none = "Standard lobby"
+
+[display.outcome]
+win = "🏆 {outcome}"
+loss = "💀 {outcome}"
+draw = "🤝 {outcome}"
+interrupted = "⏸ {outcome}"
+default = "▪ {outcome}"
+unknown = "▪ Unknown"
+
+[display.history]
+line_format = "`{match_id}` · **{rank}**/{count} · {status}"
+status_completed = "✅ Completed"
+status_interrupted = "⏸ Interrupted"
+status_abandoned = "🚪 Abandoned"
+
+[display.profile]
+header = "### {mention}\n{match_count} recent matches on this server"
+snapshot_value = "**{total}** matches played · **{games}** different games"
+
+[display.bot_list]
+title = "Lobby Bots"
 
 # =============================================================================
 # WELCOME MESSAGE (when bot joins a server)
@@ -193,6 +230,11 @@ dbreset_user_title = "User reset complete"
 dbreset_user_description = "Deleted all rows related to user `{entity_id}` and recreated a blank user record."
 dbreset_guild_title = "Guild reset complete"
 dbreset_guild_description = "Deleted all rows related to guild `{entity_id}` and recreated a blank guild record."
+emoji_usage = "Add WebP files under `assets/icons/` matching `playcord/presentation/ui/emoji_manifest.py`, then run this command again."
+emoji_done = "Application emojis synced"
+emoji_done_description = "Deleted **{deleted}** emoji(s), uploaded **{uploaded}**, and resolved **{aliased}** alias(es). Id cache updated."
+emoji_no_assets = "Emoji sync aborted — missing assets"
+emoji_failed = "Emoji sync failed"
 
 # =============================================================================
 # BOT STARTUP (logging; English operators may still translate for consistency)
@@ -216,10 +258,6 @@ games_happening_now = "{count} games in progress. Use /play to start a game."
 # =============================================================================
 # COMMANDS - DESCRIPTIONS (shown in Discord autocomplete)
 # =============================================================================
-[commands.learn]
-description = "Learn how to play a specific game"
-param_game = "The game you want to learn about"
-
 [commands.invite]
 description = "Invite players to your game lobby (can start a new lobby if not in one)"
 param_user = "First player to invite (optional)"
@@ -253,7 +291,7 @@ param_reason = "Optional reason for the ban (shown to the player)"
 description = "View bot statistics and server information"
 
 [commands.about]
-description = "Learn about PlayCord and its creators"
+description = "Learn about the PlayCord bot"
 
 [commands.leaderboard]
 description = "View the top-ranked players for any game"
@@ -268,20 +306,14 @@ description = "Browse all available games with details and difficulty ratings"
 param_page = "Page number (each page shows 3 games)"
 
 [commands.profile]
-description = "View your stats, ratings, and match history"
+description = "View player stats and match history"
 param_user = "The player to view (leave empty for yourself)"
-
-[commands.history]
-description = "View a player's per-game match history and rating trend."
-param_game = "Game to inspect"
-param_user = "The user to view (defaults to yourself)"
+param_game = "Filter to a specific game (leave empty for overview)"
 param_page = "Page number for match history"
-param_days = "Days included in trend graph (1-365)"
 did_you_mean = "Did you mean `{game}`?"
 
 [commands.settings]
 description = "Change settings for your current game lobby"
-param_rated = "Whether the game should be rated"
 param_private = "Whether the game should be private"
 
 [commands.bot]
@@ -326,7 +358,7 @@ value = """1. Join or Create - Join a lobby or create one with {command:play}
 
 [tutorial.fields.ratings]
 name = "Ratings & Leaderboards"
-value = """Every rated game affects your skill rating. Win games to climb the leaderboard!
+value = """Every game affects your skill rating. Win games to climb the leaderboard!
 Check your stats anytime with {command:playcord profile}."""
 
 [tutorial.fields.shortcuts]
@@ -387,7 +419,7 @@ rematch_invalid = "That rematch control is not valid. Start a new lobby with {co
 
 rematch_unavailable = "That match can't be rematched right now. It may still be in progress or missing from the database."
 
-replay_not_found = "Match ID `{match_ref}` not found.\n\nUse {command:playcord history} to browse your recent games and find valid match IDs."
+replay_not_found = "Match ID `{match_ref}` not found.\n\nUse {command:playcord profile} to browse your recent games and find valid match IDs."
 
 player_not_found = "I couldn't find any data for {player_name}. This player may not have played any games yet."
 
@@ -427,13 +459,6 @@ already_participant = "You're already a participant in this game. Check the game
 default_title = "Warning"
 
 # =============================================================================
-# LOADING MESSAGES
-# =============================================================================
-[loading]
-default = "Fetching your data"
-description_static = ""
-
-# =============================================================================
 # SYSTEM ERROR EMBED
 # =============================================================================
 [system_error]
@@ -457,8 +482,6 @@ footer = ""
 # EMBEDS - GAME OVERVIEW (shown when game starts)
 # =============================================================================
 [embeds.game_overview]
-title_rated = "Rated {game_name} game started!"
-title_unrated = "Unrated {game_name} game started!"
 description = "Click the button if you want to spectate the game, or just view the game's progress."
 field_players = "Players:"
 field_ratings = "Ratings:"
@@ -503,38 +526,37 @@ waiting_value = "Invite friends or wait for others to join."
 no_players = "No players yet"
 status_private = "Private"
 status_public = "Public"
-rated = "Rated"
-unrated = "Unrated"
 
 # =============================================================================
 # EMBEDS - CATALOG
 # =============================================================================
 [embeds.catalog]
 title = "{name} game catalog"
-description = "Browse all {count} available games. Use {command:play} to start playing."
-game_value_format = "{description}\nTime: {time} | Players: {players} | Difficulty: {difficulty}\n{features}\nCommand: {command:play} {game_id}"
-game_field_format = "{emoji} {game_name}"
+description = "Browse all **{count}** available games. Stats for this page are in the card above."
+card_subtitle = "Page {page}/{total}"
+game_value_format = "> {description}\n\n{badges}\n\n▶ {command:play} `{game_id}`"
+game_field_format = "{emoji} **{game_name}**"
 feature_yes = "Yes"
 feature_no = "No"
 game_features = "Role pick: {roles}, Replays: {replays}, Bots: {bots}, Lobby options: {options}"
-footer = "Page {page}/{total}. {command:playcord catalog} lists every game with details."
+footer = "Page {page}/{total} · Use the buttons below to browse"
 
 # =============================================================================
 # EMBEDS - PROFILE
 # =============================================================================
 [embeds.profile]
 title = "{username}'s Profile"
-field_snapshot = "Snapshot"
-snapshot_format = "Total played: {total_matches} {games_word}\nRated games: {rated_games} {rated_games_word}\nTop game: {top_game}"
+field_snapshot = "Overview"
+snapshot_format = "**{total_matches}** matches across **{games_count}** games\nMost played: **{top_game}**"
 top_game_empty = "No games yet"
 field_ratings = "Ratings"
 field_ratings_empty = "No games played yet! Start with {command:play}"
 field_recent_matches = "Recent Activity"
-field_recent_matches_empty = "No recent matches."
+field_recent_matches_empty = "No recent matches — try {command:play} to get started!"
 rating_format = "{medal} {game_name}: {rating} ({matches} {games_word})"
 rating_format_ranked = "{medal} {game_name}: {rating} ({matches} {games_word}) {badge} #{rank} Global"
-match_format = "{game_name} ({match_code}): {outcome}"
-footer = "Conservative rating (CR) when listed."
+match_format = "**{game_name}** `{match_code}` — {outcome}"
+footer = "Profile data is scoped to this server."
 
 # =============================================================================
 # EMBEDS - LEADERBOARD
@@ -553,19 +575,19 @@ footer = "Page {page}/{max}"
 # =============================================================================
 [embeds.stats]
 title = "PlayCord Stats"
-description = "This instance of PlayCord is managed by {managed_by}"
-field_version = "Bot version:"
-field_discordpy = "discord.py version:"
-field_games_loaded = "Games loaded:"
-field_total_servers = "Total servers:"
-field_owners = "Owners:"
+description = "Live snapshot for this bot instance · managed by **{managed_by}**"
+field_version = "Bot version"
+field_discordpy = "discord.py"
+field_games_loaded = "Games loaded"
+field_total_servers = "Total servers"
+field_owners = "Owners"
 field_ram = "Used RAM (this shard)"
-field_shard_id = "Shard ID:"
-field_shard_ping = "Shard ping:"
-field_shard_servers = "Shard servers:"
-field_users = "Users:"
-field_in_matchmaking = "Users in matchmaking:"
-field_in_game = "Users in game:"
+field_shard_id = "Shard ID"
+field_shard_ping = "Shard ping"
+field_shard_servers = "Shard servers"
+field_users = "Users"
+field_in_matchmaking = "Users in matchmaking"
+field_in_game = "Users in game"
 field_servers_overview = "Servers"
 field_shard_overview = "Shard"
 field_system = "System"
@@ -576,6 +598,7 @@ field_activity = "Activity"
 # =============================================================================
 [embeds.about]
 title = "About PlayCord"
+description = "Quality board games within Discord, made by some cool people."
 field_bot_by = "Bot by:"
 field_source = "Source code:"
 field_pfp = "PFP/Banner:"
@@ -583,9 +606,9 @@ field_inspiration = "Inspiration:"
 field_libraries = "Libraries used:"
 field_dev_time = "Development time:"
 field_credits = "Credits"
-credits_value = "Bot by [@quantumbagel](https://github.com/quantumbagel), art by [@soldship](https://github.com/quantumsoldship), inspired by [LoRiggio](https://github.com/Pixelz22/LoRiggioDev)"
-source_value = "[GitHub](https://github.com/PlayCord/bot)"
-dev_timeline_value = "October 2024 - March 2025, March 2026 - Present"
+credits_value = "Bot by [@quantumbagel](https://github.com/quantumbagel) · Art by [@soldship](https://github.com/quantumsoldship) · Inspired by [LoRiggio](https://github.com/Pixelz22/LoRiggioDev)"
+source_value = "[GitHub](https://github.com/PlayCord/bot) · [Documentation](https://github.com/PlayCord/bot/blob/master/README.md)"
+dev_timeline_value = "October 2024 – March 2025 · March 2026 – Present"
 footer = "© 2026 Julian Reder. All rights reserved."
 
 # =============================================================================
@@ -605,6 +628,9 @@ join_game = "Join Game"
 need_help = "More"
 view_catalog = "View Catalog"
 get_help = "About"
+about_github = "GitHub"
+about_docs = "Documentation"
+about_issues = "Issues"
 
 # Pagination
 first = "First"
@@ -612,6 +638,10 @@ previous = "Previous"
 next = "Next"
 last = "Last"
 assign_roles = "Assign Roles"
+settings = "Settings"
+reset_privacy = "Reset Privacy"
+reset_game_rules = "Reset Game Rules"
+end_game = "End Game"
 
 # =============================================================================
 # BUTTON TEXTIFY (random variations)
@@ -693,13 +723,9 @@ invalid_button = "That button is no longer valid."
 invalid_interaction = "This interaction could not be processed."
 
 [queue]
-thread_rated_prefix = "Rated "
-thread_name = "{prefix}{game} game [{match_code}]"
 db_connect_failed_what = "Couldn't connect to database!"
 db_connect_failed_reason = "The bot failed to connect to the database. This is likely a temporary error, try again later!"
 any_players = "Any"
-rated = "Rated"
-not_rated = "Not Rated"
 private_status = "Private"
 public_status = "Public"
 lobby_header_ready_phase = "Queueing for {game} ({ready}/{total} ready)..."
@@ -731,7 +757,6 @@ banned_message = "You are banned from this game! Ask the owner of the game {crea
 not_on_whitelist = "You are not on the whitelist for this private game!"
 not_in_game = "You aren't in the game!"
 game_cancelled_last_player = "You were the last person in the lobby, so the game was cancelled!"
-bot_rated_forced = "Rated was disabled because this lobby includes bot players."
 bot_already_added = "A bot with difficulty '{difficulty}' is already in this lobby."
 bot_not_supported = "This game does not support bots."
 bot_invalid_difficulty = "Invalid bot difficulty '{difficulty}'."
@@ -757,13 +782,17 @@ role_all_must_select = "Every player must pick a role before starting."
 role_picks_field = "Role picks"
 role_picks_none = "(none yet)"
 role_chosen_lobby_not_full = "Role menus appear once the lobby has the correct number of players."
-customization_unrated_note = "Non-default options disable rated play for this match."
 section_match_options = "### Match Options"
 section_role_selection = "### Role Selection"
 role_invalid_selection = "Invalid role selection: {detail}"
 role_assignment_unsupported = "This game does not support role assignment."
 roles_assigned_random = "Roles have been randomly assigned."
 role_assignment_failed = "Could not assign roles: {reason}"
+player_badge_creator = "Creator"
+player_badge_ready = "Ready"
+player_badge_not_ready = "Not ready"
+bots_in_queue = "-# There are currently {total} bots also in the queue ({breakdown}). Use /playcord bot to adjust them."
+game_supports_bots = "-# This game supports bots! Use /playcord bot to add them."
 
 # =============================================================================
 # INTERACTION MESSAGES
@@ -784,8 +813,6 @@ function_missing = "Autocomplete function is not defined!"
 [history]
 unknown_game = "Unknown game type: {game}. Use {command:playcord catalog} to see available games."
 embed_title = "{user}: {game} history"
-rated = "rated"
-casual = "casual"
 recent_matches = "Recent matches"
 no_completed = "No completed matches found."
 no_more = "No more matches to display."
@@ -801,13 +828,23 @@ page_footer = "Page {page}/{max}"
 [settings]
 not_in_matchmaking = "You aren't in matchmaking. Start a game first with {command:play}."
 only_creator = "Only the game creator can change settings."
-changed_rated = "Rated: {value}"
 changed_private = "Private: {value}"
 yes = "Yes"
 no = "No"
 updated = "Settings updated:"
 no_changes = "No settings were changed."
-rated_blocked_bots = "Cannot enable rated mode while bots are in this lobby."
+ephemeral_title_suffix = "Lobby Settings"
+section_privacy = "### Privacy"
+section_access = "### Access"
+section_match_options = "### Game Rules"
+privacy_current_public = "Anyone can join. Use `/playcord ban` to block players."
+privacy_current_private = "Only whitelisted players can join."
+privacy_select_description = "Choose whether anyone in the server can join, or only players on the whitelist."
+lists_empty = "No players on the list yet."
+option_updated = "Setting updated."
+reset_privacy_done = "Privacy reset to default."
+reset_rules_done = "Game rules reset to defaults."
+lobby_ended = "The lobby was ended."
 
 [leaderboard]
 scope_global = "Global leaderboard"

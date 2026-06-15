@@ -5,11 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from playcord.application.services.analytics import AnalyticsService
-from playcord.application.services.game_session import GameSessionService
-from playcord.application.services.matchmaker import Matchmaker
-from playcord.application.services.replay import ReplayService
-from playcord.application.services.stats import StatsService
 from playcord.infrastructure.database import (
     AnalyticsRepository,
     GameRepository,
@@ -55,15 +50,6 @@ class ApplicationContainer:
         repr=False,
         compare=False,
     )
-    analytics_service: AnalyticsService = field(init=False, repr=False, compare=False)
-    replay_service: ReplayService = field(init=False, repr=False, compare=False)
-    stats_service: StatsService = field(init=False, repr=False, compare=False)
-    matchmaker: Matchmaker = field(init=False, repr=False, compare=False)
-    game_session_service: GameSessionService = field(
-        init=False,
-        repr=False,
-        compare=False,
-    )
 
     def __post_init__(self) -> None:
         database = self.pool_manager.connect()
@@ -100,19 +86,6 @@ class ApplicationContainer:
             self.games_repository,
             self.analytics_repository,
             self.matches_repository,
-        )
-
-        self.analytics_service = AnalyticsService(self.analytics_repository)
-        self.replay_service = ReplayService(self.replays_repository)
-        self.stats_service = StatsService(
-            self.matches_repository,
-            self.players_repository,
-        )
-        self.matchmaker = Matchmaker(self.registry)
-        self.game_session_service = GameSessionService(
-            registry=self.registry,
-            matches=self.matches_repository,
-            replays=self.replays_repository,
         )
 
     def close(self) -> None:

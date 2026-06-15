@@ -10,6 +10,11 @@ from playcord.infrastructure.constants import (
     BUTTON_PREFIX_LOBBY_ASSIGN_ROLES,
     BUTTON_PREFIX_LOBBY_OPT,
     BUTTON_PREFIX_LOBBY_ROLE,
+    BUTTON_PREFIX_LOBBY_SETTINGS,
+    BUTTON_PREFIX_LOBBY_SETTINGS_END,
+    BUTTON_PREFIX_LOBBY_SETTINGS_PRIV,
+    BUTTON_PREFIX_LOBBY_SETTINGS_RESET_PRIV,
+    BUTTON_PREFIX_LOBBY_SETTINGS_RESET_RULES,
     BUTTON_PREFIX_READY,
     EPHEMERAL_DELETE_AFTER,
 )
@@ -27,7 +32,56 @@ class MatchmakingCog(commands.Cog):
 
     @property
     def _lobbies(self) -> dict[int, Any]:
-        return self.bot.container.registry.matchmaking_by_message_id
+        return self.bot.container.registry.matchmaking_by_lobby_key
+
+    async def _send_matchmaking_error(self, ctx: discord.Interaction, message_key: str) -> None:
+        await followup_send(
+            ctx,
+            content=get(message_key),
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
+        )
+
+    async def _require_lobby_key(
+        self,
+        ctx: discord.Interaction,
+        *,
+        custom_id: str | None,
+        prefix: str,
+        log_child: str,
+    ) -> int | None:
+        f_log = log.getChild(log_child)
+        if not custom_id or not custom_id.startswith(prefix):
+            f_log.warning(
+                "Invalid lobby interaction from user=%s cid=%r",
+                getattr(ctx.user, "id", None),
+                custom_id,
+            )
+            await self._send_matchmaking_error(ctx, "matchmaking.invalid_interaction")
+            return None
+        lobby_key_str = custom_id[len(prefix) :].partition("/")[0].rstrip("/")
+        if not lobby_key_str:
+            await self._send_matchmaking_error(ctx, "matchmaking.invalid_button")
+            return None
+        try:
+            lobby_key = int(lobby_key_str)
+        except ValueError:
+            f_log.warning(
+                "Invalid lobby key from user=%s lobby_key=%r",
+                getattr(ctx.user, "id", None),
+                lobby_key_str,
+            )
+            await self._send_matchmaking_error(ctx, "matchmaking.invalid_button")
+            return None
+        if lobby_key not in self._lobbies:
+            f_log.info(
+                "Expired lobby interaction lobby_key=%s user=%s",
+                lobby_key,
+                getattr(ctx.user, "id", None),
+            )
+            await self._send_matchmaking_error(ctx, "matchmaking.session_expired")
+            return None
+        return lobby_key
 
     # No specific commands here yet as they are mostly subcommands of playcord or play
     # But we can store callbacks here
@@ -52,6 +106,16 @@ class MatchmakingCog(commands.Cog):
             await self.lobby_role_select_callback(ctx)
         elif custom_id.startswith(BUTTON_PREFIX_LOBBY_ASSIGN_ROLES):
             await self.lobby_assign_roles_callback(ctx)
+        elif custom_id.startswith(BUTTON_PREFIX_LOBBY_SETTINGS):
+            await self.lobby_settings_callback(ctx)
+        elif custom_id.startswith(BUTTON_PREFIX_LOBBY_SETTINGS_PRIV):
+            await self.lobby_settings_privacy_callback(ctx)
+        elif custom_id.startswith(BUTTON_PREFIX_LOBBY_SETTINGS_RESET_PRIV):
+            await self.lobby_settings_reset_privacy_callback(ctx)
+        elif custom_id.startswith(BUTTON_PREFIX_LOBBY_SETTINGS_RESET_RULES):
+            await self.lobby_settings_reset_rules_callback(ctx)
+        elif custom_id.startswith(BUTTON_PREFIX_LOBBY_SETTINGS_END):
+            await self.lobby_settings_end_callback(ctx)
         elif custom_id.startswith(
             (BUTTON_PREFIX_JOIN, BUTTON_PREFIX_LEAVE, BUTTON_PREFIX_READY),
         ):
@@ -87,8 +151,8 @@ class MatchmakingCog(commands.Cog):
             )
             return
         rest = cid[len(BUTTON_PREFIX_LOBBY_OPT) :]
-        mid_str, _, key = rest.partition("/")
-        if not mid_str or not key:
+        lobby_key_str, _, key = rest.partition("/")
+        if not lobby_key_str or not key:
             await followup_send(
                 ctx,
                 content=get("matchmaking.invalid_button"),
@@ -97,12 +161,12 @@ class MatchmakingCog(commands.Cog):
             )
             return
         try:
-            matchmaking_id = int(mid_str)
+            lobby_key = int(lobby_key_str)
         except ValueError:
             f_log.warning(
-                "Invalid matchmaking id in lobby_select from user=%s mid=%r",
+                "Invalid lobby key in lobby_select from user=%s lobby_key=%r",
                 getattr(ctx.user, "id", None),
-                mid_str,
+                lobby_key_str,
             )
             await followup_send(
                 ctx,
@@ -111,10 +175,10 @@ class MatchmakingCog(commands.Cog):
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
-        if matchmaking_id not in self._lobbies:
+        if lobby_key not in self._lobbies:
             f_log.info(
-                "Lobby select for expired matchmaking_id=%s by user=%s",
-                matchmaking_id,
+                "Lobby select for expired lobby_key=%s by user=%s",
+                lobby_key,
                 getattr(ctx.user, "id", None),
             )
             await followup_send(
@@ -127,10 +191,10 @@ class MatchmakingCog(commands.Cog):
         f_log.debug(
             "lobby option key=%r lobby=%s user=%s",
             key,
-            matchmaking_id,
+            lobby_key,
             ctx.user.id,
         )
-        matchmaker = self._lobbies[matchmaking_id]
+        matchmaker = self._lobbies[lobby_key]
         await matchmaker.callback_lobby_option(ctx, key)
 
     async def lobby_role_select_callback(self, ctx: discord.Interaction) -> None:
@@ -161,8 +225,8 @@ class MatchmakingCog(commands.Cog):
             )
             return
         rest = cid[len(BUTTON_PREFIX_LOBBY_ROLE) :]
-        mid_str, _, pid_str = rest.partition("/")
-        if not mid_str or not pid_str:
+        lobby_key_str, _, pid_str = rest.partition("/")
+        if not lobby_key_str or not pid_str:
             await followup_send(
                 ctx,
                 content=get("matchmaking.invalid_button"),
@@ -171,13 +235,13 @@ class MatchmakingCog(commands.Cog):
             )
             return
         try:
-            matchmaking_id = int(mid_str)
+            lobby_key = int(lobby_key_str)
             player_id = int(pid_str)
         except ValueError:
             f_log.warning(
-                "Invalid ids in lobby_role_select from user=%s mid=%r pid=%r",
+                "Invalid ids in lobby_role_select from user=%s lobby_key=%r pid=%r",
                 getattr(ctx.user, "id", None),
-                mid_str,
+                lobby_key_str,
                 pid_str,
             )
             await followup_send(
@@ -187,10 +251,10 @@ class MatchmakingCog(commands.Cog):
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
             return
-        if matchmaking_id not in self._lobbies:
+        if lobby_key not in self._lobbies:
             f_log.info(
-                "Lobby role select for expired matchmaking_id=%s by user=%s",
-                matchmaking_id,
+                "Lobby role select for expired lobby_key=%s by user=%s",
+                lobby_key,
                 getattr(ctx.user, "id", None),
             )
             await followup_send(
@@ -202,82 +266,98 @@ class MatchmakingCog(commands.Cog):
             return
         f_log.debug(
             "lobby role pick lobby=%s player_id=%s user=%s",
-            matchmaking_id,
+            lobby_key,
             player_id,
             ctx.user.id,
         )
-        matchmaker = self._lobbies[matchmaking_id]
+        matchmaker = self._lobbies[lobby_key]
         await matchmaker.callback_role_select(ctx, player_id)
 
     async def lobby_assign_roles_callback(self, ctx: discord.Interaction) -> None:
         """Assign roles button for selectable_random flow."""
         await ctx.response.defer(ephemeral=True)
         f_log = log.getChild("callback.lobby_assign_roles")
-        f_log.debug(
-            "lobby_assign_roles_callback called by user=%s data=%r",
-            getattr(ctx.user, "id", None),
-            ctx.data,
-        )
         data = ctx.data if ctx.data is not None else {}
-        cid = data.get("custom_id")
-        if not cid or not cid.startswith(BUTTON_PREFIX_LOBBY_ASSIGN_ROLES):
-            f_log.warning(
-                "Invalid lobby_assign_roles interaction from user=%s cid=%r",
-                getattr(ctx.user, "id", None),
-                cid,
-            )
-            await followup_send(
-                ctx,
-                content=get("matchmaking.invalid_interaction"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
-            return
-        rest = cid[len(BUTTON_PREFIX_LOBBY_ASSIGN_ROLES) :]
-        mid_str = rest.rstrip("/")
-        if not mid_str:
-            await followup_send(
-                ctx,
-                content=get("matchmaking.invalid_button"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
-            return
-        try:
-            matchmaking_id = int(mid_str)
-        except ValueError:
-            f_log.warning(
-                "Invalid id in lobby_assign_roles from user=%s mid=%r",
-                getattr(ctx.user, "id", None),
-                mid_str,
-            )
-            await followup_send(
-                ctx,
-                content=get("matchmaking.invalid_button"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
-            return
-        if matchmaking_id not in self._lobbies:
-            f_log.info(
-                "Lobby assign roles for expired matchmaking_id=%s by user=%s",
-                matchmaking_id,
-                getattr(ctx.user, "id", None),
-            )
-            await followup_send(
-                ctx,
-                content=get("matchmaking.session_expired"),
-                ephemeral=True,
-                delete_after=EPHEMERAL_DELETE_AFTER,
-            )
+        lobby_key = await self._require_lobby_key(
+            ctx,
+            custom_id=data.get("custom_id"),
+            prefix=BUTTON_PREFIX_LOBBY_ASSIGN_ROLES,
+            log_child="callback.lobby_assign_roles",
+        )
+        if lobby_key is None:
             return
         f_log.debug(
             "lobby assign roles lobby=%s user=%s",
-            matchmaking_id,
+            lobby_key,
             ctx.user.id,
         )
-        matchmaker = self._lobbies[matchmaking_id]
-        await matchmaker.callback_assign_roles(ctx)
+        await self._lobbies[lobby_key].callback_assign_roles(ctx)
+
+    async def lobby_settings_callback(self, ctx: discord.Interaction) -> None:
+        """Settings button — opens the settings modal for the lobby creator."""
+        await self._lobby_settings_action(
+            ctx,
+            prefix=BUTTON_PREFIX_LOBBY_SETTINGS,
+            log_name="callback.lobby_settings",
+            handler_name="callback_lobby_settings",
+        )
+
+    async def lobby_settings_privacy_callback(self, ctx: discord.Interaction) -> None:
+        """Privacy select in the ephemeral lobby settings panel."""
+        await self._lobby_settings_action(
+            ctx,
+            prefix=BUTTON_PREFIX_LOBBY_SETTINGS_PRIV,
+            log_name="callback.lobby_settings_privacy",
+            handler_name="callback_lobby_privacy",
+        )
+
+    async def _lobby_settings_action(
+        self,
+        ctx: discord.Interaction,
+        *,
+        prefix: str,
+        log_name: str,
+        handler_name: str,
+    ) -> None:
+        await ctx.response.defer(ephemeral=True)
+        data = ctx.data if ctx.data is not None else {}
+        lobby_key = await self._require_lobby_key(
+            ctx,
+            custom_id=data.get("custom_id"),
+            prefix=prefix,
+            log_child=log_name,
+        )
+        if lobby_key is None:
+            return
+        matchmaker = self._lobbies[lobby_key]
+        await getattr(matchmaker, handler_name)(ctx)
+
+    async def lobby_settings_reset_privacy_callback(self, ctx: discord.Interaction) -> None:
+        """Reset privacy to defaults."""
+        await self._lobby_settings_action(
+            ctx,
+            prefix=BUTTON_PREFIX_LOBBY_SETTINGS_RESET_PRIV,
+            log_name="callback.lobby_settings_reset_privacy",
+            handler_name="callback_lobby_reset_privacy",
+        )
+
+    async def lobby_settings_reset_rules_callback(self, ctx: discord.Interaction) -> None:
+        """Reset game rules to defaults."""
+        await self._lobby_settings_action(
+            ctx,
+            prefix=BUTTON_PREFIX_LOBBY_SETTINGS_RESET_RULES,
+            log_name="callback.lobby_settings_reset_rules",
+            handler_name="callback_lobby_reset_rules",
+        )
+
+    async def lobby_settings_end_callback(self, ctx: discord.Interaction) -> None:
+        """End the lobby from settings."""
+        await self._lobby_settings_action(
+            ctx,
+            prefix=BUTTON_PREFIX_LOBBY_SETTINGS_END,
+            log_name="callback.lobby_settings_end",
+            handler_name="callback_lobby_end_game",
+        )
 
     async def matchmaking_button_callback(self, ctx: discord.Interaction) -> None:
         """Handle matchmaking button (Join / Leave / Ready)."""
@@ -327,10 +407,10 @@ class MatchmakingCog(commands.Cog):
             return
 
         try:
-            matchmaking_id = int(cid.replace(leading_str, ""))
+            lobby_key = int(cid.replace(leading_str, ""))
         except ValueError:
             f_log.warning(
-                "Invalid matchmaking id in button callback from user=%s cid=%r",
+                "Invalid lobby key in button callback from user=%s cid=%r",
                 getattr(ctx.user, "id", None),
                 cid,
             )
@@ -343,7 +423,7 @@ class MatchmakingCog(commands.Cog):
             return
 
         # Check if it exists
-        if matchmaking_id not in self._lobbies:
+        if lobby_key not in self._lobbies:
             f_log.debug(
                 "Matchmaking expired when trying to press button: %s",
                 interaction_context,
@@ -356,27 +436,27 @@ class MatchmakingCog(commands.Cog):
             )
             return
 
-        matchmaker = self._lobbies[matchmaking_id]
+        matchmaker = self._lobbies[lobby_key]
 
         # Call MatchmakingInterface callbacks
         if leading_str == BUTTON_PREFIX_JOIN:
             f_log.info(
-                "Invoking callback_ready_game for matchmaking_id=%s user=%s",
-                matchmaking_id,
+                "Invoking callback_ready_game for lobby_key=%s user=%s",
+                lobby_key,
                 getattr(ctx.user, "id", None),
             )
             await matchmaker.callback_ready_game(ctx)
         elif leading_str == BUTTON_PREFIX_LEAVE:
             f_log.info(
-                "Invoking callback_leave_game for matchmaking_id=%s user=%s",
-                matchmaking_id,
+                "Invoking callback_leave_game for lobby_key=%s user=%s",
+                lobby_key,
                 getattr(ctx.user, "id", None),
             )
             await matchmaker.callback_leave_game(ctx)
         elif leading_str == BUTTON_PREFIX_READY:
             f_log.info(
-                "Invoking callback_toggle_ready for matchmaking_id=%s user=%s",
-                matchmaking_id,
+                "Invoking callback_toggle_ready for lobby_key=%s user=%s",
+                lobby_key,
                 getattr(ctx.user, "id", None),
             )
             await matchmaker.callback_toggle_ready(ctx)
@@ -394,7 +474,7 @@ class MatchmakingCog(commands.Cog):
         data = ctx.data if ctx.data is not None else {}
         cid = data.get("custom_id")
         try:
-            matchmaking_id = int(cid.replace(BUTTON_PREFIX_INVITE, ""))
+            lobby_key = int(cid.replace(BUTTON_PREFIX_INVITE, ""))
         except (TypeError, ValueError, AttributeError):
             f_log.warning(
                 "Invalid invite custom_id from user=%s cid=%r",
@@ -409,7 +489,7 @@ class MatchmakingCog(commands.Cog):
             )
             return
 
-        if matchmaking_id not in self._lobbies:
+        if lobby_key not in self._lobbies:
             await followup_send(
                 ctx,
                 content=get("matchmaking.invite_expired"),
@@ -418,13 +498,13 @@ class MatchmakingCog(commands.Cog):
             )
             return
 
-        matchmaker = self._lobbies[matchmaking_id]
+        matchmaker = self._lobbies[lobby_key]
         success = await matchmaker.accept_invite(ctx)
 
         if success:
             f_log.info(
-                "Invite accepted for matchmaking_id=%s by user=%s",
-                matchmaking_id,
+                "Invite accepted for lobby_key=%s by user=%s",
+                lobby_key,
                 getattr(ctx.user, "id", None),
             )
             await followup_send(

@@ -20,26 +20,29 @@ LOGGING_ROOT = "playcord"
 MESSAGE_COMMAND_FAILED = "⛔"
 MESSAGE_COMMAND_SUCCEEDED = "✅"
 MESSAGE_COMMAND_PENDING = "⏳"
+# Rebound from icon kit on emoji initialization when custom icons are uploaded.
 
 MESSAGE_COMMAND_SYNC = "sync"
 MESSAGE_COMMAND_CLEAR = "clear"
 MESSAGE_COMMAND_ANALYTICS = "analytics"
 MESSAGE_COMMAND_TREEDIFF = "treediff"
 MESSAGE_COMMAND_DBRESET = "dbreset"
+MESSAGE_COMMAND_EMOJI = "emoji"
 MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER = "this"
 
-EMBED_COLOR = discord.Color.from_str("#6877ED")
+EMBED_COLOR = None
 ERROR_COLOR = discord.Color.from_str("#ED6868")
-INFO_COLOR = discord.Color.from_str("#9A9CB0")
+INFO_COLOR = None
 SUCCESS_COLOR = discord.Color.from_str("#68ED7B")
 WARNING_COLOR = discord.Color.from_str("#EDC868")
-GAME_COLOR = discord.Color.from_str("#68D4ED")
-MATCHMAKING_COLOR = discord.Color.from_str("#B068ED")
+GAME_COLOR = None
+MATCHMAKING_COLOR = None
 
-CONFIG_BOT_SECRET = "secret"
 _CONFIG_ROOT = Path(__file__).resolve().parent.parent / "configuration"
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 CONFIG_FILE = str(_CONFIG_ROOT / "config.yaml")
 EMOJI_CONFIGURATION_FILE = str(_CONFIG_ROOT / "emoji.yaml")
+ICONS_DIR = _PROJECT_ROOT / "assets" / "icons"
 
 GAME_TYPES: dict[str, list[str]] = {
     game.key: [game.module_name, game.class_name] for game in GAMES
@@ -62,6 +65,11 @@ BUTTON_PREFIX_READY = "ready/"
 BUTTON_PREFIX_LOBBY_OPT = "lobbyopt/"
 BUTTON_PREFIX_LOBBY_ROLE = "lobbyrole/"
 BUTTON_PREFIX_LOBBY_ASSIGN_ROLES = "lobbyassign/"
+BUTTON_PREFIX_LOBBY_SETTINGS = "lobbysettings/"
+BUTTON_PREFIX_LOBBY_SETTINGS_PRIV = "lobbysetpriv/"
+BUTTON_PREFIX_LOBBY_SETTINGS_RESET_PRIV = "lobbysetresetpriv/"
+BUTTON_PREFIX_LOBBY_SETTINGS_RESET_RULES = "lobbysetresetrules/"
+BUTTON_PREFIX_LOBBY_SETTINGS_END = "lobbysetend/"
 BUTTON_PREFIX_SELECT_CURRENT = "select_c/"
 BUTTON_PREFIX_SELECT_NO_TURN = "select_n/"
 BUTTON_PREFIX_CURRENT_TURN = "c/"
@@ -81,15 +89,12 @@ BUTTON_PREFIX_REMATCH = "rematch/"
 
 PRESENCE_TIMEOUT = 60
 EPHEMERAL_DELETE_AFTER = 10
-ANALYTICS_RETENTION_DAYS = 30
 
-UI_MESSAGE_DELETE_DELAY = 5
 ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS = 60
 ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS = 120
 # Retention DELETE runs at startup (migrations) and on this interval — not every flush tick.
 ANALYTICS_PERIODIC_CLEANUP_INTERVAL_SECONDS = 86_400
 
-HELP_GAMES_PREVIEW_COUNT = 8
 HISTORY_PAGE_SIZE = 8
 CATALOG_GAMES_PER_PAGE = 3
 

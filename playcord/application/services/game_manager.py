@@ -186,13 +186,11 @@ class GameManager:
         thread: discord.Thread | None = None,
     ) -> None:
         self.game_type = game_type
-        self.plugin_class = plugin_class
         self.plugin = plugin_class(
             players=list(players),
             match_options=match_options or {},
         )
         self.plugin._bind_runtime(cast("GameEngineRuntime", self))
-        self.game = self.plugin
         self.creator = creator
         self.players = list(players)
         self.game_id = match_id
@@ -211,6 +209,7 @@ class GameManager:
         self._request_lock = asyncio.Lock()
         self._main_task: asyncio.Task[Any] | None = None
         self.rematch_view_factory: Any = None
+        self._background_tasks: set[asyncio.Task[object]] = set()
 
     async def setup(self) -> None:
         if self.thread is None:
@@ -965,7 +964,9 @@ class GameManager:
         except RuntimeError:
             _write()
             return
-        loop.create_task(run_in_thread(_write))
+        task = loop.create_task(run_in_thread(_write))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
 
     async def _record_initial_replay_state_async(self) -> None:
         try:

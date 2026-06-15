@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -42,19 +42,12 @@ class BotSettings:
 
 
 @dataclass(frozen=True, slots=True)
-class RatingFloorsSettings:
-    min_mu: float = 0.0
-    min_sigma: float = 0.001
-
-
-@dataclass(frozen=True, slots=True)
 class Settings:
     bot: BotSettings
     db: DatabaseSettings
     logging: LoggingSettings
     analytics_retention_days: int = 30
     config_path: Path = DEFAULT_CONFIG_PATH
-    ratings: RatingFloorsSettings = field(default_factory=RatingFloorsSettings)
 
 
 def _as_int(value: str | None, *, env_key: str) -> int | None:
@@ -135,8 +128,6 @@ def load_settings(path: str | Path = DEFAULT_CONFIG_PATH) -> Settings:
         msg = "Bot secret is required in configuration"
         raise ConfigurationError(msg)
 
-    ratings_raw = dict(raw.get("ratings") or {})
-
     owner_raw = bot_raw.get("owner_user_ids")
     if owner_raw is None:
         owner_user_ids: tuple[int, ...] = ()
@@ -171,10 +162,6 @@ def load_settings(path: str | Path = DEFAULT_CONFIG_PATH) -> Settings:
         logging=LoggingSettings(level=str(logging_raw.get("level", "INFO"))),
         analytics_retention_days=int(raw.get("analytics_retention_days", 30)),
         config_path=config_path,
-        ratings=RatingFloorsSettings(
-            min_mu=float(ratings_raw.get("min_mu", 0.0)),
-            min_sigma=float(ratings_raw.get("min_sigma", 0.001)),
-        ),
     )
 
 

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from playcord.core.player import Player
-
 
 class InternalPlayer:
     """Internal player representation (IDs and strings only)."""
@@ -56,13 +54,3 @@ class InternalPlayer:
 
     def __repr__(self) -> str:
         return f"InternalPlayer(id={self.id}, is_bot={self.is_bot})"
-
-
-def internal_player_to_player(internal_player: InternalPlayer) -> Player:
-    """Convert InternalPlayer to API Player object."""
-    uid = internal_player.id
-    uname = internal_player.name or (f"User {uid}" if uid is not None else "Unknown")
-    return Player(
-        id=uid,
-        name=uname,
-    )

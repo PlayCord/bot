@@ -11,7 +11,6 @@ from discord.app_commands import Choice
 from playcord.application.runtime_context import try_get_container
 from playcord.infrastructure.constants import (
     EPHEMERAL_DELETE_AFTER,
-    INFO_COLOR,
     LOGGING_ROOT,
 )
 from playcord.infrastructure.database.implementation.internal_player import (
@@ -19,11 +18,6 @@ from playcord.infrastructure.database.implementation.internal_player import (
 )
 from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
-from playcord.presentation.ui.containers import (
-    CustomContainer,
-    UserErrorContainer,
-    container_send_kwargs,
-)
 
 log = get_logger()
 
@@ -124,50 +118,6 @@ def format_user_error_message(error_key: str, **kwargs) -> str:
     return message
 
 
-def get_user_error_embed(error_key: str, **kwargs) -> UserErrorContainer:
-    """
-    Get a pre-defined user error container with
-    optional formatting from locale (no title row).
-    """
-    locale_key = f"errors.{error_key}"
-    message = fmt(locale_key, f"[{locale_key}]", **kwargs).strip()
-    if message == f"[{locale_key}]":
-        message = get("errors.generic")
-
-    return UserErrorContainer(description=message, suggestion=None)
-
-
-async def send_simple_embed(
-    ctx: discord.Interaction,
-    title: str,
-    description: str,
-    ephemeral: bool = True,
-    responded: bool = False,
-) -> None:
-    """Send a short status using the shared container UI."""
-    card = CustomContainer(
-        title=title,
-        description=description or None,
-        color=INFO_COLOR,
-    )
-    kwargs = {
-        **container_send_kwargs(card),
-        "ephemeral": ephemeral,
-    }
-    if not responded:
-        await response_send_message(
-            ctx,
-            **kwargs,
-            delete_after=EPHEMERAL_DELETE_AFTER if ephemeral else None,
-        )
-    else:
-        await followup_send(
-            ctx,
-            **kwargs,
-            delete_after=EPHEMERAL_DELETE_AFTER if ephemeral else None,
-        )
-
-
 async def interaction_check(ctx: discord.Interaction) -> bool:
     f_log = log.getChild("is_allowed")
 
@@ -217,19 +167,12 @@ def discord_user_db_label(user: discord.User | discord.Member) -> str | None:
     return str(name) if name else None
 
 
-def shallow_player_from_discord_user(
-    user: discord.User | discord.Member,
-) -> InternalPlayer:
+def get_shallow_player(user: discord.User | discord.Member) -> InternalPlayer:
     """Build an InternalPlayer from Discord identity (presentation-only)."""
     return InternalPlayer(
         user_id=int(user.id),
         username=discord_user_db_label(user),
     )
-
-
-def get_shallow_player(user: discord.User | discord.Member) -> InternalPlayer:
-    """Compatibility name for :func:`shallow_player_from_discord_user`."""
-    return shallow_player_from_discord_user(user)
 
 
 async def decode_discord_arguments(argument: Choice | typing.Any) -> typing.Any:

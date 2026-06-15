@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from playcord.infrastructure.database.implementation.core.exceptions import DatabaseError
 from playcord.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -59,7 +60,7 @@ def apply_migrations(database) -> None:
                         );
                         """)
     except Exception as e:
-        logger.exception(f"Failed to create database_migrations table: {e}")
+        logger.exception("Failed to create database_migrations table: %s", e)
         raise
 
     applied_versions = set()
@@ -81,14 +82,14 @@ def apply_migrations(database) -> None:
                 if version is not None:
                     applied_versions.add(str(version))
     except Exception as e:
-        logger.warning(f"Could not fetch applied migrations: {e}")
+        logger.warning("Could not fetch applied migrations: %s", e)
 
     for version, description, statements in MIGRATIONS:
         if version in applied_versions:
-            logger.info(f"Skipping already-applied migration {version}")
+            logger.info("Skipping already-applied migration %s", version)
             continue
 
-        logger.warning(f"Applying database migration {version} ({description})")
+        logger.warning("Applying database migration %s (%s)", version, description)
 
         try:
             with database.transaction() as cur:
@@ -96,7 +97,7 @@ def apply_migrations(database) -> None:
                     stmt = stmt.strip()
                     if not stmt:
                         continue
-                    logger.debug(f"Executing: {stmt[:100]}...")
+                    logger.debug("Executing: %s...", stmt[:100])
                     cur.execute(stmt)
 
                 # Track the migration
@@ -112,12 +113,17 @@ def apply_migrations(database) -> None:
                     """,
                     (version, description, sql_hash),
                 )
-            logger.info(f"✓ Migration {version} applied successfully")
+            logger.info("Migration %s applied successfully", version)
 
         except Exception as e:
-            logger.exception(f"Migration {version} failed ({type(e).__name__}): {e}")
+            logger.exception(
+                "Migration %s failed (%s): %s",
+                version,
+                type(e).__name__,
+                e,
+            )
             msg = f"Migration {version} failed: {e}"
-            raise Exception(msg) from e
+            raise DatabaseError(msg) from e
 
 
 @dataclass(slots=True)

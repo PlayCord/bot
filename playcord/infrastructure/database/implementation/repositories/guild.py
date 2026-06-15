@@ -6,8 +6,6 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from playcord.infrastructure.database.models import Guild, row_to_guild
-
 if TYPE_CHECKING:
     from playcord.infrastructure.database.implementation.database import Database
 
@@ -31,22 +29,6 @@ class GuildRepository:
             VALUES (%s, %s::jsonb)
             ON CONFLICT (guild_id) DO UPDATE SET
                 is_active = TRUE,
-                updated_at = NOW();
-        """
-        self.database.execute_query(query, (guild_id, settings_json))
-
-    def get_guild(self, guild_id: int) -> Guild | None:
-        query = "SELECT * FROM guilds WHERE guild_id = %s;"
-        result = self.database.execute_query(query, (guild_id,), fetchone=True)
-        return row_to_guild(result) if result else None
-
-    def update_guild_settings(self, guild_id: int, settings: dict[str, Any]) -> None:
-        settings_json = json.dumps(settings)
-        query = """
-            INSERT INTO guilds (guild_id, settings)
-            VALUES (%s, %s::jsonb)
-            ON CONFLICT (guild_id) DO UPDATE SET
-                settings = EXCLUDED.settings,
                 updated_at = NOW();
         """
         self.database.execute_query(query, (guild_id, settings_json))
@@ -84,11 +66,6 @@ class GuildRepository:
     def delete_guild(self, guild_id: int) -> None:
         query = "DELETE FROM guilds WHERE guild_id = %s;"
         self.database.execute_query(query, (guild_id,))
-
-    def get_active_guilds(self) -> list[Guild]:
-        query = "SELECT * FROM guilds WHERE is_active = TRUE ORDER BY created_at DESC;"
-        results = self.database.execute_query(query, fetchall=True)
-        return [row_to_guild(row) for row in results] if results else []
 
     def reset_guild_data(self, guild_id: int) -> None:
         self.delete_guild(guild_id)

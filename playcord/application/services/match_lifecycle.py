@@ -57,7 +57,7 @@ async def start_match_from_lobby(
         player_id = getattr(player, "id", None)
         if player_id is not None:
             reg.user_to_matchmaking.pop(int(player_id), None)
-    reg.matchmaking_by_message_id.pop(message.id, None)
+    reg.matchmaking_by_lobby_key.pop(interface.lobby_key, None)
 
     match_options = dict(getattr(interface, "match_settings", {}) or {})
     matches = get_container().matches_repository

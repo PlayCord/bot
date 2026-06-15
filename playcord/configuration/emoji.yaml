@@ -1,34 +1,132 @@
 emojis:
+  back:
+    id: 0
+    animated: false
+  forward:
+    id: 1516198223281389630
+    animated: false
+  first:
+    id: 0
+    animated: false
+  last:
+    id: 0
+    animated: false
+  play:
+    id: 0
+    animated: false
+  join:
+    id: 1516198224392622151
+    animated: false
+  leave:
+    id: 1516198225319821492
+    animated: false
+  ready:
+    id: 1516198225814487041
+    animated: false
+  creator:
+    id: 0
+    animated: false
+  rematch:
+    id: 1516198227307663380
+    animated: false
+  spectate:
+    id: 0
+    animated: false
+  peek:
+    id: 0
+    animated: false
+  external_link:
+    id: 0
+    animated: false
+  settings:
+    id: 1516198228444450856
+    animated: false
+  info:
+    id: 1328480770846621757
+    animated: false
+  about:
+    id: 0
+    animated: false
+  stats:
+    id: 0
+    animated: false
+  profile:
+    id: 1328138963512201256
+    animated: false
+  catalog:
+    id: 0
+    animated: false
+  history:
+    id: 0
+    animated: false
+  replay:
+    id: 0
+    animated: false
+  help:
+    id: 0
+    animated: false
+  success:
+    id: 0
+    animated: false
+  error:
+    id: 0
+    animated: false
+  pending:
+    id: 0
+    animated: false
+  timer:
+    id: 0
+    animated: false
+  warning:
+    id: 0
+    animated: false
   loading:
-    id: 1308083174420774963
+    id: 1516198229220397079
     animated: true
+  pointing:
+    id: 1516198230160048320
+    animated: false
+  github:
+    id: 1516198231216881796
+    animated: false
+  heart:
+    id: 0
+    animated: false
+  assign_roles:
+    id: 0
+    animated: false
+  playcord:
+    id: 1516198232097820714
+    animated: false
   user:
     id: 1328138963512201256
     animated: false
-  pointing:
-    id: 1328138400808828969
-    animated: false
   facepalm:
-    id: 1328480069156606144
+    id: 1516198233033015346
     animated: true
-  github:
-    id: 1329546977377259692
-    animated: false
   clueless:
-    id: 1329547266087718975
+    id: 1516198233813024891
     animated: false
   explosion:
-    id: 1328480397121683549
+    id: 1516198234769330288
     animated: true
   hmm:
     id: 1328480770846621757
     animated: false
-
-# Optional Unicode labels on buttons (omit keys for label-only buttons).
-button_emojis: {}
-
-# Catalog icons per game slug (plain ASCII keeps listing neutral).
 game_emojis:
-  tictactoe: "-"
-  connectfour: "-"
-  nim: "-"
+  tictactoe:
+    id: 0
+    animated: false
+  connectfour:
+    id: 0
+    animated: false
+  nim:
+    id: 0
+    animated: false
+  mafia:
+    id: 1516198236010844241
+    animated: false
+  secret_hitler:
+    id: 0
+    animated: false
+button_emojis: {}

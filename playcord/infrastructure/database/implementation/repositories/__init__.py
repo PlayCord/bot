@@ -16,9 +16,6 @@ from playcord.infrastructure.database.implementation.repositories.history import
 from playcord.infrastructure.database.implementation.repositories.maintenance import (
     MaintenanceRepository,
 )
-from playcord.infrastructure.database.implementation.repositories.move import (
-    MoveRepository,
-)
 from playcord.infrastructure.database.implementation.repositories.roles import (
     RoleRepository,
 )
@@ -32,7 +29,6 @@ __all__ = [
     "GuildRepository",
     "MaintenanceRepository",
     "MatchRepository",
-    "MoveRepository",
     "PlayerRepository",
     "ReplayRepository",
     "RoleRepository",

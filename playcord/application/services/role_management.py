@@ -149,12 +149,11 @@ def reorder_players_by_roles(
         if player is not None:
             by_seat[assignment.seat_index] = player
 
-    result = []
-    for i in sorted(by_seat.keys()):
-        result.append(by_seat[i])
-
+    result = [by_seat[i] for i in sorted(by_seat)]
+    seen = {id(player) for player in result}
     for player in players:
-        if player not in result:
+        if id(player) not in seen:
             result.append(player)
+            seen.add(id(player))
 
     return result

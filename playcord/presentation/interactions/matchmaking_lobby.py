@@ -1,6 +1,8 @@
 """Discord matchmaking lobby interface implementation."""
 
+import contextlib
 import importlib
+import secrets
 import typing
 from typing import Any
 
@@ -25,6 +27,7 @@ from playcord.infrastructure.constants import (
     BUTTON_PREFIX_JOIN,
     BUTTON_PREFIX_LEAVE,
     BUTTON_PREFIX_LOBBY_ASSIGN_ROLES,
+    BUTTON_PREFIX_LOBBY_SETTINGS,
     BUTTON_PREFIX_READY,
     EPHEMERAL_DELETE_AFTER,
     GAME_TYPES,
@@ -44,24 +47,15 @@ from playcord.presentation.interactions.helpers import (
     discord_user_db_label,
     followup_send,
     get_shallow_player,
-)
-from playcord.presentation.ui.containers import (
-    CustomContainer,
-    LoadingContainer,
-    container_send_kwargs,
-    container_to_markdown,
+    response_send_message,
 )
 from playcord.presentation.ui.formatting import (
-    column_creator,
     column_names,
     player_representative,
     player_verification_function,
 )
-from playcord.presentation.ui.layout_discord import (
-    MatchmakingView,
-    RematchView,
-)
-from playcord.presentation.ui.matchmaking_views import MatchmakingLobbyView
+from playcord.presentation.ui.layout_discord import RematchView
+from playcord.presentation.ui.matchmaking_views import LobbySettingsView, MatchmakingLobbyView
 
 
 class _LobbyCreatorRef:
@@ -85,17 +79,18 @@ class MatchmakingInterface:
     """
 
     def __init__(
-        self,
-        creator: discord.User,
-        game_type: str,
-        message: discord.InteractionMessage,
-        private: bool,
-        *,
-        creator_db_player: InternalPlayer | None = None,
+            self,
+            creator: discord.User,
+            game_type: str,
+            private: bool,
+            *,
+            message: discord.Message | discord.InteractionMessage | None = None,
+            creator_db_player: InternalPlayer | None = None,
     ) -> None:
 
         # Whether the startup of the matchmaking interaction failed
         self.failed = None
+        self.lobby_key = secrets.randbits(53)
 
         # Game type
         self.game_type = game_type
@@ -105,6 +100,7 @@ class MatchmakingInterface:
 
         # Whether joining the game is open
         self.private = private
+        self._default_private = private
 
         # Allowed players for whitelist
         creator_row = (
@@ -134,6 +130,9 @@ class MatchmakingInterface:
         # The message context to edit when making updates
         self.message = message
 
+        # Ephemeral settings panel message (creator-only), when open
+        self.settings_ephemeral: discord.Message | None = None
+
         if self.queued_players == {
             None,
         }:  # Couldn't get information on the creator, so fail now
@@ -143,7 +142,7 @@ class MatchmakingInterface:
             )
             return
         reg = get_container().registry
-        reg.matchmaking_by_message_id.update({self.message.id: self})
+        reg.matchmaking_by_lobby_key.update({self.lobby_key: self})
         for player in self.queued_players:
             reg.user_to_matchmaking[MatchmakingInterface._coerce_player_id(player)] = (
                 self
@@ -164,7 +163,7 @@ class MatchmakingInterface:
 
         player_count = resolve_player_count(self.game)
         if player_count is None:  # If no player count is defined, any value is "fine"
-            self.player_verification_function = lambda x: True
+            self.player_verification_function = lambda _x: True
             self.allowed_players = get("queue.any_players")
         else:
             self.player_verification_function = player_verification_function(
@@ -176,6 +175,18 @@ class MatchmakingInterface:
             None  # Whether the matchmaking was successful (True, None, or False)
         )
         self.logger = get_logger("interfaces.matchmaking").getChild(game_type)
+
+    def attach_message(self, message: discord.Message | discord.InteractionMessage) -> None:
+        """Bind the published lobby channel message after the first send."""
+        self.message = message
+
+    def lobby_send_kwargs(self) -> dict[str, typing.Any]:
+        """Kwargs for the initial lobby publish (full UI, no placeholder)."""
+        view, attachments = self._build_lobby_view()
+        kwargs: dict[str, typing.Any] = {"view": view}
+        if attachments:
+            kwargs["files"] = attachments
+        return kwargs
 
     @property
     def has_bots(self) -> bool:
@@ -192,6 +203,7 @@ class MatchmakingInterface:
             queued_players=self.queued_players,
             role_selections=self.role_selections,
             specs=self._specs,
+            match_settings=dict(self.match_settings),
         )
 
     def _all_humans_ready(self) -> bool:
@@ -233,15 +245,12 @@ class MatchmakingInterface:
             au_log = self.logger.getChild("auto_start")
             au_log.info(
                 "auto-start blocked: queued players in another active game lobby=%s busy=%s",
-                self.message.id,
+                self.lobby_key,
                 [p.id for p in busy_players],
             )
             self._reset_ready_state()
             return False
         self.outcome = True
-        await self.message.edit(
-            **container_send_kwargs(LoadingContainer().remove_footer()),
-        )
         await start_match_from_lobby(
             self,
             self.game,
@@ -391,7 +400,7 @@ class MatchmakingInterface:
             return
         spec = next((s for s in self._specs if s.key == key), None)
         if spec is None:
-            log.warning("unknown lobby option key=%r lobby=%s", key, self.message.id)
+            log.warning("unknown lobby option key=%r lobby_key=%s", key, self.lobby_key)
             await followup_send(
                 ctx,
                 get("matchmaking.invalid_interaction"),
@@ -410,6 +419,8 @@ class MatchmakingInterface:
                     )
         getattr(self, "_reset_ready_state", lambda: None)()
         await self.update_embed()
+        if await self._refresh_settings_ephemeral(ctx):
+            return
         await followup_send(
             ctx,
             get("queue.lobby_option_updated"),
@@ -417,10 +428,163 @@ class MatchmakingInterface:
             delete_after=EPHEMERAL_DELETE_AFTER,
         )
 
+    def build_settings_view(self) -> LobbySettingsView:
+        access_label: str | None = None
+        access_value: str | None = None
+        if self.private:
+            access_label = get("queue.field_whitelist")
+            access_value = column_names(self.whitelist) or None
+        elif self.blacklist:
+            access_label = get("queue.field_blacklist")
+            access_value = column_names(self.blacklist) or None
+        return LobbySettingsView(
+            lobby_key=self.lobby_key,
+            game_name=self.metadata.name,
+            private=self.private,
+            access_list_label=access_label,
+            access_list_value=access_value,
+            option_specs=self._specs,
+            current_values=dict(self.match_settings),
+        )
+
+    async def _refresh_settings_ephemeral(self, ctx: discord.Interaction) -> bool:
+        """Refresh the open settings panel when a control on it was used."""
+        settings_msg = getattr(self, "settings_ephemeral", None)
+        if (
+                settings_msg is None
+                or ctx.message is None
+                or ctx.message.id != settings_msg.id
+        ):
+            return False
+        try:
+            await ctx.edit_original_response(view=self.build_settings_view())
+        except discord.HTTPException:
+            self.settings_ephemeral = None
+        return True
+
+    async def callback_lobby_privacy(self, ctx: discord.Interaction) -> None:
+        """Handle privacy select in the ephemeral settings panel."""
+        if ctx.user.id != self.creator.id:
+            await followup_send(
+                ctx,
+                get("settings.only_creator"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
+        raw = (ctx.data.get("values") or [""])[0]
+        self.private = raw == "private"
+        getattr(self, "_reset_ready_state", lambda: None)()
+        await self.update_embed()
+        await self._refresh_settings_ephemeral(ctx)
+
+    async def callback_lobby_settings(self, ctx: discord.Interaction) -> None:
+        """Open the ephemeral settings panel for the lobby creator."""
+        if ctx.user.id != self.creator.id:
+            await followup_send(
+                ctx,
+                get("settings.only_creator"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
+        view = self.build_settings_view()
+        self.settings_ephemeral = await followup_send(ctx, view=view, ephemeral=True)
+
+    def _unregister_lobby(self) -> None:
+        reg = get_container().registry
+        for player in list(self.queued_players):
+            MatchmakingInterface._pop_active_matchmaking_entry(
+                MatchmakingInterface._coerce_player_id(player),
+            )
+        reg.matchmaking_by_lobby_key.pop(self.lobby_key, None)
+
+    async def end_lobby(self) -> None:
+        """Tear down the lobby message and registry entries."""
+        self._unregister_lobby()
+        settings_msg = getattr(self, "settings_ephemeral", None)
+        self.settings_ephemeral = None
+        with contextlib.suppress(discord.HTTPException):
+            await self.message.delete()
+        if settings_msg is not None:
+            with contextlib.suppress(discord.HTTPException):
+                await settings_msg.delete()
+        self.outcome = False
+
+    async def callback_lobby_reset_privacy(self, ctx: discord.Interaction) -> None:
+        """Reset privacy to the lobby's initial value."""
+        if ctx.user.id != self.creator.id:
+            await followup_send(
+                ctx,
+                get("settings.only_creator"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
+        self.private = self._default_private
+        self._reset_ready_state()
+        await self.update_embed()
+        if await self._refresh_settings_ephemeral(ctx):
+            return
+        await followup_send(
+            ctx,
+            get("settings.reset_privacy_done"),
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
+        )
+
+    async def callback_lobby_reset_rules(self, ctx: discord.Interaction) -> None:
+        """Reset match options to their defaults."""
+        if ctx.user.id != self.creator.id:
+            await followup_send(
+                ctx,
+                get("settings.only_creator"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
+        self.match_settings = {spec.key: spec.default for spec in self._specs}
+        self._reset_ready_state()
+        await self.update_embed()
+        if await self._refresh_settings_ephemeral(ctx):
+            return
+        await followup_send(
+            ctx,
+            get("settings.reset_rules_done"),
+            ephemeral=True,
+            delete_after=EPHEMERAL_DELETE_AFTER,
+        )
+
+    async def callback_lobby_end_game(self, ctx: discord.Interaction) -> None:
+        """End the lobby from the settings panel."""
+        if ctx.user.id != self.creator.id:
+            await followup_send(
+                ctx,
+                get("settings.only_creator"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+            return
+        await self.end_lobby()
+        if ctx.response.is_done():
+            await followup_send(
+                ctx,
+                get("settings.lobby_ended"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+        else:
+            await response_send_message(
+                ctx,
+                get("settings.lobby_ended"),
+                ephemeral=True,
+                delete_after=EPHEMERAL_DELETE_AFTER,
+            )
+
     async def callback_role_select(
-        self,
-        ctx: discord.Interaction,
-        player_id: int,
+            self,
+            ctx: discord.Interaction,
+            player_id: int,
     ) -> None:
         """Handle per-player role string select for plugin-owned roles."""
         log = self.logger.getChild("lobby_role_select")
@@ -438,16 +602,16 @@ class MatchmakingInterface:
 
         # Support both new role_flow and legacy role_mode for backward compatibility
         is_selectable = (
-            role_flow
-            in (
-                RoleFlow.selectable,
-                RoleFlow.selectable_random,
-            )
-            or role_mode == RoleMode.chosen
+                role_flow
+                in (
+                    RoleFlow.selectable,
+                    RoleFlow.selectable_random,
+                )
+                or role_mode == RoleMode.chosen
         )
 
         if not is_selectable:
-            log.warning("role select on non-selectable lobby lobby=%s", self.message.id)
+            log.warning("role select on non-selectable lobby lobby_key=%s", self.lobby_key)
             await followup_send(
                 ctx,
                 get("matchmaking.invalid_interaction"),
@@ -487,8 +651,8 @@ class MatchmakingInterface:
         )
 
     async def callback_assign_roles(
-        self,
-        ctx: discord.Interaction,
+            self,
+            ctx: discord.Interaction,
     ) -> None:
         """Randomly assign roles for selectable_random flow."""
         log = self.logger.getChild("lobby_assign_roles")
@@ -497,7 +661,7 @@ class MatchmakingInterface:
         if role_flow != RoleFlow.selectable_random:
             log.warning(
                 "assign_roles on non-selectable_random lobby lobby=%s",
-                self.message.id,
+                self.lobby_key,
             )
             await followup_send(
                 ctx,
@@ -526,7 +690,7 @@ class MatchmakingInterface:
                 assign_roles_svc(self.game, players)
 
                 # Populate role selections from assigned roles
-                for player in players:
+                for _ in players:
                     # For now, store role assignments (actual assignment happens at match start)
                     pass
 
@@ -546,184 +710,119 @@ class MatchmakingInterface:
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
 
-    async def update_embed(self) -> None:
-        """
-        Update the embed based on the players in self.players
-        :return: Nothing.
-        """
-        log = self.logger.getChild("update_embed")
-        update_timer = Timer().start()
-
-        if await self._maybe_auto_start_from_lobby():
-            log.debug("Matchmaking lobby auto-started in %sms.", update_timer.stop())
+    async def _refresh_open_settings_panel(self) -> None:
+        settings_msg = getattr(self, "settings_ephemeral", None)
+        if settings_msg is None:
             return
+        try:
+            await settings_msg.edit(view=self.build_settings_view())
+        except discord.HTTPException:
+            self.settings_ephemeral = None
 
-        private_text = (
-            get("queue.private_status") if self.private else get("queue.public_status")
-        )
-
-        # Parameters in embed title:
-        # Time
-        # Allowed players
-        # Difficulty
-        # Public/Private
-
-        game_metadata = {}
-
-        for param in ["time", "difficulty", "author", "author_link", "source_link"]:
-            if hasattr(self.metadata, param):
-                game_metadata[param] = getattr(self.metadata, param)
-            else:
-                game_metadata[param] = get("game_info.unknown")
-
-        container = CustomContainer(
-            title=self._lobby_view_summary_line(),
-            description=fmt(
-                "queue.lobby_summary_line",
-                time=game_metadata["time"],
-                player_slots=str(self.allowed_players),
-                difficulty=game_metadata["difficulty"],
-                privacy=private_text,
-            ),
-        )
-
+    def _build_lobby_view(
+            self,
+    ) -> tuple[MatchmakingLobbyView, list[discord.File]]:
         all_players = self.all_players()
-        table_rows = []
-        for player, creator_marker in zip(
-            all_players,
-            column_creator(all_players, self.creator).split("\n"),
-            strict=False,
-        ):
-            player_name = getattr(player, "mention", getattr(player, "name", "Unknown"))
-            table_rows.append(
-                f"- {player_name}: {get('queue.field_creator')} {creator_marker}",
-            )
+        start_conditions_met = self._base_start_conditions_met()
         table_image_url = None
         table_file = None
-        if table_rows:
-            container.add_field(
-                name=get("queue.field_players"),
-                value="\n".join(table_rows),
-                inline=False,
-            )
 
-        if self._base_start_conditions_met() and self.queued_players:
-            ready_lines = []
-            for p in sorted(self.queued_players, key=lambda x: x.id):
-                mention = (
-                    getattr(p, "mention", None)
-                    or getattr(p, "name", None)
-                    or str(getattr(p, "id", p))
-                )
-                state = (
-                    get("queue.ready_state_ready")
-                    if p.id in self.ready_players
-                    else get("queue.ready_state_waiting")
-                )
-                ready_lines.append(
-                    fmt("queue.ready_state_line", player=mention, state=state),
-                )
-            container.add_field(
-                name=get("queue.field_ready_state"),
-                value="\n".join(ready_lines),
-                inline=False,
-            )
+        from playcord.presentation.ui.component_kit import format_page_title, icon_prefix
 
-        # Add whitelist or blacklist depending on private status
-        if self.private:
-            container.add_field(
-                name=get("queue.field_whitelist"),
-                value=column_names(self.whitelist),
-                inline=True,
-            )
-        elif len(self.blacklist):
-            container.add_field(
-                name=get("queue.field_blacklist"),
-                value=column_names(self.blacklist),
-                inline=True,
-            )
+        title_text = format_page_title(
+            self._lobby_view_summary_line(),
+            icon_key="loading",
+        )
 
-        try:
-            container.set_footer(text=self.metadata.description)
-        except Exception:
-            # Fallback: if footer cannot be set for some reason, add as normal fields
-            if self.metadata.description:
-                container.add_field(
-                    name=get("queue.field_game_info"),
-                    value=self.metadata.description,
-                    inline=False,
-                )
-            auth = game_metadata.get("author")
-            if auth:
-                container.add_field(
-                    name=get("queue.field_game_by"),
-                    value=str(auth),
-                    inline=False,
-                )
-
-        if self._specs:
-            opt_lines = []
-            for spec in self._specs:
-                v = self.match_settings.get(spec.key, spec.default)
-                opt_lines.append(f"**{spec.label}** → `{v}`")
-            container.add_field(
-                name=get("queue.field_match_options"),
-                value="\n".join(opt_lines),
-                inline=False,
+        # Unified players section with creator and ready badges (icon-prefixed)
+        player_lines = [get("queue.field_players")]
+        for player in all_players:
+            player_name = getattr(player, "mention", getattr(player, "name", "Unknown"))
+            is_bot_player = getattr(player, "is_bot", False)
+            badges: list[str] = []
+            if not is_bot_player and player.id == getattr(self.creator, "id", None):
+                badges.append(icon_prefix("creator", get("queue.player_badge_creator")))
+            if start_conditions_met and not is_bot_player:
+                if player.id in self.ready_players:
+                    badges.append(icon_prefix("ready", get("queue.player_badge_ready")))
+                else:
+                    badges.append(icon_prefix("timer", get("queue.player_badge_not_ready")))
+            badge_str = " ".join(badges)
+            player_lines.append(
+                f"- {player_name}: {badge_str}" if badge_str else f"- {player_name}",
             )
+        players_section = "\n".join(player_lines)
+
+        # Bot info section (small text, conditional)
+        available_bots = getattr(self.metadata, "bots", None)
+        bots_section: str | None = None
+        if self.bots:
+            diff_counts: dict[str, int] = {}
+            for bot in self.bots:
+                d = getattr(bot, "bot_difficulty", None) or getattr(bot, "difficulty", "unknown")
+                diff_counts[d] = diff_counts.get(d, 0) + 1
+            breakdown = ", ".join(f"{v} {k}" for k, v in sorted(diff_counts.items()))
+            bots_section = fmt("queue.bots_in_queue", total=len(self.bots), breakdown=breakdown)
+        elif available_bots:
+            bots_section = get("queue.game_supports_bots")
+
+        # Assemble text sections in new layout order
+        text_sections: list[str] = [title_text, players_section]
+        if bots_section:
+            text_sections.append(bots_section)
+        if getattr(self.metadata, "description", None):
+            text_sections.append(str(self.metadata.description))
 
         role_mode = getattr(self.metadata, "role_mode", RoleMode.none)
         pr_roles = getattr(self.metadata, "player_roles", None)
         role_flow = getattr(self.metadata, "role_flow", RoleFlow.none)
 
-        layout_ok_chosen = len(self._specs) + len(self.all_players()) <= 4
+        layout_ok_chosen = len(all_players) <= 4
 
         # Legacy role_mode support
         show_role_selects_legacy = (
-            role_mode == RoleMode.chosen
-            and not self.has_bots
-            and pr_roles is not None
-            and len(pr_roles) == len(self.all_players())
-            and layout_ok_chosen
+                role_mode == RoleMode.chosen
+                and not self.has_bots
+                and pr_roles is not None
+                and len(pr_roles) == len(all_players)
+                and layout_ok_chosen
         )
 
         # New plugin-owned role system
         show_role_selects_new = False
         available_roles: dict[int, tuple[str, ...]] | None = None
 
-        if has_role_support(self.game) and role_flow in (
-            RoleFlow.selectable,
-            RoleFlow.selectable_random,
-        ):
-            if (
-                not self.has_bots
+        if (
+                has_role_support(self.game)
+                and role_flow in (RoleFlow.selectable, RoleFlow.selectable_random)
+                and not self.has_bots
                 and len(self.queued_players) >= self.metadata.player_count[0]
-            ):
-                try:
-                    if hasattr(self.game, "role_selection_options"):
-                        available_roles = self.game.role_selection_options(
-                            [p.id for p in self.queued_players],
-                        )
-                        if available_roles and layout_ok_chosen:
-                            show_role_selects_new = True
-                except Exception as e:
-                    log.exception("Error getting role selection options: %s", e)
+        ):
+            try:
+                if hasattr(self.game, "role_selection_options"):
+                    available_roles = self.game.role_selection_options(
+                        [p.id for p in self.queued_players],
+                    )
+                    if available_roles and layout_ok_chosen:
+                        show_role_selects_new = True
+            except Exception as e:
+                self.logger.getChild("update_embed").exception(
+                    "Error getting role selection options: %s",
+                    e,
+                )
 
         show_role_selects = show_role_selects_legacy or show_role_selects_new
 
+        # Role picks text section
         if role_mode == RoleMode.chosen:
             if self.has_bots:
-                container.add_field(
-                    name=get("queue.role_picks_field"),
-                    value=get("queue.role_chosen_no_bots"),
-                    inline=False,
+                text_sections.append(
+                    f"{get('queue.role_picks_field')}\n{get('queue.role_chosen_no_bots')}",
                 )
-            elif pr_roles and len(pr_roles) == len(self.all_players()):
+            elif pr_roles and len(pr_roles) == len(all_players):
                 if not layout_ok_chosen:
-                    container.add_field(
-                        name=get("queue.role_picks_field"),
-                        value=get("queue.role_chosen_ui_overflow"),
-                        inline=False,
+                    text_sections.append(
+                        f"{get('queue.role_picks_field')}\n{get('queue.role_chosen_ui_overflow')}",
                     )
                 else:
                     pick_lines = []
@@ -736,29 +835,23 @@ class MatchmakingInterface:
                             pick_lines.append(
                                 f"**{label}** → {get('queue.role_picks_none')}",
                             )
-                    container.add_field(
-                        name=get("queue.role_picks_field"),
-                        value=(
-                            "\n".join(pick_lines)
-                            if pick_lines
-                            else get("queue.role_picks_none")
-                        ),
-                        inline=False,
+                    text_sections.append(
+                        f"{get('queue.role_picks_field')}\n"
+                        + ("\n".join(pick_lines) if pick_lines else get("queue.role_picks_none")),
                     )
             elif pr_roles:
-                container.add_field(
-                    name=get("queue.role_picks_field"),
-                    value=get("queue.role_chosen_lobby_not_full"),
-                    inline=False,
+                text_sections.append(
+                    f"{get('queue.role_picks_field')}\n{get('queue.role_chosen_lobby_not_full')}",
                 )
 
-        join_id = f"{BUTTON_PREFIX_JOIN}{self.message.id}"
-        leave_id = f"{BUTTON_PREFIX_LEAVE}{self.message.id}"
+        join_id = f"{BUTTON_PREFIX_JOIN}{self.lobby_key}"
+        leave_id = f"{BUTTON_PREFIX_LEAVE}{self.lobby_key}"
         ready_id = (
-            f"{BUTTON_PREFIX_READY}{self.message.id}"
-            if self._base_start_conditions_met()
+            f"{BUTTON_PREFIX_READY}{self.lobby_key}"
+            if start_conditions_met
             else None
         )
+        settings_id = f"{BUTTON_PREFIX_LOBBY_SETTINGS}{self.lobby_key}"
         ready_label = get("buttons.ready_toggle")
         role_specs_list: list[tuple[int, str, tuple[str, ...]]] = []
         if show_role_selects:
@@ -775,52 +868,61 @@ class MatchmakingInterface:
                 for p in sorted(self.queued_players, key=lambda x: x.id):
                     disp = getattr(p, "name", None) or str(p.id)
                     role_specs_list.append((p.id, disp, avail))
-        use_lobby_view = bool(self._specs) or show_role_selects
+        use_lobby_view = show_role_selects
 
         # Determine if we should show the assign roles button
         assign_roles_button_id = None
         if (
-            has_role_support(self.game)
-            and role_flow == RoleFlow.selectable_random
-            and not self.has_bots
+                has_role_support(self.game)
+                and role_flow == RoleFlow.selectable_random
+                and not self.has_bots
         ):
             assign_roles_button_id = (
-                f"{BUTTON_PREFIX_LOBBY_ASSIGN_ROLES}{self.message.id}"
+                f"{BUTTON_PREFIX_LOBBY_ASSIGN_ROLES}{self.lobby_key}"
             )
 
-        if use_lobby_view:
-            view = MatchmakingLobbyView(
-                join_button_id=join_id,
-                leave_button_id=leave_id,
-                ready_button_id=ready_id,
-                ready_button_label=ready_label,
-                lobby_message_id=self.message.id,
-                option_specs=self._specs,
-                current_values=dict(self.match_settings),
-                role_specs=role_specs_list,
-                current_role_values=dict(self.role_selections),
-                assign_roles_button_id=assign_roles_button_id,
-                summary_text=container_to_markdown(container),
-                table_image_url=table_image_url,
-            )
-        else:
-            view = MatchmakingView(
-                join_button_id=join_id,
-                leave_button_id=leave_id,
-                ready_button_id=ready_id,
-                ready_button_label=ready_label,
-                summary_text=container_to_markdown(container),
-                table_image_url=table_image_url,
-            )
+        view = MatchmakingLobbyView(
+            join_button_id=join_id,
+            leave_button_id=leave_id,
+            ready_button_id=ready_id,
+            ready_button_label=ready_label,
+            lobby_key=self.lobby_key,
+            role_specs=role_specs_list if use_lobby_view else None,
+            current_role_values=dict(self.role_selections),
+            assign_roles_button_id=assign_roles_button_id,
+            settings_button_id=settings_id,
+            text_sections=text_sections,
+            table_image_url=table_image_url,
+        )
 
         attachments = [table_file] if table_file is not None else []
+        return view, attachments
+
+    async def update_embed(self) -> None:
+        """
+        Update the embed based on the players in self.players
+        :return: Nothing.
+        """
+        log = self.logger.getChild("update_embed")
+        update_timer = Timer().start()
+
+        if await self._maybe_auto_start_from_lobby():
+            log.debug("Matchmaking lobby auto-started in %sms.", update_timer.stop())
+            return
+
+        if self.message is None:
+            log.warning("update_embed called before lobby message was published")
+            return
+
+        view, attachments = self._build_lobby_view()
         await self.message.edit(view=view, attachments=attachments)
+        await self._refresh_open_settings_panel()
         log.debug(f"Finished matchmaking update task in {update_timer.stop()}ms.")
 
     async def seed_rematch_players(
-        self,
-        guild: discord.Guild,
-        user_ids: list[int],
+            self,
+            guild: discord.Guild,
+            user_ids: list[int],
     ) -> str | None:
         """Add humans from a finished match to this lobby (creator is already queued)."""
         present = {p.id for p in self.queued_players}
@@ -852,7 +954,7 @@ class MatchmakingInterface:
         # Get logger
         log = self.logger.getChild("accept_invite")
         log.debug(
-            f"Attempting to accept invite for player {player} for matchmaker id={self.message.id}"
+            f"Attempting to accept invite for player {player} for lobby_key={self.lobby_key}"
             f" {contextify(ctx)}",
         )
 
@@ -870,8 +972,8 @@ class MatchmakingInterface:
             return False
 
         if MatchmakingInterface._is_queued_player(
-            self,
-            player.id,
+                self,
+                player.id,
         ):  # Can't join if you are already in
             log.debug(
                 f"Player.py {player} attempted to accept invite, but they are already in the game! "
@@ -1051,8 +1153,8 @@ class MatchmakingInterface:
             )
             return
         if MatchmakingInterface._is_queued_player(
-            self,
-            ctx.user.id,
+                self,
+                ctx.user.id,
         ):  # Can't join if you are already in
             log.info(
                 f"Attempted to join player {new_player} but failed because they were already in the queue."
@@ -1090,8 +1192,8 @@ class MatchmakingInterface:
             return
         elif not self.private:
             if MatchmakingInterface._contains_player_id(
-                self.blacklist,
-                new_player.id,
+                    self.blacklist,
+                    new_player.id,
             ):
                 log.info(
                     f"Attempted to join player {new_player} but failed because they are banned."
@@ -1108,8 +1210,8 @@ class MatchmakingInterface:
             await self.update_embed()  # Update embed on discord side
         else:
             if not MatchmakingInterface._contains_player_id(
-                self.whitelist,
-                new_player.id,
+                    self.whitelist,
+                    new_player.id,
             ):
                 log.info(
                     f"Attempted to join player {new_player} to private game but failed because"
@@ -1186,8 +1288,8 @@ class MatchmakingInterface:
             return
 
         if not MatchmakingInterface._is_queued_player(
-            self,
-            player.id,
+                self,
+                player.id,
         ):  # Can't leave if you weren't even there
             log.info(
                 f"Attempted to remove player {player} but failed because they weren't in the queue to begin with."
@@ -1217,7 +1319,7 @@ class MatchmakingInterface:
                 return
 
             if (
-                player.id == self.creator.id
+                    player.id == self.creator.id
             ):  # Update creator if the person leaving was the creator.
                 MatchmakingInterface._rotate_creator_if_needed(self, player.id)
                 log.debug(

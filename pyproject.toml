@@ -21,8 +21,6 @@ classifiers = [
 dependencies = [
     "ruamel.yaml",
     "discord.py>=2.7",
-    "cairosvg",
-    "svg.py",
     "emoji",
     "pillow",
     "psycopg[binary,pool]",
@@ -60,3 +58,12 @@ minversion = "8.0"
 addopts = "-ra"
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+src = ["playcord"]
+
+[tool.ruff.lint]
+# Substantive cleanup rules from the deep audit (run: ruff check playcord --select …).
+extend-select = ["B", "SIM", "UP", "C4", "PIE", "RUF", "PERF", "RET", "ARG"]
+ignore = ["E501"]

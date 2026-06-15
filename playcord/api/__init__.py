@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Generic, Literal, Protocol, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Literal, Protocol, overload
 
 from playcord.api.bot import BotDefinition
 from playcord.api.handlers import HandlerRef, HandlerSpec, handler
@@ -323,11 +323,8 @@ class Outcome:
         )
 
 
-T_State = TypeVar("T_State")
-
-
 @dataclass(frozen=True, slots=True)
-class ReplayState(Generic[T_State]):
+class ReplayState[T_State]:
     """
     State snapshot for replaying game events.
 
@@ -924,27 +921,33 @@ class RuntimeGame(ABC):
         return ()
 
     def validate_roles(self, selections: dict[int, str]) -> bool | str:
+        _ = selections
         return True
 
     def role_selection_options(
         self,
         player_ids: list[int],
     ) -> dict[int, tuple[Role, ...]]:
+        _ = player_ids
         return {}
 
     def assign_roles(
         self,
         selections: dict[int, str] | None = None,
     ) -> list[RoleAssignment]:
+        _ = selections
         return []
 
     def match_global_summary(self, outcome: Outcome) -> str | None:
+        _ = outcome
         return None
 
     def match_summary(self, outcome: Outcome) -> dict[int, str] | None:
+        _ = outcome
         return None
 
     def initial_replay_state(self, ctx: GameContext) -> ReplayState[Any] | None:
+        _ = ctx
         return None
 
     def apply_replay_event(
@@ -952,13 +955,15 @@ class RuntimeGame(ABC):
         state: ReplayState[Any],
         event: dict[str, Any],
     ) -> ReplayState[Any] | None:
+        _ = (state, event)
         return None
 
     def render_replay(self, state: ReplayState[Any]) -> MessageLayout | None:
+        _ = state
         return None
 
 
-class ReplayableGame(RuntimeGame, ABC, Generic[T_State]):
+class ReplayableGame[T_State](RuntimeGame, ABC):
     """Explicit replay capability for games that support frame reconstruction."""
 
     @abstractmethod

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 from logging import Logger
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -23,7 +23,7 @@ class Formatter(logging.Formatter):
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s (%(filename)s:%(lineno)d)"
     )
 
-    FORMATS = {
+    FORMATS: ClassVar[dict[int, str]] = {
         logging.DEBUG: grey + format_string + reset,
         logging.INFO: grey + format_string + reset,
         logging.WARNING: yellow + format_string + reset,

@@ -15,10 +15,8 @@ from playcord.core.generators import generate_match_code
 from playcord.infrastructure.database.models import (
     Match,
     MatchStatus,
-    Move,
     Participant,
     row_to_match,
-    row_to_move,
     row_to_participant,
 )
 
@@ -140,27 +138,6 @@ class MatchRepository:
         """
         rows = self.database.execute_query(query, (match_id,), fetchall=True) or []
         return [int(r["user_id"]) for r in rows]
-
-    def update_match_context(
-        self,
-        match_id: int,
-        channel_id: int | None = None,
-        thread_id: int | None = None,
-    ) -> None:
-        updates: list[str] = []
-        params: list[Any] = []
-        if channel_id is not None:
-            updates.append("channel_id = %s")
-            params.append(channel_id)
-        if thread_id is not None:
-            updates.append("thread_id = %s")
-            params.append(thread_id)
-        if not updates:
-            return
-        params.append(match_id)
-        # Safe: updates list contains only hardcoded field names; all values use %s parameters
-        query = f"UPDATE matches SET {', '.join(updates)} WHERE match_id = %s;"
-        self.database.execute_query(query, tuple(params))
 
     def ensure_unique_match_code(self) -> str:
         """Reserve an unused public match code (may race with concurrent inserts)."""
@@ -291,72 +268,6 @@ class MatchRepository:
                 (metadata_patch_json, match_id),
             )
 
-    def delete_match(self, match_id: int) -> None:
-        query = "DELETE FROM matches WHERE match_id = %s;"
-        self.database.execute_query(query, (match_id,))
-
-    def get_active_matches(self, guild_id: int | None = None) -> list[Match]:
-        if guild_id is not None:
-            query = """
-                SELECT * FROM matches
-                WHERE status = 'in_progress' AND guild_id = %s
-                ORDER BY started_at DESC;
-            """
-            results = self.database.execute_query(query, (guild_id,), fetchall=True)
-        else:
-            query = """
-                SELECT * FROM matches
-                WHERE status = 'in_progress'
-                ORDER BY started_at DESC;
-            """
-            results = self.database.execute_query(query, fetchall=True)
-        return [row_to_match(row) for row in results] if results else []
-
-    def get_recent_matches(
-        self,
-        guild_id: int,
-        game_id: int,
-        limit: int = 10,
-    ) -> list[Match]:
-        query = """
-            SELECT * FROM matches
-            WHERE guild_id = %s AND game_id = %s AND status = 'completed'
-            ORDER BY ended_at DESC
-            LIMIT %s;
-        """
-        results = self.database.execute_query(
-            query,
-            (guild_id, game_id, limit),
-            fetchall=True,
-        )
-        return [row_to_match(row) for row in results] if results else []
-
-    def abandon_match(self, match_id: int, reason: str) -> None:
-        query = """
-            UPDATE matches
-            SET status = 'abandoned',
-                ended_at = NOW(),
-                metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{abandon_reason}', %s::jsonb)
-            WHERE match_id = %s;
-        """
-        self.database.execute_query(query, (f'"{reason}"', match_id))
-
-    def add_participant(
-        self,
-        match_id: int,
-        user_id: int,
-        player_number: int,
-    ) -> None:
-        query = """
-            INSERT INTO match_participants
-                (match_id, user_id, player_number)
-            VALUES (%s, %s, %s);
-        """
-        self.database.execute_query(
-            query,
-            (match_id, user_id, player_number),
-        )
-
     def get_participants(self, match_id: int) -> list[Participant]:
         query = """
             SELECT * FROM match_participants
@@ -366,38 +277,18 @@ class MatchRepository:
         results = self.database.execute_query(query, (match_id,), fetchall=True)
         return [row_to_participant(row) for row in results] if results else []
 
-    def update_participant_result(
-        self,
-        participant_id: int,
-        ranking: int,
-        score: float | None,
-    ) -> None:
-        query = """
-            UPDATE match_participants
-            SET final_ranking = %s,
-                score = %s
-            WHERE participant_id = %s;
-        """
-        self.database.execute_query(
-            query,
-            (ranking, score, participant_id),
-        )
-
-    def remove_participant(self, match_id: int, user_id: int) -> None:
-        query = "DELETE FROM match_participants WHERE match_id = %s AND user_id = %s;"
-        self.database.execute_query(query, (match_id, user_id))
-
     def record_move(
         self,
         match_id: int,
         user_id: int | None,
-        move_number: int | None = None,  # noqa: ARG002
+        move_number: int | None = None,
         move_data: dict[str, Any] | None = None,
         game_state_after: dict[str, Any] | None = None,
         time_taken_ms: int | None = None,
         is_game_affecting: bool = True,
         kind: str = "move",
     ) -> None:
+        _ = move_number
         move_json = json.dumps(move_data) if move_data else None
         state_json = json.dumps(game_state_after) if game_state_after else None
         query_next = """
@@ -427,35 +318,10 @@ class MatchRepository:
             ),
         )
 
-    def get_match_moves(self, match_id: int) -> list[Move]:
-        query = """
-            SELECT * FROM match_moves
-            WHERE match_id = %s AND is_deleted = FALSE
-            ORDER BY move_number ASC;
-        """
-        results = self.database.execute_query(query, (match_id,), fetchall=True)
-        return [row_to_move(row) for row in results] if results else []
-
     def get_move_count(self, match_id: int) -> int:
         query = "SELECT COUNT(*) as count FROM match_moves WHERE match_id = %s AND is_deleted = FALSE;"
         result = self.database.execute_query(query, (match_id,), fetchone=True)
         return result["count"] if result else 0
-
-    def validate_move_sequence(self, match_id: int) -> bool:
-        query = """
-            SELECT
-                COUNT(*) as move_count,
-                MAX(move_number) as max_move,
-                MIN(move_number) as min_move
-            FROM match_moves
-            WHERE match_id = %s AND is_deleted = FALSE;
-        """
-        result = self.database.execute_query(query, (match_id,), fetchone=True)
-        if not result:
-            return True
-        return result["move_count"] == 0 or (
-            result["move_count"] == result["max_move"] and result["min_move"] == 1
-        )
 
     def get_user_match_history(
         self,
@@ -516,113 +382,6 @@ class MatchRepository:
             offset=offset,
         )
 
-    def get_head_to_head(
-        self,
-        user1_id: int,
-        user2_id: int,
-        game_id: int | None = None,
-    ) -> list[dict[str, Any]]:
-        if game_id is not None:
-            query = """
-                SELECT
-                    m.game_id,
-                    g.display_name as game_name,
-                    COUNT(*) as total_matches,
-                    SUM(CASE WHEN mp1.final_ranking < mp2.final_ranking THEN 1 ELSE 0 END) as user1_wins,
-                    SUM(CASE WHEN mp2.final_ranking < mp1.final_ranking THEN 1 ELSE 0 END) as user2_wins,
-                    SUM(CASE WHEN mp1.final_ranking = mp2.final_ranking THEN 1 ELSE 0 END) as draws,
-                    MAX(m.ended_at) as last_match_date
-                FROM matches m
-                JOIN games g ON m.game_id = g.game_id
-                JOIN match_participants mp1 ON m.match_id = mp1.match_id AND mp1.user_id = %s
-                JOIN match_participants mp2 ON m.match_id = mp2.match_id AND mp2.user_id = %s
-                WHERE m.status = 'completed' AND m.game_id = %s
-                GROUP BY m.game_id, g.display_name;
-            """
-            results = self.database.execute_query(
-                query,
-                (user1_id, user2_id, game_id),
-                fetchall=True,
-            )
-        else:
-            query = """
-                SELECT
-                    m.game_id,
-                    g.display_name as game_name,
-                    COUNT(*) as total_matches,
-                    SUM(CASE WHEN mp1.final_ranking < mp2.final_ranking THEN 1 ELSE 0 END) as user1_wins,
-                    SUM(CASE WHEN mp2.final_ranking < mp1.final_ranking THEN 1 ELSE 0 END) as user2_wins,
-                    SUM(CASE WHEN mp1.final_ranking = mp2.final_ranking THEN 1 ELSE 0 END) as draws,
-                    MAX(m.ended_at) as last_match_date
-                FROM matches m
-                JOIN games g ON m.game_id = g.game_id
-                JOIN match_participants mp1 ON m.match_id = mp1.match_id AND mp1.user_id = %s
-                JOIN match_participants mp2 ON m.match_id = mp2.match_id AND mp2.user_id = %s
-                WHERE m.status = 'completed'
-                GROUP BY m.game_id, g.display_name
-                ORDER BY total_matches DESC;
-            """
-            results = self.database.execute_query(
-                query,
-                (user1_id, user2_id),
-                fetchall=True,
-            )
-        return results or []
-
-    def get_user_stats(self, user_id: int, game_id: int) -> dict[str, Any] | None:
-        query = """
-            SELECT
-                mp.user_id,
-                u.username,
-                g.display_name as game_name,
-                COUNT(*)::INTEGER as completed_matches,
-                COUNT(*) FILTER (WHERE mp.final_ranking = 1)::INTEGER as wins,
-                MAX(m.ended_at) as last_played
-            FROM match_participants mp
-            JOIN matches m ON m.match_id = mp.match_id
-            JOIN users u ON u.user_id = mp.user_id
-            JOIN games g ON g.game_id = m.game_id
-            WHERE mp.user_id = %s
-              AND m.game_id = %s
-              AND m.status = 'completed'
-              AND mp.is_deleted = FALSE
-            GROUP BY mp.user_id, u.username, g.display_name;
-        """
-        return self.database.execute_query(query, (user_id, game_id), fetchone=True)
-
-    def get_match_details(self, match_id: int) -> dict[str, Any] | None:
-        match = self.get_match(match_id)
-        if not match:
-            return None
-        return {
-            "match_id": match.match_id,
-            "match_code": match.match_code,
-            "game_id": match.game_id,
-            "guild_id": match.guild_id,
-            "started": match.started_at,
-            "ended": match.ended_at,
-            "game_data": match.game_config,
-        }
-
-    def count_matches_for_game(
-        self,
-        guild_id: int,
-        game_name: str,
-    ) -> int:
-        game = self.games.get_game(game_name)
-        if not game:
-            return 0
-        query = """
-            SELECT COUNT(*) as count FROM matches
-            WHERE guild_id = %s AND game_id = %s;
-        """
-        result = self.database.execute_query(
-            query,
-            (guild_id, game.game_id),
-            fetchone=True,
-        )
-        return result["count"] if result else 0
-
     def count_matches_for_user(
         self,
         user_id: int,
@@ -638,69 +397,6 @@ class MatchRepository:
         """
         result = self.database.execute_query(query, (user_id, guild_id), fetchone=True)
         return result["total_matches"] if result else 0
-
-    def record_new_game(
-        self,
-        game_name: str,
-        guild_id: int,
-        started_at: Any,
-        game_data: dict[str, Any],
-        *,
-        match_id: int,
-        channel_id: int = 0,
-        thread_id: int | None = None,
-    ) -> tuple[int, str]:
-        game = self.games.get_game(game_name)
-        if not game:
-            msg = f"Game {game_name} not found"
-            raise ValueError(msg)
-        self.guilds.create_guild(guild_id)
-        status = game_data.get("status", MatchStatus.IN_PROGRESS.value)
-        valid_statuses = {s.value for s in MatchStatus}
-        if status not in valid_statuses:
-            msg = f"Invalid match status: {status}"
-            raise ValueError(msg)
-        game_data_json = json.dumps(game_data or {})
-        last_err: Exception | None = None
-        for _ in range(48):
-            code = generate_match_code()
-            try:
-                with self.database.get_connection() as conn:
-                    with conn.cursor() as cur:
-                        cur.execute(
-                            """
-                            INSERT INTO matches
-                                (match_id, game_id, guild_id, channel_id, thread_id, started_at, status,
-                                 game_config, metadata, match_code)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s)
-                            RETURNING match_id;
-                            """,
-                            (
-                                match_id,
-                                game.game_id,
-                                guild_id,
-                                channel_id,
-                                thread_id,
-                                started_at,
-                                status,
-                                game_data_json,
-                                game_data_json,
-                                code,
-                            ),
-                        )
-                        result = cur.fetchone()
-                    conn.commit()
-                    return result["match_id"], code
-            except Exception as e:
-                if pg_errors and isinstance(
-                    e,
-                    pg_errors.UniqueViolation,
-                ):  # type: ignore[misc]
-                    last_err = e
-                    continue
-                raise
-        msg = "Could not allocate a unique match_code"
-        raise RuntimeError(msg) from last_err
 
     def create_game(
         self,
@@ -729,64 +425,6 @@ class MatchRepository:
             match_id=match_id,
             preset_match_code=preset_match_code,
         )
-
-    def end_game(
-        self,
-        match_id: int,
-        game_name: str,  # noqa: ARG002
-        final_scores: dict[int, float] | None,
-        *,
-        rankings: dict[int, int] | None = None,
-    ) -> None:
-        results: dict[int, dict[str, Any]] = {}
-        if rankings:
-            for user_id, ranking in rankings.items():
-                results[user_id] = {
-                    "ranking": ranking,
-                    "score": final_scores.get(user_id) if final_scores else None,
-                }
-        final_state = {"final_scores": final_scores, "rankings": rankings}
-        self.end_match(match_id, final_state, results)
-
-    def get_recent_matches_for_game(
-        self,
-        guild_id: int,
-        game_name: str,
-        limit: int = 10,
-    ) -> list[dict[str, Any]]:
-        game = self.games.get_game(game_name)
-        if not game:
-            return []
-        matches = self.get_recent_matches(guild_id, game.game_id, limit)
-        return [
-            {
-                "match_id": m.match_id,
-                "started": m.started_at,
-                "ended": m.ended_at,
-            }
-            for m in matches
-        ]
-
-    def get_full_match_details(self, match_id: int) -> list[dict[str, Any]]:
-        match = self.get_match(match_id)
-        if not match:
-            return []
-        participants = self.get_participants(match_id)
-        results: list[dict[str, Any]] = []
-        for p in participants:
-            results.append(
-                {
-                    "match_id": match_id,
-                    "game_id": match.game_id,
-                    "guild_id": match.guild_id,
-                    "started": match.started_at,
-                    "ended": match.ended_at,
-                    "game_data": match.game_config,
-                    "user_id": p.user_id,
-                    "ranking": p.final_ranking,
-                },
-            )
-        return results
 
 
 @dataclass(slots=True)

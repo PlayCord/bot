@@ -8,11 +8,13 @@ from playcord.infrastructure.analytics_client import (
     render_analytics_markdown_summary,
 )
 from playcord.infrastructure.constants import (
+    ERROR_COLOR,
     INFO_COLOR,
     LOGGING_ROOT,
     MESSAGE_COMMAND_ANALYTICS,
     MESSAGE_COMMAND_CLEAR,
     MESSAGE_COMMAND_DBRESET,
+    MESSAGE_COMMAND_EMOJI,
     MESSAGE_COMMAND_FAILED,
     MESSAGE_COMMAND_PENDING,
     MESSAGE_COMMAND_SPECIFY_LOCAL_SERVER,
@@ -25,6 +27,7 @@ from playcord.infrastructure.constants import (
 from playcord.infrastructure.db_thread import run_in_thread
 from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
+from playcord.application.services.emoji_sync import purge_and_reupload
 from playcord.presentation.bot import PlayCordBot
 from playcord.presentation.ui.analytics_charts import (
     render_analytics_matplotlib_summary,
@@ -129,6 +132,63 @@ class AdminCog(commands.Cog):
         # Database reset helpers
         elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_DBRESET}"):
             _add_task(self._run_long_admin_task(msg, self._task_dbreset))
+
+        # Application emoji purge + reupload
+        elif msg.content.startswith(f"{LOGGING_ROOT}/{MESSAGE_COMMAND_EMOJI}"):
+            _add_task(self._run_long_admin_task(msg, self._task_emoji_sync))
+
+    async def _task_emoji_sync(self, msg: discord.Message) -> bool:
+        report = await purge_and_reupload(self.bot)
+        if report.aborted:
+            missing = "\n".join(f"- `{path}`" for path in report.missing_assets[:40])
+            extra = ""
+            if len(report.missing_assets) > 40:
+                extra = f"\n… and {len(report.missing_assets) - 40} more"
+            await msg.reply(
+                **container_send_kwargs(
+                    CustomContainer(
+                        title=get("commands.admin.emoji_no_assets"),
+                        description=f"{get('commands.admin.emoji_usage')}\n\n{missing}{extra}",
+                        color=WARNING_COLOR,
+                    ),
+                ),
+            )
+            return False
+
+        if not report.ok:
+            detail = "\n".join(f"- {line}" for line in report.failures[:20])
+            await msg.reply(
+                **container_send_kwargs(
+                    CustomContainer(
+                        title=get("commands.admin.emoji_failed"),
+                        description=detail or get("commands.admin.task_unexpected_error"),
+                        color=ERROR_COLOR,
+                    ),
+                ),
+            )
+            return False
+
+        desc = fmt(
+            "commands.admin.emoji_done_description",
+            deleted=report.deleted,
+            uploaded=report.uploaded,
+            aliased=report.aliased,
+        )
+        if report.missing_assets:
+            missing_list = "\n".join(f"- `{path}`" for path in report.missing_assets[:20])
+            extra = f"\n… and {len(report.missing_assets) - 20} more" if len(report.missing_assets) > 20 else ""
+            desc += f"\n\n**Missing local assets (skipped):**\n{missing_list}{extra}"
+
+        await msg.reply(
+            **container_send_kwargs(
+                CustomContainer(
+                    title=get("commands.admin.emoji_done"),
+                    description=desc,
+                    color=SUCCESS_COLOR,
+                ),
+            ),
+        )
+        return True
 
     async def _task_sync(self, msg: discord.Message) -> bool:
         f_log = log.getChild("event.on_message")

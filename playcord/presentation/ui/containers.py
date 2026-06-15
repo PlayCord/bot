@@ -1,6 +1,6 @@
-import os
 from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -8,16 +8,11 @@ import discord
 
 from playcord.infrastructure.constants import (
     ERROR_COLOR,
-    MATCHMAKING_COLOR,
     SUCCESS_COLOR,
-    WARNING_COLOR,
 )
-from playcord.infrastructure.locale import fmt, get, get_dict
+from playcord.infrastructure.locale import fmt, get
 from playcord.presentation.interactions.contextify import contextify
-from playcord.presentation.ui.formatting import (
-    column_names,
-    column_turn,
-)
+from playcord.presentation.ui.component_kit import format_page_title, icon_prefix
 
 _TEXT_DISPLAY_MAX = 4000
 # Discord TextDisplay / message content limit
@@ -57,29 +52,57 @@ def chunk_text_display_lines(
     return _chunk_text(text, max_len=max_len)
 
 
+def _add_text_sections(
+    ui_container: discord.ui.Container,
+    sections: list[str],
+) -> None:
+    for index, section in enumerate(sections):
+        section = section.strip()
+        if not section:
+            continue
+        if index > 0:
+            ui_container.add_item(discord.ui.Separator(visible=False))
+        for chunk in _chunk_text(section):
+            ui_container.add_item(discord.ui.TextDisplay(chunk))
+
+
 def _build_container_view(
     body_text: str,
     *,
     accent_color: discord.Color | int | None = None,
     media_urls: Iterable[str] | None = None,
     thumbnail_url: str | None = None,
+    text_sections: list[str] | None = None,
 ) -> discord.ui.LayoutView:
     view = discord.ui.LayoutView(timeout=None)
     container = discord.ui.Container(accent_color=accent_color)
     body_text = (body_text or "").strip()
-    if body_text:
+    if text_sections:
+        _add_text_sections(container, text_sections)
+    elif body_text:
         for chunk in _chunk_text(body_text):
             container.add_item(discord.ui.TextDisplay(chunk))
     urls = [u for u in (media_urls or []) if u]
     if thumbnail_url:
         urls.insert(0, thumbnail_url)
+    has_text = bool(text_sections) or bool(body_text)
     if urls:
-        if body_text:
+        if has_text:
             container.add_item(discord.ui.Separator())
         items = [discord.MediaGalleryItem(url) for url in urls]
         container.add_item(discord.ui.MediaGallery(*items))
     view.add_item(container)
     return view
+
+
+def _build_container_view_from_card(card: "CustomContainer") -> discord.ui.LayoutView:
+    return _build_container_view(
+        "",
+        accent_color=card.color,
+        media_urls=card.media_urls(),
+        thumbnail_url=card.thumbnail_url,
+        text_sections=card.text_sections(),
+    )
 
 
 def container_to_markdown(card: "CustomContainer | str | None") -> str:
@@ -100,23 +123,10 @@ def container_send_kwargs(
     content: str | None = None,
 ) -> dict[str, Any]:
     if isinstance(card, CustomContainer):
-        body = card.to_markdown()
-        accent = card.color
-        media = card.media_urls()
-        thumbnail = card.thumbnail_url
+        kwargs: dict[str, Any] = {"view": _build_container_view_from_card(card)}
     else:
         body = container_to_markdown(card)
-        accent = None
-        media = []
-        thumbnail = None
-    kwargs: dict[str, Any] = {
-        "view": _build_container_view(
-            body,
-            accent_color=accent,
-            media_urls=media,
-            thumbnail_url=thumbnail,
-        ),
-    }
+        kwargs = {"view": _build_container_view(body)}
     if files:
         kwargs["files"] = files
     if content is not None:
@@ -131,23 +141,12 @@ def container_edit_kwargs(
     content: str | None = None,
 ) -> dict[str, Any]:
     if isinstance(card, CustomContainer):
-        body = card.to_markdown()
-        accent = card.color
-        media = card.media_urls()
-        thumbnail = card.thumbnail_url
+        kwargs: dict[str, Any] = {"view": _build_container_view_from_card(card)}
     else:
         body = container_to_markdown(card)
-        accent = None
-        media = []
-        thumbnail = None
-    kwargs: dict[str, Any] = {
-        "view": _build_container_view(
-            body,
-            accent_color=accent,
-            media_urls=media,
-            thumbnail_url=thumbnail,
-        ),
-    }
+        kwargs = {
+            "view": _build_container_view(body),
+        }
     if attachments is not None:
         kwargs["attachments"] = attachments
     if content is not None:
@@ -215,6 +214,7 @@ class ContainerField:
 class CustomContainer:
     def __init__(self, **kwargs) -> None:
         self.title: str | None = kwargs.get("title")
+        self.title_icon: str | None = kwargs.get("title_icon")
         self.description: str | None = kwargs.get("description")
         self.color: discord.Color | int | None = kwargs.get("color")
         self.fields: list[ContainerField] = []
@@ -269,17 +269,24 @@ class CustomContainer:
             msg = f"Container has {len(self.fields)} fields, exceeds limit of {MAX_EMBED_FIELDS}"
             raise ValueError(msg)
 
-    def to_markdown(self) -> str:
-        parts: list[str] = []
+    def text_sections(self) -> list[str]:
+        """Logical TextDisplay blocks for Components V2 layout."""
+        sections: list[str] = []
         if self.title:
-            parts.append(f"## {self.title}")
+            sections.append(
+                format_page_title(self.title, icon_key=self.title_icon),
+            )
         if self.description:
-            parts.append(str(self.description))
-        for field in self.fields:
-            parts.append(f"{field.name}\n{field.value}")
+            sections.append(str(self.description))
+        sections.extend(f"{field.name}\n{field.value}" for field in self.fields)
         if self.footer_text:
-            parts.append(str(self.footer_text))
-        return "\n\n".join(p for p in parts if p).strip()
+            sections.append(str(self.footer_text))
+        return sections
+
+    def to_markdown(self) -> str:
+        return "\n\n".join(
+            section for section in self.text_sections() if section.strip()
+        ).strip()
 
     def to_send_kwargs(
         self,
@@ -321,21 +328,8 @@ class SuccessContainer(CustomContainer):
         **kwargs,
     ) -> None:
         kwargs["color"] = SUCCESS_COLOR
-        kwargs["title"] = title or get("success.default_title")
-        if description:
-            kwargs["description"] = description
-        super().__init__(**kwargs)
-
-
-class WarningContainer(CustomContainer):
-    def __init__(
-        self,
-        title: str | None = None,
-        description: str | None = None,
-        **kwargs,
-    ) -> None:
-        kwargs["color"] = WARNING_COLOR
-        kwargs["title"] = title or get("warnings.default_title")
+        resolved_title = title or get("success.default_title")
+        kwargs["title"] = icon_prefix("success", resolved_title)
         if description:
             kwargs["description"] = description
         super().__init__(**kwargs)
@@ -351,26 +345,17 @@ class UserErrorContainer(CustomContainer):
         kwargs["color"] = ERROR_COLOR
         super().__init__(**kwargs)
         if description:
-            self.description = description
+            self.description = icon_prefix("error", description)
         if suggestion:
             base = self.description or ""
             self.description = f"{base}\n\n{suggestion}" if base else str(suggestion)
 
 
-class LoadingContainer(CustomContainer):
-    def __init__(self, message: str | None = None, **kwargs) -> None:
-        kwargs["title"] = f"{message or get('loading.default')}"
-        loading_dict = get_dict("loading")
-        static_desc = loading_dict.get("description_static")
-        kwargs["description"] = static_desc or ""
-        super().__init__(**kwargs)
-
-
 class ErrorContainer(CustomContainer):
     def __init__(self, ctx=None, what_failed=None, reason=None) -> None:
-        current_directory = os.path.dirname(__file__).rstrip("utils")
+        current_directory = str(Path(__file__).resolve().parent)
         super().__init__(
-            title=get("system_error.title"),
+            title=icon_prefix("error", get("system_error.title")),
             color=ERROR_COLOR,
         )
         self.add_field(
@@ -409,152 +394,3 @@ class ErrorContainer(CustomContainer):
                     inline=False,
                 )
         self.set_footer(text=get("system_error.footer"))
-
-
-class GameOverviewContainer(CustomContainer):
-    def __init__(self, game_name, players, turn) -> None:
-        """Embed overview; ``turn`` is one player, several eligible players, or None."""
-        super().__init__(
-            title=fmt("embeds.game_overview.title_unrated", game_name=game_name),
-            description=get("embeds.game_overview.description"),
-        )
-        self.add_field(
-            name=get("embeds.game_overview.field_players"),
-            value=column_names(players),
-            inline=True,
-        )
-        self.add_field(
-            name=get("embeds.game_overview.field_turn"),
-            value=column_turn(players, turn),
-            inline=True,
-        )
-
-
-def _outcome_summaries_value(players, summaries: dict[int, str]) -> str:
-    lines: list[str] = []
-    for p in players:
-        text = summaries.get(p.id)
-        if text:
-            lines.append(f"{p.mention}: {text}")
-    return "\n".join(lines)
-
-
-class GameOverContainer(CustomContainer):
-    def __init__(
-        self,
-        rankings,
-        game_name,
-        players=None,
-        outcome_summaries: dict[int, str] | None = None,
-        outcome_global_summary: str | None = None,
-        replay_id: str | int | None = None,
-        forfeited_player_ids: set[int] | None = None,
-    ) -> None:
-        super().__init__(
-            title=fmt("embeds.game_over.title", game_name=game_name),
-            description=get("embeds.game_over.description"),
-        )
-        if outcome_global_summary:
-            self.add_field(
-                name=get("embeds.game_over.field_global_summary"),
-                value=outcome_global_summary[:_FIELD_VALUE_MAX],
-                inline=False,
-            )
-        self.add_field(
-            name=get("embeds.game_over.field_rankings"),
-            value=rankings,
-            inline=True,
-        )
-        if outcome_summaries and players:
-            block = _outcome_summaries_value(players, outcome_summaries)
-            if block:
-                self.add_field(
-                    name=get("embeds.game_over.field_summary"),
-                    value=block,
-                    inline=False,
-                )
-
-        # Show forfeit notice if applicable
-        if forfeited_player_ids and players:
-            forfeited_mentions = [
-                p.mention for p in players if p.id in forfeited_player_ids
-            ]
-            if forfeited_mentions:
-                self.add_field(
-                    name=get("embeds.game_over.field_forfeits"),
-                    value=", ".join(forfeited_mentions),
-                    inline=False,
-                )
-
-        # Add replay ID footer
-        if replay_id:
-            footer_text = fmt("embeds.game_over.footer_with_id", replay_id=replay_id)
-            self.set_footer(text=footer_text)
-
-
-class MatchmakingContainer(CustomContainer):
-    def __init__(
-        self,
-        game_name: str,
-        game_id: str,
-        creator,
-        players: list,
-        min_players: int,
-        max_players: int,
-        private: bool = False,
-    ) -> None:
-        status = (
-            get("embeds.matchmaking.status_private")
-            if private
-            else get("embeds.matchmaking.status_public")
-        )
-        super().__init__(
-            title=fmt("embeds.matchmaking.title", game_name=game_name),
-            description=fmt(
-                "embeds.matchmaking.description",
-                creator=creator.display_name,
-            ),
-            color=MATCHMAKING_COLOR,
-        )
-        if players:
-            player_list = "\n".join(
-                [
-                    f"- {getattr(p, 'display_name', None) or getattr(p, 'name', str(p))}"
-                    for p in players
-                ],
-            )
-        else:
-            player_list = get("embeds.matchmaking.no_players")
-        self.add_field(
-            name=fmt(
-                "embeds.matchmaking.field_players",
-                current=len(players),
-                max=max_players,
-            ),
-            value=player_list,
-            inline=True,
-        )
-        self.add_field(
-            name=get("embeds.matchmaking.field_game_info"),
-            value=fmt(
-                "embeds.matchmaking.game_info_value",
-                status=status,
-                min=min_players,
-                max=max_players,
-            ),
-            inline=True,
-        )
-        if len(players) >= min_players:
-            self.add_field(
-                name=get("embeds.matchmaking.field_ready"),
-                value=get("embeds.matchmaking.ready_value"),
-                inline=False,
-            )
-        else:
-            needed = min_players - len(players)
-            plural_s = "s" if needed > 1 else ""
-            self.add_field(
-                name=fmt("embeds.matchmaking.field_waiting", needed=needed, s=plural_s),
-                value=get("embeds.matchmaking.waiting_value"),
-                inline=False,
-            )

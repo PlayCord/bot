@@ -9,6 +9,8 @@ Provides functionality for:
 - Getting game-specific emojis
 """
 
+from __future__ import annotations
+
 import discord
 import ruamel.yaml
 from emoji import is_emoji
@@ -18,17 +20,21 @@ from playcord.infrastructure.constants import (
     LONG_SPACE_EMBED,
 )
 from playcord.infrastructure.logging import get_logger
+from playcord.presentation.ui.emoji_manifest import (
+    manifest_by_bucket,
+    manifest_by_key,
+)
 
 logger = get_logger("emojis")
 
 # Loaded emojis from configuration
 emojis: dict[str, dict] = {}
 
-# Button emojis (simple unicode emojis for buttons)
+# Button emojis (deprecated; map to emojis.* keys)
 button_emojis: dict[str, str] = {}
 
-# Game emojis (unicode emojis for each game type)
-game_emojis: dict[str, str] = {}
+# Game emojis (game slug -> emoji data dict)
+game_emojis: dict[str, dict | str] = {}
 
 # Runtime-registered emojis (not persisted)
 runtime_emojis: dict[str, dict] = {}
@@ -36,66 +42,130 @@ runtime_emojis: dict[str, dict] = {}
 initialized = False
 
 
+class _IconRegistry:
+    """Attribute-style access to custom icon strings (``ICONS.back``)."""
+
+    def __getattr__(self, name: str) -> str:
+        return get_icon(name)
+
+    def __repr__(self) -> str:
+        return "<IconRegistry>"
+
+
+ICONS = _IconRegistry()
+
+
+def _overlay_ids_from_cache(
+    target: dict[str, dict],
+    cached: dict,
+    *,
+    bucket: str,
+) -> None:
+    for key, entry in cached.items():
+        if key not in target:
+            logger.warning(
+                "Ignoring unknown %s key %r in emoji id cache",
+                bucket,
+                key,
+            )
+            continue
+        if not isinstance(entry, dict):
+            continue
+        if "id" in entry:
+            try:
+                target[key]["id"] = int(entry["id"])
+            except (TypeError, ValueError):
+                logger.warning("Invalid id for %s.%r in emoji cache", bucket, key)
+        if "animated" in entry:
+            target[key]["animated"] = bool(entry["animated"])
+
+
 def initialize_emojis() -> bool:
     """
-    Initialize emojis from the configuration file.
+    Initialize emojis from the manifest, overlaying ids from the id cache.
 
     :return: True if successful, False otherwise
     """
     global emojis, button_emojis, game_emojis, initialized
     initialized = True
+    emojis, game_emojis = manifest_by_bucket()
+    button_emojis = {}
     try:
         with open(EMOJI_CONFIGURATION_FILE) as emoji_file:
-            config = ruamel.yaml.YAML().load(emoji_file)
-        emojis = config.get("emojis", {})
-        button_emojis = config.get("button_emojis", {})
-        game_emojis = config.get("game_emojis", {})
-        logger.info(
-            f"Loaded {len(emojis)} emojis, {len(button_emojis)} button emojis, "
-            f"and {len(game_emojis)} game emojis from configuration.",
+            config = ruamel.yaml.YAML().load(emoji_file) or {}
+        _overlay_ids_from_cache(emojis, config.get("emojis", {}), bucket="emojis")
+        _overlay_ids_from_cache(
+            game_emojis,
+            config.get("game_emojis", {}),
+            bucket="game_emojis",
         )
+        button_emojis = config.get("button_emojis", {}) or {}
+        logger.info(
+            "Loaded %s manifest emojis (%s game) with id cache overlay.",
+            len(emojis),
+            len(game_emojis),
+        )
+        _bind_reaction_emojis()
         return True
     except FileNotFoundError:
-        logger.critical(
-            f"Emoji configuration file not found: {EMOJI_CONFIGURATION_FILE}",
+        logger.warning(
+            "Emoji id cache not found at %s; using manifest defaults (id=0).",
+            EMOJI_CONFIGURATION_FILE,
         )
-        return False
-    except Exception as e:
-        logger.critical(f"Failed to load emoji configuration file: {e}")
-        return False
-
-
-def register_emoji(name: str, emoji_id: int, animated: bool = False) -> bool:
-    """
-    Register a custom emoji at runtime.
-
-    :param name: The name/key for the emoji
-    :param emoji_id: The Discord emoji ID
-    :param animated: Whether the emoji is animated
-    :return: True if registered successfully
-    """
-    if name in emojis or name in runtime_emojis:
-        logger.warning(f"Emoji {name!r} already exists. Overwriting.")
-
-    runtime_emojis[name] = {"id": emoji_id, "animated": animated}
-    logger.debug(
-        f"Registered runtime emoji: {name} (id={emoji_id}, animated={animated})",
-    )
-    return True
-
-
-def unregister_emoji(name: str) -> bool:
-    """
-    Unregister a runtime emoji.
-
-    :param name: The name/key of the emoji to unregister
-    :return: True if unregistered, False if not found
-    """
-    if name in runtime_emojis:
-        del runtime_emojis[name]
-        logger.debug(f"Unregistered runtime emoji: {name}")
+        _bind_reaction_emojis()
         return True
-    return False
+    except Exception as e:
+        logger.critical(f"Failed to load emoji id cache: {e}")
+        return False
+
+
+def apply_uploaded_ids(mapping: dict[str, int]) -> None:
+    """Refresh in-memory emoji ids after a runtime upload."""
+    global emojis, game_emojis
+    if not initialized:
+        initialize_emojis()
+
+    by_key = manifest_by_key()
+    for key, emoji_id in mapping.items():
+        asset = by_key.get(key)
+        if asset is None:
+            logger.warning("Ignoring uploaded id for unknown emoji key %r", key)
+            continue
+        bucket = game_emojis if asset.game else emojis
+        bucket[key]["id"] = int(emoji_id)
+    _bind_reaction_emojis()
+
+
+def write_id_cache() -> None:
+    """Serialize current emoji ids to the generated id cache file."""
+    if not initialized:
+        initialize_emojis()
+
+    payload = {
+        "emojis": emojis,
+        "game_emojis": game_emojis,
+        "button_emojis": button_emojis or {},
+    }
+    yaml = ruamel.yaml.YAML()
+    yaml.default_flow_style = False
+    yaml.indent(mapping=2, sequence=4, offset=2)
+    with open(EMOJI_CONFIGURATION_FILE, "w") as emoji_file:
+        yaml.dump(payload, emoji_file)
+    logger.info("Wrote emoji id cache to %s", EMOJI_CONFIGURATION_FILE)
+
+
+def _bind_reaction_emojis() -> None:
+    """Use custom reaction icons when uploaded; otherwise keep constants.py defaults."""
+    from playcord.infrastructure import constants
+
+    for attr, key in (
+        ("MESSAGE_COMMAND_SUCCEEDED", "success"),
+        ("MESSAGE_COMMAND_FAILED", "error"),
+        ("MESSAGE_COMMAND_PENDING", "pending"),
+    ):
+        icon = get_icon(key)
+        if icon:
+            setattr(constants, attr, icon)
 
 
 def get_emoji(name: str) -> dict | None:
@@ -108,7 +178,6 @@ def get_emoji(name: str) -> dict | None:
     if not initialized:
         initialize_emojis()
 
-    # Check runtime emojis first (they can override config emojis)
     if name in runtime_emojis:
         return runtime_emojis[name]
 
@@ -118,89 +187,91 @@ def get_emoji(name: str) -> dict | None:
     return None
 
 
+def _format_emoji_string(name: str, emoji: dict) -> str:
+    try:
+        eid = int(emoji["id"])
+    except (KeyError, TypeError, ValueError):
+        logger.warning("Emoji %r has invalid id %r", name, emoji.get("id"))
+        return ""
+    if eid == 0:
+        return ""
+    if emoji.get("animated", False):
+        return f"<a:{name}:{eid}>"
+    return f"<:{name}:{eid}>"
+
+
+def get_icon(name: str) -> str:
+    """
+    Get a custom icon string for embed text.
+
+    Returns an empty string when the icon is missing or not yet uploaded (id 0).
+    """
+    emoji = get_emoji(name)
+    if emoji is None:
+        return ""
+    return _format_emoji_string(name, emoji)
+
+
 def get_emoji_string(name: str) -> str:
     """
     Get a formatted emoji string for use in Discord messages.
 
-    :param name: The name/key of the emoji
-    :return: Formatted emoji string like <:name:id> or <a:name:id> for animated
+    Falls back to a zero-width placeholder when the icon is unavailable.
     """
     if not initialized:
         initialize_emojis()
 
-    # Check runtime emojis first
     emoji = get_emoji(name)
-
     if emoji is None:
-        if emojis:  # Only warn if we actually have emojis loaded
+        if emojis:
             logger.warning(
                 f"Emoji {name!r} not found in configuration file. This emoji will not be used"
                 f" and a long space will fill its place.",
             )
         return LONG_SPACE_EMBED
 
-    try:
-        eid = int(emoji["id"])
-    except (KeyError, TypeError, ValueError):
-        logger.warning("Emoji %r has invalid id %r", name, emoji.get("id"))
+    formatted = _format_emoji_string(name, emoji)
+    if not formatted:
         return LONG_SPACE_EMBED
-
-    if emoji.get("animated", False):
-        return f"<a:{name}:{eid}>"
-    return f"<:{name}:{eid}>"
-
-
-def get_all_emojis() -> dict[str, dict]:
-    """
-    Get all registered emojis (config + runtime).
-
-    :return: Dictionary of all emoji names to their data
-    """
-    if not initialized:
-        initialize_emojis()
-
-    # Merge with runtime emojis taking precedence
-    return {**emojis, **runtime_emojis}
-
-
-def get_emoji_count() -> tuple[int, int]:
-    """
-    Get the count of loaded emojis.
-
-    :return: Tuple of (config emoji count, runtime emoji count)
-    """
-    return len(emojis), len(runtime_emojis)
-
-
-def get_button_emoji(name: str) -> str | None:
-    """
-    Get a button emoji by name.
-
-    Button emojis are simple unicode emojis used for UI elements like
-    join/leave/start buttons. They fall back gracefully if not configured.
-
-    :param name: The button emoji name (e.g., 'join', 'leave', 'start')
-    :return: The emoji string or None if not found
-    """
-    if not initialized:
-        initialize_emojis()
-
-    return button_emojis.get(name)
+    return formatted
 
 
 def get_game_emoji(game_id: str) -> str:
     """
     Get the emoji for a specific game type.
 
-    Returns a default game emoji (🎮) if no specific emoji is configured.
-
-    :param game_id: The game ID (e.g., 'tictactoe', 'chess')
-    :return: The emoji string for the game
+    Returns a custom game icon when configured, otherwise the generic play icon
+    or an empty string.
     """
     if not initialized:
         initialize_emojis()
 
-    return game_emojis.get(game_id, "🎮")
+    entry = game_emojis.get(game_id)
+    if isinstance(entry, dict):
+        formatted = _format_emoji_string(game_id, entry)
+        if formatted:
+            return formatted
+    elif isinstance(entry, str) and entry.strip():
+        return entry.strip()
+
+    play_icon = get_icon("play")
+    if play_icon:
+        return play_icon
+    return ""
+
+
+def icon_for_button(
+    icon_key: str,
+) -> str | discord.PartialEmoji | None:
+    """Resolve an icon key for discord.ui.Button emoji=."""
+    return parse_discord_emoji(get_icon(icon_key))
+
+
+def icon_for_select_option(
+    icon_key: str,
+) -> str | discord.PartialEmoji | None:
+    """Resolve an icon key for SelectOption emoji=."""
+    return parse_discord_emoji(get_icon(icon_key))
 
 
 def parse_discord_emoji(

@@ -9,8 +9,6 @@ from typing import TYPE_CHECKING, Any
 from playcord.infrastructure.config import get_settings
 
 if TYPE_CHECKING:
-    from datetime import datetime
-
     from playcord.infrastructure.database.implementation.database import Database
 
 
@@ -107,64 +105,6 @@ class AnalyticsRepository:
             metadata,
         )
 
-    def get_events(
-        self,
-        event_type: str | None = None,
-        start_date: datetime | None = None,
-        end_date: datetime | None = None,
-        limit: int = 100,
-    ) -> list[dict[str, Any]]:
-        conditions = []
-        params: list[Any] = []
-
-        if event_type:
-            conditions.append("event_type = %s")
-            params.append(event_type)
-
-        if start_date:
-            conditions.append("created_at >= %s")
-            params.append(start_date)
-
-        if end_date:
-            conditions.append("created_at <= %s")
-            params.append(end_date)
-
-        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-        params.append(limit)
-
-        query = f"""
-            SELECT * FROM analytics_events
-            {where_clause}
-            ORDER BY created_at DESC
-            LIMIT %s;
-        """
-        results = self.database.execute_query(query, tuple(params), fetchall=True)
-        return results or []
-
-    def get_user_events(self, user_id: int, limit: int = 100) -> list[dict[str, Any]]:
-        query = """
-            SELECT * FROM analytics_events
-            WHERE user_id = %s
-            ORDER BY created_at DESC
-            LIMIT %s;
-        """
-        results = self.database.execute_query(query, (user_id, limit), fetchall=True)
-        return results or []
-
-    def get_guild_analytics(self, guild_id: int, days: int = 30) -> dict[str, Any]:
-        query = """
-            SELECT
-                COUNT(DISTINCT user_id) as active_users,
-                COUNT(DISTINCT CASE WHEN event_type = 'game_started' THEN event_id END) as games_started,
-                COUNT(DISTINCT CASE WHEN event_type = 'game_completed' THEN event_id END) as games_completed,
-                COUNT(DISTINCT CASE WHEN event_type = 'command_used' THEN event_id END) as commands_used
-            FROM analytics_events
-            WHERE guild_id = %s
-              AND created_at > NOW() - (%s * INTERVAL '1 day');
-        """
-        result = self.database.execute_query(query, (guild_id, days), fetchone=True)
-        return result or {}
-
     def get_analytics_event_counts(self, hours: int = 24) -> list[dict[str, Any]]:
         query = """
             SELECT event_type, COUNT(*)::BIGINT AS cnt
@@ -189,21 +129,6 @@ class AnalyticsRepository:
             LIMIT %s;
         """
         rows = self.database.execute_query(query, (hours, limit), fetchall=True)
-        return rows or []
-
-    def get_analytics_event_counts_by_game(
-        self,
-        hours: int = 24,
-    ) -> list[dict[str, Any]]:
-        query = """
-            SELECT g.game_name AS game_type, COUNT(*)::BIGINT AS cnt
-            FROM analytics_events ae
-            INNER JOIN games g ON g.game_id = ae.game_id
-            WHERE ae.created_at > NOW() - (%s * INTERVAL '1 hour')
-            GROUP BY g.game_name
-            ORDER BY cnt DESC;
-        """
-        rows = self.database.execute_query(query, (hours,), fetchall=True)
         return rows or []
 
     def cleanup_old_analytics(self, days: int | None = None) -> int:

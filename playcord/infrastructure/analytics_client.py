@@ -138,19 +138,6 @@ def flush_events() -> int:
     return flushed
 
 
-def get_event_stats() -> dict[str, int]:
-    """
-    Get statistics on buffered events.
-
-    :return: Dictionary of event type counts
-    """
-    stats: dict[str, int] = {}
-    for event in _event_buffer:
-        t = event["event_type"]
-        stats[t] = stats.get(t, 0) + 1
-    return stats
-
-
 class Timer:
     """Timer utility for measuring execution time."""
 

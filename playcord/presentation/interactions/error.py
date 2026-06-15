@@ -133,7 +133,7 @@ def _unwrap_error(error: BaseException) -> BaseException:
 
 
 def _translator_get(
-    translator: Any | None,
+    _translator: Any | None,
     key: str,
     default: str,
 ) -> str:
@@ -295,8 +295,7 @@ def _translator_from_interaction(
     if translator is not None or interaction is None:
         return translator
     container = getattr(getattr(interaction, "client", None), "container", None)
-    resolved = getattr(container, "translator", None)
-    return resolved
+    return getattr(container, "translator", None)
 
 
 async def report(

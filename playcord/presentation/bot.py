@@ -6,7 +6,7 @@ import sys
 
 import discord
 from discord import app_commands
-from discord.app_commands.models import AppCommand, AppCommandGroup, Argument
+from discord.app_commands.models import AppCommand, AppCommandGroup
 from discord.ext import commands
 
 from playcord.application.container import ApplicationContainer
@@ -23,7 +23,10 @@ from playcord.infrastructure.locale import set_command_mentions
 from playcord.infrastructure.logging import configure_logging, get_logger
 from playcord.infrastructure.state.user_games import SessionRegistry
 from playcord.presentation.cogs.general import GeneralCog
-from playcord.presentation.interactions.command_tree_sync import build_tree
+from playcord.presentation.interactions.command_tree_sync import (
+    build_tree,
+    walk_app_command_nodes,
+)
 from playcord.presentation.interactions.error import command_error
 from playcord.presentation.interactions.permissions import (
     get_configured_static_owner_ids,
@@ -37,21 +40,12 @@ startup_log = log.getChild("startup")
 def _collect_remote_command_mentions(ac: AppCommand) -> dict[str, str]:
     mentions: dict[str, str] = {}
 
-    def walk(node: AppCommand | AppCommandGroup, parts: tuple[str, ...]) -> None:
-        options = list(getattr(node, "options", None) or [])
+    def visitor(node: AppCommand | AppCommandGroup, parts: tuple[str, ...]) -> None:
         mention = getattr(node, "mention", None)
-        if not options or all(isinstance(opt, Argument) for opt in options):
-            if mention:
-                mentions[" ".join(parts)] = mention
-            return
-        for option in options:
-            if (
-                isinstance(opt := option, AppCommandGroup)
-                or getattr(opt, "options", None) is not None
-            ):
-                walk(opt, (*parts, opt.name))
+        if mention:
+            mentions[" ".join(parts)] = mention
 
-    walk(ac, (ac.name,))
+    walk_app_command_nodes(ac, (ac.name,), visitor)
     return mentions
 
 
@@ -158,6 +152,9 @@ def create_container() -> ApplicationContainer:
     bind_settings(settings)
     configure_logging(settings.logging.level)
     bind_locale_strings()
+    from playcord.presentation.ui.emojis import initialize_emojis
+
+    initialize_emojis()
     pool_manager = PoolManager(settings.db)
     migration_runner = MigrationRunner(
         analytics_retention_days=settings.analytics_retention_days,

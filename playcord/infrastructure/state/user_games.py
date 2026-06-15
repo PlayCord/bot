@@ -13,17 +13,10 @@ class SessionRegistry:
     """Tracks active games and matchmaking sessions."""
 
     games_by_thread_id: dict[int, Any] = field(default_factory=dict)
-    matchmaking_by_message_id: dict[int, Any] = field(default_factory=dict)
+    matchmaking_by_lobby_key: dict[int, Any] = field(default_factory=dict)
     user_to_game: dict[int, Any] = field(default_factory=dict)
     user_to_matchmaking: dict[int, Any] = field(default_factory=dict)
     autocomplete_cache: dict[int, Any] = field(default_factory=dict)
-
-    def reset(self) -> None:
-        self.games_by_thread_id.clear()
-        self.matchmaking_by_message_id.clear()
-        self.user_to_game.clear()
-        self.user_to_matchmaking.clear()
-        self.autocomplete_cache.clear()
 
     def discard_thread_cache(self, thread_id: int) -> None:
         """Drop move-autocomplete cache for a game thread (call when a match ends)."""
@@ -61,12 +54,7 @@ def user_in_active_matchmaking(user_id: int) -> bool:
     return _user_in_player_map(_active_matchmaking_map(), user_id)
 
 
-def synthetic_bot_name_from_id(user_id: int) -> str:
-    return f"Bot {str(user_id)[-4:]} (Bot)"
-
-
 __all__ = [
-    "synthetic_bot_name_from_id",
     "user_in_active_game",
     "user_in_active_matchmaking",
 ]

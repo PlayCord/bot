@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections import Counter
-from collections.abc import Iterable, Sized
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -238,27 +236,6 @@ class GameMetadata:
     player_roles: tuple[str, ...] | None = None
     role_flow: RoleFlow = RoleFlow.none
     customizable_options: tuple[MatchOptionSpec, ...] = ()
-
-
-def validate_role_selection(
-    *,
-    roles: Iterable[str] | Sized | None,
-    selections: dict[int, str],
-) -> bool | str:
-    if not roles:
-        return True
-    if (
-        not isinstance(selections, dict)
-        or not isinstance(roles, Iterable)
-        or not isinstance(roles, Sized)
-        or len(selections) != len(roles)
-    ):
-        return "Each player must choose a role."
-    expected = Counter(list(roles))
-    chosen = Counter(selections.values())
-    if expected != chosen:
-        return "Each role must be picked exactly once."
-    return True
 
 
 def ensure_valid_player_count(game: type[object], count: int) -> None:

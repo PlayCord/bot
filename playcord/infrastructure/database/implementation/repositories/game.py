@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from playcord.api.plugin import resolve_player_count
-from playcord.infrastructure.config import get_settings
 from playcord.infrastructure.constants import GAME_TYPES
 from playcord.infrastructure.database.implementation.core.exceptions import (
     DatabaseError,
@@ -139,23 +138,6 @@ class GameRepository:
         result = self.database.execute_query(query, (game_id,), fetchone=True)
         return self._cache_game(row_to_game(result) if result else None)
 
-    def list(self, *, active_only: bool = True) -> list[Game]:
-        if active_only:
-            query = "SELECT * FROM games WHERE is_active = TRUE ORDER BY game_name;"
-        else:
-            query = "SELECT * FROM games ORDER BY game_name;"
-        results = self.database.execute_query(query, fetchall=True)
-        games = [row_to_game(row) for row in results] if results else []
-        for game in games:
-            self._cache_game(game)
-        return games
-
-    def deactivate_game(self, game_id: int) -> None:
-        query = (
-            "UPDATE games SET is_active = FALSE, updated_at = NOW() WHERE game_id = %s;"
-        )
-        self.database.execute_query(query, (game_id,))
-
     def reset_game_data(self, game_id: int) -> Game:
         game = self.get_by_id(game_id)
         if game is None:
@@ -176,13 +158,5 @@ class GameRepository:
             )
         return recreated
 
-    # --- Legacy / compatibility method names (delegate to the above) ---
-
     def get_game(self, game_name: str) -> Game | None:
         return self.get(game_name)
-
-    def get_game_by_id(self, game_id: int) -> Game | None:
-        return self.get_by_id(game_id)
-
-    def get_all_games(self, active_only: bool = True) -> list[Game]:
-        return self.list(active_only=active_only)

@@ -9,7 +9,7 @@ import discord
 from discord import app_commands
 from discord.app_commands.models import AppCommand, AppCommandGroup, Argument
 
-from playcord.games import GAME_BY_KEY, GAMES
+from playcord.games import GAMES
 from playcord.infrastructure.locale import fmt, get
 from playcord.presentation.cogs.games import handle_autocomplete, handle_move
 from playcord.presentation.cogs.general import command_play
@@ -126,8 +126,6 @@ def build_tree(bot: discord.Client) -> list[app_commands.Group]:
     built_groups = [build_game_group(game) for game in GAMES]
     bot.tree.add_command(command_play)
     for group in built_groups:
-        if game := GAME_BY_KEY.get(group.name):
-            _ = game
         bot.tree.add_command(group)
     return built_groups
 
@@ -165,26 +163,36 @@ def collect_local_tree(
     return merged
 
 
+def walk_app_command_nodes(
+    root: AppCommand | AppCommandGroup,
+    parts: tuple[str, ...],
+    visitor: Any,
+) -> None:
+    """Traverse Discord app-command tree nodes depth-first."""
+    options = list(getattr(root, "options", None) or [])
+    if not options or all(isinstance(opt, Argument) for opt in options):
+        visitor(root, parts)
+        return
+    for option in options:
+        if (
+            isinstance(opt := option, AppCommandGroup)
+            or getattr(opt, "options", None) is not None
+        ):
+            walk_app_command_nodes(opt, (*parts, opt.name), visitor)
+
+
 def _collect_remote_leaves(ac: AppCommand) -> dict[str, dict[str, Any]]:
     """Map qualified slash path -> {description, arguments} for leaf commands."""
     out: dict[str, dict[str, Any]] = {}
 
-    def walk(node: AppCommand | AppCommandGroup, parts: tuple[str, ...]) -> None:
+    def visitor(node: AppCommand | AppCommandGroup, parts: tuple[str, ...]) -> None:
         options = list(getattr(node, "options", None) or [])
-        if not options or all(isinstance(opt, Argument) for opt in options):
-            out[" ".join(parts)] = {
-                "description": (getattr(node, "description", "") or "").strip(),
-                "arguments": [opt for opt in options if isinstance(opt, Argument)],
-            }
-            return
-        for opt in options:
-            if (
-                isinstance(opt, AppCommandGroup)
-                or getattr(opt, "options", None) is not None
-            ):
-                walk(opt, (*parts, opt.name))
+        out[" ".join(parts)] = {
+            "description": (getattr(node, "description", "") or "").strip(),
+            "arguments": [opt for opt in options if isinstance(opt, Argument)],
+        }
 
-    walk(ac, (ac.name,))
+    walk_app_command_nodes(ac, (ac.name,), visitor)
     return out
 
 
@@ -369,7 +377,7 @@ def drift_to_container(
         ("commands.treediff.field_remote_leaves", str(len(remote_all))),
         (
             "commands.treediff.field_drift_totals",
-            f"`+{len(added)}` / `−{len(removed)}` / `~{len(modified)}`",
+            f"`+{len(added)}` / `-{len(removed)}` / `~{len(modified)}`",
         ),
     ]
     for locale_key, value in row_counts:

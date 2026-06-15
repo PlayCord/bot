@@ -183,6 +183,7 @@ class TicTacToeGame(ReplayableGame):
     def match_global_summary(
         self, outcome: Outcome, *, ctx: GameContext | None = None
     ) -> str | None:
+        _ = ctx
         if outcome.kind == "draw":
             return "Draw"
         if outcome.kind == "winner" and outcome.placements:
@@ -197,6 +198,7 @@ class TicTacToeGame(ReplayableGame):
     def match_summary(
         self, outcome: Outcome, *, ctx: GameContext | None = None
     ) -> dict[int, str] | None:
+        _ = ctx
         if outcome.kind == "draw":
             return {int(player.id): "Draw" for player in self.players}
         if outcome.kind == "winner" and outcome.placements:
@@ -292,6 +294,7 @@ class TicTacToeGame(ReplayableGame):
         *,
         ctx: GameContext | None = None,
     ) -> ReplayState | None:
+        _ = ctx
         if event.get("type") != "move":
             return state
         arguments = event.get("arguments")
@@ -324,6 +327,7 @@ class TicTacToeGame(ReplayableGame):
     def render_replay(
         self, state: ReplayState, *, ctx: GameContext | None = None
     ) -> MessageLayout | None:
+        _ = ctx
         raw = state.state if isinstance(state.state, dict) else {}
         board = _copy_board(raw.get("board", _new_board()))
         turn = int(raw.get("turn", 0) or 0)

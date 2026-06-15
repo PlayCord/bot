@@ -13,6 +13,11 @@ from playcord.infrastructure.constants import (
     BUTTON_PREFIX_REPLAY_NOOP,
 )
 from playcord.infrastructure.locale import fmt, get
+from playcord.presentation.ui.component_kit import (
+    icon_for_select_option,
+    primary_button,
+    secondary_button,
+)
 from playcord.presentation.ui.containers import (
     TEXT_DISPLAY_MAX,
     chunk_text_display_lines,
@@ -61,34 +66,38 @@ class ReplayViewerView(discord.ui.LayoutView):
             max=max(total - 1, 0),
         )
         nav_row = discord.ui.ActionRow()
-        for btn_index, (label, target, disabled) in enumerate(
+        nav_specs = [
+            ("first", get("commands.replay.nav_first"), 0, frame == 0),
+            ("back", get("commands.replay.nav_prev"), max(0, frame - 1), frame == 0),
+            ("info", move_label, frame, True),
             (
-                (get("commands.replay.nav_first"), 0, frame == 0),
-                (get("commands.replay.nav_prev"), max(0, frame - 1), frame == 0),
-                (move_label, frame, True),
-                (
-                    get("commands.replay.nav_next"),
-                    min(total - 1, frame + 1),
-                    frame >= total - 1,
-                ),
-                (get("commands.replay.nav_last"), total - 1, frame >= total - 1),
+                "forward",
+                get("commands.replay.nav_next"),
+                min(total - 1, frame + 1),
+                frame >= total - 1,
             ),
-        ):
-            button = discord.ui.Button(
-                label=label,
-                style=(
-                    discord.ButtonStyle.secondary
-                    if disabled
-                    else discord.ButtonStyle.primary
-                ),
-                custom_id=self._nav_custom_id(
-                    match_id=match_id,
-                    owner_id=owner_id,
-                    target_frame=target,
-                    button_index=btn_index,
-                ),
-                disabled=disabled,
+            ("last", get("commands.replay.nav_last"), total - 1, frame >= total - 1),
+        ]
+        for btn_index, (icon_key, label, target, disabled) in enumerate(nav_specs):
+            custom_id = self._nav_custom_id(
+                match_id=match_id,
+                owner_id=owner_id,
+                target_frame=target,
+                button_index=btn_index,
             )
+            if icon_key == "info" or disabled:
+                button = secondary_button(
+                    label=label,
+                    custom_id=custom_id,
+                    icon=icon_key if icon_key != "info" else "replay",
+                    disabled=disabled,
+                )
+            else:
+                button = primary_button(
+                    label=label,
+                    custom_id=custom_id,
+                    icon=icon_key,
+                )
             button.callback = self._route_to_cog
             nav_row.add_item(button)
         container.add_item(nav_row)
@@ -222,13 +231,15 @@ class ReplayViewerView(discord.ui.LayoutView):
     def _seek_options(self, *, total: int, current: int) -> list[SelectOption]:
         options: list[SelectOption] = []
         for frame in self._bookmark_frames(total):
-            options.append(
-                SelectOption(
-                    label=fmt("commands.replay.seek_option", move=frame)[:100],
-                    value=str(frame),
-                    default=(frame == current),
-                ),
-            )
+            option_kwargs: dict = {
+                "label": fmt("commands.replay.seek_option", move=frame)[:100],
+                "value": str(frame),
+                "default": (frame == current),
+            }
+            seek_emoji = icon_for_select_option("replay")
+            if seek_emoji is not None:
+                option_kwargs["emoji"] = seek_emoji
+            options.append(SelectOption(**option_kwargs))
         return options[:25]
 
     @staticmethod
