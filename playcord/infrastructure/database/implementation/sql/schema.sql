@@ -1,5 +1,5 @@
 -- PlayCord PostgreSQL Database Schema
--- Version: 3.0.0
+-- Version: 4.0.0
 -- Description: Scalable relational architecture for matchmaking, replay, and analytics.
 
 -- ============================================================================

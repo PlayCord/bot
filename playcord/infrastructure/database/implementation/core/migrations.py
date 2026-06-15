@@ -1,7 +1,7 @@
 """
 Apply versioned database migrations tracked in database_migrations.
 
-Starting from 3.0.0 - full schema rebuild.
+Starting from 4.0.0 - full schema rebuild.
 No backwards compatibility is maintained across baseline rebuilds.
 """
 
@@ -30,37 +30,11 @@ def _load_migration_sql(filename: str) -> str:
 
 MIGRATIONS: list[tuple[str, str, list[str]]] = [
     (
-        "3.0.0",
+        "4.0.0",
         (
             "Rebuilt baseline schema for scalable matchmaking, replay, and analytics."
         ),
         [_load_migration_sql("schema.sql")],
-    ),
-    (
-        "3.0.1",
-        "Retired migration slot (rating config removed from baseline schema).",
-        [_load_migration_sql("migration_3_0_1.sql")],
-    ),
-    (
-        "3.0.2",
-        (
-            "Switch replay reads/writes to canonical replay_events and backfill"
-            " legacy data."
-        ),
-        [_load_migration_sql("migration_3_0_2.sql")],
-    ),
-    (
-        "3.0.3",
-        "Add support for plugin-owned role assignments.",
-        [_load_migration_sql("migration_3_0_3.sql")],
-    ),
-    (
-        "3.0.4",
-        (
-            "Require application-assigned match_id (Discord thread snowflake);"
-            " drop identity column and legacy sequence."
-        ),
-        [_load_migration_sql("migration_3_0_4.sql")],
     ),
 ]
 

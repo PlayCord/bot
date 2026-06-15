@@ -1,2 +1,0 @@
--- Migration 3.0.1 (retired)
--- Rating configuration was removed from the games table in the 3.0.0 baseline rebuild.
