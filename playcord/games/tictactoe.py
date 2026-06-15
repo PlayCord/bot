@@ -75,7 +75,7 @@ class TicTacToeGame(ReplayableGame):
         name="Tic-Tac-Toe",
         summary="The classic game of Xs and Os, brought to Discord.",
         description="Take turns placing X and O until one player gets three in a row.",
-        move_group_description="Commands for TicTacToe",
+        move_group_description="Tic-tac-toe commands",
         player_count=2,
         author="@quantumbagel",
         version="3.0",
@@ -137,16 +137,6 @@ class TicTacToeGame(ReplayableGame):
                 return outcome
 
             actor = self.current_player()
-            available_inputs = [
-                ButtonInput(
-                    id=f"{INPUT_PREFIX}{move}",
-                    label="\u200b",
-                    arguments={"move": move},
-                    style="secondary",
-                )
-                for move in self._available_moves(self.board)
-            ]
-            # Ensure the board message is created/updated before requesting input
             await self.update_message(
                 "board", self._layout(game_over=False), purpose="board"
             )
@@ -154,7 +144,7 @@ class TicTacToeGame(ReplayableGame):
             result = await self.request_input(
                 [actor],
                 [
-                    *available_inputs,
+                    *self._board_buttons(self.board, game_over=False),
                     CommandInput(id="command_move", command_name="move"),
                 ],
                 timeout=300,
@@ -365,7 +355,7 @@ class TicTacToeGame(ReplayableGame):
         if self.last_error:
             content = f"{content}\n\n{self.last_error}"
         return MessageLayout(
-            content=f"{content}\n\n`/tictactoe move` also works.",
+            content=content,
             buttons=self._board_buttons(self.board, game_over=game_over),
             button_row_width=BOARD_SIZE,
         )
@@ -374,6 +364,7 @@ class TicTacToeGame(ReplayableGame):
         outcome = self._outcome_for_board(self.board)
         if outcome is None:
             return (
+                f"**Tic-Tac-Toe**\n"
                 f"Turn: {self.current_player().mention} "
                 f"({self._marker_for_player(self.current_player(), self.players)})"
             )
@@ -403,7 +394,7 @@ class TicTacToeGame(ReplayableGame):
                 buttons.append(
                     ButtonInput(
                         id=f"{INPUT_PREFIX}{move}",
-                        label=mark if mark != EMPTY else "\u200b",
+                        label=mark if mark != EMPTY else _MOVE_LABELS.get(move, move),
                         arguments={"move": move},
                         style=style,
                         disabled=game_over or mark != EMPTY,
@@ -412,10 +403,7 @@ class TicTacToeGame(ReplayableGame):
         return tuple(buttons)
 
     def _move_from_input(self, result: GameInput) -> str | None:
-        if result.source == "button" or result.source == "bot":
-            raw = result.arguments.get("move")
-        else:
-            raw = result.arguments.get("move")
+        raw = result.arguments.get("move")
         return str(raw) if raw is not None else None
 
     def _bot_decision(

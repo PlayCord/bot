@@ -19,7 +19,8 @@ class RoleRepository:
         match_id: int,
         assignments: list[tuple[int, str, int]],
     ) -> None:
-        """Save role assignments for a match.
+        """
+        Save role assignments for a match.
 
         Args:
             match_id: Match ID
@@ -47,7 +48,8 @@ class RoleRepository:
         self,
         match_id: int,
     ) -> dict[int, tuple[str, int]]:
-        """Retrieve role assignments for a match.
+        """
+        Retrieve role assignments for a match.
 
         Args:
             match_id: Match ID
@@ -79,7 +81,8 @@ class RoleRepository:
         match_id: int,
         player_id: int,
     ) -> str | None:
-        """Get role for a specific player in a match.
+        """
+        Get role for a specific player in a match.
 
         Args:
             match_id: Match ID

@@ -1,4 +1,5 @@
-"""PlayCord Data Models
+"""
+PlayCord Data Models
 Data classes representing database entities for type safety and easier data handling.
 """
 
@@ -44,8 +45,6 @@ class EventType(StrEnum):
     BOT_STARTED = "bot_started"
     GUILD_JOINED = "guild_joined"
     GUILD_LEFT = "guild_left"
-    RATING_UPDATED = "rating_updated"
-    SKILL_DECAY_APPLIED = "skill_decay_applied"
 
 
 # ============================================================================
@@ -109,72 +108,11 @@ class Game:
     display_name: str
     min_players: int
     max_players: int
-    rating_config: dict[str, float]
     game_metadata: dict[str, Any] = field(default_factory=dict)
     game_schema_version: int = 1
     is_active: bool = True
     created_at: datetime | None = None
     updated_at: datetime | None = None
-
-    def get_trueskill_param(self, param: str) -> float:
-        """Get a TrueSkill parameter."""
-        return self.rating_config.get(param, 0.0)
-
-    @property
-    def sigma(self) -> float:
-        return self.get_trueskill_param("sigma")
-
-    @property
-    def beta(self) -> float:
-        return self.get_trueskill_param("beta")
-
-    @property
-    def tau(self) -> float:
-        return self.get_trueskill_param("tau")
-
-    @property
-    def draw_probability(self) -> float:
-        return self.get_trueskill_param("draw")
-
-    @property
-    def default_mu(self) -> float:
-        return self.get_trueskill_param("default_mu")
-
-    @property
-    def default_sigma(self) -> float:
-        return self.get_trueskill_param("default_sigma")
-
-
-@dataclass
-class Rating:
-    """Represents a user's global rating for a specific game (one row per user per game)."""
-
-    rating_id: int
-    user_id: int
-    game_id: int
-    mu: float
-    sigma: float
-    matches_played: int = 0
-    last_played: datetime | None = None
-    last_sigma_increase: datetime | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-
-    @property
-    def conservative_rating(self) -> float:
-        """Conservative rating estimate (mu - 3*sigma)."""
-        return self.mu - (3.0 * self.sigma)
-
-    def is_uncertain(self, threshold: float = 0.5) -> bool:
-        """Check if rating is uncertain based on sigma threshold."""
-        return self.sigma > (threshold * self.mu)
-
-    def format_rating(self, uncertainty_threshold: float = 0.20) -> str:
-        """Format rating with uncertainty indicator."""
-        rating = self.conservative_rating
-        if self.is_uncertain(uncertainty_threshold):
-            return f"{round(rating)}?"
-        return str(round(rating))
 
 
 @dataclass
@@ -189,7 +127,6 @@ class Match:
     started_at: datetime
     ended_at: datetime | None
     status: MatchStatus
-    is_rated: bool = True
     game_config: dict[str, Any] = field(default_factory=dict)
     match_code: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -228,26 +165,8 @@ class Participant:
     player_number: int
     final_ranking: int | None = None
     score: float | None = None
-    mu_before: float | None = None
-    sigma_before: float | None = None
-    mu_delta: float = 0.0
-    sigma_delta: float = 0.0
     joined_at: datetime | None = None
     updated_at: datetime | None = None
-
-    @property
-    def mu_after(self) -> float | None:
-        """Rating after the match."""
-        if self.mu_before is None:
-            return None
-        return self.mu_before + self.mu_delta
-
-    @property
-    def sigma_after(self) -> float | None:
-        """Uncertainty after the match."""
-        if self.sigma_before is None:
-            return None
-        return self.sigma_before + self.sigma_delta
 
     @property
     def is_winner(self) -> bool:
@@ -297,39 +216,6 @@ class AnalyticsEvent:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
-class RatingHistory:
-    """Represents a historical rating change."""
-
-    history_id: int
-    user_id: int
-    guild_id: int
-    game_id: int
-    match_id: int
-    mu_before: float
-    sigma_before: float
-    mu_after: float
-    sigma_after: float
-    created_at: datetime
-
-    @property
-    def mu_delta(self) -> float:
-        """Change in mu."""
-        return self.mu_after - self.mu_before
-
-    @property
-    def sigma_delta(self) -> float:
-        """Change in sigma."""
-        return self.sigma_after - self.sigma_before
-
-    @property
-    def rating_change(self) -> float:
-        """Change in conservative rating."""
-        before = self.mu_before - (3.0 * self.sigma_before)
-        after = self.mu_after - (3.0 * self.sigma_after)
-        return after - before
-
-
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -369,26 +255,9 @@ def row_to_game(row: dict[str, Any]) -> Game:
         display_name=row["display_name"],
         min_players=row["min_players"],
         max_players=row["max_players"],
-        rating_config=row["rating_config"],
         game_metadata=row.get("game_metadata", {}),
         game_schema_version=row.get("game_schema_version", 1),
         is_active=row.get("is_active", True),
-        created_at=row.get("created_at"),
-        updated_at=row.get("updated_at"),
-    )
-
-
-def row_to_rating(row: dict[str, Any]) -> Rating:
-    """Convert database row to Rating object."""
-    return Rating(
-        rating_id=row["rating_id"],
-        user_id=row["user_id"],
-        game_id=row["game_id"],
-        mu=row["mu"],
-        sigma=row["sigma"],
-        matches_played=row.get("matches_played", 0),
-        last_played=row.get("last_played"),
-        last_sigma_increase=row.get("last_sigma_increase"),
         created_at=row.get("created_at"),
         updated_at=row.get("updated_at"),
     )
@@ -405,7 +274,6 @@ def row_to_match(row: dict[str, Any]) -> Match:
         started_at=row["started_at"],
         ended_at=row.get("ended_at"),
         status=MatchStatus(row["status"]),
-        is_rated=row.get("is_rated", True),
         game_config=row.get("game_config", {}),
         match_code=row.get("match_code"),
         metadata=row.get("metadata", {}),
@@ -423,10 +291,6 @@ def row_to_participant(row: dict[str, Any]) -> Participant:
         player_number=row["player_number"],
         final_ranking=row.get("final_ranking"),
         score=row.get("score"),
-        mu_before=row.get("mu_before"),
-        sigma_before=row.get("sigma_before"),
-        mu_delta=row.get("mu_delta", 0.0),
-        sigma_delta=row.get("sigma_delta", 0.0),
         joined_at=row.get("joined_at"),
         updated_at=row.get("updated_at"),
     )

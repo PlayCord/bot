@@ -1,4 +1,5 @@
-"""Static UX constants and locale-bound strings.
+"""
+Static UX constants and locale-bound strings.
 
 Populated via :func:`bind_locale_strings`.
 """
@@ -6,15 +7,11 @@ Populated via :func:`bind_locale_strings`.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import discord
 
-from playcord.core.rating import DEFAULT_MU
 from playcord.games import GAMES
-
-if TYPE_CHECKING:
-    from playcord.infrastructure.locale import Translator
 
 VERSION = "0.8.0"
 NAME = ""
@@ -47,8 +44,6 @@ EMOJI_CONFIGURATION_FILE = str(_CONFIG_ROOT / "emoji.yaml")
 GAME_TYPES: dict[str, list[str]] = {
     game.key: [game.module_name, game.class_name] for game in GAMES
 }
-
-MU = DEFAULT_MU
 
 TEXTIFY_CURRENT_GAME_TURN: dict[str, Any] = {}
 TEXTIFY_GAME_STARTED: dict[str, Any] = {}
@@ -89,12 +84,12 @@ EPHEMERAL_DELETE_AFTER = 10
 ANALYTICS_RETENTION_DAYS = 30
 
 UI_MESSAGE_DELETE_DELAY = 5
-FORFEIT_RATING_PENALTY = 100
 ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS = 60
 ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS = 120
+# Retention DELETE runs at startup (migrations) and on this interval — not every flush tick.
+ANALYTICS_PERIODIC_CLEANUP_INTERVAL_SECONDS = 86_400
 
 HELP_GAMES_PREVIEW_COUNT = 8
-LEADERBOARD_PAGE_SIZE = 10
 HISTORY_PAGE_SIZE = 8
 CATALOG_GAMES_PER_PAGE = 3
 
@@ -117,7 +112,7 @@ THREAD_POLICY_PARTICIPANTS_COMMANDS_ONLY = False
 THREAD_POLICY_SPECTATORS_SILENT = False
 
 
-def bind_locale_strings(translator: Translator) -> None:
+def bind_locale_strings() -> None:
     """Populate locale-backed module attributes (call once at startup)."""
     global NAME, MANAGED_BY, ERROR_IMPORTED
     global ERROR_NO_SYSTEM_CHANNEL, ERROR_INCORRECT_SETUP
@@ -129,22 +124,24 @@ def bind_locale_strings(translator: Translator) -> None:
     global PERMISSION_MSG_NOT_YOUR_TURN
     global GAME_MSG_ALREADY_OVER, THREAD_POLICY_WARNING_MESSAGE
 
-    NAME = translator.get("brand.name")
-    MANAGED_BY = translator.get("meta.author")
-    ERROR_IMPORTED = translator.get("errors.imported_wrong_entrypoint")
-    ERROR_NO_SYSTEM_CHANNEL = translator.get("errors.no_system_channel")
-    ERROR_INCORRECT_SETUP = translator.get("errors.incorrect_setup")
-    TEXTIFY_CURRENT_GAME_TURN = translator.get_dict("game.turn")
-    TEXTIFY_GAME_STARTED = translator.get_dict("game.started")
-    TEXTIFY_BUTTON_JOIN = translator.get_dict("buttons.textify.join")
-    TEXTIFY_BUTTON_LEAVE = translator.get_dict("buttons.textify.leave")
-    TEXTIFY_BUTTON_START = translator.get_dict("buttons.textify.start")
-    TEXTIFY_GAME_OVER = translator.get_dict("game.over")
-    TEXTIFY_GAME_DRAW = translator.get_dict("game.draw")
-    PERMISSION_MSG_NOT_PARTICIPANT = translator.get("permissions.not_participant")
-    PERMISSION_MSG_SPECTATE_DISABLED = translator.get("permissions.spectate_disabled")
-    PERMISSION_MSG_WRONG_CHANNEL = translator.get("permissions.wrong_channel")
-    PERMISSION_MSG_NO_GAME_HERE = translator.get("permissions.no_game_here")
-    PERMISSION_MSG_NOT_YOUR_TURN = translator.get("permissions.not_your_turn")
-    GAME_MSG_ALREADY_OVER = translator.get("game.errors.already_over")
-    THREAD_POLICY_WARNING_MESSAGE = translator.get("thread_policy.warning")
+    from playcord.infrastructure.locale import get, get_dict
+
+    NAME = get("brand.name")
+    MANAGED_BY = get("meta.author")
+    ERROR_IMPORTED = get("errors.imported_wrong_entrypoint")
+    ERROR_NO_SYSTEM_CHANNEL = get("errors.no_system_channel")
+    ERROR_INCORRECT_SETUP = get("errors.incorrect_setup")
+    TEXTIFY_CURRENT_GAME_TURN = get_dict("game.turn")
+    TEXTIFY_GAME_STARTED = get_dict("game.started")
+    TEXTIFY_BUTTON_JOIN = get_dict("buttons.textify.join")
+    TEXTIFY_BUTTON_LEAVE = get_dict("buttons.textify.leave")
+    TEXTIFY_BUTTON_START = get_dict("buttons.textify.start")
+    TEXTIFY_GAME_OVER = get_dict("game.over")
+    TEXTIFY_GAME_DRAW = get_dict("game.draw")
+    PERMISSION_MSG_NOT_PARTICIPANT = get("permissions.not_participant")
+    PERMISSION_MSG_SPECTATE_DISABLED = get("permissions.spectate_disabled")
+    PERMISSION_MSG_WRONG_CHANNEL = get("permissions.wrong_channel")
+    PERMISSION_MSG_NO_GAME_HERE = get("permissions.no_game_here")
+    PERMISSION_MSG_NOT_YOUR_TURN = get("permissions.not_your_turn")
+    GAME_MSG_ALREADY_OVER = get("game.errors.already_over")
+    THREAD_POLICY_WARNING_MESSAGE = get("thread_policy.warning")

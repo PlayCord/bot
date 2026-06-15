@@ -9,10 +9,9 @@ from discord import app_commands
 from discord.app_commands.models import AppCommand, AppCommandGroup, Argument
 from discord.ext import commands
 
-from playcord.api.trueskill_config import bind_rating_config_provider
 from playcord.application.container import ApplicationContainer
 from playcord.application.runtime_context import bind_application_container
-from playcord.infrastructure import Translator, load_settings
+from playcord.infrastructure import load_settings
 from playcord.infrastructure.analytics_client import Timer
 from playcord.infrastructure.config import bind_settings
 from playcord.infrastructure.constants import (
@@ -20,6 +19,7 @@ from playcord.infrastructure.constants import (
     bind_locale_strings,
 )
 from playcord.infrastructure.database import MigrationRunner, PoolManager
+from playcord.infrastructure.locale import set_command_mentions
 from playcord.infrastructure.logging import configure_logging, get_logger
 from playcord.infrastructure.state.user_games import SessionRegistry
 from playcord.presentation.cogs.general import GeneralCog
@@ -82,8 +82,6 @@ class PlayCordBot(commands.Bot):
         await self.load_extension("playcord.presentation.cogs.events")
         await self.load_extension("playcord.presentation.cogs.admin")
 
-        translator = self.container.translator
-
         async def _on_tree_error(
             interaction: discord.Interaction,
             error: app_commands.AppCommandError,
@@ -91,7 +89,6 @@ class PlayCordBot(commands.Bot):
             await command_error(
                 interaction,
                 error,
-                translator=translator,
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
 
@@ -146,13 +143,13 @@ class PlayCordBot(commands.Bot):
             startup_log.exception(
                 "Could not fetch slash commands for locale mention tokens",
             )
-            self.container.translator.set_command_mentions(None)
+            set_command_mentions(None)
             return
 
         mentions: dict[str, str] = {}
         for command in remote_commands:
             mentions.update(_collect_remote_command_mentions(command))
-        self.container.translator.set_command_mentions(mentions)
+        set_command_mentions(mentions)
         startup_log.info("Loaded %d slash command mention token(s).", len(mentions))
 
 
@@ -160,8 +157,7 @@ def create_container() -> ApplicationContainer:
     settings = load_settings()
     bind_settings(settings)
     configure_logging(settings.logging.level)
-    translator = Translator(current_locale=settings.locale)
-    bind_locale_strings(translator)
+    bind_locale_strings()
     pool_manager = PoolManager(settings.db)
     migration_runner = MigrationRunner(
         analytics_retention_days=settings.analytics_retention_days,
@@ -169,21 +165,12 @@ def create_container() -> ApplicationContainer:
     registry = SessionRegistry()
     container = ApplicationContainer(
         settings=settings,
-        translator=translator,
         pool_manager=pool_manager,
         migration_runner=migration_runner,
         registry=registry,
     )
 
     bind_application_container(container)
-
-    def _rating_config_provider(game_type_key: str) -> dict[str, float] | None:
-        game = container.games_repository.get(game_type_key)
-        if game is None or not game.rating_config:
-            return None
-        return game.rating_config
-
-    bind_rating_config_provider(_rating_config_provider)
     return container
 
 

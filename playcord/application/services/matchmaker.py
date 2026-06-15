@@ -103,7 +103,8 @@ def lobby_add_bot(
 
 
 def lobby_remove_bot(roster: LobbyRoster, bot_name: str) -> str | None:
-    """Remove a bot from the roster by name.
+    """
+    Remove a bot from the roster by name.
 
     Returns an error message if the bot is not found, or None on success.
     """

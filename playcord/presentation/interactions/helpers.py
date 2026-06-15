@@ -17,7 +17,7 @@ from playcord.infrastructure.constants import (
 from playcord.infrastructure.database.implementation.internal_player import (
     InternalPlayer,
 )
-from playcord.infrastructure.locale import get, get_error
+from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
 from playcord.presentation.ui.containers import (
     CustomContainer,
@@ -43,7 +43,8 @@ def _active_game_threads(
 
 
 def schedule_ephemeral_message_delete(message: Any, delay: float | None) -> None:
-    """Delete *message* after *delay* seconds (interaction
+    """
+    Delete *message* after *delay* seconds (interaction
     webhooks often lack delete_after on send).
     """
     if message is None or delay is None or delay <= 0:
@@ -82,33 +83,56 @@ async def response_send_message(
     return msg
 
 
+async def send_ephemeral_transient_text(
+    interaction: discord.Interaction,
+    content: str,
+    *,
+    delete_after: float | None = EPHEMERAL_DELETE_AFTER,
+) -> Any:
+    """Ephemeral feedback that auto-deletes (same UX as ``/play`` validation errors)."""
+    kwargs: dict[str, Any] = {
+        "content": content,
+        "ephemeral": True,
+        "delete_after": delete_after,
+    }
+    if interaction.response.is_done():
+        return await followup_send(interaction, **kwargs)
+    return await response_send_message(interaction, **kwargs)
+
+
+async def send_format_user_error(
+    interaction: discord.Interaction,
+    error_key: str,
+    **kwargs: Any,
+) -> Any:
+    """Send a localized ``errors.<error_key>`` message as ephemeral + auto-delete."""
+    return await send_ephemeral_transient_text(
+        interaction,
+        format_user_error_message(error_key, **kwargs),
+    )
+
+
 def format_user_error_message(error_key: str, **kwargs) -> str:
-    """Plain-text user error with a
+    """
+    Plain-text user error with a
     single combined sentence block (no title/container).
     """
-    message = get_error(error_key)
-    if not message:
-        return f"{error_key}"
-    if kwargs:
-        try:
-            message = message.format(**kwargs)
-        except KeyError as e:
-            log.warning("Missing format variable %r for error key '%s'", e, error_key)
-    return str(message).strip()
+    locale_key = f"errors.{error_key}"
+    message = fmt(locale_key, f"[{locale_key}]", **kwargs).strip()
+    if message == f"[{locale_key}]":
+        return str(error_key)
+    return message
 
 
 def get_user_error_embed(error_key: str, **kwargs) -> UserErrorContainer:
-    """Get a pre-defined user error container with
+    """
+    Get a pre-defined user error container with
     optional formatting from locale (no title row).
     """
-    message = get_error(error_key)
-    if not message:
+    locale_key = f"errors.{error_key}"
+    message = fmt(locale_key, f"[{locale_key}]", **kwargs).strip()
+    if message == f"[{locale_key}]":
         message = get("errors.generic")
-    if kwargs:
-        try:
-            message = message.format(**kwargs)
-        except KeyError as e:
-            log.warning("Missing format variable %r for error key '%s'", e, error_key)
 
     return UserErrorContainer(description=message, suggestion=None)
 
@@ -196,9 +220,8 @@ def discord_user_db_label(user: discord.User | discord.Member) -> str | None:
 def shallow_player_from_discord_user(
     user: discord.User | discord.Member,
 ) -> InternalPlayer:
-    """Build a rating-empty InternalPlayer from Discord identity (presentation-only)."""
+    """Build an InternalPlayer from Discord identity (presentation-only)."""
     return InternalPlayer(
-        ratings={},
         user_id=int(user.id),
         username=discord_user_db_label(user),
     )

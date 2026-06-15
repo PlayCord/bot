@@ -1,6 +1,7 @@
 import asyncio
 import shutil
 import subprocess
+import time
 
 import discord
 from discord.ext import commands
@@ -8,6 +9,7 @@ from discord.ext import commands
 from playcord.infrastructure import analytics_client as analytics_mod
 from playcord.infrastructure.config import get_settings
 from playcord.infrastructure.constants import (
+    ANALYTICS_PERIODIC_CLEANUP_INTERVAL_SECONDS,
     ANALYTICS_PERIODIC_FLUSH_INITIAL_DELAY_SECONDS,
     ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS,
     ERROR_NO_SYSTEM_CHANNEL,
@@ -33,6 +35,7 @@ class EventsCog(commands.Cog):
         self.presence_lock = asyncio.Lock()
         self._presence_task: asyncio.Task[None] | None = None
         self._analytics_task: asyncio.Task[None] | None = None
+        self._analytics_last_cleanup_monotonic = time.monotonic()
         # Build the version presence string.
         # If git is available and we can read the short commit hash, show:
         #   vx.y.z • f9ab9b
@@ -105,20 +108,28 @@ class EventsCog(commands.Cog):
         while True:
             try:
                 log.getChild("analytics.flush").debug(
-                    "Attempting analytics flush and cleanup",
+                    "Attempting periodic analytics flush"
                 )
 
-                def _flush_db() -> None:
-                    analytics_mod.flush_events()
-                    self.bot.container.guilds_repository.cleanup_old_analytics(
-                        days=get_settings().analytics_retention_days,
+                await run_in_thread(analytics_mod.flush_events)
+
+                now = time.monotonic()
+                if (
+                    now - self._analytics_last_cleanup_monotonic
+                    >= ANALYTICS_PERIODIC_CLEANUP_INTERVAL_SECONDS
+                ):
+
+                    def _cleanup() -> None:
+                        self.bot.container.guilds_repository.cleanup_old_analytics(
+                            days=get_settings().analytics_retention_days,
+                        )
+
+                    await run_in_thread(_cleanup)
+                    self._analytics_last_cleanup_monotonic = now
+                    log.getChild("analytics.flush").debug(
+                        "cleanup_old_analytics completed (retention_days=%s)",
+                        get_settings().analytics_retention_days,
                     )
-
-                await run_in_thread(_flush_db)
-                log.getChild("analytics.flush").debug(
-                    "Cleanup_old_analytics completed (retention_days=%s)",
-                    get_settings().analytics_retention_days,
-                )
             except Exception:
                 log.exception("Periodic analytics flush/cleanup failed")
             await asyncio.sleep(ANALYTICS_PERIODIC_FLUSH_INTERVAL_SECONDS)
@@ -135,10 +146,6 @@ class EventsCog(commands.Cog):
         container.add_field(
             name=get("welcome.fields.games.name"),
             value=get("welcome.fields.games.value"),
-        )
-        container.add_field(
-            name=get("welcome.fields.rating.name"),
-            value=get("welcome.fields.rating.value"),
         )
         container.add_field(
             name=get("welcome.fields.help.name"),

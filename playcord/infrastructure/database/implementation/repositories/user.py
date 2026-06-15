@@ -18,8 +18,7 @@ if TYPE_CHECKING:
 @dataclass(slots=True)
 class PlayerRepository:
     database: Database
-    games: Any  # GameRepository (avoid typing cycle with string if needed)
-    ratings: Any  # RatingRepository
+    games: Any  # GameRepository
 
     def get(self, user_id: int) -> User | None:
         return self.get_user(user_id)
@@ -76,10 +75,8 @@ class PlayerRepository:
     def restore_user(self, user_id: int) -> None:
         queries = [
             "UPDATE users SET is_deleted = FALSE, updated_at = NOW() WHERE user_id = %s;",
-            "UPDATE user_game_ratings SET is_deleted = FALSE, updated_at = NOW() WHERE user_id = %s;",
             "UPDATE match_participants SET is_deleted = FALSE, updated_at = NOW() WHERE user_id = %s;",
             "UPDATE match_moves SET is_deleted = FALSE WHERE user_id = %s;",
-            "UPDATE rating_history SET is_deleted = FALSE WHERE user_id = %s;",
         ]
         with self.database.transaction() as cur:
             for query in queries:
@@ -93,18 +90,10 @@ class PlayerRepository:
                 "SELECT COUNT(*) FROM users WHERE user_id = %s AND is_deleted = TRUE;",
             ),
             (
-                "user_game_ratings",
-                "SELECT COUNT(*) FROM user_game_ratings WHERE user_id = %s;",
-            ),
-            (
                 "match_participants",
                 "SELECT COUNT(*) FROM match_participants WHERE user_id = %s;",
             ),
             ("match_moves", "SELECT COUNT(*) FROM match_moves WHERE user_id = %s;"),
-            (
-                "rating_history",
-                "SELECT COUNT(*) FROM rating_history WHERE user_id = %s;",
-            ),
         ]
         for table_name, query in queries:
             result = self.database.execute_query(query, (user_id,), fetchone=True)
@@ -128,31 +117,6 @@ class PlayerRepository:
         self.delete_user(user_id)
         self.create_user(user_id, username="Unknown", is_bot=False)
 
-    def get_user_all_ratings(self, user_id: int) -> list[Any]:
-        return self.ratings.get_user_all_ratings(user_id)
-
-    def get_user_global_rank(
-        self,
-        user_id: int,
-        game_id: int,
-        min_matches: int = 5,
-    ) -> int | None:
-        return self.ratings.get_user_global_rank(
-            user_id,
-            game_id,
-            min_matches=min_matches,
-        )
-
-    def get_rating_history(
-        self,
-        user_id: int,
-        guild_id: int | None,
-        game_id: int,
-        *,
-        days: int = 30,
-    ) -> list[dict[str, Any]]:
-        return self.ratings.get_rating_history(user_id, guild_id, game_id, days=days)
-
     def get_player(
         self,
         user_id: int,
@@ -165,15 +129,7 @@ class PlayerRepository:
             else {}
         )
 
-        all_ratings = self.get_user_all_ratings(user_id)
-        ratings: dict[str, dict[str, float]] = {}
-        for rating in all_ratings:
-            game = self.games.get_by_id(rating.game_id)
-            if game:
-                ratings[game.game_name] = {"mu": rating.mu, "sigma": rating.sigma}
-
         return InternalPlayer(
-            ratings=ratings,
             metadata=metadata,
             user_id=user_id,
             username=username,
@@ -184,88 +140,6 @@ class PlayerRepository:
         from playcord.core.player import Player  # noqa: PLC0415
 
         return Player.from_legacy(player)
-
-    def get_user_game_ratings(
-        self,
-        user_id: int,
-        game_name_or_id: int | str,
-        guild_id: int | None = None,  # noqa: ARG002
-    ) -> dict[str, Any] | None:
-        if isinstance(game_name_or_id, str):
-            game = self.games.get_game(game_name_or_id)
-            if not game:
-                return None
-            game_id = game.game_id
-        else:
-            game_id = game_name_or_id
-
-        rating = self.ratings.get_user_rating(user_id, game_id)
-        if not rating:
-            return None
-
-        return {
-            "mu": rating.mu,
-            "sigma": rating.sigma,
-            "matches_played": rating.matches_played,
-            "last_played": rating.last_played,
-        }
-
-    def initialize_user_game_ratings(
-        self,
-        user_id: int,
-        game_name: str,
-        guild_id: int | None = None,  # noqa: ARG002
-    ) -> None:
-        game = self.games.get_game(game_name)
-        if not game:
-            msg = f"Game {game_name} not found"
-            raise ValueError(msg)
-        self.ratings.initialize_user_rating(user_id, game.game_id)
-
-    def update_ratings_after_match(
-        self,
-        user_id: int,
-        game_name: str,
-        mu: float,
-        sigma: float,
-        matches_played_increment: int = 1,
-        guild_id: int | None = None,  # noqa: ARG002
-    ) -> None:
-        game = self.games.get_game(game_name)
-        if not game:
-            msg = f"Game {game_name} not found"
-            raise ValueError(msg)
-        self.ratings.update_rating(
-            user_id,
-            game.game_id,
-            mu,
-            sigma,
-            matches_increment=matches_played_increment,
-        )
-
-    def reset_user_game_ratings(
-        self,
-        user_id: int,
-        game_name: str,
-        guild_id: int | None = None,  # noqa: ARG002
-    ) -> None:
-        game = self.games.get_game(game_name)
-        if not game:
-            msg = f"Game {game_name} not found"
-            raise ValueError(msg)
-        self.ratings.reset_user_rating(user_id, game.game_id)
-
-    def delete_user_game_ratings(
-        self,
-        user_id: int,
-        game_name: str,
-        guild_id: int | None = None,  # noqa: ARG002
-    ) -> None:
-        game = self.games.get_game(game_name)
-        if not game:
-            msg = f"Game {game_name} not found"
-            raise ValueError(msg)
-        self.ratings.delete_user_rating(user_id, game.game_id)
 
     def get_preferences(self, user_id: int) -> dict[str, Any] | None:
         return self.get_user_preferences(user_id)

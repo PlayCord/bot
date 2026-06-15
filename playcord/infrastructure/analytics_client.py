@@ -1,4 +1,5 @@
-"""Analytics module for the bot
+"""
+Analytics module for the bot
 Tracks events like game starts, game completions, command usage, etc.
 """
 
@@ -6,7 +7,6 @@ import json
 import time
 from typing import Any
 
-from playcord.infrastructure.config import get_settings
 from playcord.infrastructure.constants import VERSION
 from playcord.infrastructure.database.models import EventType
 from playcord.infrastructure.logging import get_logger
@@ -93,7 +93,8 @@ def register_event(
 
 
 def flush_events() -> int:
-    """Flush buffered events (after failed writes) to storage.
+    """
+    Flush buffered events (after failed writes) to storage.
 
     :return: Number of events flushed
     """
@@ -117,12 +118,6 @@ def flush_events() -> int:
 
     flushed = 0
     try:
-        try:
-            c.guilds_repository.cleanup_old_analytics(
-                days=get_settings().analytics_retention_days
-            )
-        except Exception:
-            logger.debug("Analytics cleanup skipped during flush", exc_info=True)
         repo = c.analytics_repository
         for event in events_to_flush:
             payload: dict[str, Any] = dict(event.get("metadata") or {})
@@ -144,7 +139,8 @@ def flush_events() -> int:
 
 
 def get_event_stats() -> dict[str, int]:
-    """Get statistics on buffered events.
+    """
+    Get statistics on buffered events.
 
     :return: Dictionary of event type counts
     """

@@ -17,7 +17,8 @@ def generate_elo_chart(
     figsize: tuple[int, int] = (10, 6),
     dpi: int = 100,
 ) -> io.BytesIO:
-    """Generate a matplotlib line chart showing ELO/TrueSkill rating progression over time.
+    """
+    Generate a matplotlib line chart showing ELO/TrueSkill rating progression over time.
 
     Args:
         rating_history: List of (timestamp, rating_value) tuples in chronological order
@@ -69,8 +70,8 @@ def generate_elo_chart(
 
     # Style the chart
     ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
-    ax.set_xlabel("Date", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Rating", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Date", fontsize=12)
+    ax.set_ylabel("Rating", fontsize=12)
 
     # Add grid for better readability
     ax.grid(True, alpha=0.3, linestyle="--", linewidth=0.8)
@@ -164,7 +165,8 @@ def generate_rating_comparison_chart(
     figsize: tuple[int, int] = (12, 7),
     dpi: int = 100,
 ) -> io.BytesIO:
-    """Generate a matplotlib chart comparing multiple players' ratings over time.
+    """
+    Generate a matplotlib chart comparing multiple players' ratings over time.
 
     Args:
         player_data: List of (player_name, rating_history) tuples
@@ -209,8 +211,8 @@ def generate_rating_comparison_chart(
 
     # Style the chart
     ax.set_title(title, fontsize=16, fontweight="bold", pad=20)
-    ax.set_xlabel("Date", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Rating", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Date", fontsize=12)
+    ax.set_ylabel("Rating", fontsize=12)
 
     # Add grid and legend
     ax.grid(True, alpha=0.3, linestyle="--", linewidth=0.8)
@@ -254,7 +256,8 @@ def generate_analytics_summary_chart(
     figsize: tuple[float, float] = (12, 6.2),
     dpi: int = 100,
 ) -> io.BytesIO | None:
-    """Two horizontal bar charts: analytics rows by ``event_type`` and by game slug (``game_type`` key).
+    """
+    Two horizontal bar charts: analytics rows by ``event_type`` and by game slug (``game_type`` key).
 
     Returns ``None`` when both input lists are empty (nothing to plot).
     """

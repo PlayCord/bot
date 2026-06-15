@@ -9,7 +9,6 @@ from playcord.core.errors import (
     ValidationError,
 )
 from playcord.core.player import Player
-from playcord.core.rating import Rating
 
 __all__ = [
     "ConfigurationError",
@@ -17,7 +16,6 @@ __all__ = [
     "IllegalMove",
     "NotPlayersTurn",
     "Player",
-    "Rating",
     "RuleViolation",
     "ValidationError",
 ]

@@ -1,4 +1,5 @@
-"""PlayCord PostgreSQL connection pool and low-level query execution.
+"""
+PlayCord PostgreSQL connection pool and low-level query execution.
 
 Domain operations live in :mod:`playcord.infrastructure.database.implementation.repositories`.
 """
@@ -28,7 +29,8 @@ logger = get_logger("database")
 
 
 class Database:
-    """PostgreSQL connection pool for PlayCord.
+    """
+    PostgreSQL connection pool for PlayCord.
     Repositories use :meth:`execute_query` and :meth:`transaction` for SQL.
     """
 
@@ -105,7 +107,8 @@ class Database:
 
     @contextmanager
     def transaction(self):
-        """Transaction context manager.
+        """
+        Transaction context manager.
 
         Usage:
             with db.transaction() as cur:
@@ -128,7 +131,8 @@ class Database:
         fetchone: bool = False,
         fetchall: bool = False,
     ):
-        """Execute a query with automatic connection management.
+        """
+        Execute a query with automatic connection management.
 
         Args:
             query: SQL query string
@@ -168,7 +172,8 @@ class Database:
         fetchone: bool = False,
         fetchall: bool = False,
     ) -> Any:
-        """Async wrapper: run :meth:`execute_query` in a worker thread.
+        """
+        Async wrapper: run :meth:`execute_query` in a worker thread.
 
         Use from coroutines so psycopg does not block the Discord event loop.
         """

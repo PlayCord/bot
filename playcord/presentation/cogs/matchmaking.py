@@ -60,7 +60,8 @@ class MatchmakingCog(commands.Cog):
             await self.invite_accept_callback(ctx)
 
     async def lobby_select_callback(self, ctx: discord.Interaction) -> None:
-        """Lobby string-select for per-game
+        """
+        Lobby string-select for per-game
         match options (handled by MatchmakingInterface).
         """
         await ctx.response.defer(ephemeral=True)
@@ -133,7 +134,8 @@ class MatchmakingCog(commands.Cog):
         await matchmaker.callback_lobby_option(ctx, key)
 
     async def lobby_role_select_callback(self, ctx: discord.Interaction) -> None:
-        """Per-player role select for
+        """
+        Per-player role select for
         CHOSEN :attr:`role_mode` (handled by MatchmakingInterface).
         """
         await ctx.response.defer(ephemeral=True)

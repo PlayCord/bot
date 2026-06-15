@@ -12,7 +12,6 @@ from playcord.infrastructure.database.implementation.repositories import (
     MatchRepository,
     MoveRepository,
     PlayerRepository,
-    RatingRepository,
     ReplayRepository,
     RoleRepository,
 )
@@ -27,7 +26,6 @@ __all__ = [
     "MoveRepository",
     "PlayerRepository",
     "PoolManager",
-    "RatingRepository",
     "ReplayRepository",
     "RoleRepository",
 ]

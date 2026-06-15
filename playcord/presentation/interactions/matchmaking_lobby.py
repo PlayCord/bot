@@ -28,7 +28,6 @@ from playcord.infrastructure.constants import (
     BUTTON_PREFIX_READY,
     EPHEMERAL_DELETE_AFTER,
     GAME_TYPES,
-    LONG_SPACE_EMBED,
 )
 from playcord.infrastructure.database.implementation.internal_player import (
     InternalPlayer,
@@ -54,7 +53,6 @@ from playcord.presentation.ui.containers import (
 )
 from playcord.presentation.ui.formatting import (
     column_creator,
-    column_elo,
     column_names,
     player_representative,
     player_verification_function,
@@ -80,7 +78,8 @@ class _LobbyCreatorRef:
 
 
 class MatchmakingInterface:
-    """MatchmakingInterface - the class that handles matchmaking for a game, where
+    """
+    MatchmakingInterface - the class that handles matchmaking for a game, where
     control is promptly handed off to the new GameManager via
     `start_match_from_lobby`.
     """
@@ -90,7 +89,6 @@ class MatchmakingInterface:
         creator: discord.User,
         game_type: str,
         message: discord.InteractionMessage,
-        rated: bool,
         private: bool,
         *,
         creator_db_player: InternalPlayer | None = None,
@@ -104,9 +102,6 @@ class MatchmakingInterface:
 
         # Creator of the game
         self.creator = creator
-
-        # Is the game rated?
-        self.rated = rated
 
         # Whether joining the game is open
         self.private = private
@@ -158,13 +153,11 @@ class MatchmakingInterface:
         self.game = getattr(self.module, GAME_TYPES[game_type][1])
         self.metadata = self.game.metadata
 
-        self.rated_requested = self.rated
         self._specs = tuple(getattr(self.metadata, "customizable_options", ()) or ())
         self.match_settings: dict[str, str | int] = {
             s.key: s.default for s in self._specs
         }
         self.role_selections: dict[int, str] = {}
-        self._sync_rated_flag()
 
         # Required and maximum players for game
         # TODO: more complex requirements for start/stop
@@ -187,29 +180,6 @@ class MatchmakingInterface:
     @property
     def has_bots(self) -> bool:
         return bool(self.bots)
-
-    def _match_settings_are_default(self) -> bool:
-        for spec in self._specs:
-            if self.match_settings.get(spec.key, spec.default) != spec.default:
-                return False
-        return True
-
-    def _sync_rated_flag(self) -> None:
-        if self.has_bots:
-            self.rated = False
-            return
-        if (
-            self._specs
-            and getattr(
-                self.game,
-                "customization_forces_unrated_when_non_default",
-                True,
-            )
-            and not self._match_settings_are_default()
-        ):
-            self.rated = False
-            return
-        self.rated = self.rated_requested
 
     def _reset_ready_state(self) -> None:
         self.ready_players.clear()
@@ -393,19 +363,18 @@ class MatchmakingInterface:
         )
         if err is not None:
             return err
-        self._sync_rated_flag()
         getattr(self, "_reset_ready_state", lambda: None)()
         return None
 
     def remove_bot(self, bot_name: str) -> str | None:
-        """Remove a bot by name.
+        """
+        Remove a bot by name.
 
         Returns an error message if not found, or None on success.
         """
         err = lobby_remove_bot(self._lobby_roster, bot_name)
         if err is not None:
             return err
-        self._sync_rated_flag()
         getattr(self, "_reset_ready_state", lambda: None)()
         return None
 
@@ -439,7 +408,6 @@ class MatchmakingInterface:
                     self.match_settings[other_spec.key] = other_spec.coerce(
                         str(preset_values[other_spec.key]),
                     )
-        self._sync_rated_flag()
         getattr(self, "_reset_ready_state", lambda: None)()
         await self.update_embed()
         await followup_send(
@@ -498,7 +466,9 @@ class MatchmakingInterface:
                 if validation_error:
                     await followup_send(
                         ctx,
-                        f"Invalid role selection: {validation_error}",
+                        fmt(
+                            "queue.role_invalid_selection", detail=str(validation_error)
+                        ),
                         ephemeral=True,
                         delete_after=EPHEMERAL_DELETE_AFTER,
                     )
@@ -540,7 +510,7 @@ class MatchmakingInterface:
         if not has_role_support(self.game):
             await followup_send(
                 ctx,
-                "This game does not support role assignment",
+                get("queue.role_assignment_unsupported"),
                 ephemeral=True,
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
@@ -563,7 +533,7 @@ class MatchmakingInterface:
             await self.update_embed()
             await followup_send(
                 ctx,
-                "Roles have been randomly assigned!",
+                get("queue.roles_assigned_random"),
                 ephemeral=True,
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
@@ -571,13 +541,14 @@ class MatchmakingInterface:
             log.exception("Error assigning roles: %s", e)
             await followup_send(
                 ctx,
-                f"Error assigning roles: {e!s}",
+                fmt("queue.role_assignment_failed", reason=str(e)),
                 ephemeral=True,
                 delete_after=EPHEMERAL_DELETE_AFTER,
             )
 
     async def update_embed(self) -> None:
-        """Update the embed based on the players in self.players
+        """
+        Update the embed based on the players in self.players
         :return: Nothing.
         """
         log = self.logger.getChild("update_embed")
@@ -587,31 +558,14 @@ class MatchmakingInterface:
             log.debug("Matchmaking lobby auto-started in %sms.", update_timer.stop())
             return
 
-        game_rated_text = get("queue.rated") if self.rated else get("queue.not_rated")
         private_text = (
             get("queue.private_status") if self.private else get("queue.public_status")
         )
-
-        desc_suffix = ""
-        if (
-            self._specs
-            and self.rated_requested
-            and not self.rated
-            and not self.has_bots
-            and not self._match_settings_are_default()
-            and getattr(
-                self.game,
-                "customization_forces_unrated_when_non_default",
-                True,
-            )
-        ):
-            desc_suffix = f"\n\n{get('queue.customization_unrated_note')}"
 
         # Parameters in embed title:
         # Time
         # Allowed players
         # Difficulty
-        # Rated/Unrated
         # Public/Private
 
         game_metadata = {}
@@ -620,31 +574,29 @@ class MatchmakingInterface:
             if hasattr(self.metadata, param):
                 game_metadata[param] = getattr(self.metadata, param)
             else:
-                game_metadata[param] = get("help.game_info.unknown")
+                game_metadata[param] = get("game_info.unknown")
 
         container = CustomContainer(
             title=self._lobby_view_summary_line(),
-            description=(
-                f"⏰{game_metadata['time']}{LONG_SPACE_EMBED * 2}"
-                f"👤{self.allowed_players}{LONG_SPACE_EMBED * 2}"
-                f"📈{game_metadata['difficulty']}{LONG_SPACE_EMBED * 2}"
-                f"📊{game_rated_text}{LONG_SPACE_EMBED * 2}"
-                f"{private_text}{desc_suffix}"
+            description=fmt(
+                "queue.lobby_summary_line",
+                time=game_metadata["time"],
+                player_slots=str(self.allowed_players),
+                difficulty=game_metadata["difficulty"],
+                privacy=private_text,
             ),
         )
 
         all_players = self.all_players()
         table_rows = []
-        for player, rating, creator_marker in zip(
+        for player, creator_marker in zip(
             all_players,
-            column_elo(all_players, self.game_type).split("\n"),
             column_creator(all_players, self.creator).split("\n"),
             strict=False,
         ):
             player_name = getattr(player, "mention", getattr(player, "name", "Unknown"))
             table_rows.append(
-                f"- {player_name}: "
-                f"{get('queue.field_rating')} {rating} · {get('queue.field_creator')} {creator_marker}",
+                f"- {player_name}: {get('queue.field_creator')} {creator_marker}",
             )
         table_image_url = None
         table_file = None
@@ -890,7 +842,8 @@ class MatchmakingInterface:
         return None
 
     async def accept_invite(self, ctx: discord.Interaction) -> bool:
-        """Accept a invite.
+        """
+        Accept a invite.
         :param ctx: discord context with information about the invite
         :return: whether the invite succeeded or failed.
         """
@@ -970,7 +923,8 @@ class MatchmakingInterface:
         return True
 
     async def ban(self, player: discord.User, reason: str) -> str | None:
-        """Ban a player from the game with reason
+        """
+        Ban a player from the game with reason
         :param player: the player to ban
         :param reason: the reason the player was banned
         :return: Error code or None if no error.
@@ -1031,7 +985,8 @@ class MatchmakingInterface:
         return fmt("queue.banned", player=player.mention, reason=reason)
 
     async def kick(self, player: discord.User, reason: str) -> str | None:
-        """Kick a player from the game with reason
+        """
+        Kick a player from the game with reason
         :param player: the player to kick
         :param reason: reason the player was kicked
         :return: error or None if no error.
@@ -1075,7 +1030,8 @@ class MatchmakingInterface:
         return fmt("queue.didnt_kick", player=player.mention)
 
     async def callback_ready_game(self, ctx: discord.Interaction) -> None:
-        """Callback for the selected player to join the game
+        """
+        Callback for the selected player to join the game
         :param ctx: discord context
         :return: Nothing.
         """
@@ -1212,7 +1168,8 @@ class MatchmakingInterface:
         )
 
     async def callback_leave_game(self, ctx: discord.Interaction) -> None:
-        """Callback for the selected player to leave the matchmaking session
+        """
+        Callback for the selected player to leave the matchmaking session
         :param ctx: discord context
         :return: None.
         """

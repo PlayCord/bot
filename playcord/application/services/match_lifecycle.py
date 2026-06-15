@@ -6,10 +6,6 @@ from typing import TYPE_CHECKING, Any
 
 from playcord.application.runtime_context import get_container
 from playcord.application.services.game_manager import GameManager
-from playcord.application.services.rating import (
-    rated_results_for_placements,
-    unrated_results_for_placements,
-)
 from playcord.application.services.role_management import (
     assign_roles,
     reorder_players_by_roles,
@@ -25,6 +21,24 @@ if TYPE_CHECKING:
 log = get_logger("match.lifecycle")
 
 
+def results_for_placements(
+    players: list[Any],
+    placements: list[list[Any]],
+) -> dict[int, dict[str, Any]]:
+    """Map outcome placements to per-player final rankings."""
+    ranking_by_id: dict[int, int] = {}
+    for rank_index, group in enumerate(placements):
+        for player in group:
+            ranking_by_id[int(player.id)] = rank_index + 1
+    results: dict[int, dict[str, Any]] = {}
+    for player in players:
+        results[int(player.id)] = {
+            "ranking": ranking_by_id.get(int(player.id), len(players)),
+            "score": None,
+        }
+    return results
+
+
 async def start_match_from_lobby(
     interface: Any,
     plugin_class: type[Any],
@@ -37,7 +51,6 @@ async def start_match_from_lobby(
         if callable(getattr(interface, "all_players", None))
         else list(interface.queued_players)
     )
-    has_bots = any(getattr(player, "is_bot", False) for player in players)
     reg = get_container().registry
     for player in list(interface.queued_players):
         reg.user_to_matchmaking.pop(player, None)
@@ -66,7 +79,6 @@ async def start_match_from_lobby(
         interface.game_type,
         message.guild.id,
         [player.id for player in players],
-        bool(interface.rated and not has_bots),
         message.channel.id,
         thread.id,
         {"match_options": match_options},
@@ -93,7 +105,6 @@ async def start_match_from_lobby(
         overview_message=message,
         creator=interface.creator,
         players=players,
-        rated=bool(interface.rated and not has_bots),
         match_id=match_id,
         match_public_code=match_code,
         match_options=match_options,
@@ -107,10 +118,7 @@ async def start_match_from_lobby(
 async def finish_match(runtime: GameManager, outcome: Any) -> None:
     placements = getattr(outcome, "placements", []) or []
     players = list(runtime.players)
-    if runtime.rated:
-        results = rated_results_for_placements(players, runtime.game_type, placements)
-    else:
-        results = unrated_results_for_placements(players, runtime.game_type, placements)
+    results = results_for_placements(players, placements)
 
     final_state = {
         "outcome": getattr(outcome, "kind", "winner"),
@@ -175,7 +183,7 @@ async def finish_match(runtime: GameManager, outcome: Any) -> None:
         reg.discard_thread_cache(tid)
         reg.games_by_thread_id.pop(tid, None)
 
-    summary = _summary_text(runtime, outcome, results)
+    summary = _summary_text(runtime, outcome)
     if runtime.thread is not None:
         await runtime.thread.send(summary)
         await runtime.thread.edit(
@@ -208,7 +216,6 @@ async def finish_match(runtime: GameManager, outcome: Any) -> None:
 def _summary_text(
     runtime: GameManager,
     outcome: Any,
-    results: dict[int, dict[str, Any]],
 ) -> str:
     lines = [f"**{runtime.plugin.metadata.name}** finished."]
     if getattr(outcome, "kind", None) == "winner" and getattr(
@@ -224,13 +231,4 @@ def _summary_text(
     reason = getattr(outcome, "reason", None)
     if reason:
         lines.append(f"Outcome: {reason}")
-    if runtime.rated:
-        lines.append("")
-        for player in runtime.players:
-            result = results[int(player.id)]
-            before_cr = float(result["mu_before"]) - (3 * float(result["sigma_before"]))
-            after_cr = float(result["new_mu"]) - (3 * float(result["new_sigma"]))
-            delta = round(after_cr - before_cr)
-            delta_text = f"{delta:+d}"
-            lines.append(f"{player.mention}: {round(before_cr)} ({delta_text})")
     return "\n".join(lines)

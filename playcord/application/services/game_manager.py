@@ -180,7 +180,6 @@ class GameManager:
         overview_message: discord.Message,
         creator: discord.abc.User,
         players: list[Any],
-        rated: bool,
         match_id: int,
         match_public_code: str,
         match_options: dict[str, Any] | None = None,
@@ -196,7 +195,6 @@ class GameManager:
         self.game = self.plugin
         self.creator = creator
         self.players = list(players)
-        self.rated = rated
         self.game_id = match_id
         self.match_public_code = match_public_code
         self.match_options = dict(match_options or {})
@@ -673,6 +671,7 @@ class GameManager:
         warning_request: PendingInputRequest | None = None
         async with self._request_lock:
             pending = self._pending
+            # If there's no pending request or it doesn't match, reject as usual
             if pending is None or pending.request_id != request_id:
                 await self._send_invalid_input(
                     interaction,
@@ -702,6 +701,16 @@ class GameManager:
                 values=values,
                 ctx=self.build_context(),
             )
+
+            counts_as_response = getattr(spec, "counts_as_response", True)
+            handler_spec = getattr(spec, "handler", None)
+            if handler_spec is not None and not counts_as_response:
+                handler = _resolve_callback(self.plugin, handler_spec)
+                handled = handler(game_input)
+                if inspect.isawaitable(handled):
+                    await handled
+                return True
+
             pending.responses[player_id] = game_input
             if (
                 pending.timeout_warning_message is not None
@@ -813,6 +822,36 @@ class GameManager:
         outcome = self.plugin.outcome_for_forfeit([player], reason=reason)
         await self.finish(outcome)
         return outcome
+
+    async def message_players(
+        self,
+        players: Sequence[Any],
+        content: str | None = None,
+        *,
+        layout: MessageLayout | None = None,
+    ) -> None:
+        message_text = content
+        if layout is not None and layout.content:
+            message_text = layout.content
+        if not message_text:
+            return
+        guild = (
+            getattr(self.thread, "guild", None)
+            if getattr(self, "thread", None) is not None
+            else getattr(self.status_message, "guild", None)
+        )
+        for player in players:
+            player_id = getattr(player, "id", None)
+            if player_id is None:
+                continue
+            try:
+                member = guild.get_member(int(player_id)) if guild is not None else None
+                if member is None and guild is not None:
+                    member = await guild.fetch_member(int(player_id))
+                if member is not None:
+                    await member.send(message_text)
+            except Exception:
+                self.logger.exception("Failed to DM player %s", player_id)
 
     async def handle_spectate(self, ctx: discord.Interaction) -> None:
         if self.thread is not None:

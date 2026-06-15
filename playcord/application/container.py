@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 from playcord.application.services.analytics import AnalyticsService
 from playcord.application.services.game_session import GameSessionService
 from playcord.application.services.matchmaker import Matchmaker
-from playcord.application.services.rating import RatingService
 from playcord.application.services.replay import ReplayService
 from playcord.application.services.stats import StatsService
 from playcord.infrastructure.database import (
@@ -20,7 +19,6 @@ from playcord.infrastructure.database import (
     MigrationRunner,
     PlayerRepository,
     PoolManager,
-    RatingRepository,
     ReplayRepository,
     RoleRepository,
 )
@@ -31,7 +29,6 @@ from playcord.infrastructure.state.user_games import SessionRegistry
 
 if TYPE_CHECKING:
     from playcord.infrastructure.config import Settings
-    from playcord.infrastructure.locale import Translator
 
 
 @dataclass(slots=True)
@@ -39,7 +36,6 @@ class ApplicationContainer:
     """Owns shared infrastructure and application services."""
 
     settings: Settings
-    translator: Translator
     pool_manager: PoolManager
     migration_runner: MigrationRunner
     registry: SessionRegistry = field(default_factory=SessionRegistry)
@@ -51,7 +47,6 @@ class ApplicationContainer:
         compare=False,
     )
     matches_repository: MatchRepository = field(init=False, repr=False, compare=False)
-    ratings_repository: RatingRepository = field(init=False, repr=False, compare=False)
     replays_repository: ReplayRepository = field(init=False, repr=False, compare=False)
     guilds_repository: GuildRepository = field(init=False, repr=False, compare=False)
     roles_repository: RoleRepository = field(init=False, repr=False, compare=False)
@@ -62,7 +57,6 @@ class ApplicationContainer:
     )
     analytics_service: AnalyticsService = field(init=False, repr=False, compare=False)
     replay_service: ReplayService = field(init=False, repr=False, compare=False)
-    rating_service: RatingService = field(init=False, repr=False, compare=False)
     stats_service: StatsService = field(init=False, repr=False, compare=False)
     matchmaker: Matchmaker = field(init=False, repr=False, compare=False)
     game_session_service: GameSessionService = field(
@@ -76,15 +70,9 @@ class ApplicationContainer:
         apply_migrations(database)
 
         self.games_repository = GameRepository(database)
-        self.ratings_repository = RatingRepository(
-            database,
-            self.games_repository,
-            self.games_repository.leaderboard,
-        )
         self.players_repository = PlayerRepository(
             database,
             self.games_repository,
-            self.ratings_repository,
         )
         self.analytics_repository = AnalyticsRepository(database, self.games_repository)
         self.maintenance_repository = MaintenanceRepository(
@@ -103,7 +91,6 @@ class ApplicationContainer:
             self.players_repository,
             self.guilds_repository,
             self.games_repository,
-            self.ratings_repository,
         )
         self.replays_repository = ReplayRepository(database)
         self.roles_repository = RoleRepository(database)
@@ -117,7 +104,6 @@ class ApplicationContainer:
 
         self.analytics_service = AnalyticsService(self.analytics_repository)
         self.replay_service = ReplayService(self.replays_repository)
-        self.rating_service = RatingService(self.players_repository)
         self.stats_service = StatsService(
             self.matches_repository,
             self.players_repository,
@@ -127,7 +113,6 @@ class ApplicationContainer:
             registry=self.registry,
             matches=self.matches_repository,
             replays=self.replays_repository,
-            ratings=self.players_repository,
         )
 
     def close(self) -> None:

@@ -53,7 +53,6 @@ class Settings:
     db: DatabaseSettings
     logging: LoggingSettings
     analytics_retention_days: int = 30
-    locale: str = "en"
     config_path: Path = DEFAULT_CONFIG_PATH
     ratings: RatingFloorsSettings = field(default_factory=RatingFloorsSettings)
 
@@ -171,7 +170,6 @@ def load_settings(path: str | Path = DEFAULT_CONFIG_PATH) -> Settings:
         ),
         logging=LoggingSettings(level=str(logging_raw.get("level", "INFO"))),
         analytics_retention_days=int(raw.get("analytics_retention_days", 30)),
-        locale=str(raw.get("locale", "en")),
         config_path=config_path,
         ratings=RatingFloorsSettings(
             min_mu=float(ratings_raw.get("min_mu", 0.0)),

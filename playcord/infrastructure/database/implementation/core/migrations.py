@@ -1,4 +1,5 @@
-"""Apply versioned database migrations tracked in database_migrations.
+"""
+Apply versioned database migrations tracked in database_migrations.
 
 Starting from 3.0.0 - full schema rebuild.
 No backwards compatibility is maintained across baseline rebuilds.
@@ -31,14 +32,13 @@ MIGRATIONS: list[tuple[str, str, list[str]]] = [
     (
         "3.0.0",
         (
-            "Rebuilt baseline schema for scalable matchmaking, ratings, replay,"
-            " and analytics."
+            "Rebuilt baseline schema for scalable matchmaking, replay, and analytics."
         ),
         [_load_migration_sql("schema.sql")],
     ),
     (
         "3.0.1",
-        "Fix games.rating_config key validation to match game registration payload.",
+        "Retired migration slot (rating config removed from baseline schema).",
         [_load_migration_sql("migration_3_0_1.sql")],
     ),
     (
@@ -163,7 +163,8 @@ class MigrationRunner:
         analytics: object,
         matches: object,
     ) -> None:
-        """After migrations: refresh SQL assets, sync game registry, analytics cleanup,
+        """
+        After migrations: refresh SQL assets, sync game registry, analytics cleanup,
         and mark stale in-progress matches interrupted.
         """
         database.refresh_sql_assets()

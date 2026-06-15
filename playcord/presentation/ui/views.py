@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from playcord.infrastructure.locale import get
 from playcord.presentation.ui.components import Container, TextDisplay, ViewLayout
 from playcord.presentation.ui.styling import PALETTE
 
@@ -17,7 +18,8 @@ class View:
     content: str | None = None
 
     def to_send_kwargs(self) -> dict[str, Any]:
-        """Minimal transport shape used by new helpers.
+        """
+        Minimal transport shape used by new helpers.
 
         The rich component rendering path can be expanded later without
         changing the app-level callers.
@@ -50,8 +52,9 @@ def _single_card(
 @dataclass(frozen=True, slots=True)
 class ErrorView(View):
     @classmethod
-    def create(cls, message: str, *, title: str = "Error") -> ErrorView:
-        base = _single_card(message, title=title, accent_color=PALETTE.error)
+    def create(cls, message: str, *, title: str | None = None) -> ErrorView:
+        resolved = title if title is not None else get("ui.views.error_title")
+        base = _single_card(message, title=resolved, accent_color=PALETTE.error)
         return cls(layout=base.layout, content=base.content)
 
 
@@ -62,47 +65,53 @@ class UserErrorView(View):
         cls,
         message: str,
         *,
-        title: str = "Something went wrong",
+        title: str | None = None,
     ) -> UserErrorView:
-        base = _single_card(message, title=title, accent_color=PALETTE.warning)
+        resolved = title if title is not None else get("ui.views.user_error_title")
+        base = _single_card(message, title=resolved, accent_color=PALETTE.warning)
         return cls(layout=base.layout, content=base.content)
 
 
 @dataclass(frozen=True, slots=True)
 class InfoView(View):
     @classmethod
-    def create(cls, message: str, *, title: str = "Info") -> InfoView:
-        base = _single_card(message, title=title, accent_color=PALETTE.info)
+    def create(cls, message: str, *, title: str | None = None) -> InfoView:
+        resolved = title if title is not None else get("ui.views.info_title")
+        base = _single_card(message, title=resolved, accent_color=PALETTE.info)
         return cls(layout=base.layout, content=base.content)
 
 
 @dataclass(frozen=True, slots=True)
 class SuccessView(View):
     @classmethod
-    def create(cls, message: str, *, title: str = "Success") -> SuccessView:
-        base = _single_card(message, title=title, accent_color=PALETTE.success)
+    def create(cls, message: str, *, title: str | None = None) -> SuccessView:
+        resolved = title if title is not None else get("ui.views.success_title")
+        base = _single_card(message, title=resolved, accent_color=PALETTE.success)
         return cls(layout=base.layout, content=base.content)
 
 
 @dataclass(frozen=True, slots=True)
 class LobbyView(View):
     @classmethod
-    def create(cls, message: str, *, title: str = "Lobby") -> LobbyView:
-        base = _single_card(message, title=title, accent_color=PALETTE.matchmaking)
+    def create(cls, message: str, *, title: str | None = None) -> LobbyView:
+        resolved = title if title is not None else get("ui.views.lobby_title")
+        base = _single_card(message, title=resolved, accent_color=PALETTE.matchmaking)
         return cls(layout=base.layout, content=base.content)
 
 
 @dataclass(frozen=True, slots=True)
 class BoardView(View):
     @classmethod
-    def create(cls, message: str, *, title: str = "Game") -> BoardView:
-        base = _single_card(message, title=title, accent_color=PALETTE.game)
+    def create(cls, message: str, *, title: str | None = None) -> BoardView:
+        resolved = title if title is not None else get("ui.views.board_title")
+        base = _single_card(message, title=resolved, accent_color=PALETTE.game)
         return cls(layout=base.layout, content=base.content)
 
 
 @dataclass(frozen=True, slots=True)
 class StatsView(View):
     @classmethod
-    def create(cls, message: str, *, title: str = "Stats") -> StatsView:
-        base = _single_card(message, title=title, accent_color=PALETTE.primary)
+    def create(cls, message: str, *, title: str | None = None) -> StatsView:
+        resolved = title if title is not None else get("ui.views.stats_title")
+        base = _single_card(message, title=resolved, accent_color=PALETTE.primary)
         return cls(layout=base.layout, content=base.content)

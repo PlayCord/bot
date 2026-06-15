@@ -24,17 +24,11 @@ emojis:
     id: 1328480770846621757
     animated: false
 
-# Button emojis - these will fall back gracefully if not configured
-button_emojis:
-  join: "➕"      # Plus sign for join
-  leave: "🚪"    # Door for leave
-  start: "▶️"    # Play button for start
-  spectate: "👁️"  # Eye for spectate
-  peek: "🔍"     # Magnifying glass for peek
-  rematch: "🔁"   # Rematch lobby
+# Optional Unicode labels on buttons (omit keys for label-only buttons).
+button_emojis: {}
 
-# Game emojis - Unicode emojis for each game type
+# Catalog icons per game slug (plain ASCII keeps listing neutral).
 game_emojis:
-  tictactoe: "❌"
-  connectfour: "🔴"
-  nim: "🎯"
+  tictactoe: "-"
+  connectfour: "-"
+  nim: "-"

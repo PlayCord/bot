@@ -47,7 +47,8 @@ class DynamicButtonView(discord.ui.LayoutView):
         summary_text: str | None = None,
         table_image_url: str | None = None,
     ) -> None:
-        """Create a dynamic button view
+        """
+        Create a dynamic button view
         :param buttons: list of buttons as dictionaries
         look at class D.
         """
@@ -103,7 +104,8 @@ class DynamicButtonView(discord.ui.LayoutView):
         self.add_item(container)
 
     async def _fail_callback(self, interaction: discord.Interaction) -> None:
-        """If a "dead" view is interacted, simply disable each component and update the message
+        """
+        If a "dead" view is interacted, simply disable each component and update the message
         also send an ephemeral message to the interacter
         :param interaction: discord context
         :return: nothing.
@@ -176,7 +178,8 @@ class SpectateView(DynamicButtonView):
         summary_text: str | None = None,
         table_image_url: str | None = None,
     ) -> None:
-        """Create a spectate view
+        """
+        Create a spectate view
         :param spectate_button_id: custom ID of the spectate button
         :param peek_button_id: custom ID of the peek button
         :param game_link: the link to the game
@@ -214,7 +217,8 @@ class SpectateView(DynamicButtonView):
 
 
 class PaginationView(discord.ui.LayoutView):
-    """Pagination with First/Previous/Next/Last (timeout=None).
+    """
+    Pagination with First/Previous/Next/Last (timeout=None).
 
     Button custom_ids carry only guild_id/user_id for ownership checks;
     page state lives on this view instance. If the view is not registered
@@ -230,7 +234,8 @@ class PaginationView(discord.ui.LayoutView):
         callback_handler,
         body_text: str | None = None,
     ) -> None:
-        """:param guild_id: Guild ID for validation (0 if not in a guild)
+        """
+        :param guild_id: Guild ID for validation (0 if not in a guild)
         :param user_id: User who invoked the command (only they can use the buttons)
         :param current_page: Current page (1-indexed)
         :param max_pages: Total pages
@@ -375,7 +380,8 @@ class RematchView(DynamicButtonView):
 
 
 class QuickActionsView(discord.ui.LayoutView):
-    """A view with quick action buttons for common operations.
+    """
+    A view with quick action buttons for common operations.
     Can be added to profile, leaderboard, and other embeds.
     """
 

@@ -31,46 +31,23 @@ class MaintenanceRepository:
         self.database.refresh_sql_assets()
         self.games.sync_games_from_code()
 
-    def apply_skill_decay(
-        self,
-        days_inactive: int = 30,
-        sigma_increase: float = 0.1,
-    ) -> int:
-        query = """
-            UPDATE user_game_ratings
-            SET sigma = sigma * (1 + %s),
-                last_sigma_increase = NOW(),
-                updated_at = NOW()
-            WHERE last_played < NOW() - (%s * INTERVAL '1 day')
-              AND (last_sigma_increase IS NULL
-                   OR last_sigma_increase < NOW() - (%s * INTERVAL '1 day'))
-            RETURNING user_id;
-        """
-        with self.database.get_connection() as conn, conn.cursor() as cur:
-            cur.execute(query, (sigma_increase, days_inactive, days_inactive))
-            results = cur.fetchall()
-            conn.commit()
-            return len(results) if results else 0
-
     def get_inactive_users(self, guild_id: int, days: int = 30) -> list[dict[str, Any]]:
         query = """
             SELECT DISTINCT
-                ugr.user_id,
+                mp.user_id,
                 u.username,
-                ugr.game_id,
-                ugr.last_played,
-                EXTRACT(EPOCH FROM (NOW() - ugr.last_played))::INTEGER / 86400 as days_inactive
-            FROM user_game_ratings ugr
-            JOIN users u ON ugr.user_id = u.user_id
-            WHERE ugr.user_id IN (
-                SELECT DISTINCT mp.user_id
-                FROM match_participants mp
-                JOIN matches m ON mp.match_id = m.match_id
-                WHERE m.guild_id = %s AND m.status = 'completed' AND mp.is_deleted = FALSE
-            )
-              AND ugr.last_played < NOW() - (%s * INTERVAL '1 day')
-              AND ugr.is_deleted = FALSE
-            ORDER BY ugr.last_played ASC;
+                m.game_id,
+                MAX(m.ended_at) as last_played,
+                EXTRACT(EPOCH FROM (NOW() - MAX(m.ended_at)))::INTEGER / 86400 as days_inactive
+            FROM match_participants mp
+            JOIN matches m ON mp.match_id = m.match_id
+            JOIN users u ON mp.user_id = u.user_id
+            WHERE m.guild_id = %s
+              AND m.status = 'completed'
+              AND mp.is_deleted = FALSE
+            GROUP BY mp.user_id, u.username, m.game_id
+            HAVING MAX(m.ended_at) < NOW() - (%s * INTERVAL '1 day')
+            ORDER BY last_played ASC;
         """
         results = self.database.execute_query(query, (guild_id, days), fetchall=True)
         return results or []
@@ -190,28 +167,16 @@ class MaintenanceRepository:
         self,
         guild_id: int,
         game_id: int,
-        is_rated: bool | None = None,
     ) -> int:
-        if is_rated is not None:
-            query = """
-                SELECT COUNT(*) as count FROM matches
-                WHERE guild_id = %s AND game_id = %s AND is_rated = %s;
-            """
-            result = self.database.execute_query(
-                query,
-                (guild_id, game_id, is_rated),
-                fetchone=True,
-            )
-        else:
-            query = """
-                SELECT COUNT(*) as count FROM matches
-                WHERE guild_id = %s AND game_id = %s;
-            """
-            result = self.database.execute_query(
-                query,
-                (guild_id, game_id),
-                fetchone=True,
-            )
+        query = """
+            SELECT COUNT(*) as count FROM matches
+            WHERE guild_id = %s AND game_id = %s;
+        """
+        result = self.database.execute_query(
+            query,
+            (guild_id, game_id),
+            fetchone=True,
+        )
         return result["count"] if result else 0
 
     def count_users(self, guild_id: int | None = None, is_active: bool = True) -> int:
@@ -239,7 +204,6 @@ class MaintenanceRepository:
             "total_matches": "SELECT COUNT(*) as count FROM matches",
             "active_matches": "SELECT COUNT(*) as count FROM matches WHERE status = 'in_progress'",
             "total_moves": "SELECT COUNT(*) as count FROM match_moves WHERE is_deleted = FALSE",
-            "total_ratings": "SELECT COUNT(*) as count FROM user_game_ratings WHERE is_deleted = FALSE",
         }
         stats: dict[str, Any] = {}
         for key, query in queries.items():

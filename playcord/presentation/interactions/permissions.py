@@ -79,7 +79,8 @@ def portal_owner_ids_from_appinfo(app_info: Any) -> frozenset[int]:
 
 
 async def resolve_effective_owner_ids(client: discord.Client) -> frozenset[int]:
-    """Merge configured owner IDs with portal owner(s). Falls back
+    """
+    Merge configured owner IDs with portal owner(s). Falls back
     to static-only if the API call fails.
     """
     merged: set[int] = set(get_configured_static_owner_ids())

@@ -87,7 +87,8 @@ InputModeValue = InputMode | Literal["first", "all"]
 
 
 class MessageKey:
-    """Standard message key constants for use with update_message() and
+    """
+    Standard message key constants for use with update_message() and
     request_input().
     """
 
@@ -97,7 +98,8 @@ class MessageKey:
 
 @dataclass(frozen=True, slots=True)
 class SelectChoice:
-    """Option in a SelectInput dropdown.
+    """
+    Option in a SelectInput dropdown.
 
     Attributes:
         label: Display text for this choice.
@@ -113,7 +115,8 @@ class SelectChoice:
 
 @dataclass(frozen=True, slots=True)
 class ButtonInput:
-    """Interactive button component for a message.
+    """
+    Interactive button component for a message.
 
     Attributes:
         id: Unique identifier for this button within its message.
@@ -131,11 +134,14 @@ class ButtonInput:
     style: ButtonStyleValue = ButtonStyle.secondary
     emoji: str | None = None
     disabled: bool = False
+    handler: HandlerSpec = None
+    counts_as_response: bool = True
 
 
 @dataclass(frozen=True, slots=True)
 class SelectInput:
-    """Dropdown select component for a message.
+    """
+    Dropdown select component for a message.
 
     Attributes:
         id: Unique identifier for this select within its message.
@@ -153,11 +159,14 @@ class SelectInput:
     min_values: int = 1
     max_values: int = 1
     disabled: bool = False
+    handler: HandlerSpec = None
+    counts_as_response: bool = True
 
 
 @dataclass(frozen=True, slots=True)
 class CommandInput:
-    """Slash command input (not typically used in request_input).
+    """
+    Slash command input (not typically used in request_input).
 
     Attributes:
         id: Command identifier.
@@ -169,6 +178,8 @@ class CommandInput:
     id: str
     command_name: str
     argument_names: tuple[str, ...] | None = None
+    handler: HandlerSpec = None
+    counts_as_response: bool = True
 
 
 GameInputSpec = ButtonInput | SelectInput | CommandInput
@@ -176,7 +187,8 @@ GameInputSpec = ButtonInput | SelectInput | CommandInput
 
 @dataclass(frozen=True, slots=True)
 class BinaryAsset:
-    """Binary file attachment (image, etc.) for a message.
+    """
+    Binary file attachment (image, etc.) for a message.
 
     Attributes:
         filename: Name of the file (used for display and Discord).
@@ -192,7 +204,8 @@ class BinaryAsset:
 
 @dataclass(frozen=True, slots=True)
 class MessageLayout:
-    """Layout specification for a Discord message.
+    """
+    Layout specification for a Discord message.
 
     Describes content, interactive components, and attachments to send as a message.
 
@@ -214,7 +227,8 @@ class MessageLayout:
 
 @dataclass(frozen=True, slots=True)
 class ChannelAction:
-    """Base class for actions on a Discord channel.
+    """
+    Base class for actions on a Discord channel.
 
     Attributes:
         target: Where to send the action ("thread", "overview", "ephemeral").
@@ -226,7 +240,8 @@ class ChannelAction:
 
 @dataclass(frozen=True, slots=True)
 class UpsertMessage(ChannelAction):
-    """Create or update a message in a channel.
+    """
+    Create or update a message in a channel.
 
     Attributes:
         key: Unique identifier for this message (update if key already exists).
@@ -242,7 +257,8 @@ class UpsertMessage(ChannelAction):
 
 @dataclass(frozen=True, slots=True)
 class DeleteMessage(ChannelAction):
-    """Delete a previously sent message.
+    """
+    Delete a previously sent message.
 
     Attributes:
         key: Identifier of the message to delete (must match key used in UpsertMessage).
@@ -254,7 +270,8 @@ class DeleteMessage(ChannelAction):
 
 @dataclass(frozen=True, slots=True)
 class Outcome:
-    """Result of a completed game.
+    """
+    Result of a completed game.
 
     Attributes:
         kind: Type of outcome ("winner" for games with winners, "draw" for ties,
@@ -311,7 +328,8 @@ T_State = TypeVar("T_State")
 
 @dataclass(frozen=True, slots=True)
 class ReplayState(Generic[T_State]):
-    """State snapshot for replaying game events.
+    """
+    State snapshot for replaying game events.
 
     Used by ReplayableGame implementations to reconstruct game state frame-by-frame.
 
@@ -333,7 +351,8 @@ class ReplayState(Generic[T_State]):
 
 @dataclass(frozen=True, slots=True)
 class OwnedMessage:
-    """Message sent to Discord that we're tracking.
+    """
+    Message sent to Discord that we're tracking.
 
     Allows later updates or deletions to the message.
 
@@ -355,7 +374,8 @@ class OwnedMessage:
 
 @dataclass(slots=True)
 class GameContext:
-    """Runtime context for a game instance.
+    """
+    Runtime context for a game instance.
 
     Provides access to current game state, players, configuration, and messages.
 
@@ -394,7 +414,8 @@ class GameContext:
 
 @dataclass(frozen=True, slots=True)
 class GameInput:
-    """Player input received in response to a request_input() call.
+    """
+    Player input received in response to a request_input() call.
 
     Attributes:
         request_id: Unique identifier for the input request.
@@ -420,7 +441,8 @@ class GameInput:
 
 @dataclass(frozen=True, slots=True)
 class InputTimeout:
-    """Represents a timeout event for an input request.
+    """
+    Represents a timeout event for an input request.
 
     Attributes:
         request_id: Identifier for the input request that timed out.
@@ -532,9 +554,18 @@ class GameEngineRuntime(Protocol):
         reason: str = "forfeit",
     ) -> Outcome: ...
 
+    async def message_players(
+        self,
+        players: Sequence[Player],
+        content: str | None = None,
+        *,
+        layout: MessageLayout | None = None,
+    ) -> None: ...
+
 
 class RuntimeGame(ABC):
-    """Stateful game instance managed by GameManager.
+    """
+    Stateful game instance managed by GameManager.
 
     This is the main class game developers subclass to implement their game logic.
     It manages:
@@ -638,7 +669,8 @@ class RuntimeGame(ABC):
         target: MessageTargetValue = MessageTarget.thread,
         purpose: MessagePurposeValue = MessagePurpose.board,
     ) -> None:
-        """Update or create a message with game content.
+        """
+        Update or create a message with game content.
 
         If key already exists, updates the existing message.
         Otherwise, creates a new message and stores it with the given key.
@@ -675,7 +707,8 @@ class RuntimeGame(ABC):
         *,
         target: MessageTargetValue = MessageTarget.thread,
     ) -> None:
-        """Delete a previously sent message.
+        """
+        Delete a previously sent message.
 
         Args:
             key: Key of the message to delete (must match the key used in update_message).
@@ -736,7 +769,8 @@ class RuntimeGame(ABC):
         auto_remove_on_timeout: bool = False,
         send_timeout_warning: bool = True,
     ) -> GameInput | list[GameInput] | InputTimeout:
-        """Request input from one or more players.
+        """
+        Request input from one or more players.
 
         This method sends interactive UI components to players and waits for their responses.
         The return type depends on the mode parameter:
@@ -795,7 +829,8 @@ class RuntimeGame(ABC):
         source: InputSourceValue,
         input_id: str | None = None,
     ) -> None:
-        """Record a player's move to the game's replay history.
+        """
+        Record a player's move to the game's replay history.
 
         This logs the move in a structured way that can be replayed later.
 
@@ -829,7 +864,8 @@ class RuntimeGame(ABC):
         )
 
     def log_replay_event(self, event_type: str, **payload: Any) -> None:
-        """Log a custom event to the replay history.
+        """
+        Log a custom event to the replay history.
 
         Args:
             event_type: Type of event (e.g., "special_rule_triggered", "score_updated").
@@ -844,7 +880,8 @@ class RuntimeGame(ABC):
         *,
         reason: str = "forfeit",
     ) -> Outcome:
-        """Handle a player forfeiting and return the final outcome.
+        """
+        Handle a player forfeiting and return the final outcome.
 
         Args:
             player: Player who forfeited.
@@ -855,6 +892,20 @@ class RuntimeGame(ABC):
 
         """
         return await self.runtime.forfeit_player(player, reason=reason)
+
+    async def message_players(
+        self,
+        players: Sequence[Player],
+        content: str | None = None,
+        *,
+        layout: MessageLayout | None = None,
+    ) -> None:
+        """Send a direct message to one or more players."""
+        await self.runtime.message_players(
+            players,
+            content,
+            layout=layout,
+        )
 
     def outcome_for_forfeit(
         self,

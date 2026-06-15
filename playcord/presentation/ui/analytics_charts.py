@@ -19,7 +19,8 @@ def render_analytics_matplotlib_summary(
     game_counts: list[dict[str, Any]],
     hours: int,
 ) -> io.BytesIO | None:
-    """Owner-facing matplotlib figure (event types vs games).
+    """
+    Owner-facing matplotlib figure (event types vs games).
     Returns ``None`` if there is nothing to plot or rendering fails.
     """
     try:

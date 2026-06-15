@@ -1,5 +1,4 @@
 import os
-import random
 from collections.abc import Iterable
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -15,9 +14,7 @@ from playcord.infrastructure.constants import (
 )
 from playcord.infrastructure.locale import fmt, get, get_dict
 from playcord.presentation.interactions.contextify import contextify
-from playcord.presentation.ui.emojis import get_emoji_string
 from playcord.presentation.ui.formatting import (
-    column_elo,
     column_names,
     column_turn,
 )
@@ -279,9 +276,9 @@ class CustomContainer:
         if self.description:
             parts.append(str(self.description))
         for field in self.fields:
-            parts.append(f"**{field.name}**\n{field.value}")
+            parts.append(f"{field.name}\n{field.value}")
         if self.footer_text:
-            parts.append(f"_{self.footer_text}_")
+            parts.append(str(self.footer_text))
         return "\n\n".join(p for p in parts if p).strip()
 
     def to_send_kwargs(
@@ -324,7 +321,7 @@ class SuccessContainer(CustomContainer):
         **kwargs,
     ) -> None:
         kwargs["color"] = SUCCESS_COLOR
-        kwargs["title"] = f"✅ {title or get('success.default_title')}"
+        kwargs["title"] = title or get("success.default_title")
         if description:
             kwargs["description"] = description
         super().__init__(**kwargs)
@@ -338,7 +335,7 @@ class WarningContainer(CustomContainer):
         **kwargs,
     ) -> None:
         kwargs["color"] = WARNING_COLOR
-        kwargs["title"] = f"⚠️ {title or get('warnings.default_title')}"
+        kwargs["title"] = title or get("warnings.default_title")
         if description:
             kwargs["description"] = description
         super().__init__(**kwargs)
@@ -356,24 +353,16 @@ class UserErrorContainer(CustomContainer):
         if description:
             self.description = description
         if suggestion:
-            self.add_field(
-                name=get("embeds.user_error.suggestion_field"),
-                value=suggestion,
-                inline=False,
-            )
+            base = self.description or ""
+            self.description = f"{base}\n\n{suggestion}" if base else str(suggestion)
 
 
 class LoadingContainer(CustomContainer):
     def __init__(self, message: str | None = None, **kwargs) -> None:
         kwargs["title"] = f"{message or get('loading.default')}"
-        # Get random tagline from the list
         loading_dict = get_dict("loading")
-        taglines = loading_dict.get("description_options", [])
-        if taglines:
-            description = random.choice(taglines)
-        else:
-            description = "{no_taglines}"  # Make it clear it's missing data
-        kwargs["description"] = description
+        static_desc = loading_dict.get("description_static")
+        kwargs["description"] = static_desc or ""
         super().__init__(**kwargs)
 
 
@@ -381,11 +370,11 @@ class ErrorContainer(CustomContainer):
     def __init__(self, ctx=None, what_failed=None, reason=None) -> None:
         current_directory = os.path.dirname(__file__).rstrip("utils")
         super().__init__(
-            title=f"{get_emoji_string('facepalm')} {get('system_error.title')}",
+            title=get("system_error.title"),
             color=ERROR_COLOR,
         )
         self.add_field(
-            name=f"{get_emoji_string('github')} {get('system_error.report_field')}",
+            name=get("system_error.report_field"),
             value=fmt(
                 "system_error.report_value",
                 github_issues_url=get("brand.github_url") + "/issues",
@@ -394,13 +383,13 @@ class ErrorContainer(CustomContainer):
         )
         if ctx is not None:
             self.add_field(
-                name=f"{get_emoji_string('clueless')} {get('system_error.context_field')}",
+                name=get("system_error.context_field"),
                 value=f"```{contextify(ctx)}```",
                 inline=False,
             )
         if what_failed is not None:
             self.add_field(
-                name=f"{get_emoji_string('explosion')} {get('system_error.what_failed_field')}",
+                name=get("system_error.what_failed_field"),
                 value=f"```{what_failed}```",
                 inline=False,
             )
@@ -413,7 +402,9 @@ class ErrorContainer(CustomContainer):
             )
             for i, section in enumerate(text_fields):
                 self.add_field(
-                    name=f"{get_emoji_string('hmm')} {fmt('system_error.reason_field', part=i + 1, total=len(text_fields))}",
+                    name=fmt(
+                        "system_error.reason_field", part=i + 1, total=len(text_fields)
+                    ),
                     value=f"```{section}```",
                     inline=False,
                 )
@@ -421,25 +412,15 @@ class ErrorContainer(CustomContainer):
 
 
 class GameOverviewContainer(CustomContainer):
-    def __init__(self, game_name, game_type, rated, players, turn) -> None:
+    def __init__(self, game_name, players, turn) -> None:
         """Embed overview; ``turn`` is one player, several eligible players, or None."""
-        title_key = (
-            "embeds.game_overview.title_rated"
-            if rated
-            else "embeds.game_overview.title_unrated"
-        )
         super().__init__(
-            title=fmt(title_key, game_name=game_name),
+            title=fmt("embeds.game_overview.title_unrated", game_name=game_name),
             description=get("embeds.game_overview.description"),
         )
         self.add_field(
             name=get("embeds.game_overview.field_players"),
             value=column_names(players),
-            inline=True,
-        )
-        self.add_field(
-            name=get("embeds.game_overview.field_ratings"),
-            value=column_elo(players, game_type),
             inline=True,
         )
         self.add_field(
@@ -454,7 +435,7 @@ def _outcome_summaries_value(players, summaries: dict[int, str]) -> str:
     for p in players:
         text = summaries.get(p.id)
         if text:
-            lines.append(f"{p.mention} — {text}")
+            lines.append(f"{p.mention}: {text}")
     return "\n".join(lines)
 
 
@@ -520,18 +501,12 @@ class MatchmakingContainer(CustomContainer):
         players: list,
         min_players: int,
         max_players: int,
-        rated: bool = True,
         private: bool = False,
     ) -> None:
         status = (
             get("embeds.matchmaking.status_private")
             if private
             else get("embeds.matchmaking.status_public")
-        )
-        rating_status = (
-            get("embeds.matchmaking.rated")
-            if rated
-            else get("embeds.matchmaking.unrated")
         )
         super().__init__(
             title=fmt("embeds.matchmaking.title", game_name=game_name),
@@ -544,7 +519,7 @@ class MatchmakingContainer(CustomContainer):
         if players:
             player_list = "\n".join(
                 [
-                    f"• {getattr(p, 'display_name', None) or getattr(p, 'name', str(p))}"
+                    f"- {getattr(p, 'display_name', None) or getattr(p, 'name', str(p))}"
                     for p in players
                 ],
             )
@@ -564,7 +539,6 @@ class MatchmakingContainer(CustomContainer):
             value=fmt(
                 "embeds.matchmaking.game_info_value",
                 status=status,
-                rating_status=rating_status,
                 min=min_players,
                 max=max_players,
             ),

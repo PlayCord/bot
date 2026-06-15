@@ -25,7 +25,6 @@ from playcord.infrastructure.constants import (
 from playcord.infrastructure.database.implementation.core.exceptions import (
     DatabaseConnectionError,
 )
-from playcord.infrastructure.locale import Translator
 from playcord.infrastructure.locale import get as locale_get
 from playcord.infrastructure.logging import get_logger
 from playcord.presentation.interactions.helpers import (
@@ -65,7 +64,7 @@ def _games_by_thread(
 class ErrorMapping:
     exception_type: type[BaseException]
     locale_key: str
-    title: str
+    title_locale_key: str
 
 
 class ErrorSurface(StrEnum):
@@ -76,11 +75,31 @@ class ErrorSurface(StrEnum):
 
 
 ERROR_MAPPINGS = (
-    ErrorMapping(DatabaseConnectionError, "errors.database_error", "Database Error"),
-    ErrorMapping(ForbiddenError, "errors.generic", "Permission Denied"),
-    ErrorMapping(NotFoundError, "errors.generic", "Not Found"),
-    ErrorMapping(DomainError, "errors.generic", "Invalid Action"),
-    ErrorMapping(ApplicationError, "errors.generic", "Application Error"),
+    ErrorMapping(
+        DatabaseConnectionError,
+        "errors.database_error",
+        "errors.card_titles.database_error",
+    ),
+    ErrorMapping(
+        ForbiddenError,
+        "errors.generic",
+        "errors.card_titles.permission_denied",
+    ),
+    ErrorMapping(
+        NotFoundError,
+        "errors.generic",
+        "errors.card_titles.not_found",
+    ),
+    ErrorMapping(
+        DomainError,
+        "errors.generic",
+        "errors.card_titles.invalid_action",
+    ),
+    ErrorMapping(
+        ApplicationError,
+        "errors.generic",
+        "errors.card_titles.application_error",
+    ),
 )
 
 _CUSTOM_ID_GAME_PREFIXES = (
@@ -114,13 +133,11 @@ def _unwrap_error(error: BaseException) -> BaseException:
 
 
 def _translator_get(
-    translator: Translator | None,
+    translator: Any | None,
     key: str,
     default: str,
 ) -> str:
-    if translator is None:
-        return locale_get(key, default)
-    return translator.get(key, default)
+    return locale_get(key, default)
 
 
 def _contextify_what_failed(error: BaseException, surface: ErrorSurface) -> str:
@@ -138,10 +155,13 @@ def _append_trace_footer(card: ErrorContainer, trace_id: str) -> ErrorContainer:
 def _mapped_card(
     mapping: ErrorMapping,
     *,
-    translator: Translator | None,
+    translator: Any | None,
 ) -> UserErrorContainer:
+    title = locale_get(mapping.title_locale_key, "")
+    if not title.strip() or title.startswith("["):
+        title = locale_get("ui.views.user_error_title", "Something went wrong")
     return UserErrorContainer(
-        title=mapping.title,
+        title=title,
         description=_translator_get(
             translator,
             mapping.locale_key,
@@ -270,13 +290,13 @@ def resolve_game_interface(
 
 def _translator_from_interaction(
     interaction: discord.Interaction | None,
-    translator: Translator | None,
-) -> Translator | None:
+    translator: Any | None,
+) -> Any | None:
     if translator is not None or interaction is None:
         return translator
     container = getattr(getattr(interaction, "client", None), "container", None)
     resolved = getattr(container, "translator", None)
-    return resolved if isinstance(resolved, Translator) else None
+    return resolved
 
 
 async def report(
@@ -284,7 +304,7 @@ async def report(
     error: BaseException,
     *,
     surface: ErrorSurface,
-    translator: Translator | None = None,
+    translator: Any | None = None,
     delete_after: float | None = EPHEMERAL_DELETE_AFTER,
     interface: GameManager | None = None,
     game_message: _EditableMessage | None = None,
@@ -414,8 +434,8 @@ async def command_error(
     interaction: discord.Interaction,
     error: app_commands.AppCommandError,
     *,
-    translator: Translator,
-    delete_after: float = 10,
+    translator: Any = None,
+    delete_after: float = EPHEMERAL_DELETE_AFTER,
 ) -> None:
     if isinstance(error, CheckFailure):
         return

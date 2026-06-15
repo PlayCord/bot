@@ -17,8 +17,6 @@ VALUES
     ('matchmaking_joined', 'A player joined a matchmaking lobby'),
     ('matchmaking_left', 'A player left a matchmaking lobby'),
     ('matchmaking_matched', 'A lobby transitioned into an active match'),
-    ('move_made', 'A match move or equivalent interaction was applied'),
-    ('rating_updated', 'A player rating row changed'),
-    ('skill_decay_applied', 'Inactivity-based sigma decay was applied')
+    ('move_made', 'A match move or equivalent interaction was applied')
 ON CONFLICT (event_type) DO UPDATE SET
     description = EXCLUDED.description;

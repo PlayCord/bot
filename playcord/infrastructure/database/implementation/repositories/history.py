@@ -12,7 +12,6 @@ except ImportError:
     pg_errors = None  # type: ignore[assignment]
 
 from playcord.core.generators import generate_match_code
-from playcord.core.rating import DEFAULT_MU, DEFAULT_SIGMA
 from playcord.infrastructure.database.models import (
     Match,
     MatchStatus,
@@ -33,7 +32,6 @@ class MatchRepository:
     users: Any  # PlayerRepository
     guilds: Any  # GuildRepository
     games: Any  # GameRepository
-    ratings: Any  # RatingRepository
 
     def get(self, match_id: int) -> Match | None:
         return self.get_match(match_id)
@@ -180,7 +178,6 @@ class MatchRepository:
         channel_id: int,
         thread_id: int | None,
         participants: list[int],
-        is_rated: bool = True,
         game_config: dict[str, Any] | None = None,
         *,
         match_id: int,
@@ -189,7 +186,6 @@ class MatchRepository:
         self.guilds.create_guild(guild_id)
         for user_id in participants:
             self.users.create_user(user_id)
-            self.ratings.initialize_user_rating(user_id, game_id)
 
         config_json = json.dumps(game_config or {})
         last_err: Exception | None = None
@@ -204,8 +200,8 @@ class MatchRepository:
                     cur.execute(
                         """
                         INSERT INTO matches (match_id, game_id, guild_id, channel_id, thread_id,
-                            is_rated, game_config, status, match_code)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, 'in_progress', %s)
+                            game_config, status, match_code)
+                        VALUES (%s, %s, %s, %s, %s, %s::jsonb, 'in_progress', %s)
                         RETURNING match_id;
                         """,
                         (
@@ -214,7 +210,6 @@ class MatchRepository:
                             guild_id,
                             channel_id,
                             thread_id,
-                            is_rated,
                             config_json,
                             match_code,
                         ),
@@ -225,24 +220,11 @@ class MatchRepository:
                     for idx, user_id in enumerate(participants, start=1):
                         cur.execute(
                             """
-                            SELECT mu, sigma
-                            FROM user_game_ratings
-                            WHERE user_id = %s AND game_id = %s AND is_deleted = FALSE
-                            FOR SHARE;
-                            """,
-                            (user_id, game_id),
-                        )
-                        rating = cur.fetchone()
-                        mu_before = rating["mu"] if rating else DEFAULT_MU
-                        sigma_before = rating["sigma"] if rating else DEFAULT_SIGMA
-
-                        cur.execute(
-                            """
                             INSERT INTO match_participants
-                                (match_id, user_id, player_number, mu_before, sigma_before)
-                            VALUES (%s, %s, %s, %s, %s);
+                                (match_id, user_id, player_number)
+                            VALUES (%s, %s, %s);
                             """,
-                            (resolved_match_id, user_id, idx, mu_before, sigma_before),
+                            (resolved_match_id, user_id, idx),
                         )
                 return resolved_match_id, match_code
             except Exception as e:
@@ -286,51 +268,14 @@ class MatchRepository:
                     """
                     UPDATE match_participants
                     SET final_ranking = %s,
-                        score = %s,
-                        mu_delta = %s,
-                        sigma_delta = %s
+                        score = %s
                     WHERE match_id = %s AND user_id = %s;
                     """,
                     (
                         result["ranking"],
                         result.get("score"),
-                        result["mu_delta"],
-                        result["sigma_delta"],
                         match_id,
                         user_id,
-                    ),
-                )
-                new_mu, new_sigma = self.ratings.clamp_rating(
-                    result["new_mu"],
-                    result["new_sigma"],
-                    match["game_id"],
-                )
-                cur.execute(
-                    """
-                    UPDATE user_game_ratings
-                    SET mu = %s,
-                        sigma = %s,
-                        updated_at = NOW()
-                    WHERE user_id = %s AND game_id = %s;
-                    """,
-                    (new_mu, new_sigma, user_id, match["game_id"]),
-                )
-                cur.execute(
-                    """
-                    INSERT INTO rating_history
-                        (user_id, guild_id, game_id, match_id,
-                         mu_before, sigma_before, mu_after, sigma_after)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-                    """,
-                    (
-                        user_id,
-                        match["guild_id"],
-                        match["game_id"],
-                        match_id,
-                        result.get("mu_before", new_mu - result["mu_delta"]),
-                        result.get("sigma_before", new_sigma - result["sigma_delta"]),
-                        new_mu,
-                        new_sigma,
                     ),
                 )
 
@@ -401,17 +346,15 @@ class MatchRepository:
         match_id: int,
         user_id: int,
         player_number: int,
-        mu_before: float | None = None,
-        sigma_before: float | None = None,
     ) -> None:
         query = """
             INSERT INTO match_participants
-                (match_id, user_id, player_number, mu_before, sigma_before)
-            VALUES (%s, %s, %s, %s, %s);
+                (match_id, user_id, player_number)
+            VALUES (%s, %s, %s);
         """
         self.database.execute_query(
             query,
-            (match_id, user_id, player_number, mu_before, sigma_before),
+            (match_id, user_id, player_number),
         )
 
     def get_participants(self, match_id: int) -> list[Participant]:
@@ -428,20 +371,16 @@ class MatchRepository:
         participant_id: int,
         ranking: int,
         score: float | None,
-        mu_delta: float,
-        sigma_delta: float,
     ) -> None:
         query = """
             UPDATE match_participants
             SET final_ranking = %s,
-                score = %s,
-                mu_delta = %s,
-                sigma_delta = %s
+                score = %s
             WHERE participant_id = %s;
         """
         self.database.execute_query(
             query,
-            (ranking, score, mu_delta, sigma_delta, participant_id),
+            (ranking, score, participant_id),
         )
 
     def remove_participant(self, match_id: int, user_id: int) -> None:
@@ -535,13 +474,10 @@ class MatchRepository:
                 g.display_name as game_name,
                 m.ended_at,
                 m.status,
-                m.is_rated,
                 m.metadata,
                 mp.final_ranking as final_ranking,
                 mp.player_number,
-                COUNT(*) OVER (PARTITION BY m.match_id) as player_count,
-                mp.mu_delta,
-                mp.sigma_delta
+                COUNT(*) OVER (PARTITION BY m.match_id) as player_count
             FROM match_participants mp
             JOIN matches m ON mp.match_id = m.match_id
             JOIN games g ON m.game_id = g.game_id
@@ -636,16 +572,21 @@ class MatchRepository:
     def get_user_stats(self, user_id: int, game_id: int) -> dict[str, Any] | None:
         query = """
             SELECT
-                ugr.*,
+                mp.user_id,
                 u.username,
                 g.display_name as game_name,
-                calculate_conservative_rating(ugr.mu, ugr.sigma) as conservative_rating
-            FROM user_game_ratings ugr
-            JOIN users u ON ugr.user_id = u.user_id
-            JOIN games g ON ugr.game_id = g.game_id
-            WHERE ugr.user_id = %s
-              AND ugr.game_id = %s
-              AND ugr.is_deleted = FALSE;
+                COUNT(*)::INTEGER as completed_matches,
+                COUNT(*) FILTER (WHERE mp.final_ranking = 1)::INTEGER as wins,
+                MAX(m.ended_at) as last_played
+            FROM match_participants mp
+            JOIN matches m ON m.match_id = mp.match_id
+            JOIN users u ON u.user_id = mp.user_id
+            JOIN games g ON g.game_id = m.game_id
+            WHERE mp.user_id = %s
+              AND m.game_id = %s
+              AND m.status = 'completed'
+              AND mp.is_deleted = FALSE
+            GROUP BY mp.user_id, u.username, g.display_name;
         """
         return self.database.execute_query(query, (user_id, game_id), fetchone=True)
 
@@ -660,7 +601,6 @@ class MatchRepository:
             "guild_id": match.guild_id,
             "started": match.started_at,
             "ended": match.ended_at,
-            "is_rated": match.is_rated,
             "game_data": match.game_config,
         }
 
@@ -668,38 +608,25 @@ class MatchRepository:
         self,
         guild_id: int,
         game_name: str,
-        is_rated: bool | None = None,
     ) -> int:
         game = self.games.get_game(game_name)
         if not game:
             return 0
-        if is_rated is not None:
-            query = """
-                SELECT COUNT(*) as count FROM matches
-                WHERE guild_id = %s AND game_id = %s AND is_rated = %s;
-            """
-            result = self.database.execute_query(
-                query,
-                (guild_id, game.game_id, is_rated),
-                fetchone=True,
-            )
-        else:
-            query = """
-                SELECT COUNT(*) as count FROM matches
-                WHERE guild_id = %s AND game_id = %s;
-            """
-            result = self.database.execute_query(
-                query,
-                (guild_id, game.game_id),
-                fetchone=True,
-            )
+        query = """
+            SELECT COUNT(*) as count FROM matches
+            WHERE guild_id = %s AND game_id = %s;
+        """
+        result = self.database.execute_query(
+            query,
+            (guild_id, game.game_id),
+            fetchone=True,
+        )
         return result["count"] if result else 0
 
     def count_matches_for_user(
         self,
         user_id: int,
         guild_id: int,
-        is_rated: bool | None = None,
     ) -> int:
         query = """
             SELECT COUNT(DISTINCT m.match_id) AS total_matches
@@ -707,14 +634,9 @@ class MatchRepository:
             JOIN matches m ON mp.match_id = m.match_id
             WHERE mp.user_id = %s AND m.guild_id = %s
               AND m.status IN ('completed', 'interrupted', 'abandoned')
-              AND mp.is_deleted = FALSE
+              AND mp.is_deleted = FALSE;
         """
-        params: list[Any] = [user_id, guild_id]
-        if is_rated is not None:
-            query += " AND m.is_rated = %s"
-            params.append(is_rated)
-        query += ";"
-        result = self.database.execute_query(query, tuple(params), fetchone=True)
+        result = self.database.execute_query(query, (user_id, guild_id), fetchone=True)
         return result["total_matches"] if result else 0
 
     def record_new_game(
@@ -722,7 +644,6 @@ class MatchRepository:
         game_name: str,
         guild_id: int,
         started_at: Any,
-        is_rated: bool,
         game_data: dict[str, Any],
         *,
         match_id: int,
@@ -749,9 +670,9 @@ class MatchRepository:
                         cur.execute(
                             """
                             INSERT INTO matches
-                                (match_id, game_id, guild_id, channel_id, thread_id, started_at, status, is_rated,
+                                (match_id, game_id, guild_id, channel_id, thread_id, started_at, status,
                                  game_config, metadata, match_code)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s)
                             RETURNING match_id;
                             """,
                             (
@@ -762,7 +683,6 @@ class MatchRepository:
                                 thread_id,
                                 started_at,
                                 status,
-                                is_rated,
                                 game_data_json,
                                 game_data_json,
                                 code,
@@ -787,7 +707,6 @@ class MatchRepository:
         game_name: str,
         guild_id: int,
         participants: list[int],
-        is_rated: bool = True,
         channel_id: int | None = None,
         thread_id: int | None = None,
         game_config: dict[str, Any] | None = None,
@@ -806,7 +725,6 @@ class MatchRepository:
             channel_id=resolved_channel_id,
             thread_id=thread_id,
             participants=participants,
-            is_rated=is_rated,
             game_config=game_config or {},
             match_id=match_id,
             preset_match_code=preset_match_code,
@@ -816,23 +734,18 @@ class MatchRepository:
         self,
         match_id: int,
         game_name: str,  # noqa: ARG002
-        rating_updates: dict[int, dict[str, Any]],
         final_scores: dict[int, float] | None,
+        *,
+        rankings: dict[int, int] | None = None,
     ) -> None:
         results: dict[int, dict[str, Any]] = {}
-        for user_id, data in rating_updates.items():
-            results[user_id] = {
-                "ranking": data.get("ranking", 1),
-                "mu_delta": data["mu_delta"],
-                "sigma_delta": data["sigma_delta"],
-                "new_mu": data["new_mu"],
-                "new_sigma": data["new_sigma"],
-                "mu_before": data["new_mu"] - data["mu_delta"],
-                "sigma_before": data["new_sigma"] - data["sigma_delta"],
-                "score": final_scores.get(user_id) if final_scores else None,
-                "is_draw": data.get("is_draw", False),
-            }
-        final_state = {"final_scores": final_scores, "rating_updates": rating_updates}
+        if rankings:
+            for user_id, ranking in rankings.items():
+                results[user_id] = {
+                    "ranking": ranking,
+                    "score": final_scores.get(user_id) if final_scores else None,
+                }
+        final_state = {"final_scores": final_scores, "rankings": rankings}
         self.end_match(match_id, final_state, results)
 
     def get_recent_matches_for_game(
@@ -850,7 +763,6 @@ class MatchRepository:
                 "match_id": m.match_id,
                 "started": m.started_at,
                 "ended": m.ended_at,
-                "rated": m.is_rated,
             }
             for m in matches
         ]
@@ -862,7 +774,6 @@ class MatchRepository:
         participants = self.get_participants(match_id)
         results: list[dict[str, Any]] = []
         for p in participants:
-            rating = self.ratings.get_user_rating(p.user_id, match.game_id)
             results.append(
                 {
                     "match_id": match_id,
@@ -870,14 +781,9 @@ class MatchRepository:
                     "guild_id": match.guild_id,
                     "started": match.started_at,
                     "ended": match.ended_at,
-                    "rated": match.is_rated,
                     "game_data": match.game_config,
                     "user_id": p.user_id,
                     "ranking": p.final_ranking,
-                    "mu_delta": p.mu_delta,
-                    "sigma_delta": p.sigma_delta,
-                    "mu": rating.mu if rating else None,
-                    "sigma": rating.sigma if rating else None,
                 },
             )
         return results

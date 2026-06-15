@@ -9,9 +9,6 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from playcord.core.errors import ConfigurationError
-from playcord.core.rating import (
-    DEFAULT_TRUESKILL_PARAMETERS,
-)
 
 if TYPE_CHECKING:
     from playcord.api.bot import BotDefinition
@@ -20,7 +17,8 @@ if TYPE_CHECKING:
 
 
 class ParameterKind(StrEnum):
-    """Types of parameters for slash command moves.
+    """
+    Types of parameters for slash command moves.
 
     Attributes:
         string: Text input parameter.
@@ -36,7 +34,8 @@ class ParameterKind(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class MoveParameter:
-    """Static slash-command parameter metadata.
+    """
+    Static slash-command parameter metadata.
 
     Attributes:
         name: Parameter name (shown in Discord slash commands).
@@ -64,7 +63,8 @@ class MoveParameter:
 
 @dataclass(frozen=True, slots=True)
 class Move:
-    """A statically registered command that may satisfy a runtime input request.
+    """
+    A statically registered command that may satisfy a runtime input request.
 
     Moves are Discord slash commands registered for the game. They can be invoked
     by players to provide input during gameplay (e.g., /move position 5).
@@ -82,7 +82,8 @@ class Move:
 
 
 class PlayerOrder(StrEnum):
-    """How to order players in the game.
+    """
+    How to order players in the game.
 
     Attributes:
         random: Randomize player order.
@@ -99,7 +100,8 @@ class PlayerOrder(StrEnum):
 
 
 class RoleMode(StrEnum):
-    """How roles are assigned to players.
+    """
+    How roles are assigned to players.
 
     Attributes:
         none: No roles - all players have identical roles.
@@ -116,7 +118,8 @@ class RoleMode(StrEnum):
 
 
 class RoleFlow(StrEnum):
-    """Role selection flow for the lobby.
+    """
+    Role selection flow for the lobby.
 
     Determines how and when players choose roles:
 
@@ -136,7 +139,8 @@ class RoleFlow(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Role:
-    """Definition of a role available in the game.
+    """
+    Definition of a role available in the game.
 
     Attributes:
         id: Unique identifier for the role (e.g., "mafia", "town").
@@ -152,7 +156,8 @@ class Role:
 
 @dataclass(frozen=True, slots=True)
 class RoleSelection:
-    """Player's role selection input during lobby.
+    """
+    Player's role selection input during lobby.
 
     Attributes:
         player_id: ID of the player selecting a role.
@@ -166,7 +171,8 @@ class RoleSelection:
 
 @dataclass(frozen=True, slots=True)
 class RoleAssignment:
-    """Final role assignment for a player after role phase.
+    """
+    Final role assignment for a player after role phase.
 
     Attributes:
         player_id: ID of the player.
@@ -182,7 +188,8 @@ class RoleAssignment:
 
 @dataclass(frozen=True, slots=True)
 class GameMetadata:
-    """Static metadata and configuration for a game plugin.
+    """
+    Static metadata and configuration for a game plugin.
 
     This class defines all game properties that are known at plugin registration time,
     including display information, rules, supported features, and player constraints.
@@ -207,7 +214,6 @@ class GameMetadata:
         role_mode: Role assignment mode (none, random, chosen, secret).
         player_roles: Tuple of role IDs if using roles, None otherwise.
         role_flow: Role selection flow (none, selectable, random, selectable_random).
-        trueskill_parameters: TrueSkill rating system parameters (sigma, beta, tau, draw_margin).
         customizable_options: Tuple of MatchOptionSpec for match-level customization.
 
     """
@@ -231,9 +237,6 @@ class GameMetadata:
     role_mode: RoleMode = RoleMode.none
     player_roles: tuple[str, ...] | None = None
     role_flow: RoleFlow = RoleFlow.none
-    trueskill_parameters: dict[str, float] = field(
-        default_factory=lambda: dict(DEFAULT_TRUESKILL_PARAMETERS),
-    )
     customizable_options: tuple[MatchOptionSpec, ...] = ()
 
 

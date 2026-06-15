@@ -14,7 +14,8 @@ logger = get_logger("roles.management")
 
 
 def has_role_support(game: RuntimeGame) -> bool:
-    """Check if a game plugin supports roles.
+    """
+    Check if a game plugin supports roles.
 
     A game supports roles if:
     1. role_flow != none in metadata
@@ -24,21 +25,7 @@ def has_role_support(game: RuntimeGame) -> bool:
         return False
 
     role_flow = getattr(game.metadata, "role_flow", RoleFlow.none)
-    if role_flow == RoleFlow.none:
-        return False
-
-    has_get_roles = hasattr(game, "get_roles") and callable(game.get_roles)
-    has_validate = hasattr(game, "validate_roles") and callable(
-        game.validate_roles,
-    )
-    has_assign = hasattr(game, "assign_roles") and callable(
-        game.assign_roles,
-    )
-    has_options = hasattr(game, "role_selection_options") and callable(
-        game.role_selection_options,
-    )
-
-    return has_get_roles or has_validate or has_assign or has_options
+    return role_flow != RoleFlow.none
 
 
 def should_show_role_selectors(game: RuntimeGame) -> bool:
@@ -63,7 +50,8 @@ def get_role_selection_options(
     game: RuntimeGame,
     player_ids: list[int],
 ) -> dict[int, tuple[Any, ...]]:
-    """Get available role options for each player.
+    """
+    Get available role options for each player.
 
     Returns a dict mapping player_id to tuple of available Role objects.
     """
@@ -85,7 +73,8 @@ def validate_role_selections(
     game: RuntimeGame,
     selections: dict[int, str],
 ) -> tuple[bool, str | None]:
-    """Validate player role selections.
+    """
+    Validate player role selections.
 
     Returns (is_valid, error_message_if_invalid)
     """
@@ -110,7 +99,8 @@ def assign_roles(
     game: RuntimeGame,
     selections: dict[int, str] | None = None,
 ) -> list[RoleAssignment]:
-    """Get final role assignment from plugin.
+    """
+    Get final role assignment from plugin.
 
     Returns list of RoleAssignment objects with player_id, role_id, and seat_index.
     """
@@ -131,7 +121,8 @@ def assign_roles(
 def role_assignments_to_db_tuples(
     assignments: list[RoleAssignment],
 ) -> list[tuple[int, str, int]]:
-    """Convert RoleAssignment objects to database tuples.
+    """
+    Convert RoleAssignment objects to database tuples.
 
     Returns list of (player_id, role_id, seat_index) tuples.
     """
@@ -142,7 +133,8 @@ def reorder_players_by_roles(
     players: list[Any],
     assignments: list[RoleAssignment],
 ) -> list[Any]:
-    """Reorder players according to role seat assignments.
+    """
+    Reorder players according to role seat assignments.
 
     Returns players sorted by their seat_index from role assignments.
     """

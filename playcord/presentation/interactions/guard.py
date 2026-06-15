@@ -6,11 +6,12 @@ from typing import TYPE_CHECKING
 
 import discord
 
+from playcord.infrastructure.constants import EPHEMERAL_DELETE_AFTER
+from playcord.infrastructure.locale import get
 from playcord.presentation.interactions.respond import respond
 from playcord.presentation.ui.views import UserErrorView
 
 if TYPE_CHECKING:
-    from playcord.infrastructure.locale import Translator
     from playcord.infrastructure.state.user_games import SessionRegistry
 
 
@@ -22,10 +23,9 @@ async def active_thread_guard(
     interaction: discord.Interaction,
     *,
     registry: SessionRegistry,
-    translator: Translator,
     command_group_name: str,
     allowed_command_name: str = "forfeit",
-    delete_after: float = 10,
+    delete_after: float = EPHEMERAL_DELETE_AFTER,
 ) -> bool:
     channel = getattr(interaction, "channel", None)
     command = getattr(interaction, "command", None)
@@ -49,8 +49,8 @@ async def active_thread_guard(
         await respond(
             interaction,
             UserErrorView.create(
-                translator.get("playcord.active_thread_command_restricted"),
-                title="Not Available Here",
+                get("playcord.active_thread_command_restricted"),
+                title=get("ui.views.thread_restricted_title"),
             ),
             ephemeral=True,
             delete_after=delete_after,

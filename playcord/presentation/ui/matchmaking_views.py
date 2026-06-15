@@ -14,7 +14,8 @@ from playcord.presentation.ui.containers import TEXT_DISPLAY_MAX
 
 
 class MatchmakingLobbyView(discord.ui.LayoutView):
-    """Join / leave / optional Ready, optional string selects for per-game lobby settings (creator-only),
+    """
+    Join / leave / optional Ready, optional string selects for per-game lobby settings (creator-only),
     and optional per-player role selects for games with CHOSEN role mode. (Game starts when all humans ready.).
     """
 
@@ -83,7 +84,7 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
 
         if assign_roles_button_id is not None:
             assign_btn = discord.ui.Button(
-                label=get("buttons.assign_roles", default="Assign Roles"),
+                label=get("buttons.assign_roles"),
                 style=discord.ButtonStyle.primary,
                 custom_id=assign_roles_button_id,
             )
@@ -94,7 +95,9 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
 
         if option_specs:
             container.add_item(discord.ui.Separator())
-            container.add_item(discord.ui.TextDisplay("### Match Options"))
+            container.add_item(
+                discord.ui.TextDisplay(get("queue.section_match_options"))
+            )
 
         for spec in option_specs:
             cur = current_values.get(spec.key, spec.default)
@@ -121,7 +124,9 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
 
         if role_specs:
             container.add_item(discord.ui.Separator())
-            container.add_item(discord.ui.TextDisplay("### Role Selection"))
+            container.add_item(
+                discord.ui.TextDisplay(get("queue.section_role_selection"))
+            )
         for player_id, display_name, avail_roles in role_specs:
             cur = current_role_values.get(player_id)
             roptions: list[SelectOption] = []

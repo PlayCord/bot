@@ -327,7 +327,8 @@ def drift_to_container(
     inline_column_limit: int = 340,
     max_modified_sections: int = 14,
 ) -> CustomContainer:
-    """Build one embed: summary row, three-column drift (added / removed / modified names),
+    """
+    Build one embed: summary row, three-column drift (added / removed / modified names),
     then non-inline fields per modified command (diff lines).
     """
     local_all = list(drift.get("local_all") or [])

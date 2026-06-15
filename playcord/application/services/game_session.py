@@ -6,22 +6,17 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from playcord.infrastructure.database import (
-        MatchRepository,
-        PlayerRepository,
-        ReplayRepository,
-    )
+    from playcord.infrastructure.database import MatchRepository, ReplayRepository
     from playcord.infrastructure.state.user_games import SessionRegistry
 
 
 @dataclass(slots=True)
 class GameSessionService:
-    """Coordinates active game sessions and replay/rating side effects."""
+    """Coordinates active game sessions and replay side effects."""
 
     registry: SessionRegistry
     matches: MatchRepository
     replays: ReplayRepository
-    ratings: PlayerRepository
 
     def register(self, thread_id: int, session: Any) -> None:
         self.registry.games_by_thread_id[thread_id] = session

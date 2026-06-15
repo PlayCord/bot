@@ -39,7 +39,8 @@ def player_display_label(user: Any) -> str:
 
 
 def column_names(players: list[InternalPlayer] | set[InternalPlayer]) -> str:
-    """Convert a list of players into a string representing the list of players.
+    """
+    Convert a list of players into a string representing the list of players.
 
     @player
     @player2
@@ -48,29 +49,12 @@ def column_names(players: list[InternalPlayer] | set[InternalPlayer]) -> str:
     return "\n".join(rendered_names)
 
 
-def column_elo(
-    players: list[InternalPlayer] | set[InternalPlayer],
-    game_type: str,
-) -> str:
-    """Convert a list of players into a string representing the list of players.
-
-    238
-    237?
-    """
-    ratings = []
-    for user in players:
-        if getattr(user, "is_bot", False):
-            ratings.append(get("queue.bot_display_rating"))
-        else:
-            ratings.append(user.get_formatted_elo(game_type))
-    return "\n".join(ratings)
-
-
 def column_creator(
     players: list[InternalPlayer] | set[InternalPlayer],
     creator: InternalPlayer | User,
 ) -> str:
-    """Convert a list of players into a string representing the list of players's creator status.
+    """
+    Convert a list of players into a string representing the list of players's creator status.
 
     Creator
     <blank>
@@ -78,7 +62,7 @@ def column_creator(
     return "\n".join(
         [
             (
-                "✅"
+                "+"
                 if (not getattr(u, "is_bot", False) and u.id == creator.id)
                 else LONG_SPACE_EMBED
             )
@@ -100,18 +84,20 @@ def column_turn(
     players: list[InternalPlayer] | set[InternalPlayer],
     turn: InternalPlayer | User | None | Iterable[InternalPlayer | User] = None,
 ) -> str:
-    """Mark players whose turn (or eligible turn) it is: one or many.
+    """
+    Mark players whose turn (or eligible turn) it is: one or many.
 
     ``turn`` may be a single player, a sequence of eligible players, or None.
     """
     eligible_ids = _turn_marker_ids(turn)
     return "\n".join(
-        ["✅" if int(u.id) in eligible_ids else LONG_SPACE_EMBED for u in players],
+        ["*" if int(u.id) in eligible_ids else LONG_SPACE_EMBED for u in players],
     )
 
 
 def textify(basis: dict[str, float], replacements: dict[str, str]) -> str:
-    """Randomly pick a message and fill variables
+    """
+    Randomly pick a message and fill variables
     :param basis: A list of messages
     :param replacements: A list of things to replace
     (ex: "The {person} rolls..." with argument {"person": "John Wick"}
@@ -154,7 +140,8 @@ def textify(basis: dict[str, float], replacements: dict[str, str]) -> str:
 
 
 def player_representative(possible_players: list[int]):
-    """Turns a list of players into a string representing the list of possible players
+    """
+    Turns a list of players into a string representing the list of possible players
     e.g. [2, 3, 4, 5] -> 2-5, [2,3,5] -> 2-3, 5
     :param possible_players:
     :return: string representing the the amount.
@@ -181,7 +168,8 @@ def player_representative(possible_players: list[int]):
 
 
 def player_verification_function(possible_players: list[int] | int):
-    """Function that returns a lambda representing a function checking if an argument is in the list of possible players
+    """
+    Function that returns a lambda representing a function checking if an argument is in the list of possible players
      (or equal to a number)
     :param possible_players: either an integer or a
     list of integers representing the possible player count    :return: a function that checks if an argument
@@ -208,7 +196,7 @@ def format_replay_event_line(evt: dict[str, Any]) -> str:
         if len(arg_s) > 140:
             arg_s = arg_s[:137] + "..."
         who = f"user {uid}" if uid is not None else "system"
-        return f"#{mn} · {who} · `{cmd}` · {arg_s}"
+        return f"#{mn} | {who} | `{cmd}` | {arg_s}"
     raw = json.dumps(evt, ensure_ascii=False, separators=(",", ":"))
     if len(raw) > 300:
         return raw[:297] + "..."

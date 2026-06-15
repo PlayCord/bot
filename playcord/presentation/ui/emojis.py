@@ -1,4 +1,5 @@
-"""Emoji utilities.
+"""
+Emoji utilities.
 
 Provides functionality for:
 - Loading emojis from configuration
@@ -36,7 +37,8 @@ initialized = False
 
 
 def initialize_emojis() -> bool:
-    """Initialize emojis from the configuration file.
+    """
+    Initialize emojis from the configuration file.
 
     :return: True if successful, False otherwise
     """
@@ -64,7 +66,8 @@ def initialize_emojis() -> bool:
 
 
 def register_emoji(name: str, emoji_id: int, animated: bool = False) -> bool:
-    """Register a custom emoji at runtime.
+    """
+    Register a custom emoji at runtime.
 
     :param name: The name/key for the emoji
     :param emoji_id: The Discord emoji ID
@@ -82,7 +85,8 @@ def register_emoji(name: str, emoji_id: int, animated: bool = False) -> bool:
 
 
 def unregister_emoji(name: str) -> bool:
-    """Unregister a runtime emoji.
+    """
+    Unregister a runtime emoji.
 
     :param name: The name/key of the emoji to unregister
     :return: True if unregistered, False if not found
@@ -95,7 +99,8 @@ def unregister_emoji(name: str) -> bool:
 
 
 def get_emoji(name: str) -> dict | None:
-    """Get emoji data by name.
+    """
+    Get emoji data by name.
 
     :param name: The name/key of the emoji
     :return: Emoji data dict or None if not found
@@ -114,7 +119,8 @@ def get_emoji(name: str) -> dict | None:
 
 
 def get_emoji_string(name: str) -> str:
-    """Get a formatted emoji string for use in Discord messages.
+    """
+    Get a formatted emoji string for use in Discord messages.
 
     :param name: The name/key of the emoji
     :return: Formatted emoji string like <:name:id> or <a:name:id> for animated
@@ -145,7 +151,8 @@ def get_emoji_string(name: str) -> str:
 
 
 def get_all_emojis() -> dict[str, dict]:
-    """Get all registered emojis (config + runtime).
+    """
+    Get all registered emojis (config + runtime).
 
     :return: Dictionary of all emoji names to their data
     """
@@ -157,7 +164,8 @@ def get_all_emojis() -> dict[str, dict]:
 
 
 def get_emoji_count() -> tuple[int, int]:
-    """Get the count of loaded emojis.
+    """
+    Get the count of loaded emojis.
 
     :return: Tuple of (config emoji count, runtime emoji count)
     """
@@ -165,7 +173,8 @@ def get_emoji_count() -> tuple[int, int]:
 
 
 def get_button_emoji(name: str) -> str | None:
-    """Get a button emoji by name.
+    """
+    Get a button emoji by name.
 
     Button emojis are simple unicode emojis used for UI elements like
     join/leave/start buttons. They fall back gracefully if not configured.
@@ -180,7 +189,8 @@ def get_button_emoji(name: str) -> str | None:
 
 
 def get_game_emoji(game_id: str) -> str:
-    """Get the emoji for a specific game type.
+    """
+    Get the emoji for a specific game type.
 
     Returns a default game emoji (🎮) if no specific emoji is configured.
 
@@ -196,7 +206,8 @@ def get_game_emoji(game_id: str) -> str:
 def parse_discord_emoji(
     emoji: str | discord.PartialEmoji | None,
 ) -> str | discord.PartialEmoji | None:
-    """Normalize an emoji value for discord.py UI components (buttons, selects).
+    """
+    Normalize an emoji value for discord.py UI components (buttons, selects).
 
     Accepts unicode emoji, <:name:id> / <a:name:id>, or discord.PartialEmoji.
     """

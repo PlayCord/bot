@@ -84,7 +84,8 @@ async def _pagination_unhandled_fallback(
     interaction: discord.Interaction,
     custom_id: str,
 ) -> None:
-    """If no registered PaginationView handled the click (e.g. after restart).
+    """
+    If no registered PaginationView handled the click (e.g. after restart).
 
     Reply ephemerally.
     """
@@ -151,7 +152,7 @@ class GamesCog(commands.Cog):
     @commands.Cog.listener()
     async def on_interaction(self, ctx: discord.Interaction) -> None:
         data = ctx.data if ctx.data is not None else {}
-        custom_id = data.get("custom_id")
+        custom_id: str | None = data.get("custom_id")
         if custom_id is None:
             return
 
@@ -167,20 +168,22 @@ class GamesCog(commands.Cog):
                     custom_id,
                     BUTTON_PREFIX_GAME_MOVE,
                 )
-                await self._route_runtime_move(
+                await self._route_runtime_input(
                     ctx,
                     resource_id=resource_id,
                     payload=payload,
+                    source="button",
                 )
             elif custom_id.startswith(BUTTON_PREFIX_GAME_SELECT):
                 resource_id, payload = _parse_component_id(
                     custom_id,
                     BUTTON_PREFIX_GAME_SELECT,
                 )
-                await self._route_runtime_select(
+                await self._route_runtime_input(
                     ctx,
                     resource_id=resource_id,
                     payload=payload,
+                    source="select",
                 )
             elif custom_id.startswith(BUTTON_PREFIX_REPLAY_NAV):
                 resource_id, payload = _parse_component_id(
@@ -326,11 +329,12 @@ class GamesCog(commands.Cog):
         )
         await ctx.edit_original_response(view=view)
 
-    async def _route_runtime_move(
+    async def _route_runtime_input(
         self,
         ctx: discord.Interaction,
         resource_id: int,
         payload: str,
+        source: str,
     ) -> None:
         await ctx.response.defer()
         runtime = self._active_games.get(resource_id)
@@ -340,24 +344,7 @@ class GamesCog(commands.Cog):
         await runtime.submit_component_input(
             ctx,
             payload=payload,
-            source="button",
-        )
-
-    async def _route_runtime_select(
-        self,
-        ctx: discord.Interaction,
-        resource_id: int,
-        payload: str,
-    ) -> None:
-        await ctx.response.defer()
-        runtime = self._active_games.get(resource_id)
-        if runtime is None:
-            await _send_game_ended_error(ctx)
-            return
-        await runtime.submit_component_input(
-            ctx,
-            payload=payload,
-            source="select",
+            source=source,
         )
 
     async def spectate_callback(self, ctx: discord.Interaction) -> None:
@@ -369,8 +356,10 @@ class GamesCog(commands.Cog):
             ctx.data.get("custom_id"),
         )
         try:
-            game_id = int(ctx.data["custom_id"].replace(BUTTON_PREFIX_SPECTATE, ""))
-        except (KeyError, ValueError):
+            game_id, _ = _parse_component_id(
+                ctx.data["custom_id"], BUTTON_PREFIX_SPECTATE
+            )
+        except (KeyError, TypeError, ValueError):
             f_log.warning(
                 "Malformed spectate custom_id from user=%s: %r",
                 getattr(ctx.user, "id", None),
@@ -408,9 +397,8 @@ class GamesCog(commands.Cog):
             ctx.data.get("custom_id"),
         )
         try:
-            data = ctx.data["custom_id"].replace(BUTTON_PREFIX_PEEK, "").split("/")
-            game_id = int(data[0])
-        except (KeyError, IndexError, ValueError):
+            game_id, _ = _parse_component_id(ctx.data["custom_id"], BUTTON_PREFIX_PEEK)
+        except (KeyError, TypeError, ValueError):
             f_log.warning(
                 "Malformed peek custom_id from user=%s: %r",
                 getattr(ctx.user, "id", None),
@@ -439,14 +427,13 @@ class GamesCog(commands.Cog):
             ctx.data.get("custom_id"),
         )
 
-        tail = ctx.data["custom_id"].replace(BUTTON_PREFIX_REMATCH, "", 1)
         try:
-            mid = int(tail)
-        except ValueError:
+            mid, _ = _parse_component_id(ctx.data["custom_id"], BUTTON_PREFIX_REMATCH)
+        except (KeyError, TypeError, ValueError):
             f_log.warning(
                 "Malformed rematch id from user=%s: %r",
                 getattr(ctx.user, "id", None),
-                tail,
+                ctx.data.get("custom_id"),
             )
             await followup_send(
                 ctx,
@@ -534,7 +521,6 @@ class GamesCog(commands.Cog):
             ctx.user,
             game_type,
             loading,
-            rated=match.is_rated,
             private=False,
             creator_db_player=creator_row,
         )
@@ -565,15 +551,13 @@ async def setup(bot: commands.Bot) -> None:
 async def begin_game(
     ctx: discord.Interaction,
     game_type: str,
-    rated: bool = True,
     private: bool = False,
 ) -> MatchmakingInterface | None:
     f_log = log.getChild("command.matchmaking")
     f_log.debug(
-        "begin_game called by user=%s game_type=%r rated=%s private=%s",
+        "begin_game called by user=%s game_type=%r private=%s",
         getattr(ctx.user, "id", None),
         game_type,
-        rated,
         private,
     )
     if user_in_active_game(ctx.user.id):
@@ -633,7 +617,6 @@ async def begin_game(
             ctx.user,
             game_type,
             game_overview_message,
-            rated=rated,
             private=private,
             creator_db_player=creator_row,
         )
@@ -661,11 +644,7 @@ async def begin_game(
             ctx,
             exc,
             surface=ErrorSurface.SLASH,
-            translator=(
-                getattr(getattr(ctx, "client", None), "container", None).translator
-                if getattr(getattr(ctx, "client", None), "container", None) is not None
-                else None
-            ),
+            translator=None,
             status_message=game_overview_message,
         )
         return None
@@ -680,10 +659,13 @@ async def add_matchmaking_bot(ctx: discord.Interaction, difficulty: str) -> bool
     )
 
     async def _send(message: str) -> None:
+        kwargs = dict(
+            content=message, ephemeral=True, delete_after=EPHEMERAL_DELETE_AFTER
+        )
         if ctx.response.is_done():
-            await followup_send(ctx, message, ephemeral=True)
+            await followup_send(ctx, **kwargs)
         else:
-            await response_send_message(ctx, message, ephemeral=True)
+            await response_send_message(ctx, **kwargs)
 
     mm_by_user = matchmaking_by_user_id()
     if ctx.user.id not in mm_by_user:
@@ -695,7 +677,6 @@ async def add_matchmaking_bot(ctx: discord.Interaction, difficulty: str) -> bool
         await _send(get("settings.only_creator"))
         return False
 
-    is_matchmaker_rated = matchmaker.rated
     result = matchmaker.add_bot(difficulty)
     if result is not None:
         f_log.warning(
@@ -708,8 +689,6 @@ async def add_matchmaking_bot(ctx: discord.Interaction, difficulty: str) -> bool
         return False
 
     await matchmaker.update_embed()
-    if is_matchmaker_rated:  # Only send warning if it actually changed something
-        await _send(get("queue.bot_rated_forced"))
     f_log.info(
         "add_matchmaking_bot succeeded for user=%s difficulty=%r",
         ctx.user.id,
