@@ -34,13 +34,7 @@ from playcord.presentation.interactions.helpers import (
     send_ephemeral_transient_text,
     send_format_user_error,
 )
-from playcord.presentation.ui.containers import (
-    TEXT_DISPLAY_MAX,
-    CustomContainer,
-    SuccessContainer,
-    container_send_kwargs,
-    container_to_markdown,
-)
+from playcord.presentation.ui.containers import SuccessContainer
 from playcord.presentation.ui.command_display import (
     format_feature_badges,
     format_history_line,
@@ -53,8 +47,6 @@ from playcord.presentation.ui.design import (
     section_header,
     with_footer,
 )
-from playcord.presentation.ui.component_kit import icon_prefix
-from playcord.presentation.ui.emojis import get_game_emoji
 from playcord.presentation.ui.formatting import (
     chunk_replay_lines,
     format_replay_event_line,
@@ -65,6 +57,10 @@ from playcord.presentation.ui.layout_discord import (
     PaginationView,
 )
 from playcord.presentation.ui.replay_views import ReplayViewerView
+from playcord.ui.container import CustomContainer, TEXT_DISPLAY_MAX, container_to_markdown
+from playcord.ui.emojis import get_game_emoji
+from playcord.ui.render import container_send_kwargs
+from playcord.ui.text import icon_prefix
 
 if TYPE_CHECKING:
     from playcord.presentation.interactions.matchmaking_lobby import (

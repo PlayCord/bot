@@ -24,7 +24,8 @@ from playcord.infrastructure.db_thread import run_in_thread
 from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
 from playcord.presentation.bot import PlayCordBot
-from playcord.presentation.ui.containers import CustomContainer, container_send_kwargs
+from playcord.ui.container import CustomContainer
+from playcord.ui.render import container_send_kwargs
 
 log = get_logger()
 

@@ -1,6 +1,6 @@
 """Unified UI exports."""
 
-from playcord.presentation.ui.styling import PALETTE, Palette
+from playcord.ui.colors import PALETTE, Palette
 
 __all__ = [
     "PALETTE",

@@ -49,7 +49,8 @@ from playcord.infrastructure.db_thread import run_in_thread
 from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
 from playcord.presentation.interactions.helpers import followup_send
-from playcord.presentation.ui.containers import chunk_text_display_lines
+from playcord.ui.emojis import resolve_button_emoji
+from playcord.ui.render import make_discord_button, render_interactive_layout
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -1139,52 +1140,16 @@ class GameManager:
         layout: MessageLayout,
         trailing_buttons: tuple[discord.ui.Button, ...] = (),
     ) -> RuntimeView | None:
-        has_body = bool((layout.content or "").strip())
-        has_game = bool(layout.buttons or layout.selects)
-        has_trail = bool(trailing_buttons)
-        if not has_body and not has_game and not has_trail:
-            return None
-
-        view = RuntimeView()
-        container = discord.ui.Container()
-        for chunk in chunk_text_display_lines(layout.content or ""):
-            container.add_item(discord.ui.TextDisplay(chunk))
-        if has_body and (has_game or has_trail):
-            container.add_item(discord.ui.Separator())
-        width = layout.button_row_width
-        if width and width > 0 and layout.buttons:
-            row_buttons: list[discord.ui.Button] = []
-            for button in layout.buttons:
-                row_buttons.append(self._make_button(button))
-                if len(row_buttons) >= width:
-                    ar = discord.ui.ActionRow()
-                    for item in row_buttons:
-                        ar.add_item(item)
-                    container.add_item(ar)
-                    row_buttons = []
-            if row_buttons:
-                ar = discord.ui.ActionRow()
-                for item in row_buttons:
-                    ar.add_item(item)
-                container.add_item(ar)
-        else:
-            for button in layout.buttons:
-                ar = discord.ui.ActionRow()
-                ar.add_item(self._make_button(button))
-                container.add_item(ar)
-        for select in layout.selects:
-            ar = discord.ui.ActionRow()
-            ar.add_item(self._make_select(select))
-            container.add_item(ar)
-        if has_trail:
-            if has_game:
-                container.add_item(discord.ui.Separator())
-            tr = discord.ui.ActionRow()
-            for btn in trailing_buttons:
-                tr.add_item(btn)
-            container.add_item(tr)
-        view.add_item(container)
-        return view
+        buttons = [self._make_button(spec) for spec in layout.buttons]
+        selects = [self._make_select(spec) for spec in layout.selects]
+        return render_interactive_layout(
+            content=layout.content,
+            buttons=buttons,
+            selects=selects,
+            button_row_width=layout.button_row_width,
+            trailing_buttons=trailing_buttons,
+            view_class=RuntimeView,
+        )
 
     def _build_view(self, layout: MessageLayout) -> RuntimeView | None:
         return self._build_interactive_view(layout, ())
@@ -1223,19 +1188,13 @@ class GameManager:
         )
         resource_id = self.thread.id if self.thread is not None else self.game_id
         custom_id = f"{BUTTON_PREFIX_GAME_MOVE}{resource_id}/{payload}"
-        label = spec.label if (spec.label and spec.label.strip()) else "\u200b"
-
-        emoji_val = None
-        if spec.emoji:
-            from playcord.presentation.ui.emojis import parse_discord_emoji, get_icon
-            emoji_val = parse_discord_emoji(get_icon(spec.emoji)) or parse_discord_emoji(spec.emoji)
-
-        return discord.ui.Button(
-            label=label,
-            emoji=emoji_val,
+        emoji_val = resolve_button_emoji(spec.emoji) if spec.emoji else None
+        return make_discord_button(
+            label=spec.label,
             style=style_map[str(spec.style)],
             custom_id=custom_id,
             disabled=spec.disabled or not request_id,
+            emoji=emoji_val,
         )
 
     def _make_select(self, spec: SelectInput) -> discord.ui.Select:

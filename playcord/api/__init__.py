@@ -985,13 +985,13 @@ class ReplayableGame[T_State](RuntimeGame, ABC):
 
 def get_emoji(name: str) -> dict | None:
     """Get emoji data by name."""
-    from playcord.presentation.ui.emojis import get_emoji as _get_emoji
+    from playcord.ui.emojis import get_emoji as _get_emoji
     return _get_emoji(name)
 
 
 def get_emoji_string(name: str) -> str:
     """Get a formatted emoji string for use in Discord messages."""
-    from playcord.presentation.ui.emojis import get_emoji_string as _get_emoji_string
+    from playcord.ui.emojis import get_emoji_string as _get_emoji_string
     return _get_emoji_string(name)
 
 

@@ -31,13 +31,15 @@ from playcord.presentation.bot import PlayCordBot
 from playcord.presentation.ui.analytics_charts import (
     render_analytics_matplotlib_summary,
 )
-from playcord.presentation.ui.containers import (
+from playcord.ui.container import (
     CustomContainer,
+    TEXT_DISPLAY_MAX,
     append_container_sections,
-    container_send_kwargs,
+    container_to_markdown,
     lines_to_container_sections,
 )
-from playcord.presentation.ui.emojis import purge_and_reupload
+from playcord.ui.emojis import purge_and_reupload
+from playcord.ui.render import container_send_kwargs
 
 log = get_logger()
 

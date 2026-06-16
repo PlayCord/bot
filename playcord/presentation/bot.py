@@ -16,6 +16,9 @@ from playcord.infrastructure.analytics_client import Timer
 from playcord.infrastructure.config import bind_settings
 from playcord.infrastructure.constants import (
     EPHEMERAL_DELETE_AFTER,
+    EMOJI_CONFIGURATION_FILE,
+    ICONS_DIR,
+    LONG_SPACE_EMBED,
     bind_locale_strings,
 )
 from playcord.infrastructure.database import MigrationRunner, PoolManager
@@ -32,6 +35,7 @@ from playcord.presentation.interactions.permissions import (
     get_configured_static_owner_ids,
     resolve_effective_owner_ids,
 )
+from playcord.ui import configure
 
 log = get_logger()
 startup_log = log.getChild("startup")
@@ -61,7 +65,8 @@ class PlayCordBot(commands.Bot):
         self.container = container
         self._effective_owner_ids: frozenset[int] | None = None
         
-        from playcord.presentation.ui import emojis
+        from playcord.ui import emojis
+
         emojis.bot_ref = self
 
     @property
@@ -79,7 +84,7 @@ class PlayCordBot(commands.Bot):
         await self.load_extension("playcord.presentation.cogs.events")
         await self.load_extension("playcord.presentation.cogs.admin")
 
-        from playcord.presentation.ui.emojis import sync_ids_from_discord
+        from playcord.ui.emojis import sync_ids_from_discord
 
         synced = await sync_ids_from_discord(self)
         startup_log.info("Loaded %d application emoji id(s) from Discord.", len(synced))
@@ -160,7 +165,12 @@ def create_container() -> ApplicationContainer:
     bind_settings(settings)
     configure_logging(settings.logging.level)
     bind_locale_strings()
-    from playcord.presentation.ui.emojis import initialize_emojis
+    configure(
+        emoji_config_path=EMOJI_CONFIGURATION_FILE,
+        icons_dir=ICONS_DIR,
+        missing_emoji_placeholder=LONG_SPACE_EMBED,
+    )
+    from playcord.ui.emojis import initialize_emojis
 
     initialize_emojis()
     pool_manager = PoolManager(settings.db)

@@ -8,8 +8,8 @@ import discord
 
 from playcord.infrastructure.constants import NAME, VERSION
 from playcord.infrastructure.locale import fmt, get
-from playcord.presentation.ui.component_kit import format_page_title, section_header
-from playcord.presentation.ui.containers import CustomContainer
+from playcord.ui.container import CustomContainer
+from playcord.ui.text import format_page_title, section_header
 
 
 def breadcrumb(*segments: str, separator: str | None = None) -> str:

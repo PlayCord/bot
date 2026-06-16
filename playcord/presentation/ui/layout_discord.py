@@ -34,6 +34,9 @@ from playcord.presentation.ui.presets import (
     text_sections_block,
     title_block,
 )
+from playcord.ui.components import pagination_row
+from playcord.ui.emojis import get_game_emoji, get_emoji_string, get_icon, parse_discord_emoji
+from playcord.ui.emojis import resolve_button_emoji
 
 
 async def followup_send(*args: Any, **kwargs: Any) -> Any:
@@ -214,8 +217,6 @@ class DynamicButtonView(discord.ui.LayoutView):
         if has_content:
             container.add_item(discord.ui.Separator())
 
-        from playcord.presentation.ui.emojis import parse_discord_emoji, get_icon
-
         row = discord.ui.ActionRow()
         count = 0
         for button in buttons:
@@ -228,7 +229,7 @@ class DynamicButtonView(discord.ui.LayoutView):
 
             emoji_val = None
             if button.get("emoji"):
-                emoji_val = parse_discord_emoji(get_icon(button["emoji"])) or parse_discord_emoji(button["emoji"])
+                emoji_val = resolve_button_emoji(button["emoji"])
             elif button.get("icon"):
                 emoji_val = icon_for_button(button["icon"])
 
@@ -419,67 +420,35 @@ class PaginationView(discord.ui.LayoutView):
             )
             container.add_item(discord.ui.Separator())
 
-        base = f"{guild_id}/{user_id}"
-        nav_buttons: list[discord.ui.Button] = []
-        nav_specs = [
-            ("first", get("buttons.first"), 1, current_page == 1, self._first_callback),
-            (
-                "previous",
-                get("buttons.previous"),
-                max(1, current_page - 1),
-                current_page == 1,
-                self._prev_callback,
+        container.add_item(
+            pagination_row(
+                guild_id=guild_id,
+                user_id=user_id,
+                current_page=current_page,
+                max_pages=max_pages,
+                labels={
+                    "first": get("buttons.first"),
+                    "previous": get("buttons.previous"),
+                    "page": "",
+                    "next": get("buttons.next"),
+                    "last": get("buttons.last"),
+                },
+                prefixes={
+                    "first": BUTTON_PREFIX_PAGINATION_FIRST,
+                    "previous": BUTTON_PREFIX_PAGINATION_PREV,
+                    "page": BUTTON_PREFIX_PAGINATION_PAGE,
+                    "next": BUTTON_PREFIX_PAGINATION_NEXT,
+                    "last": BUTTON_PREFIX_PAGINATION_LAST,
+                },
+                callbacks={
+                    "first": self._first_callback,
+                    "previous": self._prev_callback,
+                    "page": self._page_button_callback,
+                    "next": self._next_callback,
+                    "last": self._last_callback,
+                },
             ),
-            (
-                "page",
-                f"{current_page} / {max_pages}",
-                current_page,
-                max_pages <= 1,
-                self._page_button_callback,
-            ),
-            (
-                "next",
-                get("buttons.next"),
-                min(max_pages, current_page + 1),
-                current_page >= max_pages,
-                self._next_callback,
-            ),
-            (
-                "last",
-                get("buttons.last"),
-                max_pages,
-                current_page >= max_pages,
-                self._last_callback,
-            ),
-        ]
-        for icon_key, label, _target, disabled, callback in nav_specs:
-            custom_id = (
-                f"{BUTTON_PREFIX_PAGINATION_FIRST}{base}"
-                if icon_key == "first"
-                else f"{BUTTON_PREFIX_PAGINATION_PREV}{base}"
-                if icon_key == "previous"
-                else f"{BUTTON_PREFIX_PAGINATION_PAGE}{base}"
-                if icon_key == "page"
-                else f"{BUTTON_PREFIX_PAGINATION_NEXT}{base}"
-                if icon_key == "next"
-                else f"{BUTTON_PREFIX_PAGINATION_LAST}{base}"
-            )
-            if icon_key in {"first", "last", "page"} or disabled:
-                button = secondary_button(
-                    label=label,
-                    custom_id=custom_id,
-                    icon=icon_key,
-                    disabled=disabled,
-                )
-            else:
-                button = primary_button(
-                    label=label,
-                    custom_id=custom_id,
-                    icon=icon_key,
-                )
-            button.callback = callback
-            nav_buttons.append(button)
-        append_blocks(container, button_row(*nav_buttons), has_content=False)
+        )
         self.add_item(container)
 
     def _validate_interaction(self, interaction: discord.Interaction) -> bool:
@@ -704,7 +673,6 @@ class CatalogView(discord.ui.LayoutView):
         page_games = display_games[start_idx:end_idx]
 
         # 2. Format header and footer
-        from playcord.presentation.ui.emojis import get_icon
         next_icon = get_icon("forward")
 
         if self.active_filter:
@@ -719,7 +687,6 @@ class CatalogView(discord.ui.LayoutView):
         # 3. Format game blocks (no > blocks as requested!)
         lines = [f"## {header_text}"]
 
-        from playcord.presentation.ui.emojis import get_game_emoji, get_emoji_string
         space_emoji = get_emoji_string("space")
 
         difficulty_rating = {
@@ -868,71 +835,35 @@ class CatalogView(discord.ui.LayoutView):
         # 6. Add Pagination Buttons if max_pages > 1
         if self.max_pages > 1:
             container.add_item(discord.ui.Separator())
-            base = f"{self.guild_id}/{self.user_id}"
-            nav_buttons: list[discord.ui.Button] = []
-            nav_specs = [
-                ("first", get("buttons.first"), 1, self.current_page == 1, self._first_callback),
-                (
-                    "previous",
-                    get("buttons.previous"),
-                    max(1, self.current_page - 1),
-                    self.current_page == 1,
-                    self._prev_callback,
+            container.add_item(
+                pagination_row(
+                    guild_id=self.guild_id,
+                    user_id=self.user_id,
+                    current_page=self.current_page,
+                    max_pages=self.max_pages,
+                    labels={
+                        "first": get("buttons.first"),
+                        "previous": get("buttons.previous"),
+                        "page": "",
+                        "next": get("buttons.next"),
+                        "last": get("buttons.last"),
+                    },
+                    prefixes={
+                        "first": BUTTON_PREFIX_PAGINATION_FIRST,
+                        "previous": BUTTON_PREFIX_PAGINATION_PREV,
+                        "page": BUTTON_PREFIX_PAGINATION_PAGE,
+                        "next": BUTTON_PREFIX_PAGINATION_NEXT,
+                        "last": BUTTON_PREFIX_PAGINATION_LAST,
+                    },
+                    callbacks={
+                        "first": self._first_callback,
+                        "previous": self._prev_callback,
+                        "page": self._page_button_callback,
+                        "next": self._next_callback,
+                        "last": self._last_callback,
+                    },
                 ),
-                (
-                    "page",
-                    f"{self.current_page} / {self.max_pages}",
-                    self.current_page,
-                    self.max_pages <= 1,
-                    self._page_button_callback,
-                ),
-                (
-                    "next",
-                    get("buttons.next"),
-                    min(self.max_pages, self.current_page + 1),
-                    self.current_page >= self.max_pages,
-                    self._next_callback,
-                ),
-                (
-                    "last",
-                    get("buttons.last"),
-                    self.max_pages,
-                    self.current_page >= self.max_pages,
-                    self._last_callback,
-                ),
-            ]
-            for icon_key, label, _target, disabled, callback in nav_specs:
-                custom_id = (
-                    f"{BUTTON_PREFIX_PAGINATION_FIRST}{base}"
-                    if icon_key == "first"
-                    else f"{BUTTON_PREFIX_PAGINATION_PREV}{base}"
-                    if icon_key == "previous"
-                    else f"{BUTTON_PREFIX_PAGINATION_PAGE}{base}"
-                    if icon_key == "page"
-                    else f"{BUTTON_PREFIX_PAGINATION_NEXT}{base}"
-                    if icon_key == "next"
-                    else f"{BUTTON_PREFIX_PAGINATION_LAST}{base}"
-                )
-                if icon_key in {"first", "last", "page"} or disabled:
-                    button = secondary_button(
-                        label=label,
-                        custom_id=custom_id,
-                        icon=icon_key,
-                        disabled=disabled,
-                    )
-                else:
-                    button = primary_button(
-                        label=label,
-                        custom_id=custom_id,
-                        icon=icon_key,
-                    )
-                button.callback = callback
-                nav_buttons.append(button)
-
-            nav_row_item = discord.ui.ActionRow()
-            for btn in nav_buttons:
-                nav_row_item.add_item(btn)
-            container.add_item(nav_row_item)
+            )
 
         self.add_item(container)
 
