@@ -60,6 +60,9 @@ class PlayCordBot(commands.Bot):
         )
         self.container = container
         self._effective_owner_ids: frozenset[int] | None = None
+        
+        from playcord.presentation.ui import emojis
+        emojis.bot_ref = self
 
     @property
     def effective_owner_ids(self) -> frozenset[int]:
@@ -75,6 +78,11 @@ class PlayCordBot(commands.Bot):
         await self.load_extension("playcord.presentation.cogs.games")
         await self.load_extension("playcord.presentation.cogs.events")
         await self.load_extension("playcord.presentation.cogs.admin")
+
+        from playcord.presentation.ui.emojis import sync_ids_from_discord
+
+        synced = await sync_ids_from_discord(self)
+        startup_log.info("Loaded %d application emoji id(s) from Discord.", len(synced))
 
         async def _on_tree_error(
             interaction: discord.Interaction,

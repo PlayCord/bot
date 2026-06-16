@@ -1224,9 +1224,15 @@ class GameManager:
         resource_id = self.thread.id if self.thread is not None else self.game_id
         custom_id = f"{BUTTON_PREFIX_GAME_MOVE}{resource_id}/{payload}"
         label = spec.label if (spec.label and spec.label.strip()) else "\u200b"
+
+        emoji_val = None
+        if spec.emoji:
+            from playcord.presentation.ui.emojis import parse_discord_emoji, get_icon
+            emoji_val = parse_discord_emoji(get_icon(spec.emoji)) or parse_discord_emoji(spec.emoji)
+
         return discord.ui.Button(
             label=label,
-            emoji=spec.emoji,
+            emoji=emoji_val,
             style=style_map[str(spec.style)],
             custom_id=custom_id,
             disabled=spec.disabled or not request_id,

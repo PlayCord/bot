@@ -27,7 +27,6 @@ from playcord.infrastructure.constants import (
 from playcord.infrastructure.db_thread import run_in_thread
 from playcord.infrastructure.locale import fmt, get
 from playcord.infrastructure.logging import get_logger
-from playcord.application.services.emoji_sync import purge_and_reupload
 from playcord.presentation.bot import PlayCordBot
 from playcord.presentation.ui.analytics_charts import (
     render_analytics_matplotlib_summary,
@@ -38,6 +37,7 @@ from playcord.presentation.ui.containers import (
     container_send_kwargs,
     lines_to_container_sections,
 )
+from playcord.presentation.ui.emojis import purge_and_reupload
 
 log = get_logger()
 
@@ -140,15 +140,12 @@ class AdminCog(commands.Cog):
     async def _task_emoji_sync(self, msg: discord.Message) -> bool:
         report = await purge_and_reupload(self.bot)
         if report.aborted:
-            missing = "\n".join(f"- `{path}`" for path in report.missing_assets[:40])
-            extra = ""
-            if len(report.missing_assets) > 40:
-                extra = f"\n… and {len(report.missing_assets) - 40} more"
             await msg.reply(
                 **container_send_kwargs(
                     CustomContainer(
                         title=get("commands.admin.emoji_no_assets"),
-                        description=f"{get('commands.admin.emoji_usage')}\n\n{missing}{extra}",
+                        title_icon="emoji",
+                        description=get("commands.admin.emoji_usage"),
                         color=WARNING_COLOR,
                     ),
                 ),
@@ -161,6 +158,7 @@ class AdminCog(commands.Cog):
                 **container_send_kwargs(
                     CustomContainer(
                         title=get("commands.admin.emoji_failed"),
+                        title_icon="error",
                         description=detail or get("commands.admin.task_unexpected_error"),
                         color=ERROR_COLOR,
                     ),
@@ -172,17 +170,13 @@ class AdminCog(commands.Cog):
             "commands.admin.emoji_done_description",
             deleted=report.deleted,
             uploaded=report.uploaded,
-            aliased=report.aliased,
         )
-        if report.missing_assets:
-            missing_list = "\n".join(f"- `{path}`" for path in report.missing_assets[:20])
-            extra = f"\n… and {len(report.missing_assets) - 20} more" if len(report.missing_assets) > 20 else ""
-            desc += f"\n\n**Missing local assets (skipped):**\n{missing_list}{extra}"
 
         await msg.reply(
             **container_send_kwargs(
                 CustomContainer(
                     title=get("commands.admin.emoji_done"),
+                    title_icon="emoji",
                     description=desc,
                     color=SUCCESS_COLOR,
                 ),
@@ -261,6 +255,7 @@ class AdminCog(commands.Cog):
                                 "commands.analytics.message_usage",
                                 prefix=f"{LOGGING_ROOT}/",
                             ),
+                            title_icon="analytics",
                             color=INFO_COLOR,
                         ),
                     ),
@@ -281,6 +276,7 @@ class AdminCog(commands.Cog):
                 **container_send_kwargs(
                     CustomContainer(
                         title=fmt("commands.analytics.embed_title", hours=hours),
+                        title_icon="analytics",
                         description=fmt(
                             "commands.analytics.message_empty",
                             hours=hours,
@@ -298,6 +294,7 @@ class AdminCog(commands.Cog):
         )
         main_container = CustomContainer(
             title=fmt("commands.analytics.embed_title", hours=hours),
+            title_icon="analytics",
             description=(
                 get("commands.analytics.embed_description")
                 if chart_buf is not None
@@ -342,6 +339,7 @@ class AdminCog(commands.Cog):
                         **container_send_kwargs(
                             CustomContainer(
                                 description=get("commands.treediff.need_guild"),
+                                title_icon="diff",
                                 color=WARNING_COLOR,
                             ),
                         ),
@@ -359,6 +357,7 @@ class AdminCog(commands.Cog):
                                     "commands.treediff.message_usage",
                                     prefix=f"{LOGGING_ROOT}/",
                                 ),
+                                title_icon="diff",
                                 color=INFO_COLOR,
                             ),
                         ),
@@ -392,6 +391,7 @@ class AdminCog(commands.Cog):
             drift,
             color=None,
             title=get("commands.treediff.embed_title"),
+            title_icon="diff",
         )
         await msg.reply(**container_send_kwargs(diff_container))
         return True
@@ -447,7 +447,7 @@ class AdminCog(commands.Cog):
         if len(split) < 2:
             await msg.reply(
                 **container_send_kwargs(
-                    CustomContainer(description=usage, color=INFO_COLOR),
+                    CustomContainer(description=usage, title_icon="database", color=INFO_COLOR),
                 ),
             )
             return False
@@ -457,7 +457,7 @@ class AdminCog(commands.Cog):
             if len(split) != 2:
                 await msg.reply(
                     **container_send_kwargs(
-                        CustomContainer(description=usage, color=INFO_COLOR),
+                        CustomContainer(description=usage, title_icon="database", color=INFO_COLOR),
                     ),
                 )
                 return False
@@ -470,6 +470,7 @@ class AdminCog(commands.Cog):
                 **container_send_kwargs(
                     CustomContainer(
                         title=get("commands.admin.dbreset_all_title"),
+                        title_icon="database",
                         description=get("commands.admin.dbreset_all_description"),
                         color=SUCCESS_COLOR,
                     ),
@@ -480,7 +481,7 @@ class AdminCog(commands.Cog):
         if len(split) != 3:
             await msg.reply(
                 **container_send_kwargs(
-                    CustomContainer(description=usage, color=INFO_COLOR),
+                    CustomContainer(description=usage, title_icon="database", color=INFO_COLOR),
                 ),
             )
             return False
@@ -497,7 +498,7 @@ class AdminCog(commands.Cog):
         except ValueError:
             await msg.reply(
                 **container_send_kwargs(
-                    CustomContainer(description=usage, color=INFO_COLOR),
+                    CustomContainer(description=usage, title_icon="database", color=INFO_COLOR),
                 ),
             )
             return False
@@ -513,6 +514,7 @@ class AdminCog(commands.Cog):
                 **container_send_kwargs(
                     CustomContainer(
                         title=get("commands.admin.dbreset_game_title"),
+                        title_icon="database",
                         description=fmt(
                             "commands.admin.dbreset_game_description",
                             entity_id=entity_id,
@@ -536,6 +538,7 @@ class AdminCog(commands.Cog):
                 **container_send_kwargs(
                     CustomContainer(
                         title=get("commands.admin.dbreset_user_title"),
+                        title_icon="database",
                         description=fmt(
                             "commands.admin.dbreset_user_description",
                             entity_id=entity_id,
@@ -557,6 +560,7 @@ class AdminCog(commands.Cog):
                 **container_send_kwargs(
                     CustomContainer(
                         title=get("commands.admin.dbreset_guild_title"),
+                        title_icon="database",
                         description=fmt(
                             "commands.admin.dbreset_guild_description",
                             entity_id=entity_id,

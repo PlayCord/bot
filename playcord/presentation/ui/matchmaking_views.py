@@ -19,12 +19,17 @@ from playcord.presentation.ui.component_kit import (
     icon_for_select_option,
     primary_button,
     secondary_button,
-    small_text,
 )
-from playcord.presentation.ui.emojis import get_emoji_string, icon_for_button
-from playcord.presentation.ui.containers import (
-    TEXT_DISPLAY_MAX,
-    _add_text_sections,
+from playcord.presentation.ui.emojis import get_icon, icon_for_button
+from playcord.presentation.ui.presets import (
+    append_blocks,
+    button_row,
+    divider,
+    labeled_select,
+    media_block,
+    summary_text_block,
+    text_block,
+    text_sections_block,
 )
 
 
@@ -38,44 +43,46 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
         """Persistent components are handled in MatchmakingCog.on_interaction."""
 
     def __init__(
-        self,
-        join_button_id: str,
-        leave_button_id: str,
-        ready_button_id: str | None,
-        ready_button_label: str,
-        lobby_key: int,
-        role_specs: list[tuple[int, str, tuple[str, ...]]] | None = None,
-        current_role_values: dict[int, str] | None = None,
-        assign_roles_button_id: str | None = None,
-        settings_button_id: str | None = None,
-        summary_text: str | None = None,
-        text_sections: list[str] | None = None,
-        table_image_url: str | None = None,
+            self,
+            join_button_id: str,
+            leave_button_id: str,
+            ready_button_id: str | None,
+            ready_button_label: str,
+            lobby_key: int,
+            role_specs: list[tuple[int, str, tuple[str, ...]]] | None = None,
+            current_role_values: dict[int, str] | None = None,
+            assign_roles_button_id: str | None = None,
+            settings_button_id: str | None = None,
+            summary_text: str | None = None,
+            text_sections: list[str] | None = None,
+            table_image_url: str | None = None,
     ) -> None:
         super().__init__(timeout=None)
         current_role_values = dict(current_role_values) if current_role_values else {}
         role_specs = role_specs or []
 
         container = discord.ui.Container()
-        has_text = False
+        has_content = False
         if text_sections:
-            _add_text_sections(container, text_sections)
-            has_text = bool(text_sections)
-        elif summary_text:
-            container.add_item(discord.ui.TextDisplay(summary_text[:TEXT_DISPLAY_MAX]))
-            has_text = True
-        if table_image_url:
-            if has_text:
-                container.add_item(discord.ui.Separator())
-            container.add_item(
-                discord.ui.MediaGallery(
-                    discord.MediaGalleryItem(table_image_url),
-                ),
+            has_content = append_blocks(
+                container,
+                text_sections_block(text_sections),
+                has_content=has_content,
             )
-        if has_text or table_image_url:
+        elif summary_text:
+            has_content = append_blocks(
+                container,
+                summary_text_block(summary_text),
+                has_content=has_content,
+            )
+        if table_image_url:
+            if has_content:
+                container.add_item(discord.ui.Separator())
+            append_blocks(container, media_block(table_image_url), has_content=False)
+            has_content = True
+        if has_content:
             container.add_item(discord.ui.Separator())
 
-        action_row = discord.ui.ActionRow()
         join_btn_factory = (
             secondary_button if ready_button_id is not None else primary_button
         )
@@ -85,7 +92,6 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
             icon="join",
         )
         join_btn.callback = self._route_to_cog
-        action_row.add_item(join_btn)
 
         leave_btn = secondary_button(
             label=get("buttons.leave"),
@@ -93,7 +99,8 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
             icon="leave",
         )
         leave_btn.callback = self._route_to_cog
-        action_row.add_item(leave_btn)
+
+        action_buttons: list[discord.ui.Button] = [join_btn, leave_btn]
 
         if ready_button_id is not None:
             ready_btn = primary_button(
@@ -102,7 +109,7 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
                 icon="ready",
             )
             ready_btn.callback = self._route_to_cog
-            action_row.add_item(ready_btn)
+            action_buttons.append(ready_btn)
 
         if assign_roles_button_id is not None:
             assign_btn = secondary_button(
@@ -111,7 +118,7 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
                 icon="assign_roles",
             )
             assign_btn.callback = self._route_to_cog
-            action_row.add_item(assign_btn)
+            action_buttons.append(assign_btn)
 
         if settings_button_id is not None:
             settings_btn = secondary_button(
@@ -120,14 +127,16 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
                 icon="settings",
             )
             settings_btn.callback = self._route_to_cog
-            action_row.add_item(settings_btn)
+            action_buttons.append(settings_btn)
 
-        container.add_item(action_row)
+        append_blocks(container, button_row(*action_buttons), has_content=False)
 
         if role_specs:
-            container.add_item(discord.ui.Separator())
-            container.add_item(
-                discord.ui.TextDisplay(get("queue.section_role_selection"))
+            append_blocks(
+                container,
+                divider(),
+                text_block(get("queue.section_role_selection")),
+                has_content=True,
             )
         for player_id, display_name, avail_roles in role_specs:
             cur = current_role_values.get(player_id)
@@ -152,9 +161,11 @@ class MatchmakingLobbyView(discord.ui.LayoutView):
                 options=roptions,
             )
             rsel.callback = self._route_to_cog
-            role_row = discord.ui.ActionRow()
-            role_row.add_item(rsel)
-            container.add_item(role_row)
+            append_blocks(
+                container,
+                labeled_select("", rsel, use_small_text=False),
+                has_content=True,
+            )
 
         self.add_item(container)
 
@@ -166,42 +177,48 @@ class LobbySettingsView(discord.ui.LayoutView):
         """Persistent components are handled in MatchmakingCog.on_interaction."""
 
     def __init__(
-        self,
-        *,
-        lobby_key: int,
-        game_name: str,
-        private: bool,
-        access_list_label: str | None,
-        access_list_value: str | None,
-        option_specs: tuple = (),
-        current_values: dict[str, str | int] | None = None,
+            self,
+            *,
+            lobby_key: int,
+            game_name: str,
+            private: bool,
+            access_list_label: str | None,
+            access_list_value: str | None,
+            option_specs: tuple = (),
+            current_values: dict[str, str | int] | None = None,
     ) -> None:
         super().__init__(timeout=None)
         current_values = dict(current_values) if current_values else {}
 
+        next_icon = get_icon("forward")
+        title_suffix = get("settings.ephemeral_title_suffix")
+        title_text = (
+            f"{game_name} {next_icon} {title_suffix}"
+            if next_icon
+            else f"{game_name} {title_suffix}"
+        )
+
         container = discord.ui.Container()
-        _add_text_sections(
+        has_content = append_blocks(
             container,
-            [
-                format_page_title(
-                    f"{game_name} {get_emoji_string('forward')} {get('settings.ephemeral_title_suffix')}",
-                    icon_key="settings",
-                ),
-                get("settings.section_privacy"),
-                (
-                    get("settings.privacy_current_private")
-                    if private
-                    else get("settings.privacy_current_public")
-                ),
-            ],
+            text_sections_block(
+                [
+                    format_page_title(title_text, icon_key="settings"),
+                    get("settings.section_privacy"),
+                    (
+                        get("settings.privacy_current_private")
+                        if private
+                        else get("settings.privacy_current_public")
+                    ),
+                ],
+            ),
+            has_content=False,
         )
-        container.add_item(
-            discord.ui.TextDisplay(small_text(get("settings.privacy_select_description"))),
-        )
+
         privacy_options: list[SelectOption] = []
         for label, value, is_public in (
-            (get("queue.public_status"), "public", True),
-            (get("queue.private_status"), "private", False),
+                (get("queue.public_status"), "public", True),
+                (get("queue.private_status"), "private", False),
         ):
             option_kwargs: dict = {
                 "label": label[:100],
@@ -220,42 +237,49 @@ class LobbySettingsView(discord.ui.LayoutView):
             options=privacy_options,
         )
         privacy_sel.callback = self._route_to_cog
-        privacy_row = discord.ui.ActionRow()
-        privacy_row.add_item(privacy_sel)
-        container.add_item(privacy_row)
+        has_content = append_blocks(
+            container,
+            labeled_select(get("settings.privacy_select_description"), privacy_sel),
+            has_content=has_content,
+        )
 
         reset_privacy_btn = secondary_button(
             label=get("buttons.reset_privacy"),
             custom_id=f"{BUTTON_PREFIX_LOBBY_SETTINGS_RESET_PRIV}{lobby_key}",
-            icon="back",
+            icon="previous",
         )
         reset_privacy_btn.callback = self._route_to_cog
-        reset_privacy_row = discord.ui.ActionRow()
-        reset_privacy_row.add_item(reset_privacy_btn)
-        container.add_item(reset_privacy_row)
+        has_content = append_blocks(
+            container,
+            button_row(reset_privacy_btn),
+            has_content=has_content,
+        )
 
         if access_list_label:
-            container.add_item(discord.ui.Separator())
-            _add_text_sections(
+            has_content = append_blocks(
                 container,
-                [
-                    get("settings.section_access"),
-                    (
-                        f"{access_list_label}\n"
-                        f"{access_list_value or get('settings.lists_empty')}"
-                    ),
-                ],
+                divider(),
+                text_sections_block(
+                    [
+                        get("settings.section_access"),
+                        (
+                            f"{access_list_label}\n"
+                            f"{access_list_value or get('settings.lists_empty')}"
+                        ),
+                    ],
+                ),
+                has_content=has_content,
             )
 
         if option_specs:
-            container.add_item(discord.ui.Separator())
-            container.add_item(
-                discord.ui.TextDisplay(get("settings.section_match_options")),
+            has_content = append_blocks(
+                container,
+                divider(),
+                text_block(get("settings.section_match_options")),
+                has_content=has_content,
             )
 
         for spec in option_specs:
-            if spec.description:
-                container.add_item(discord.ui.TextDisplay(small_text(spec.description)))
             cur = current_values.get(spec.key, spec.default)
             options: list[SelectOption] = []
             for label, value, _is_def, icon_key in spec.select_options():
@@ -276,23 +300,26 @@ class LobbySettingsView(discord.ui.LayoutView):
                 options=options,
             )
             sel.callback = self._route_to_cog
-            option_row = discord.ui.ActionRow()
-            option_row.add_item(sel)
-            container.add_item(option_row)
+            description = spec.description or ""
+            has_content = append_blocks(
+                container,
+                labeled_select(description, sel),
+                has_content=has_content,
+            )
 
         if option_specs:
             reset_rules_btn = secondary_button(
                 label=get("buttons.reset_game_rules"),
                 custom_id=f"{BUTTON_PREFIX_LOBBY_SETTINGS_RESET_RULES}{lobby_key}",
-                icon="back",
+                icon="previous",
             )
             reset_rules_btn.callback = self._route_to_cog
-            reset_rules_row = discord.ui.ActionRow()
-            reset_rules_row.add_item(reset_rules_btn)
-            container.add_item(reset_rules_row)
+            has_content = append_blocks(
+                container,
+                button_row(reset_rules_btn),
+                has_content=has_content,
+            )
 
-        container.add_item(discord.ui.Separator())
-        end_row = discord.ui.ActionRow()
         end_btn = discord.ui.Button(
             label=get("buttons.end_game"),
             style=discord.ButtonStyle.danger,
@@ -300,7 +327,11 @@ class LobbySettingsView(discord.ui.LayoutView):
             emoji=icon_for_button("leave"),
         )
         end_btn.callback = self._route_to_cog
-        end_row.add_item(end_btn)
-        container.add_item(end_row)
+        append_blocks(
+            container,
+            divider(),
+            button_row(end_btn),
+            has_content=has_content,
+        )
 
         self.add_item(container)

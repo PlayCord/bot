@@ -18,9 +18,13 @@ from playcord.presentation.ui.component_kit import (
     primary_button,
     secondary_button,
 )
-from playcord.presentation.ui.containers import (
-    TEXT_DISPLAY_MAX,
-    chunk_text_display_lines,
+from playcord.presentation.ui.presets import (
+    append_blocks,
+    button_row,
+    divider,
+    labeled_select,
+    text_block,
+    title_block,
 )
 
 if TYPE_CHECKING:
@@ -44,15 +48,16 @@ class ReplayViewerView(discord.ui.LayoutView):
         frame = max(0, min(frame_index, total - 1))
 
         container = discord.ui.Container()
-        container.add_item(discord.ui.TextDisplay(f"### {title}"))
+        append_blocks(container, title_block(title, icon_key="replay"), has_content=False)
         if global_summary:
-            container.add_item(
-                discord.ui.TextDisplay(global_summary[:TEXT_DISPLAY_MAX]),
+            append_blocks(
+                container,
+                text_block(global_summary),
+                divider(),
+                has_content=True,
             )
-            container.add_item(discord.ui.Separator())
 
-        for chunk in chunk_text_display_lines(frame_layout.content or ""):
-            container.add_item(discord.ui.TextDisplay(chunk))
+        append_blocks(container, text_block(frame_layout.content or ""), has_content=True)
         if frame_layout.content and (frame_layout.buttons or frame_layout.selects):
             container.add_item(discord.ui.Separator())
         self._append_layout_components(container, match_id, frame, frame_layout)
@@ -65,13 +70,13 @@ class ReplayViewerView(discord.ui.LayoutView):
             current=frame,
             max=max(total - 1, 0),
         )
-        nav_row = discord.ui.ActionRow()
+        nav_buttons: list[discord.ui.Button] = []
         nav_specs = [
             ("first", get("commands.replay.nav_first"), 0, frame == 0),
-            ("back", get("commands.replay.nav_prev"), max(0, frame - 1), frame == 0),
+            ("previous", get("commands.replay.nav_prev"), max(0, frame - 1), frame == 0),
             ("info", move_label, frame, True),
             (
-                "forward",
+                "next",
                 get("commands.replay.nav_next"),
                 min(total - 1, frame + 1),
                 frame >= total - 1,
@@ -99,11 +104,10 @@ class ReplayViewerView(discord.ui.LayoutView):
                     icon=icon_key,
                 )
             button.callback = self._route_to_cog
-            nav_row.add_item(button)
-        container.add_item(nav_row)
+            nav_buttons.append(button)
+        append_blocks(container, button_row(*nav_buttons), has_content=True)
 
         if total > 1:
-            seek_row = discord.ui.ActionRow()
             seek = discord.ui.Select(
                 custom_id=self._seek_custom_id(match_id=match_id, owner_id=owner_id),
                 placeholder=get("commands.replay.seek_placeholder"),
@@ -112,8 +116,11 @@ class ReplayViewerView(discord.ui.LayoutView):
                 options=self._seek_options(total=total, current=frame),
             )
             seek.callback = self._route_to_cog
-            seek_row.add_item(seek)
-            container.add_item(seek_row)
+            append_blocks(
+                container,
+                labeled_select("", seek, use_small_text=False),
+                has_content=True,
+            )
         self.add_item(container)
 
     @staticmethod

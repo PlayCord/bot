@@ -8,7 +8,7 @@ import discord
 
 from playcord.infrastructure.constants import NAME, VERSION
 from playcord.infrastructure.locale import fmt, get
-from playcord.presentation.ui.component_kit import page_title, section_header
+from playcord.presentation.ui.component_kit import format_page_title, section_header
 from playcord.presentation.ui.containers import CustomContainer
 
 
@@ -47,6 +47,7 @@ def with_footer(
 def page(
     title: str,
     *,
+    icon: str | None = None,
     breadcrumb_trail: str | None = None,
     body: str | None = None,
     color: discord.Color | None = None,
@@ -59,10 +60,11 @@ def page(
     parts: list[str] = []
     if breadcrumb_trail:
         parts.append(breadcrumb_trail)
-    parts.append(page_title(title))
     if body and body.strip():
         parts.append(body.strip())
     return CustomContainer(
-        description="\n\n".join(parts),
+        title=title,
+        title_icon=icon,
+        description="\n\n".join(parts) if parts else None,
         color=color,
     )

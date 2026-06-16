@@ -78,6 +78,7 @@ class SecretHitlerGame(RuntimeGame):
         source_link="https://github.com/PlayCord/bot/blob/main/playcord/games/secret_hitler.py",
         time="30min",
         difficulty="Hard",
+        tags=("Social Deduction", "Hidden Identities", "Deception"),
         bots={
             "easy": BotDefinition(
                 description="Random legal choices",

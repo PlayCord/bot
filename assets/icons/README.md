@@ -23,11 +23,11 @@ Use `--dry-run` to list manifest assets without calling Discord.
 
 ## Asset spec
 
-- **Format:** PNG (GIF for animated manifest keys such as `loading`)
+- **Format:** WebP (GIF for animated manifest keys such as `loading`)
 - **Size:** 128×128 px canvas, glyph centered
 - **Style:** 2px stroke, rounded caps, no fill (outline only)
 - **Color:** `#EBEBEB` on transparent background
-- **Naming:** `{key}.png` for general icons; `game_{slug}.png` for game catalog icons
+- **Naming:** `{key}.webp` for general icons; `game_{slug}.webp` for game catalog icons
 - **Aliases:** `user` and `hmm` reuse `profile` / `info` assets (no separate files)
 
 ## Required icons

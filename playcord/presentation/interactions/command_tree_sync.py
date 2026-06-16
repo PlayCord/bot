@@ -332,6 +332,7 @@ def drift_to_container(
     *,
     color: discord.Color | None,
     title: str,
+    title_icon: str | None = None,
     inline_column_limit: int = 340,
     max_modified_sections: int = 14,
 ) -> CustomContainer:
@@ -345,7 +346,7 @@ def drift_to_container(
     removed = list(drift.get("removed") or [])
     modified: dict[str, list[str]] = dict(drift.get("modified") or {})
 
-    container = CustomContainer(title=title[:256], color=color)
+    container = CustomContainer(title=title[:256], color=color, title_icon=title_icon)
     container.description = fmt(
         "commands.treediff.embed_description_stats",
         local_n=len(local_all),

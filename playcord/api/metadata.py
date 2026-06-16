@@ -236,6 +236,7 @@ class GameMetadata:
     player_roles: tuple[str, ...] | None = None
     role_flow: RoleFlow = RoleFlow.none
     customizable_options: tuple[MatchOptionSpec, ...] = ()
+    tags: tuple[str, ...] = ()
 
 
 def ensure_valid_player_count(game: type[object], count: int) -> None:

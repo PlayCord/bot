@@ -44,14 +44,16 @@ from playcord.presentation.ui.containers import (
 from playcord.presentation.ui.command_display import (
     format_feature_badges,
     format_history_line,
+    format_history_status,
     format_match_outcome,
 )
 from playcord.presentation.ui.design import (
     bullet_list,
-    page,
+    page as build_page,
     section_header,
     with_footer,
 )
+from playcord.presentation.ui.component_kit import icon_prefix
 from playcord.presentation.ui.emojis import get_game_emoji
 from playcord.presentation.ui.formatting import (
     chunk_replay_lines,
@@ -59,6 +61,7 @@ from playcord.presentation.ui.formatting import (
 )
 from playcord.presentation.ui.layout_discord import (
     AboutView,
+    CatalogView,
     PaginationView,
 )
 from playcord.presentation.ui.replay_views import ReplayViewerView
@@ -103,6 +106,7 @@ def _load_game_metadata() -> None:
             "supports_lobby_options": bool(
                 getattr(metadata, "customizable_options", ())
             ),
+            "tags": getattr(metadata, "tags", ()),
         }
 
 
@@ -128,7 +132,7 @@ def _history_status_label(status: str | None) -> str:
         "abandoned": "status_abandoned",
     }
     key = status_map.get((status or "").lower(), "status_completed")
-    return get(f"display.history.{key}")
+    return format_history_status(key)
 
 
 def _match_summary_for_user(
@@ -377,7 +381,10 @@ class GeneralCog(commands.Cog):
             getattr(user, "id", None),
             return_value,
         )
-        await send_ephemeral_transient_text(ctx, str(return_value))
+        await send_ephemeral_transient_text(
+            ctx,
+            icon_prefix("kick", str(return_value)),
+        )
 
     @command_root.command(name="ban", description=get("commands.ban.description"))
     @app_commands.check(interaction_check)
@@ -415,9 +422,10 @@ class GeneralCog(commands.Cog):
             getattr(user, "id", None),
             return_value,
         )
-        await send_ephemeral_transient_text(ctx, str(return_value))
-
-    @command_root.command(name="stats", description=get("commands.stats.description"))
+        await send_ephemeral_transient_text(
+            ctx,
+            icon_prefix("ban", str(return_value)),
+        )
     @app_commands.check(interaction_check)
     async def command_stats(self, ctx: discord.Interaction) -> None:
         f_log = log.getChild("command.stats")
@@ -432,19 +440,23 @@ class GeneralCog(commands.Cog):
             [guild for guild in self.bot.guilds if guild.shard_id == shard_id],
         )
 
-        container = page(
+        container = build_page(
             get("embeds.stats.title"),
+            icon="stats",
             body=fmt("embeds.stats.description", managed_by=MANAGED_BY),
         )
         with_footer(container)
 
         container.add_field(
-            name=section_header(get("embeds.stats.field_version")),
+            name=section_header(get("embeds.stats.field_version"), icon_key="version"),
             value=f"`v{VERSION}` · discord.py `{discord.__version__}`",
             inline=False,
         )
         container.add_field(
-            name=section_header(get("embeds.stats.field_servers_overview")),
+            name=section_header(
+                get("embeds.stats.field_servers_overview"),
+                icon_key="server",
+            ),
             value=bullet_list(
                 [
                     f"**{server_count}** servers",
@@ -454,7 +466,10 @@ class GeneralCog(commands.Cog):
             ),
         )
         container.add_field(
-            name=section_header(get("embeds.stats.field_shard_overview")),
+            name=section_header(
+                get("embeds.stats.field_shard_overview"),
+                icon_key="shard",
+            ),
             value=bullet_list(
                 [
                     f"Shard **#{shard_id}**",
@@ -464,12 +479,15 @@ class GeneralCog(commands.Cog):
             ),
         )
         container.add_field(
-            name=section_header(get("embeds.stats.field_system")),
+            name=section_header(get("embeds.stats.field_system"), icon_key="memory"),
             value=f"**{ramcheck.get_ram_usage_mb()}** RAM on this process",
         )
         reg = self.bot.container.registry
         container.add_field(
-            name=section_header(get("embeds.stats.field_activity")),
+            name=section_header(
+                get("embeds.stats.field_activity"),
+                icon_key="activity",
+            ),
             value=bullet_list(
                 [
                     f"**{member_count}** members",
@@ -491,25 +509,71 @@ class GeneralCog(commands.Cog):
         f_log = log.getChild("command.about")
         f_log.debug(f"/about called: {contextify(ctx)}")
 
-        container = page(
+        # Fetch version string (version + commit hash)
+        events_cog = self.bot.get_cog("EventsCog")
+        version_str = getattr(events_cog, "version", None)
+        if not version_str:
+            import shutil
+            import subprocess
+            version_base = f"v{VERSION}"
+            git_executable = shutil.which("git")
+            if git_executable:
+                try:
+                    proc = subprocess.run(
+                        [git_executable, "rev-parse", "--short", "HEAD"],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
+                    short = proc.stdout.strip()
+                    if short:
+                        version_str = f"{version_base} • {short}"
+                except Exception:
+                    pass
+            if not version_str:
+                version_str = version_base
+
+        footer_text = f"{get('embeds.about.footer')} · {version_str}"
+
+        # Main view page container
+        container = build_page(
             get("embeds.about.title"),
+            icon="about",
             body=get("embeds.about.description"),
         )
-        with_footer(container)
+        container.set_footer(text=footer_text)
 
-        container.add_field(
-            name=section_header(get("embeds.about.field_credits")),
+        # Attributions page container
+        attributions_container = build_page(
+            get("embeds.about.title"),
+            icon="info",
+        )
+        attributions_container.add_field(
+            name=section_header(
+                get("embeds.about.field_credits"),
+                icon_key="heart",
+            ),
             value=get("embeds.about.credits_value"),
             inline=False,
         )
-        container.add_field(
-            name=section_header(get("embeds.about.field_dev_time")),
+        attributions_container.add_field(
+            name=section_header(
+                get("embeds.about.field_dev_time"),
+                icon_key="timer",
+            ),
             value=get("embeds.about.dev_timeline_value"),
         )
+        attributions_container.set_footer(text=footer_text)
 
         await response_send_message(
             ctx,
-            view=AboutView(container_to_markdown(container)),
+            view=AboutView(
+                bot=self.bot,
+                user_id=ctx.user.id,
+                guild_id=ctx.guild_id,
+                body_text=container_to_markdown(container),
+                attributions_text=container_to_markdown(attributions_container),
+            ),
         )
 
     @command_root.command(
@@ -524,121 +588,16 @@ class GeneralCog(commands.Cog):
 
         games_per_page = CATALOG_GAMES_PER_PAGE
         all_games = list(GAME_TYPES)
-        total_pages = (len(all_games) + games_per_page - 1) // games_per_page
 
-        if page < 1 or page > total_pages:
-            page = 1
-
-        view = self._build_catalog_paginated_view(
+        view = CatalogView(
             guild_id=ctx.guild.id if ctx.guild else 0,
             user_id=ctx.user.id,
-            page=page,
-            total_pages=total_pages,
             all_games=all_games,
+            game_metadata=_GAME_METADATA,
             games_per_page=games_per_page,
+            current_page=page,
         )
         await response_send_message(ctx, view=view)
-
-    def _build_catalog_paginated_view(
-        self,
-        *,
-        guild_id: int,
-        user_id: int,
-        page: int,
-        total_pages: int,
-        all_games: list,
-        games_per_page: int,
-    ) -> PaginationView:
-        container = self._build_catalog_container(
-            page,
-            total_pages,
-            all_games,
-            games_per_page,
-        )
-        return PaginationView(
-            guild_id=guild_id,
-            user_id=user_id,
-            current_page=page,
-            max_pages=total_pages,
-            body_text=container_to_markdown(container),
-            callback_handler=lambda interaction, new_page: self._catalog_page_callback(
-                interaction,
-                new_page,
-                total_pages,
-                all_games,
-                games_per_page,
-            ),
-        )
-
-    def _build_catalog_container(
-        self,
-        page: int,
-        total_pages: int,
-        all_games: list,
-        games_per_page: int,
-    ) -> CustomContainer:
-        """Build the catalog container for a specific page."""
-        start_idx = (page - 1) * games_per_page
-        page_games = all_games[start_idx : start_idx + games_per_page]
-
-        container = page(
-            fmt("embeds.catalog.title", name=NAME),
-            body=fmt("embeds.catalog.description", count=len(GAME_TYPES)),
-        )
-
-        for game_id in page_games:
-            meta = _GAME_METADATA[game_id]
-            game_name = meta["name"]
-            game_desc = meta["description"] or get("game_info.no_description")
-            game_emoji = get_game_emoji(game_id)
-
-            short_desc = f"{game_desc[:100]}{'...' if len(game_desc) > 100 else ''}"
-            badges = format_feature_badges(
-                supports_role_selection=meta["supports_role_selection"],
-                supports_replays=meta["supports_replays"],
-                supports_bots=meta["supports_bots"],
-                supports_lobby_options=meta["supports_lobby_options"],
-            )
-            container.add_field(
-                name=section_header(
-                    fmt(
-                        "embeds.catalog.game_field_format",
-                        emoji=game_emoji,
-                        game_name=game_name,
-                    ),
-                ),
-                value=fmt(
-                    "embeds.catalog.game_value_format",
-                    description=short_desc,
-                    badges=badges,
-                    game_id=game_id,
-                ),
-                inline=False,
-            )
-
-        container.set_footer(
-            text=fmt("embeds.catalog.footer", page=page, total=total_pages),
-        )
-        return container
-
-    async def _catalog_page_callback(
-        self,
-        interaction: discord.Interaction,
-        new_page: int,
-        total_pages: int,
-        all_games: list,
-        games_per_page: int,
-    ) -> None:
-        """Callback for catalog pagination buttons."""
-        view = self._build_catalog_paginated_view(
-            guild_id=interaction.guild.id if interaction.guild else 0,
-            user_id=interaction.user.id,
-            page=new_page,
-            total_pages=total_pages,
-            all_games=all_games,
-            games_per_page=games_per_page,
-        )
-        await interaction.edit_original_response(view=view)
 
     def _sync_load_profile_container(
         self,
@@ -650,8 +609,9 @@ class GeneralCog(commands.Cog):
         if player is None:
             return None, "player_not_found"
 
-        container = page(
+        container = build_page(
             fmt("embeds.profile.title", username=user.display_name),
+            icon="profile",
         )
 
         match_history = self._matches.get_history_for_user(
@@ -671,7 +631,10 @@ class GeneralCog(commands.Cog):
                 else get("embeds.profile.top_game_empty")
             )
             container.add_field(
-                name=section_header(get("embeds.profile.field_snapshot")),
+                name=section_header(
+                    get("embeds.profile.field_snapshot"),
+                    icon_key="snapshot",
+                ),
                 value=fmt(
                     "embeds.profile.snapshot_format",
                     total_matches=total_matches,
@@ -692,13 +655,19 @@ class GeneralCog(commands.Cog):
                 )
                 history_lines.append(line)
             container.add_field(
-                name=section_header(get("embeds.profile.field_recent_matches")),
+                name=section_header(
+                    get("embeds.profile.field_recent_matches"),
+                    icon_key="history",
+                ),
                 value=bullet_list(history_lines),
                 inline=False,
             )
         else:
             container.add_field(
-                name=section_header(get("embeds.profile.field_recent_matches")),
+                name=section_header(
+                    get("embeds.profile.field_recent_matches"),
+                    icon_key="history",
+                ),
                 value=get("embeds.profile.field_recent_matches_empty"),
                 inline=False,
             )
@@ -831,8 +800,9 @@ class GeneralCog(commands.Cog):
             offset=offset,
         )
 
-        container = page(
+        container = build_page(
             fmt("history.embed_title", user=user.display_name, game=game_name),
+            icon="history",
         )
 
         has_data = bool(match_history)
@@ -860,13 +830,19 @@ class GeneralCog(commands.Cog):
                     ),
                 )
             container.add_field(
-                name=section_header(get("history.recent_matches")),
+                name=section_header(
+                    get("history.recent_matches"),
+                    icon_key="history",
+                ),
                 value=bullet_list(lines),
                 inline=False,
             )
         else:
             container.add_field(
-                name=section_header(get("history.recent_matches")),
+                name=section_header(
+                    get("history.recent_matches"),
+                    icon_key="history",
+                ),
                 value=(
                     get("history.no_completed") if page == 1 else get("history.no_more")
                 ),
@@ -939,6 +915,7 @@ class GeneralCog(commands.Cog):
         disp = replay_display if replay_display is not None else str(match_id)
         container = CustomContainer(
             title=fmt("commands.replay.title", id=disp, game=game_label),
+            title_icon="replay",
             description=desc,
         )
         container.set_footer(text=fmt("pagination.page_footer", page=p, max=total))
@@ -1208,7 +1185,9 @@ class GeneralCog(commands.Cog):
 
         await response_send_message(
             ctx,
-            get("commands.feedback.thanks"),
+            **container_send_kwargs(
+                build_page(get("commands.feedback.thanks"), icon="feedback"),
+            ),
             ephemeral=True,
             delete_after=EPHEMERAL_DELETE_AFTER,
         )
@@ -1247,7 +1226,10 @@ class GeneralCog(commands.Cog):
         await game.forfeit_player(ctx.user.id)
         await followup_send(
             ctx,
-            fmt("forfeit.confirmed_loss", player=ctx.user.mention),
+            icon_prefix(
+                "forfeit",
+                fmt("forfeit.confirmed_loss", player=ctx.user.mention),
+            ),
             ephemeral=True,
             delete_after=EPHEMERAL_DELETE_AFTER,
         )
@@ -1278,10 +1260,13 @@ class GeneralCog(commands.Cog):
             return
 
         # Build the list display
-        container = page(get("display.bot_list.title"))
+        container = build_page(get("display.bot_list.title"), icon="bot")
         difficulties = bullet_list([f"`{difficulty}`" for difficulty in sorted(available_bots.keys())])
         container.add_field(
-            name=section_header(get("commands.bot.available_difficulties")),
+            name=section_header(
+                get("commands.bot.available_difficulties"),
+                icon_key="settings",
+            ),
             value=difficulties or get("common.empty_markdown"),
             inline=True,
         )
@@ -1292,7 +1277,7 @@ class GeneralCog(commands.Cog):
         else:
             queued = f"*{get('commands.bot.no_queued_bots')}*"
         container.add_field(
-            name=section_header(get("commands.bot.queued_bots")),
+            name=section_header(get("commands.bot.queued_bots"), icon_key="bot"),
             value=queued,
             inline=True,
         )

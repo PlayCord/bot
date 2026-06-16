@@ -66,25 +66,20 @@ unknown = "Unknown"
 # RICH COMMAND DISPLAY (formatting helpers)
 # =============================================================================
 [display.features]
-roles = "🎭 Roles"
-replays = "🎬 Replays"
-bots = "🤖 Bots"
-options = "⚙️ Options"
+roles = "Roles"
+replays = "Replays"
+bots = "Bots"
+options = "Options"
 none = "Standard lobby"
 
 [display.outcome]
-win = "🏆 {outcome}"
-loss = "💀 {outcome}"
-draw = "🤝 {outcome}"
-interrupted = "⏸ {outcome}"
-default = "▪ {outcome}"
-unknown = "▪ Unknown"
+unknown = "Unknown"
 
 [display.history]
 line_format = "`{match_id}` · **{rank}**/{count} · {status}"
-status_completed = "✅ Completed"
-status_interrupted = "⏸ Interrupted"
-status_abandoned = "🚪 Abandoned"
+status_completed = "Completed"
+status_interrupted = "Interrupted"
+status_abandoned = "Abandoned"
 
 [display.profile]
 header = "### {mention}\n{match_count} recent matches on this server"
@@ -230,9 +225,9 @@ dbreset_user_title = "User reset complete"
 dbreset_user_description = "Deleted all rows related to user `{entity_id}` and recreated a blank user record."
 dbreset_guild_title = "Guild reset complete"
 dbreset_guild_description = "Deleted all rows related to guild `{entity_id}` and recreated a blank guild record."
-emoji_usage = "Add WebP files under `assets/icons/` matching `playcord/presentation/ui/emoji_manifest.py`, then run this command again."
+emoji_usage = "Add WebP files under `assets/icons/`, then run this command again."
 emoji_done = "Application emojis synced"
-emoji_done_description = "Deleted **{deleted}** emoji(s), uploaded **{uploaded}**, and resolved **{aliased}** alias(es). Id cache updated."
+emoji_done_description = "Deleted **{deleted}** emoji(s) and uploaded **{uploaded}** emoji(s). Id cache updated."
 emoji_no_assets = "Emoji sync aborted — missing assets"
 emoji_failed = "Emoji sync failed"
 
@@ -540,6 +535,12 @@ feature_yes = "Yes"
 feature_no = "No"
 game_features = "Role pick: {roles}, Replays: {replays}, Bots: {bots}, Lobby options: {options}"
 footer = "Page {page}/{total} · Use the buttons below to browse"
+header_format_tag = "Catalog {next_icon} Games with tag \"{category}\""
+header_format_support = "Catalog {next_icon} Games that support {category}"
+header_format_all = "Catalog {next_icon} All Games"
+via_footer = "via freestuffbot.xyz"
+select_placeholder_all = "🎲 {name} ({count})"
+select_placeholder_filter = "🎲 {category} ({count})"
 
 # =============================================================================
 # EMBEDS - PROFILE
@@ -598,7 +599,7 @@ field_activity = "Activity"
 # =============================================================================
 [embeds.about]
 title = "About PlayCord"
-description = "Quality board games within Discord, made by some cool people."
+description = "Quality board games within Discord, made by [@quantumbagel](https://github.com/quantumbagel)."
 field_bot_by = "Bot by:"
 field_source = "Source code:"
 field_pfp = "PFP/Banner:"
@@ -631,6 +632,8 @@ get_help = "About"
 about_github = "GitHub"
 about_docs = "Documentation"
 about_issues = "Issues"
+about_attributions = "Attributions"
+back = "Back"
 
 # Pagination
 first = "First"
@@ -802,6 +805,7 @@ pagination_not_yours = "You cannot interact with another user's pagination butto
 help_not_yours = "This menu belongs to someone else. Run {command:playcord catalog} from your own account to browse games."
 dead_view = "That interaction is no longer active after a bot restart. Create a new interaction."
 pagination_outdated = "This pagination is outdated after a bot restart. Run {command:playcord catalog} again."
+about_not_yours = "This menu belongs to someone else. Run {command:playcord about} from your own account."
 
 [autocomplete]
 no_game_in_channel = "No active game in this thread. Use the private game thread (or start a new game if the bot restarted)."
@@ -824,6 +828,9 @@ no_rating_period = "No rating history for this period."
 
 [pagination]
 page_footer = "Page {page}/{max}"
+modal_title = "Go to Page"
+modal_label = "Enter page (1-{max})"
+modal_invalid = "Invalid page number. Please enter a number between 1 and {max}."
 
 [settings]
 not_in_matchmaking = "You aren't in matchmaking. Start a game first with {command:play}."

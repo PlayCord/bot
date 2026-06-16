@@ -83,6 +83,7 @@ class TicTacToeGame(ReplayableGame):
         source_link="https://github.com/PlayCord/bot/blob/main/playcord/games/tictactoe.py",
         time="2min",
         difficulty="Easy",
+        tags=("Strategy", "Classic"),
         bots={
             "easy": BotDefinition(
                 description="Picks a random legal move",

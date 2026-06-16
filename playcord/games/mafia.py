@@ -83,6 +83,7 @@ class MafiaGame(RuntimeGame):
         source_link="https://github.com/PlayCord/bot/blob/main/playcord/games/mafia.py",
         time="15min",
         difficulty="Medium",
+        tags=("Social Deduction", "Hidden Roles"),
         bots={
             "easy": BotDefinition(
                 description="Picks a random legal target.",

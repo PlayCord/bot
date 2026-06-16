@@ -39,7 +39,7 @@ def secondary_button(
     *,
     label: str,
     custom_id: str | None = None,
-    icon: str = "back",
+    icon: str = "previous",
     disabled: bool = False,
     callback: Callable | None = None,
 ) -> discord.ui.Button:
@@ -99,9 +99,9 @@ def format_page_title(text: str, *, icon_key: str | None = None) -> str:
     return f"## {text}"
 
 
-def section_header(text: str) -> str:
+def section_header(text: str, *, icon_key: str | None = None) -> str:
     """Return large markdown for a section title."""
-    return page_title(text)
+    return format_page_title(text, icon_key=icon_key)
 
 
 def small_text(text: str) -> str:
