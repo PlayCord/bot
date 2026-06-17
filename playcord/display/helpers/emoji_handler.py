@@ -1,25 +1,38 @@
-"""Emoji parsing, cache management, and application emoji uploading for strife_ui."""
+"""
+Emoji handler helper.
+
+Exposes functionality to purge/upload custom emojis, resolve emoji names, and
+create discord emoji objects.
+"""
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any, TYPE_CHECKING
 
 import discord
 from emoji import is_emoji
+from ruamel.yaml import YAML
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-logger = logging.getLogger("strife_ui.emojis")
+logger = logging.getLogger("playcord.display.helpers.emoji_handler")
+
+__all__ = [
+    "EmojiHandler",
+    "create_emoji_object",
+    "purge_and_upload_emojis",
+    "resolve_emoji_name",
+    "resolve_emoji_string",
+]
 
 
 def _read_icon_files(
-    icons_path: Path, supported_extensions: set[str]
+        icons_path: Path, supported_extensions: set[str]
 ) -> list[tuple[str, bytes, bool]]:
     """Read image files from a directory synchronously."""
     files: list[tuple[str, bytes, bool]] = []
@@ -32,62 +45,74 @@ def _read_icon_files(
     return files
 
 
-class StrifeEmojiManager:
+class EmojiManager:
     """Manages local cache and Discord syncing for custom application emojis."""
 
-    _default_instance: StrifeEmojiManager | None = None
+    _default_instance: EmojiManager | None = None
 
-    def __init__(self, cache_path: str | Path = "strife_emojis.json") -> None:
-        """Initialize the emoji manager and load the local JSON cache."""
+    def __init__(self, cache_path: str | Path | None = None) -> None:
+        """Initialize the emoji manager and load the local YAML cache."""
+        if cache_path is None:
+            cache_path = (
+                    Path(__file__).resolve().parent.parent.parent
+                    / "configuration"
+                    / "emoji.yaml"
+            )
         self.cache_path = Path(cache_path)
         self.emojis: dict[str, dict[str, Any]] = {}
         self.load_cache()
 
     @classmethod
-    def get_default(cls) -> StrifeEmojiManager:
-        """Get the default StrifeEmojiManager instance."""
+    def get_default(cls) -> EmojiManager:
+        """Get the default EmojiManager instance."""
         if cls._default_instance is None:
-            cls._default_instance = StrifeEmojiManager()
+            cls._default_instance = EmojiManager()
         return cls._default_instance
 
     @classmethod
     def set_default_cache_path(cls, path: str | Path) -> None:
-        """Set the default StrifeEmojiManager cache filepath."""
-        cls._default_instance = StrifeEmojiManager(path)
+        """Set the default EmojiManager cache filepath."""
+        cls._default_instance = EmojiManager(path)
 
     def load_cache(self) -> None:
-        """Load the local JSON cache containing custom emoji definitions."""
+        """Load the local YAML cache containing custom emoji definitions."""
         if self.cache_path.exists():
             try:
+                yaml = YAML(typ="safe")
                 with self.cache_path.open("r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    self.emojis = data.get("emojis", {})
+                    data = yaml.load(f) or {}
+                    self.emojis = data.get("emojis", {}) or {}
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Failed to load emoji cache: %s", exc)
 
     def save_cache(self) -> None:
-        """Save the custom emoji definitions to the local JSON cache."""
+        """Save the custom emoji definitions to the local YAML cache."""
         try:
             # Ensure parent directory exists
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+            yaml = YAML()
+            yaml.indent(mapping=2, sequence=4, offset=2)
             with self.cache_path.open("w", encoding="utf-8") as f:
-                json.dump({"emojis": self.emojis}, f, indent=2)
+                f.write(
+                    "# Purpose: emoji name-to-id mapping used by the "
+                    "emoji resolver.\n"
+                )
+                yaml.dump({"emojis": self.emojis}, f)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to save emoji cache: %s", exc)
 
     async def sync_emojis(
-        self,
-        bot: discord.Client,
-        icons_dir: Path | str,
-        *,
-        purge: bool = True,
+            self,
+            bot: discord.Client,
+            custom_emoji_directory: Path | str,
+            *,
+            purge: bool = True,
     ) -> dict[str, int]:
-        """Purge existing and upload new application emojis from directory."""
-        icons_path = Path(icons_dir)
+        icons_path = Path(custom_emoji_directory)
         exists = await asyncio.to_thread(icons_path.exists)
         is_dir = await asyncio.to_thread(icons_path.is_dir)
         if not exists or not is_dir:
-            err_msg = f"Icons directory does not exist: {icons_dir}"
+            err_msg = f"Icons directory does not exist: {custom_emoji_directory}"
             raise FileNotFoundError(err_msg)
 
         # 1. Fetch current application emojis from Discord
@@ -152,14 +177,14 @@ class StrifeEmojiManager:
         return uploaded_mapping
 
 
-def get_emoji_manager() -> StrifeEmojiManager:
-    """Get the active default StrifeEmojiManager instance."""
-    return StrifeEmojiManager.get_default()
+def get_emoji_manager() -> EmojiManager:
+    """Get the active default EmojiManager instance."""
+    return EmojiManager.get_default()
 
 
 def set_emoji_cache_path(path: str | Path) -> None:
-    """Set the cache filepath for the default StrifeEmojiManager."""
-    StrifeEmojiManager.set_default_cache_path(path)
+    """Set the cache filepath for the default EmojiManager."""
+    EmojiManager.set_default_cache_path(path)
 
 
 def _resolve_numeric_emoji(emoji_input: str | int) -> discord.PartialEmoji | None:
@@ -192,41 +217,8 @@ def _resolve_markup_emoji(val: str) -> discord.PartialEmoji | None:
     return None
 
 
-EMOJI_FALLBACKS: dict[str, str] = {
-    "ban": "🚫",
-    "clueless": "🤷",
-    "creator": "👑",
-    "error": "⚠️",
-    "explosion": "💥",
-    "facepalm": "🤦",
-    "first": "⏪",
-    "forward": "⏩",
-    "game_mafia": "🕵️",
-    "github": "💻",
-    "hmm": "🤔",
-    "hnn": "🤔",
-    "join": "📥",
-    "kick": "🚪",
-    "last": "⏩",
-    "leave": "📤",
-    "loading": "⏳",
-    "next": "▶️",
-    "playcord": "🎮",
-    "pointing": "👉",
-    "previous": "◀️",
-    "ready": "✅",
-    "rematch": "🔄",
-    "settings": "⚙️",
-    "space": "⬜",
-    "spectate": "👁️",
-    "time": "⏰",
-    "timer": "⏱️",
-    "user": "👤",
-}
-
-
 def resolve_emoji(  # noqa: C901, PLR0911
-    emoji_input: str | int | discord.Emoji | discord.PartialEmoji,
+        emoji_input: str | int | discord.Emoji | discord.PartialEmoji,
 ) -> str | discord.PartialEmoji:
     """
     Normalize emoji input into a Unicode emoji string or discord.PartialEmoji.
@@ -237,10 +229,10 @@ def resolve_emoji(  # noqa: C901, PLR0911
     - Numeric strings representing custom emoji IDs (e.g. "123456789012345678")
     - Custom emoji markup strings (e.g. "<:name:id>" or "<a:name:id>")
     - Raw Unicode emoji characters (e.g. "⚙️")
-    - Cached emoji keys from StrifeEmojiManager
+    - Cached emoji keys from EmojiManager
     """
     if not emoji_input:
-        err_req = "Emoji input is required for strife_ui components."
+        err_req = "Emoji input is required."
         raise ValueError(err_req)
 
     if isinstance(emoji_input, (discord.Emoji, discord.PartialEmoji)):
@@ -278,20 +270,63 @@ def resolve_emoji(  # noqa: C901, PLR0911
                     animated=data.get("animated", False),
                 )
 
-        # 5. Check fallback mapping for custom key names
-        if val in EMOJI_FALLBACKS:
-            return EMOJI_FALLBACKS[val].replace("\uFE0F", "")
-
         return val.replace("\uFE0F", "")
 
     err_type = f"Unsupported emoji type: {type(emoji_input)}"
     raise TypeError(err_type)
 
 
+async def purge_and_upload_emojis(
+        bot: discord.Client,
+        icons_dir: Path | str,
+        *,
+        purge: bool = True,
+) -> dict[str, int]:
+    """
+    Purge existing and upload new application emojis from directory.
+
+    Args:
+        bot: The Discord client instance.
+        icons_dir: The directory containing WebP emoji icons.
+        purge: Whether to purge existing application emojis before uploading.
+
+    Returns:
+        A mapping from emoji name to their new Discord IDs.
+
+    """
+    mgr = get_emoji_manager()
+    return await mgr.sync_emojis(bot, icons_dir, purge=purge)
+
+
+def resolve_emoji_name(
+        emoji_input: str | int | discord.Emoji | discord.PartialEmoji,
+) -> str | discord.PartialEmoji:
+    """
+    Normalize emoji input into a Unicode emoji string or discord.PartialEmoji.
+
+    Args:
+        emoji_input: The emoji name, ID, markup, or object to resolve.
+
+    Returns:
+        A resolved Unicode emoji string or a discord.PartialEmoji object.
+
+    """
+    return resolve_emoji(emoji_input)
+
+
 def resolve_emoji_string(
-    emoji_input: str | int | discord.Emoji | discord.PartialEmoji,
+        emoji_input: str | int | discord.Emoji | discord.PartialEmoji,
 ) -> str:
-    """Convert resolved emoji into a string representation for embeds or messages."""
+    """
+    Resolve an emoji input into its string representation for embeds/messages.
+
+    Args:
+        emoji_input: The emoji name, ID, markup, or object to resolve.
+
+    Returns:
+        A string formatted for Discord (e.g. `<:name:id>`, `<a:name:id>`, or unicode).
+
+    """
     resolved = resolve_emoji(emoji_input)
     if isinstance(resolved, discord.PartialEmoji):
         if resolved.id:
@@ -300,3 +335,66 @@ def resolve_emoji_string(
             return f"<{anim}:{name}:{resolved.id}>"
         return resolved.name or ""
     return resolved
+
+
+def create_emoji_object(
+        emoji_input: str | int | discord.Emoji | discord.PartialEmoji,
+) -> discord.PartialEmoji:
+    """
+    Create a discord.PartialEmoji object from the given emoji input.
+
+    Args:
+        emoji_input: The input representing an emoji.
+
+    Returns:
+        A discord.PartialEmoji representation of the resolved emoji.
+
+    """
+    if isinstance(emoji_input, discord.Emoji):
+        return discord.PartialEmoji(
+            id=emoji_input.id,
+            name=emoji_input.name,
+            animated=emoji_input.animated,
+        )
+    if isinstance(emoji_input, discord.PartialEmoji):
+        return emoji_input
+
+    resolved = resolve_emoji(emoji_input)
+    if isinstance(resolved, discord.PartialEmoji):
+        return resolved
+    return discord.PartialEmoji(name=resolved)
+
+
+class EmojiHandler:
+    """A class-based interface for managing and resolving Discord emojis."""
+
+    @staticmethod
+    async def purge_and_upload(
+            bot: discord.Client,
+            icons_dir: Path | str,
+            *,
+            purge: bool = True,
+    ) -> dict[str, int]:
+        """Purge existing and upload new application emojis from directory."""
+        return await purge_and_upload_emojis(bot, icons_dir, purge=purge)
+
+    @staticmethod
+    def resolve_name(
+            emoji_input: str | int | discord.Emoji | discord.PartialEmoji,
+    ) -> str | discord.PartialEmoji:
+        """Normalize emoji input into Unicode emoji or discord.PartialEmoji."""
+        return resolve_emoji_name(emoji_input)
+
+    @staticmethod
+    def resolve_string(
+            emoji_input: str | int | discord.Emoji | discord.PartialEmoji,
+    ) -> str:
+        """Resolve an emoji input into its string representation."""
+        return resolve_emoji_string(emoji_input)
+
+    @staticmethod
+    def create_emoji(
+            emoji_input: str | int | discord.Emoji | discord.PartialEmoji,
+    ) -> discord.PartialEmoji:
+        """Create a discord.PartialEmoji object from the given emoji input."""
+        return create_emoji_object(emoji_input)

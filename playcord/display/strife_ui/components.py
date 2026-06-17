@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import discord
 
@@ -17,15 +17,15 @@ class StrifeButton(discord.ui.Button):
     """A styled Button that requires an emoji."""
 
     def __init__(  # noqa: PLR0913
-            self,
-            *,
-            label: str,
-            emoji: str | int | discord.Emoji | discord.PartialEmoji,
-            style: discord.ButtonStyle = discord.ButtonStyle.secondary,
-            custom_id: str | None = None,
-            disabled: bool = False,
-            callback: Callable[[discord.Interaction], Any] | None = None,
-            **kwargs: Any,  # noqa: ANN401
+        self,
+        *,
+        label: str,
+        emoji: str | int | discord.Emoji | discord.PartialEmoji,
+        style: discord.ButtonStyle = discord.ButtonStyle.secondary,
+        custom_id: str | None = None,
+        disabled: bool = False,
+        callback: Callable[[discord.Interaction], Any] | None = None,
+        **kwargs: Any,  # noqa: ANN401
     ) -> None:
         """
         Initialize a StrifeButton.
@@ -65,13 +65,13 @@ class StrifeSelectOption:
     """Dataclass representing a standard option in a StrifeDropdown."""
 
     def __init__(
-            self,
-            label: str,
-            value: str,
-            emoji: str | int | discord.Emoji | discord.PartialEmoji,
-            description: str | None = None,
-            *,
-            default: bool = False,
+        self,
+        label: str,
+        value: str,
+        emoji: str | int | discord.Emoji | discord.PartialEmoji,
+        description: str | None = None,
+        *,
+        default: bool = False,
     ) -> None:
         """
         Initialize a StrifeSelectOption.
@@ -102,18 +102,18 @@ class StrifeDropdown(discord.ui.Select):
     """A styled Select Menu that supports categories and required emojis."""
 
     def __init__(  # noqa: PLR0913
-            self,
-            *,
-            description: str,
-            options: Sequence[StrifeSelectOption | StrifeSelectCategory],
-            placeholder: str = "Select an option...",
-            emoji: str | int | discord.Emoji | discord.PartialEmoji | None = None,
-            custom_id: str | None = None,
-            min_values: int = 1,
-            max_values: int = 1,
-            disabled: bool = False,
-            callback: Callable[[discord.Interaction, str], Any] | None = None,
-            **kwargs: Any,  # noqa: ANN401
+        self,
+        *,
+        description: str,
+        options: Sequence[StrifeSelectOption | StrifeSelectCategory],
+        placeholder: str = "Select an option...",
+        emoji: str | int | discord.Emoji | discord.PartialEmoji | None = None,
+        custom_id: str | None = None,
+        min_values: int = 1,
+        max_values: int = 1,
+        disabled: bool = False,
+        callback: Callable[[discord.Interaction, str], Any] | None = None,
+        **kwargs: Any,  # noqa: ANN401
     ) -> None:
         """
         Initialize a StrifeDropdown.
@@ -193,3 +193,24 @@ class StrifeDropdown(discord.ui.Select):
         """Handle valid option selections. Subclasses can override this."""
         if self._user_callback:
             await self._user_callback(interaction, value)
+
+
+class StrifeContainer(discord.ui.Container):
+    """A Container that automatically wraps interactive components in ActionRows."""
+
+    def add_item(self, item: discord.ui.Item) -> None:
+        """Add an item to the container, wrapping Buttons/Selects in ActionRows."""
+        if isinstance(item, (discord.ui.Button, discord.ui.Select)):
+            if isinstance(item, discord.ui.Select):
+                row = discord.ui.ActionRow(item)
+                super().add_item(row)
+            else:
+                last_item = self.children[-1] if self.children else None
+                is_row = isinstance(last_item, discord.ui.ActionRow)
+                if is_row and len(last_item.children) < 5:  # noqa: PLR2004
+                    last_item.add_item(item)
+                else:
+                    row = discord.ui.ActionRow(item)
+                    super().add_item(row)
+        else:
+            super().add_item(item)

@@ -1,1 +1,89 @@
 # Purpose: emoji name-to-id mapping used by the strife_ui emoji resolver.
+emojis:
+  user:
+    id: 1516918630485463273
+    animated: false
+  timer:
+    id: 1516918629575299252
+    animated: false
+  time:
+    id: 1516918628732108900
+    animated: false
+  spectate:
+    id: 1516918628002304010
+    animated: false
+  space:
+    id: 1516918626773500045
+    animated: false
+  settings:
+    id: 1516918625544437880
+    animated: false
+  rematch:
+    id: 1516918624483541052
+    animated: false
+  ready:
+    id: 1516918623677976607
+    animated: false
+  previous:
+    id: 1516918622650368001
+    animated: false
+  pointing:
+    id: 1516918620872249465
+    animated: false
+  playcord:
+    id: 1516918618766446733
+    animated: false
+  next:
+    id: 1516918617558618285
+    animated: false
+  loading:
+    id: 1516918616963022951
+    animated: true
+  leave:
+    id: 1516918615679569920
+    animated: false
+  last:
+    id: 1516918614966538272
+    animated: false
+  kick:
+    id: 1516918613741932826
+    animated: false
+  join:
+    id: 1516918612290699327
+    animated: false
+  hnn:
+    id: 1516918611292196984
+    animated: false
+  hmm:
+    id: 1516918609979510814
+    animated: false
+  github:
+    id: 1516918608662495242
+    animated: false
+  game_mafia:
+    id: 1516918607601205258
+    animated: false
+  forward:
+    id: 1516918606426804234
+    animated: false
+  first:
+    id: 1516918605286084759
+    animated: false
+  facepalm:
+    id: 1516918604489031830
+    animated: true
+  explosion:
+    id: 1516918603591450755
+    animated: true
+  ban:
+    id: 1516918600261304391
+    animated: false
+  clueless:
+    id: 1516918601142108341
+    animated: false
+  creator:
+    id: 1516918601930768534
+    animated: false
+  error:
+    id: 1516918602635149362
+    animated: false

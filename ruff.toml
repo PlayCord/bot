@@ -27,5 +27,23 @@ ignore = [
     "ISC001", # single-line-implicit-string-concatenation
     "ISC002", # multi-line-implicit-string-concatenation
 
-
 ]
+
+[lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "PLR2004", "D103", "D102", "D107", "PLC0415"]
+"scripts/run_preview_bot.py" = ["S105", "E501"]
+"playcord/display/views/**/*.py" = [
+    "C901",
+    "D101",
+    "D102",
+    "D107",
+    "D401",
+    "FBT001",
+    "FBT002",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "PLR2004",
+]
+
+

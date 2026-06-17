@@ -1,1 +1,5 @@
-"""Top-level ``Database`` facade aggregating repositories over a shared connection pool."""
+"""
+Top-level ``Database`` facade.
+
+Aggregates repositories over a shared connection pool.
+"""

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from playcord.display.strife_ui.components import (
     StrifeButton,
+    StrifeContainer,
     StrifeDropdown,
     StrifeSelectCategory,
     StrifeSelectOption,
@@ -31,6 +32,7 @@ from playcord.display.strife_ui.screens import StrifeNavigator, StrifeScreen
 
 __all__ = [
     "StrifeButton",
+    "StrifeContainer",
     "StrifeDropdown",
     "StrifeListItem",
     "StrifeNavigator",

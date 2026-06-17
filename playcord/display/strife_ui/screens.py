@@ -7,7 +7,11 @@ from typing import Any
 
 import discord
 
-from playcord.display.strife_ui.components import StrifeButton, StrifeDropdown
+from playcord.display.strife_ui.components import (
+    StrifeButton,
+    StrifeContainer,
+    StrifeDropdown,
+)
 from playcord.display.strife_ui.emojis import get_emoji_manager, resolve_emoji_string
 from playcord.display.strife_ui.routing import StrifeView
 
@@ -18,15 +22,14 @@ class StrifeScreen:
     """Represents a single UI screen state."""
 
     def __init__(  # noqa: PLR0913
-            self,
-            *,
-            title: str,
-            emoji: str | int | discord.Emoji | discord.PartialEmoji,
-            description: str = "",
-            embed: discord.Embed | None = None,
-            items: list[discord.ui.Item] | None = None,
-            ephemeral: bool = False,
-            disable_back: bool = False,
+        self,
+        *,
+        title: str,
+        emoji: str | int | discord.Emoji | discord.PartialEmoji,
+        description: str = "",
+        items: list[discord.ui.Item] | None = None,
+        ephemeral: bool = False,
+        disable_back: bool = False,
     ) -> None:
         """
         Initialize a StrifeScreen.
@@ -42,7 +45,6 @@ class StrifeScreen:
         self.title = title.strip()
         self.emoji = emoji
         self.description = description.strip()
-        self.embed = embed
         self.items = items or []
         self.ephemeral = ephemeral
         self.disable_back = disable_back
@@ -52,13 +54,13 @@ class StrifeNavigator(StrifeView):
     """A StrifeView that manages a stack of StrifeScreens with breadcrumbs."""
 
     def __init__(
-            self,
-            root_screen: StrifeScreen,
-            *,
-            user_id: int | None = None,
-            interaction_id: str | None = None,
-            timeout: float | None = 180.0,
-            **kwargs: Any,  # noqa: ANN401
+        self,
+        root_screen: StrifeScreen,
+        *,
+        user_id: int | None = None,
+        interaction_id: str | None = None,
+        timeout: float | None = 180.0,
+        **kwargs: Any,  # noqa: ANN401
     ) -> None:
         """Initialize a StrifeNavigator."""
         super().__init__(interaction_id=interaction_id, timeout=timeout, **kwargs)
@@ -83,25 +85,8 @@ class StrifeNavigator(StrifeView):
 
     def get_current_payload(self) -> dict[str, Any]:
         """Compile the Discord message payload for the current screen."""
-        current_screen = self.screen_stack[-1]
-        breadcrumb = self.get_breadcrumb_header()
-
-        # Build dropdown subtext descriptions using a list comprehension
-        dropdown_subtexts = [
-            f"-# {child.description_text}"
-            for child in self.walk_children()
-            if isinstance(child, StrifeDropdown) and child.description_text
-        ]
-
-        content_parts: list[str] = [breadcrumb]
-        if current_screen.description:
-            content_parts.append(current_screen.description)
-        if dropdown_subtexts:
-            content_parts.append("\n".join(dropdown_subtexts))
-
         return {
-            "content": "\n\n".join(content_parts),
-            "embed": current_screen.embed,
+            "content": "",
             "view": self,
         }
 
@@ -113,7 +98,25 @@ class StrifeNavigator(StrifeView):
         is_nested = len(self.screen_stack) > 1
         no_back = current_screen.disable_back or current_screen.ephemeral
 
-        container = discord.ui.Container()
+        container = StrifeContainer()
+
+        # Build V2 header text combining breadcrumbs, description, and subtexts
+        breadcrumb = self.get_breadcrumb_header()
+        dropdown_subtexts = [
+            f"-# {child.description_text}"
+            for child in self.walk_children()
+            if isinstance(child, StrifeDropdown) and child.description_text
+        ]
+
+        header_parts: list[str] = [breadcrumb]
+        if current_screen.description:
+            header_parts.append(current_screen.description)
+        if dropdown_subtexts:
+            header_parts.append("\n".join(dropdown_subtexts))
+
+        header_text = "\n\n".join(header_parts)
+        container.add_item(discord.ui.TextDisplay(header_text))
+        container.add_item(discord.ui.Separator())
 
         if is_nested and not no_back:
             back_emoji = "⬅️"
@@ -149,7 +152,7 @@ class StrifeNavigator(StrifeView):
                 await interaction.message.edit(**payload)
 
     async def transition_to(
-            self, interaction: discord.Interaction, screen: StrifeScreen
+        self, interaction: discord.Interaction, screen: StrifeScreen
     ) -> None:
         """Transition to a new screen. Spawns ephemeral message if flagged."""
         if screen.ephemeral:

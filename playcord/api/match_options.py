@@ -1,1 +1,5 @@
-"""``MatchOptionSpec``: lobby-time, game-configurable option metadata shown before start."""
+"""
+``MatchOptionSpec``: lobby-time, game-configurable option metadata.
+
+Shown before start.
+"""

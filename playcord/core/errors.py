@@ -1,1 +1,5 @@
-"""Domain-level exception hierarchy (e.g. ``ConfigurationError``) used across the app."""
+"""
+Domain-level exception hierarchy.
+
+For example, ``ConfigurationError``, used across the app.
+"""

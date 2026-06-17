@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import discord
 
-from playcord.display.strife_ui.components import StrifeButton
+from playcord.display.strife_ui.components import StrifeButton, StrifeContainer
 from playcord.display.strife_ui.emojis import get_emoji_manager, resolve_emoji_string
 from playcord.display.strife_ui.routing import StrifeView
 
@@ -18,13 +18,13 @@ class StrifePageScrubModal(discord.ui.Modal):
     """Modal dialog for scrubbing directly to a specific page number."""
 
     def __init__(
-            self,
-            *,
-            current_page: int,
-            max_pages: int,
-            callback_handler: Callable[[discord.Interaction, int], Any],
-            title: str = "Go to Page",
-            label: str | None = None,
+        self,
+        *,
+        current_page: int,
+        max_pages: int,
+        callback_handler: Callable[[discord.Interaction, int], Any],
+        title: str = "Go to Page",
+        label: str | None = None,
     ) -> None:
         """Initialize a StrifePageScrubModal."""
         super().__init__(title=title)
@@ -58,19 +58,19 @@ class StrifePageScrubModal(discord.ui.Modal):
 
 
 def build_pagination_row(  # noqa: PLR0913
-        *,
-        current_page: int,
-        max_pages: int,
-        first_callback: Callable[[discord.Interaction], Any],
-        prev_callback: Callable[[discord.Interaction], Any],
-        page_callback: Callable[[discord.Interaction], Any],
-        next_callback: Callable[[discord.Interaction], Any],
-        last_callback: Callable[[discord.Interaction], Any],
-        first_emoji: Any = None,  # noqa: ANN401
-        prev_emoji: Any = None,  # noqa: ANN401
-        page_emoji: Any = None,  # noqa: ANN401
-        next_emoji: Any = None,  # noqa: ANN401
-        last_emoji: Any = None,  # noqa: ANN401
+    *,
+    current_page: int,
+    max_pages: int,
+    first_callback: Callable[[discord.Interaction], Any],
+    prev_callback: Callable[[discord.Interaction], Any],
+    page_callback: Callable[[discord.Interaction], Any],
+    next_callback: Callable[[discord.Interaction], Any],
+    last_callback: Callable[[discord.Interaction], Any],
+    first_emoji: Any = None,  # noqa: ANN401
+    prev_emoji: Any = None,  # noqa: ANN401
+    page_emoji: Any = None,  # noqa: ANN401
+    next_emoji: Any = None,  # noqa: ANN401
+    last_emoji: Any = None,  # noqa: ANN401
 ) -> discord.ui.ActionRow:
     """Build a Components v2 ActionRow populated with 5 pagination buttons."""
     # Resolve emojis with fallback values
@@ -147,21 +147,20 @@ class StrifePaginationView(StrifeView):
     """A StrifeView that manages pagination navigation using Components v2."""
 
     def __init__(  # noqa: PLR0913
-            self,
-            *,
-            current_page: int,
-            max_pages: int,
-            callback_handler: Callable[[discord.Interaction, int], Any],
-            user_id: int | None = None,
-            body_text: str | None = None,
-            embed: discord.Embed | None = None,
-            first_emoji: Any = None,  # noqa: ANN401
-            prev_emoji: Any = None,  # noqa: ANN401
-            page_emoji: Any = None,  # noqa: ANN401
-            next_emoji: Any = None,  # noqa: ANN401
-            last_emoji: Any = None,  # noqa: ANN401
-            timeout: float | None = 180.0,
-            **kwargs: Any,  # noqa: ANN401
+        self,
+        *,
+        current_page: int,
+        max_pages: int,
+        callback_handler: Callable[[discord.Interaction, int], Any],
+        user_id: int | None = None,
+        body_text: str | None = None,
+        first_emoji: Any = None,  # noqa: ANN401
+        prev_emoji: Any = None,  # noqa: ANN401
+        page_emoji: Any = None,  # noqa: ANN401
+        next_emoji: Any = None,  # noqa: ANN401
+        last_emoji: Any = None,  # noqa: ANN401
+        timeout: float | None = 180.0,
+        **kwargs: Any,  # noqa: ANN401
     ) -> None:
         """Initialize a StrifePaginationView."""
         super().__init__(timeout=timeout, **kwargs)
@@ -170,7 +169,6 @@ class StrifePaginationView(StrifeView):
         self.callback_handler = callback_handler
         self.user_id = user_id
         self.body_text = body_text
-        self.embed = embed
 
         self.first_emoji = first_emoji
         self.prev_emoji = prev_emoji
@@ -183,6 +181,15 @@ class StrifePaginationView(StrifeView):
     def rebuild_layout(self) -> None:
         """Construct the view layout using ContainerClass if available."""
         self.clear_items()
+
+        container = StrifeContainer()
+        has_content = False
+
+        if self.body_text:
+            body_clean = self.body_text.strip()
+            if body_clean:
+                container.add_item(discord.ui.TextDisplay(body_clean))
+                has_content = True
 
         # Build pagination action row
         p_row = build_pagination_row(
@@ -200,15 +207,16 @@ class StrifePaginationView(StrifeView):
             last_emoji=self.last_emoji,
         )
 
-        container = discord.ui.Container()
+        if has_content:
+            container.add_item(discord.ui.Separator())
+
         container.add_item(p_row)
         self.add_item(container)
 
     def get_current_payload(self) -> dict[str, Any]:
         """Compile the Discord message payload for the current pagination state."""
         return {
-            "content": self.body_text or "",
-            "embed": self.embed,
+            "content": "",
             "view": self,
         }
 
@@ -235,7 +243,7 @@ class StrifePaginationView(StrifeView):
         await interaction.response.send_modal(modal)
 
     async def _modal_callback_handler(
-            self, interaction: discord.Interaction, page: int
+        self, interaction: discord.Interaction, page: int
     ) -> None:
         # Modal handles the defer/edit inside on_submit, we just update local state
         await self._navigate_to(interaction, page)
