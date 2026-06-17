@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import TYPE_CHECKING, Any, ClassVar, Self
+from typing import Any, ClassVar, Self, TYPE_CHECKING
 
 import discord
 
 if TYPE_CHECKING:
-    from strife_ui.routing import StrifeView
+    pass
 
 logger = logging.getLogger("strife_ui.routing")
 
@@ -46,7 +46,7 @@ def generate_interaction_id(prefix: str = "strife") -> str:
 
 
 async def handle_invalid_interaction(
-    interaction: discord.Interaction, view: discord.ui.View
+        interaction: discord.Interaction, view: discord.ui.View
 ) -> None:
     """Disable view components, edit the message, and send an ephemeral error."""
     # Disable all walked components (supporting layout containers)
@@ -78,7 +78,7 @@ async def handle_invalid_interaction(
 
 
 async def _disable_stale_message_on_interaction(
-    interaction: discord.Interaction, message: discord.Message
+        interaction: discord.Interaction, message: discord.Message
 ) -> None:
     """Reconstruct and disable components on a stale message."""
     try:
@@ -170,11 +170,11 @@ class StrifeView(discord.ui.LayoutView):
     """Base View class that automatically routes and validates custom_ids."""
 
     def __init__(
-        self,
-        *args: Any,  # noqa: ANN401
-        interaction_id: str | None = None,
-        timeout: float | None = 180.0,
-        **kwargs: Any,  # noqa: ANN401
+            self,
+            *args: Any,  # noqa: ANN401
+            interaction_id: str | None = None,
+            timeout: float | None = 180.0,
+            **kwargs: Any,  # noqa: ANN401
     ) -> None:
         """Initialize a StrifeView with session validation routing."""
         super().__init__(*args, timeout=timeout, **kwargs)

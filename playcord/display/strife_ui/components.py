@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import Any, TYPE_CHECKING
 
 import discord
 
-from strife_ui.emojis import resolve_emoji, resolve_emoji_string
+from playcord.display.strife_ui.emojis import resolve_emoji, resolve_emoji_string
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -17,15 +17,15 @@ class StrifeButton(discord.ui.Button):
     """A styled Button that requires an emoji."""
 
     def __init__(  # noqa: PLR0913
-        self,
-        *,
-        label: str,
-        emoji: str | int | discord.Emoji | discord.PartialEmoji,
-        style: discord.ButtonStyle = discord.ButtonStyle.secondary,
-        custom_id: str | None = None,
-        disabled: bool = False,
-        callback: Callable[[discord.Interaction], Any] | None = None,
-        **kwargs: Any,  # noqa: ANN401
+            self,
+            *,
+            label: str,
+            emoji: str | int | discord.Emoji | discord.PartialEmoji,
+            style: discord.ButtonStyle = discord.ButtonStyle.secondary,
+            custom_id: str | None = None,
+            disabled: bool = False,
+            callback: Callable[[discord.Interaction], Any] | None = None,
+            **kwargs: Any,  # noqa: ANN401
     ) -> None:
         """
         Initialize a StrifeButton.
@@ -65,13 +65,13 @@ class StrifeSelectOption:
     """Dataclass representing a standard option in a StrifeDropdown."""
 
     def __init__(
-        self,
-        label: str,
-        value: str,
-        emoji: str | int | discord.Emoji | discord.PartialEmoji,
-        description: str | None = None,
-        *,
-        default: bool = False,
+            self,
+            label: str,
+            value: str,
+            emoji: str | int | discord.Emoji | discord.PartialEmoji,
+            description: str | None = None,
+            *,
+            default: bool = False,
     ) -> None:
         """
         Initialize a StrifeSelectOption.
@@ -102,18 +102,18 @@ class StrifeDropdown(discord.ui.Select):
     """A styled Select Menu that supports categories and required emojis."""
 
     def __init__(  # noqa: PLR0913
-        self,
-        *,
-        description: str,
-        options: Sequence[StrifeSelectOption | StrifeSelectCategory],
-        placeholder: str = "Select an option...",
-        emoji: str | int | discord.Emoji | discord.PartialEmoji | None = None,
-        custom_id: str | None = None,
-        min_values: int = 1,
-        max_values: int = 1,
-        disabled: bool = False,
-        callback: Callable[[discord.Interaction, str], Any] | None = None,
-        **kwargs: Any,  # noqa: ANN401
+            self,
+            *,
+            description: str,
+            options: Sequence[StrifeSelectOption | StrifeSelectCategory],
+            placeholder: str = "Select an option...",
+            emoji: str | int | discord.Emoji | discord.PartialEmoji | None = None,
+            custom_id: str | None = None,
+            min_values: int = 1,
+            max_values: int = 1,
+            disabled: bool = False,
+            callback: Callable[[discord.Interaction, str], Any] | None = None,
+            **kwargs: Any,  # noqa: ANN401
     ) -> None:
         """
         Initialize a StrifeDropdown.

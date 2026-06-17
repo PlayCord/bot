@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from strife_ui.emojis import resolve_emoji_string
+from playcord.display.strife_ui.emojis import resolve_emoji_string
 
 if TYPE_CHECKING:
     import discord
@@ -14,11 +14,11 @@ class StrifeListItem:
     """Represents an item in an indented strife list display."""
 
     def __init__(
-        self,
-        *,
-        title: str,
-        emoji: str | int | discord.Emoji | discord.PartialEmoji,
-        details: list[str] | None = None,
+            self,
+            *,
+            title: str,
+            emoji: str | int | discord.Emoji | discord.PartialEmoji,
+            details: list[str] | None = None,
     ) -> None:
         """
         Initialize a StrifeListItem.
@@ -37,9 +37,9 @@ class StrifeListItem:
 
 
 def format_list_items(
-    items: list[StrifeListItem],
-    *,
-    space_emoji: str | int | discord.Emoji | discord.PartialEmoji,
+        items: list[StrifeListItem],
+        *,
+        space_emoji: str | int | discord.Emoji | discord.PartialEmoji,
 ) -> str:
     """
     Format a list of StrifeListItems into an indented, professional display.

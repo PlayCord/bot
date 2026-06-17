@@ -2,32 +2,32 @@
 
 from __future__ import annotations
 
-from strife_ui.components import (
+from playcord.display.strife_ui.components import (
     StrifeButton,
     StrifeDropdown,
     StrifeSelectCategory,
     StrifeSelectOption,
 )
-from strife_ui.emojis import (
+from playcord.display.strife_ui.emojis import (
     get_emoji_manager,
     resolve_emoji,
     resolve_emoji_string,
     set_emoji_cache_path,
 )
-from strife_ui.formatting import StrifeListItem, format_list_items
-from strife_ui.pagination import (
+from playcord.display.strife_ui.formatting import StrifeListItem, format_list_items
+from playcord.display.strife_ui.pagination import (
     StrifePageScrubModal,
     StrifePaginationView,
     build_pagination_row,
 )
-from strife_ui.routing import (
+from playcord.display.strife_ui.routing import (
     StrifeRegistry,
     StrifeView,
     check_strife_interaction,
     generate_interaction_id,
     setup_strife_middleware,
 )
-from strife_ui.screens import StrifeNavigator, StrifeScreen
+from playcord.display.strife_ui.screens import StrifeNavigator, StrifeScreen
 
 __all__ = [
     "StrifeButton",

@@ -7,9 +7,9 @@ from typing import Any
 
 import discord
 
-from strife_ui.components import StrifeButton, StrifeDropdown
-from strife_ui.emojis import get_emoji_manager, resolve_emoji_string
-from strife_ui.routing import StrifeView
+from playcord.display.strife_ui.components import StrifeButton, StrifeDropdown
+from playcord.display.strife_ui.emojis import get_emoji_manager, resolve_emoji_string
+from playcord.display.strife_ui.routing import StrifeView
 
 logger = logging.getLogger("strife_ui.screens")
 
@@ -18,15 +18,15 @@ class StrifeScreen:
     """Represents a single UI screen state."""
 
     def __init__(  # noqa: PLR0913
-        self,
-        *,
-        title: str,
-        emoji: str | int | discord.Emoji | discord.PartialEmoji,
-        description: str = "",
-        embed: discord.Embed | None = None,
-        items: list[discord.ui.Item] | None = None,
-        ephemeral: bool = False,
-        disable_back: bool = False,
+            self,
+            *,
+            title: str,
+            emoji: str | int | discord.Emoji | discord.PartialEmoji,
+            description: str = "",
+            embed: discord.Embed | None = None,
+            items: list[discord.ui.Item] | None = None,
+            ephemeral: bool = False,
+            disable_back: bool = False,
     ) -> None:
         """
         Initialize a StrifeScreen.
@@ -52,13 +52,13 @@ class StrifeNavigator(StrifeView):
     """A StrifeView that manages a stack of StrifeScreens with breadcrumbs."""
 
     def __init__(
-        self,
-        root_screen: StrifeScreen,
-        *,
-        user_id: int | None = None,
-        interaction_id: str | None = None,
-        timeout: float | None = 180.0,
-        **kwargs: Any,  # noqa: ANN401
+            self,
+            root_screen: StrifeScreen,
+            *,
+            user_id: int | None = None,
+            interaction_id: str | None = None,
+            timeout: float | None = 180.0,
+            **kwargs: Any,  # noqa: ANN401
     ) -> None:
         """Initialize a StrifeNavigator."""
         super().__init__(interaction_id=interaction_id, timeout=timeout, **kwargs)
@@ -149,7 +149,7 @@ class StrifeNavigator(StrifeView):
                 await interaction.message.edit(**payload)
 
     async def transition_to(
-        self, interaction: discord.Interaction, screen: StrifeScreen
+            self, interaction: discord.Interaction, screen: StrifeScreen
     ) -> None:
         """Transition to a new screen. Spawns ephemeral message if flagged."""
         if screen.ephemeral:
