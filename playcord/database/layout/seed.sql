@@ -1,0 +1,1 @@
+-- Purpose: seed data inserted on a fresh database (defaults, reference rows).

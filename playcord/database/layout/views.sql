@@ -1,0 +1,1 @@
+-- Purpose: SQL views providing derived/aggregated read models.

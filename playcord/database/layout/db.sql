@@ -1,0 +1,1 @@
+-- Purpose: canonical schema DDL (tables, indexes, constraints) for the PlayCord database.
