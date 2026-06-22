@@ -1,3 +1,8 @@
+> [!WARNING]
+> I'm trying again to build a discord bot to solve this niche with [Strife](https://github.com/quantumbagel/Strife)
+> I'm also going to stop work on this project as a result.
+
+
 <div align="center">
 
   <h1>
